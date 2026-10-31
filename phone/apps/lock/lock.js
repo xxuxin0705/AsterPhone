@@ -184,9 +184,8 @@ function buildPin() {
   pinTitle = h('div.as-pin__title', '输入密码'); pinHint = h('div.as-pin__hint');
   dots = h('div.as-lock-pin-dots');
   const keypad = h('div.as-lock-keypad');
-  const ABC = { 2: 'ABC', 3: 'DEF', 4: 'GHI', 5: 'JKL', 6: 'MNO', 7: 'PQRS', 8: 'TUV', 9: 'WXYZ' };
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''].forEach(k =>
-    keypad.appendChild(k ? h('button.as-key', { 'aria-label': k, onclick: () => key(k) }, h('b', k), h('small', ABC[k] || '')) : h('span')));
+    keypad.appendChild(k ? h('button.as-key', { 'aria-label': k, onclick: () => key(k) }, h('b', k)) : h('span')));
   pinForgot = h('button.as-textbtn.as-pin__bar-btn', { onclick: forgot }, '忘记密码');
   // 设置模式下：左边换成「改用 4 / 6 位」
   pinOpt = h('button.as-textbtn.as-pin__bar-btn', { hidden: true, onclick: () => { if (!setup) return; setup.digits = setup.digits === 6 ? 4 : 6; setup.first = null; entry = ''; pinStep(); } });
@@ -296,7 +295,9 @@ function forgot() { backupMode = true; entry = ''; renderDots(); pinTitle.textCo
 export function setupSecret(method) {
   if (setup) endSetup(false);
   return new Promise(done => {
-    setup = { method, digits: state.settings.lock.digits === 4 ? 4 : 6, first: null, done };
+    setup = { method, digits: (state.settings.lock.pin || '').length === 6 ? 6 : 4, first: null, done };
+    // 设置时也是锁屏的样子：藏起设置页，换成锁屏壁纸
+    shell.phone.classList.add('is-locksetup'); shell.showWall && shell.showWall('lock');
     if (method === 'pin') {
       entry = ''; backupMode = false; pinForgot.hidden = true; pinStep();
       pinEl.classList.add('is-open'); pinEl.setAttribute('aria-hidden', 'false');
@@ -308,6 +309,7 @@ export function setupSecret(method) {
 }
 function endSetup(ok) {
   const s0 = setup; setup = null; if (!s0) return;
+  shell.phone.classList.remove('is-locksetup'); shell.showWall && shell.showWall(locked ? 'lock' : 'home');
   pinEl.classList.remove('is-open'); pinEl.setAttribute('aria-hidden', 'true');
   patEl.classList.remove('is-open'); patEl.setAttribute('aria-hidden', 'true');
   entry = ''; syncFoot();
@@ -317,6 +319,6 @@ function endSetup(ok) {
 
 /** 酒馆扩展面板里的「重置锁屏」 */
 export function resetLock() {
-  state.settings.lock = { enabled: false, method: 'none', pin: '', digits: 6, pattern: '' }; commit('lock');
+  state.settings.lock = { enabled: false, method: 'none', pin: '', digits: 4, pattern: '' }; commit('lock');
   syncFoot(); if (locked) unlock(null);
 }

@@ -196,7 +196,7 @@ async function boot() {
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });
   Object.assign(shell, {
     phone, wallpaper, openApp, close: closePhone, applyLook, setNight: (n, el) => setNight(n, el), notify,
-    lockNow: () => onVisible(false), refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
+    lockNow: () => onVisible(false), showWall, refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
     wantNight, activeChat: null, inDnd,
   });
   phone.dataset.mode = wantNight() ? 'night' : 'day';
