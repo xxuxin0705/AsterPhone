@@ -750,12 +750,27 @@ export function openBoard({ list }) {
   }
   function retrySheet() {
     const R = C().retry;
+    // 聊天线断了改用副 API：默认关；打开时要先选好副 API 是哪个，选了才显示是哪个
+    const bkOf = () => C().text.find(c => c.id === R.backup);
+    const bkName = h('span', (bkOf() || {}).name || '');
+    const bkRow = h('div.as-pbd__row', { hidden: !(R.fallback && bkOf()) }, h('span.as-pbd__label', '副 API'), h('button.as-pbd__select', { onclick: () => pickBk() }, bkName, icon('chevron', 14, 2)));
+    const sw = switchEl(!!(R.fallback && bkOf()), async v => {
+      if (v && !(await pickBk())) { sw.click(); return; }   // 没选副 API：拨回关
+      R.fallback = v; commit('connections'); bkRow.hidden = !v;
+    }, '聊天线断了改用副 API');
+    const pickBk = async () => {
+      const opts = C().text.filter(c => c.id !== C().defaults.text).map(c => ({ value: c.id, label: c.name, active: c.id === R.backup }));
+      if (!opts.length) { toast('先添加一个别的文字接口'); return false; }
+      const v = await actionSheet('副 API', opts); if (!v) return false;
+      R.backup = v; commit('connections'); bkName.textContent = bkOf().name;
+      return true;
+    };
+    const fbRow = h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用副 API'), sw);
     const box = h('div.as-pbd__wrap',
       h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '失败了自动重试'), switchEl(R.on, v => { R.on = v; commit('connections'); }, '失败自动重试')),
       h('div.as-pbd__row', h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(R.max || 1), v => { R.max = +v; commit('connections'); }))),
       h('p.as-pbd__hint', '付费接口按字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
-      h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用酒馆当前连接'), switchEl(R.fallback, v => { R.fallback = v; commit('connections'); }, '聊天线断了改用酒馆当前连接')),
-      h('p.as-pbd__hint', '只在酒馆里有用：你插的接口连不上时，这一次先借酒馆正在用的连接回复。'));
+      fbRow, bkRow);
     sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
   }
   function schemes() {

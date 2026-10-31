@@ -70,7 +70,7 @@ const isRetryErr = m => /^(408|409|425|429|5\d\d)\b/.test(m) || /连不上|Faile
 
 /**
  * 生成文字。返回字符串。
- * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用「杂活」接口。
+ * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用选好的副 API。
  */
 export async function generate(opts) {
   const { conn, app = '聊天' } = opts;
@@ -81,12 +81,11 @@ export async function generate(opts) {
     try { return await generateOnce(opts); }
     catch (e) { last = e; if (!isRetryErr(e.message) || t === tries - 1) break; log('warn', app, `第 ${t + 1} 次失败，${t + 1 < tries ? '再试一次' : ''}：${e.message}`); await sleep(800 * (t + 1)); }
   }
-  // 聊天线断了 → 改插杂活接口（只换一次，不来回换）
-  // 聊天线断了 → 改用「酒馆当前连接」（只换一次）
-  const tv = (state.connections.text || []).find(c => c.type === 'tavern');
-  if (R.fallback && !opts.noFallback && tv && tv.id !== conn.id && inTavern()) {
-    log('warn', app, `「${conn.name}」连不上，改用酒馆当前连接`);
-    return generateOnce({ ...opts, conn: tv, noFallback: true });
+  // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
+  const bk = R.fallback && (state.connections.text || []).find(c => c.id === R.backup);
+  if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
+    log('warn', app, `「${conn.name}」连不上，改用副 API「${bk.name}」`);
+    return generateOnce({ ...opts, conn: bk, noFallback: true });
   }
   throw last;
 }

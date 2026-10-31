@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.29';
+export const VERSION = '0.6.30';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -80,10 +80,11 @@ export function open() {
 
 /* ================= 连接 ================= */
 let connKind = 'text';
-/** 连接首页：插线板（拎线插接口）；右上角菜单里可以切到老的列表模式 */
+/** 连接首页：插线板模式（拎线插接口）或列表模式，选过哪个以后进来就是哪个 */
 async function openConnections() {
+  if (S().connView === 'list') return openConnList();
   const { openBoard } = await import('./board.js');
-  openBoard({ list: openConnList });
+  openBoard({ list: () => { S().connView = 'list'; commit('settings'); nav.pop(); openConnList(); } });
 }
 function openConnList() {
   sub('connections', '连接 · 列表', (body, re) => {
@@ -98,7 +99,10 @@ function openConnList() {
       return el;
     }), '打勾的是全局默认。各个 App、各个聊天还能单独指定。'));
     body.appendChild(btn('新建连接', 'secondary', () => editConn(null), { style: { width: '100%' } }));
-  }, { right: navBtn('plus', '新建连接', () => editConn(null)) });
+  }, { right: [navBtn('more', '更多', async () => {
+    if (await actionSheet('连接', [{ value: 'board', label: '插线板模式' }]) !== 'board') return;
+    S().connView = ''; commit('settings'); nav.pop(); openConnections();
+  }), navBtn('plus', '新建连接', () => editConn(null))] });
 }
 function editConn(existing) {
   const kind = connKind;
