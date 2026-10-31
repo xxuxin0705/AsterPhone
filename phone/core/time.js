@@ -16,17 +16,27 @@ export function story() {
   const st = state.settings.storyTime;
   const total = st.minutes + Math.floor((Date.now() - st.at) / 60000);
   const day = st.day + Math.floor(total / 1440), min = ((total % 1440) + 1440) % 1440;
-  const base = parseYmd(st.date);
-  const date = base ? new Date(base.getFullYear(), base.getMonth(), base.getDate() + (day - st.day)) : null;
-  return { day, min, hh: Math.floor(min / 60), mm: min % 60, date, place: st.place || '' };
+  return { day, min, hh: Math.floor(min / 60), mm: min % 60, date: dayToDate(day), place: st.place || '' };
 }
+/** 剧情里「第几天」只是内部记账用；界面和给 AI 看的都换成年月日。没给过日期就按设定那天的现实日期算 */
+export function dayToDate(d) {
+  const st = state.settings.storyTime, at = new Date(st.at || Date.now());
+  const base = parseYmd(st.date) || new Date(at.getFullYear(), at.getMonth(), at.getDate());
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate() + (d - st.day));
+}
+/** 手动设定剧情时间：给年月日（'2026-11-01'）和时分 */
+export function setStoryDate(date, hh, mm) {
+  const cur = story(), nd = parseYmd(date) || cur.date;
+  setStory(Math.max(1, cur.day + dayDiff(cur.date, nd)), hh, mm, 'manual', ymd(nd));
+}
+const md = d => `${d.getMonth() + 1}月${d.getDate()}日`;
 /** date：'2026-10-31' 这样的字符串，可以不给（只知道第几天） */
 export function setStory(day, hh, mm, src = 'manual', date, place) {
   const old = state.settings.storyTime || {};
   const d = Math.max(1, day | 0);
   // 没给日期就沿用以前的：把旧的「基准日期」平移到新的第几天上
   let keep = date || null;
-  if (!keep && old.date) { const b = parseYmd(old.date); if (b) keep = ymd(new Date(b.getFullYear(), b.getMonth(), b.getDate() + (d - old.day))); }
+  if (!keep && old.day) keep = ymd(dayToDate(d));   // 没给日期：沿用以前算出来的日期，往后推几天
   state.settings.storyTime = { day: d, minutes: (hh | 0) * 60 + (mm | 0), at: Date.now(), src, date: keep, place: place ?? old.place ?? '' };
   commit('time');
 }
@@ -59,7 +69,7 @@ export function now() {
 /** 给 AI 看的时间描述 */
 export function forPrompt() {
   const s = story(), d = new Date();
-  return isStory() ? `剧情第 ${s.day} 天${s.date ? `（${fmtDate(s.date, 'zh')} ${WEEK[s.date.getDay()]}）` : ''} ${pad(s.hh)}:${pad(s.mm)}（${partOfDay(s.hh)}）${s.place ? `，在${s.place}` : ''}`
+  return isStory() ? `${fmtDate(s.date, 'zh')} ${WEEK[s.date.getDay()]} ${pad(s.hh)}:${pad(s.mm)}（${partOfDay(s.hh)}）${s.place ? `，在${s.place}` : ''}`
     : `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}（${partOfDay(d.getHours())}）`;
 }
 /** 存到每条消息上的时间戳：现实 + 剧情各一份 */
@@ -74,7 +84,8 @@ export function sepLabel(msg, prev) {
       if (gap < 5 && gap >= 0) return '';
       if (!(gap >= 0) && Math.abs(msg.at - prev.at) < 5 * 60000) return '';
     }
-    return `第 ${d} 天 ${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+    const hm = `${pad(Math.floor(m / 60))}:${pad(m % 60)}`, cur = story().day;
+    return d === cur ? hm : d === cur - 1 ? '昨天 ' + hm : `${md(dayToDate(d))} ${hm}`;
   }
   if (prev && msg.at - prev.at < 5 * 60000) return '';
   const t = new Date(msg.at), n = new Date();
@@ -90,7 +101,8 @@ export function shortLabel(msg) {
   if (isStory() && msg.st) {
     const s = story();
     if (msg.st.d === s.day) return `${pad(Math.floor(msg.st.m / 60))}:${pad(msg.st.m % 60)}`;
-    return s.day - msg.st.d === 1 ? '昨天' : `第${msg.st.d}天`;
+    if (s.day - msg.st.d === 1) return '昨天';
+    const dd = dayToDate(msg.st.d); return `${dd.getMonth() + 1}/${dd.getDate()}`;
   }
   const t = new Date(msg.at), n = new Date();
   if (t.toDateString() === n.toDateString()) return `${pad(t.getHours())}:${pad(t.getMinutes())}`;

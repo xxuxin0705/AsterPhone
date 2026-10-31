@@ -85,7 +85,7 @@ export async function collectInjection() {
 }
 export function lineOf({ chat, m }) {
   const c = contact(chat.contactId), other = c ? (c.name || c.nick || c.remark) : 'TA', me = myName();
-  const when = time.isStory() && m.st ? `第${m.st.d}天 ${String(Math.floor(m.st.m / 60)).padStart(2, '0')}:${String(m.st.m % 60).padStart(2, '0')}` : new Date(m.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = time.isStory() && m.st ? `${time.fmtDate(time.dayToDate(m.st.d), 'zh')} ${String(Math.floor(m.st.m / 60)).padStart(2, '0')}:${String(m.st.m % 60).padStart(2, '0')}` : new Date(m.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   if (m.from === 'sys') return `（${when}）${m.text}`;
   if (chat.type === 'group') {
     const w = m.from === 'me' ? me : (() => { const p = contact(m.who); return p ? (p.name || p.nick || p.remark) : '某人'; })();

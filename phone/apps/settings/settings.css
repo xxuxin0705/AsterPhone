@@ -92,3 +92,11 @@
 .as-prompt-bar > * { flex: 1; }
 .as-walls-tile--add { display: grid; place-items: center; background: var(--as-color-surface-2); color: var(--as-color-accent); border: 1.5px dashed color-mix(in srgb, var(--as-color-accent) 45%, transparent); }
 .as-walls-tile--add .as-walls-tile__name { color: var(--as-color-accent); background: none; }
+.as-info-head { display: inline-flex; align-items: center; gap: 4px; }
+.as-info-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; background: none; color: var(--as-color-text-2); cursor: pointer; }
+.as-crop { display: grid; justify-items: center; gap: 10px; }
+.as-crop > .as-settings-slider-row, .as-crop > .as-prompt-bar { width: 100%; }
+.as-crop__frame { position: relative; overflow: hidden; border-radius: 22px; background: #111; touch-action: none; cursor: grab; box-shadow: 0 0 0 2px var(--as-color-accent), 0 10px 26px rgba(0,0,0,.25); }
+.as-crop__img { position: absolute; left: 0; top: 0; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.as-ctx-tag__mark { display: none; }
+.as-ctx-tag.is-keep .as-ctx-tag__mark { display: inline-flex; }

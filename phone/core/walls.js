@@ -60,7 +60,8 @@ export async function source(id) {
   const video = b.video ? await loadVideo(b.video).catch(() => null) : null;
   if (!img && !video) return 'castle';
   const w = img ? img.naturalWidth : video.videoWidth, h = img ? img.naturalHeight : video.videoHeight;
-  return { id, img, video, aspect: w && h ? w / h : 9 / 19.5 };
+  const crop = (info(id) || {}).crop || [0, 0, 1, 1];   // 自己调过位置：只显示框住的那一块
+  return { id, img, video, crop, aspect: w && h ? (w * crop[2]) / (h * crop[3]) : 9 / 19.5 };
 }
 
 /* ---------- 添加 / 删除 ---------- */
@@ -81,13 +82,28 @@ function posterOf(file) {
  * 加一批文件：图片 → 普通壁纸；视频 → Live 图（自动截第一帧当封面）。
  * 同一次选了「一张图 + 一个视频」→ 合成一张 Live 图，图片当封面（苹果 Live 图导出来就是这样一对）。
  */
+/** 小米 / 谷歌的「动态照片」是一张 jpg 后面接着一段 mp4：找到 mp4 开头（ftyp）就切出来当 Live 图 */
+async function motionVideo(file) {
+  if (!/jpe?g/i.test(file.type || file.name)) return null;
+  const buf = new Uint8Array(await file.arrayBuffer());
+  for (let i = 1024; i < buf.length - 12; i++) {
+    if (buf[i] === 0x66 && buf[i + 1] === 0x74 && buf[i + 2] === 0x79 && buf[i + 3] === 0x70) {
+      const size = (buf[i - 4] << 24) | (buf[i - 3] << 16) | (buf[i - 2] << 8) | buf[i - 1];
+      if (size >= 8 && size <= 64) return new Blob([buf.subarray(i - 4)], { type: 'video/mp4' });
+    }
+  }
+  return null;
+}
 export async function addFiles(files) {
   files = [...files].filter(f => /^(image|video)\//.test(f.type) || /\.(mov|mp4|webm|m4v|heic|jpe?g|png|webp|gif)$/i.test(f.name));
   const imgs = files.filter(f => !/^video\//.test(f.type) && !/\.(mov|mp4|webm|m4v)$/i.test(f.name));
   const vids = files.filter(f => !imgs.includes(f));
   const pairs = [];
   if (imgs.length === 1 && vids.length === 1) pairs.push({ img: imgs[0], video: vids[0] });
-  else { imgs.forEach(f => pairs.push({ img: f })); vids.forEach(f => pairs.push({ video: f })); }
+  else {
+    for (const f of imgs) pairs.push({ img: f, video: await motionVideo(f).catch(() => null) });
+    vids.forEach(f => pairs.push({ video: f }));
+  }
   const added = [];
   for (const p of pairs) {
     if (p.video && p.video.size > 80 * 1024 * 1024) throw new Error(`「${p.video.name}」太大了（超过 80MB），剪短一点再试`);
@@ -112,4 +128,5 @@ export async function remove(id) {
   await kvDel('wall:' + id).catch(() => {});
   commit('walls');
 }
+export function setCrop(id, crop) { const x = info(id); if (x && !isBuiltin(id)) { x.crop = crop; commit('walls'); } }
 export function rename(id, name) { const x = info(id); if (x && !isBuiltin(id)) { x.name = String(name).slice(0, 20); commit('walls'); } }

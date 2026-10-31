@@ -69,7 +69,7 @@ export function switchEl(on, onChange, label) {
   b.addEventListener('click', e => { e.stopPropagation(); on = !on; b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on)); onChange && onChange(on); });
   return b;
 }
-export function toggleItem(opts, on, onChange) { return item({ ...opts, right: switchEl(on, onChange, opts.title) }); }
+export function toggleItem(opts, on, onChange) { return item({ ...opts, right: switchEl(on, onChange, typeof opts.title === 'string' ? opts.title : opts.title.textContent) }); }
 export function segmented(options, value, onChange, idBase) {
   const wrap = h('div.as-segmented', { role: 'tablist' });
   options.forEach(([v, label]) => {

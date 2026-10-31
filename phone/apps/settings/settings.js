@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.19';
+export const VERSION = '0.6.20';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -204,7 +204,7 @@ function openChatApp() {
           item({ title: '今天已用', value: `${used} 次` })]);
       })() : null,
       group('注入正文', [
-        item({ title: '注入默认表', chevron: true, onClick: openInjectTable }),
+        item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
         field('注入位置', segmented([['chat', '聊天记录里'], ['prompt', '人设卡和世界书附近']], a.injectPos, v => { a.injectPos = v; commit('inject'); re(); })),
         a.injectPos === 'chat' ? sliderRow('离最新消息几层', { min: 0, max: 10, step: 1, value: a.injectDepth, onInput: v => { a.injectDepth = v; commit('inject'); } }) : null,
         sliderRow('新聊天默认注入条数', { min: 0, max: 40, step: 1, value: a.injectCount, onInput: v => { a.injectCount = v; commit('apps'); } }),
@@ -220,8 +220,8 @@ function openChatApp() {
 function openInjectTable() {
   sub('inject-table', '注入默认表', body => {
     const t = state.apps.chat.injectTable;
-    body.appendChild(group('打开的类型会写进正文（整理成「【手机】谁给谁发了什么」）', CHAT_MSG_TYPES.map(([k, label]) =>
-      toggleItem({ title: label }, t[k] !== false, v => { t[k] = v; commit('inject'); }))), '转账、名片、通话等类型下一轮上线，开关先放在这里。');
+    body.appendChild(group('', CHAT_MSG_TYPES.map(([k, label]) =>
+      toggleItem({ title: label }, t[k] !== false, v => { t[k] = v; commit('inject'); }))));
   });
 }
 /* ================= 提示词 ================= */
@@ -300,6 +300,9 @@ let clockBox = null;
 const thumbSeen = new Map();
 const bgOf = (el, id, night) => {
   const k = id + (night ? ':n' : ':d'), set = u => { if (u) { thumbSeen.set(k, u); el.style.backgroundImage = `url("${u}")`; } };
+  const c = (walls.info(id) || {}).crop;   // 调过位置的壁纸，缩略图也只露出框住的那块
+  if (c) { el.style.backgroundSize = `${100 / c[2]}% auto`; el.style.backgroundPosition = `${c[2] < 1 ? c[0] / (1 - c[2]) * 100 : 50}% ${c[3] < 1 ? c[1] / (1 - c[3]) * 100 : 50}%`; }
+  else { el.style.backgroundSize = ''; el.style.backgroundPosition = ''; }
   if (thumbSeen.has(k)) set(thumbSeen.get(k)); else walls.thumb(id, night).then(set);
   return el;
 };
@@ -321,34 +324,44 @@ function paintClock() {
 function openLook() {
   sub('appearance', '显示', (body, re) => {
     const d = S().device;
+    // 选字体、选颜色：只换勾和预览，不重画整页（重画会闪）
+    const wheel = colorWheel(S().clockHex || '#8fb4ff', hex => { S().clockHex = hex; shell.phone.style.setProperty('--clock-hex', hex); paintClock(); commit('look'); });
+    wheel.hidden = S().clockColor !== 'custom';
+    const mkSeg = () => segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => pickFont(v)));
+    let fontSeg = mkSeg();
+    const pickFont = f => {
+      S().clock.font = f; commit('look'); shell.applyLook(); paintClock();
+      body.querySelectorAll('.as-font-row .as-tag-accent').forEach(c => { c.hidden = c.dataset.font !== f; });
+      const nseg = mkSeg(); fontSeg.replaceWith(nseg); fontSeg = nseg;   // 选了导入的字体，上面三个都不亮
+    };
     const prev = h('div.as-settings-preview', '今晚的月亮很圆。你那边能看到吗？');
     const night = shell.phone.dataset.mode === 'night';
     body.append(
       group('主题', [item({ title: '主题和皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))]),
       group('时间', [clockPreview(night),
-        segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
+        fontSeg,
         // 导入的字体：点一下就用它，右边可以删；可以导入好几个
         ...userFonts().map(x => item({ title: x.name, cls: 'as-font-row',
-          right: h('span.as-font-row__end', S().clock.font === 'u:' + x.id ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null,
+          right: h('span.as-font-row__end', h('span.as-tag-accent', { hidden: S().clock.font !== 'u:' + x.id, dataset: { font: 'u:' + x.id } }, icon('check', 20, 2.4)),
             h('button.as-textbtn.as-font-row__del', { onclick: async e => {
               e.stopPropagation();
               if (!(await dialog({ title: `删掉「${x.name}」？`, confirm: '删除', danger: true }))) return;
               await removeClockFont(x.id); commit('look'); shell.applyLook(); paintClock(); re();
             } }, '删除')),
-          onClick: () => { S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); re(); } })),
+          onClick: () => pickFont('u:' + x.id) })),
         item({ title: '导入字体文件', value: '.otf / .ttf', chevron: true, onClick: async () => {
           const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
           try { const x = await importClockFont(f); S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); toast('已导入「' + x.name + '」'); re(); } catch (e) { toast(e.message); }
         } }),
-        segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
-        S().clockColor === 'custom' ? colorWheel(S().clockHex || '#8fb4ff', hex => { S().clockHex = hex; shell.phone.style.setProperty('--clock-hex', hex); paintClock(); commit('look'); }) : null,
+        segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); wheel.hidden = v !== 'custom'; })),
+        wheel,
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('小时制', segmented([['24', '24 小时'], ['12', '12 小时']], S().clock.h12 ? '12' : '24', v => { S().clock.h12 = v === '12'; commit('look'); shell.applyLook(); paintClock(); })),
       ].filter(Boolean)),
       group('字号', [prev, sliderRow('大小', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
       group('悬浮按钮', [
-        h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: () => { d.fab = k; commit('settings'); shell.applyLook(); re(); } },
+        h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: e => { d.fab = k; commit('settings'); shell.applyLook(); e.currentTarget.parentNode.querySelectorAll('.as-settings-fab').forEach(b => b.classList.toggle('is-active', b === e.currentTarget)); } },
           h('img', { src: `assets/fab/${k}.png`, alt: '' }), name))),
         sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
       ]),
@@ -359,14 +372,15 @@ function openLook() {
       ].filter(Boolean)),
       group('', [item({ title: '顶部时间栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }),
         // 整个手机的字：从资源库的字体库里挑，也可以当场导入（导入的会放进资源库）
-        item({ title: '字体', value: fontName(S().uiFont) || '系统默认', chevron: true, onClick: async () => {
+        item({ title: '字体', value: fontName(S().uiFont) || '系统默认', chevron: true, onClick: async e => {
+          const valEl = e.currentTarget.querySelector('.as-list-item__value');
           const v = await actionSheet('整个手机用的字体', [{ label: '系统默认', value: '', active: !S().uiFont }, ...userFonts().map(x => ({ label: x.name, value: 'u:' + x.id, active: S().uiFont === 'u:' + x.id })), { label: '导入字体文件', value: '__add' }]);
           if (v == null) return;
           if (v === '__add') {
             const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
             try { const x = await importClockFont(f); S().uiFont = 'u:' + x.id; toast('已导入「' + x.name + '」'); } catch (e) { toast(e.message); return; }
           } else S().uiFont = v;
-          commit('look'); shell.applyLook(); re();
+          commit('look'); shell.applyLook(); valEl.textContent = fontName(S().uiFont) || '系统默认';
         } })]));
   });
 }
@@ -404,6 +418,47 @@ function wallLabel() {
 function pickMany(accept) {
   return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = true; i.onchange = () => res([...i.files]); i.click(); });
 }
+/** 长按：按住 0.5 秒不动就触发，触发后这次的点击不算 */
+function longPress(el, fn) {
+  let t = 0, x0 = 0, y0 = 0, fired = false;
+  el.addEventListener('pointerdown', e => { fired = false; x0 = e.clientX; y0 = e.clientY; t = setTimeout(() => { fired = true; navigator.vibrate && navigator.vibrate(10); fn(); }, 500); });
+  el.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - x0, e.clientY - y0) > 8) clearTimeout(t); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(k => el.addEventListener(k, () => clearTimeout(t)));
+  el.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+/** 调整壁纸位置：框是手机屏幕的比例，拖动挪位置，滑条放大。存成「用图里哪一块」 */
+async function cropWall(id) {
+  const src = await walls.source(id); if (!src || !src.img && !src.video) return false;
+  const media = src.img || src.video, iw = media.naturalWidth || media.videoWidth, ih = media.naturalHeight || media.videoHeight;
+  const ph = shell.phone.getBoundingClientRect(), FW = 200, FH = Math.round(FW * ph.height / ph.width);
+  const old = src.crop || [0, 0, 1, 1];
+  const base = Math.max(FW / iw, FH / ih);
+  let z = Math.max(1, Math.min(4, (FW / (iw * base)) / old[2])), ox = -old[0] * iw * base * z, oy = -old[1] * ih * base * z;
+  const pic = h('img.as-crop__img', { src: src.img ? src.img.src : '', alt: '' });
+  if (!src.img) { const c = document.createElement('canvas'); c.width = iw; c.height = ih; c.getContext('2d').drawImage(src.video, 0, 0); pic.src = c.toDataURL('image/jpeg', .85); }
+  const frame = h('div.as-crop__frame', { style: { width: FW + 'px', height: FH + 'px' } }, pic);
+  const place = () => {
+    const k = base * z, W = iw * k, H = ih * k;
+    ox = Math.min(0, Math.max(FW - W, ox)); oy = Math.min(0, Math.max(FH - H, oy));
+    Object.assign(pic.style, { width: W + 'px', height: H + 'px', transform: `translate(${ox}px, ${oy}px)` });
+  };
+  let drag = null;
+  frame.addEventListener('pointerdown', e => { e.preventDefault(); frame.setPointerCapture(e.pointerId); drag = { x: e.clientX - ox, y: e.clientY - oy }; });
+  frame.addEventListener('pointermove', e => { if (!drag) return; ox = e.clientX - drag.x; oy = e.clientY - drag.y; place(); });
+  frame.addEventListener('pointerup', () => { drag = null; });
+  const zoomTo = nz => { const cx = FW / 2 - ox, cy = FH / 2 - oy, r = nz / z; z = nz; ox = FW / 2 - cx * r; oy = FH / 2 - cy * r; place(); };
+  frame.addEventListener('wheel', e => { e.preventDefault(); zoomTo(Math.max(1, Math.min(4, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)))); }, { passive: false });
+  place();
+  return new Promise(res => {
+    let ok = false;
+    const s = sheet({ title: '调整位置', content: h('div.as-crop', frame,
+      sliderRow('放大', { min: 1, max: 4, step: .01, value: z, fmt: v => Math.round(v * 100) + '%', onInput: v => zoomTo(v) }),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => {
+        const k = base * z; walls.setCrop(id, [-ox / (iw * k), -oy / (ih * k), FW / (iw * k), FH / (ih * k)]); ok = true; s.close();
+      }))), onClose: () => res(ok) });
+  });
+}
 function openWalls() {
   sub('walls', '壁纸', (body, re) => {
     const w = S().walls, night = shell.phone.dataset.mode === 'night';
@@ -431,6 +486,7 @@ function openWalls() {
       const t = bgOf(h('button.as-walls-tile' + (on ? '.is-active' : ''), { 'aria-label': x.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => { w[which] = id; w[which + 'Random'] = false; apply(); paint(which); } },
         x.type === 'live' ? h('span.as-walls-tile__live', 'LIVE') : null, h('span.as-walls-tile__name', x.name)), id, night);
       refs[which].tiles.set(id, t);
+      if (!walls.isBuiltin(id)) longPress(t, () => wallMenu(id));
       return t;
     };
     // 每一排最后一个「+」：加进来的直接用在这一排（锁屏或桌面）
@@ -441,7 +497,9 @@ function openWalls() {
       try {
         const ids = await walls.addFiles(files);
         if (!ids.length) { toast('没认出能用的图片或视频'); return; }
-        w[which] = ids[ids.length - 1]; w[which + 'Random'] = false; apply();
+        w[which] = ids[ids.length - 1]; w[which + 'Random'] = false;
+        if (ids.length === 1) await cropWall(ids[0]);   // 加一张的时候马上让你调位置
+        apply();
         toast(ids.length > 1 ? `加好了 ${ids.length} 张` : (walls.info(ids[0]).type === 'live' ? '加好了一张 Live 图' : '加好了'));
         re();
       } catch (e) { toast(e.message || '添加失败'); }
@@ -450,19 +508,17 @@ function openWalls() {
       const it = toggleItem({ title }, w[which + 'Random'], v => { w[which + 'Random'] = v; if (v) walls.reroll(which); apply(); paint(which); });
       refs[which].sw = it.querySelector('.as-switch'); return it;
     };
-    const mine = w.list.map(x => item({
-      icon: bgOf(h('span.as-walls-mine__thumb'), x.id, night), color: 'transparent', title: x.name, sub: x.type === 'live' ? 'Live 图' : '图片',
-      onClick: async () => {
-        const v = await actionSheet(x.name, [{ label: '改名', value: 'rename' }, { label: '删除', value: 'del', danger: true }]);
-        if (v === 'rename') { const name = await dialog({ title: '改名', input: { value: x.name } }); if (name) walls.rename(x.id, name); }
-        if (v === 'del') { if (!(await dialog({ title: '删除这张壁纸？', text: '删了就找不回来了。', confirm: '删除', danger: true }))) return; await walls.remove(x.id); }
-        if (v) { apply(); re(); }
-      } }));
+    const wallMenu = async id => {
+      const x = walls.info(id);
+      const v = await actionSheet(x.name, [{ label: '调整位置', value: 'crop' }, { label: '改名', value: 'rename' }, { label: '删除', value: 'del', danger: true }]);
+      if (v === 'crop') { if (await cropWall(id)) { apply(); paint('lock'); paint('home'); refs.lock.tiles.get(id) && bgOf(refs.lock.tiles.get(id), id, night); refs.home.tiles.get(id) && bgOf(refs.home.tiles.get(id), id, night); } }
+      if (v === 'rename') { const name = await dialog({ title: '改名', input: { value: x.name } }); if (name) { walls.rename(id, name); for (const k of ['lock', 'home']) { const t = refs[k].tiles.get(id); t && (t.querySelector('.as-walls-tile__name').textContent = walls.info(id).name); } } }
+      if (v === 'del') { if (!(await dialog({ title: '删除这张壁纸？', confirm: '删除', danger: true }))) return; await walls.remove(id); apply(); re(); }
+    };
     body.append(
       h('div.as-walls-pv', pv('lock'), pv('home')),
       group('锁屏', [row('lock'), randomRow('lock', '随机锁屏')]),
       group('桌面', [row('home'), randomRow('home', '随机桌面')]),
-      ...(mine.length ? [group('我的壁纸', mine)] : []),
       group('Live 图怎么动', [
         h('div.as-field', segmented([['press', '按住播放'], ['loop', '一直循环']], w.live, v => { w.live = v; apply(); re(); })),
         w.live === 'press' ? toggleItem({ title: '亮屏时播放一次' }, w.liveWake, v => { w.liveWake = v; commit('walls'); }) : null,
@@ -514,28 +570,32 @@ function openNotify() {
       group('提示音', [toggleItem({ title: '提示音' }, n.sound, v => { n.sound = v; commit('settings'); re(); }),
         n.sound ? sliderRow('音量', { min: 0, max: 1, step: .05, value: n.volume, fmt: v => Math.round(v * 100) + '%', onInput: v => { n.volume = v; commit('settings'); } }) : null,
         n.sound ? item({ title: '选择音效', value: '叮' }) : null].filter(Boolean)),
-      group('免打扰', [toggleItem({ title: '免打扰时段' }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
+      group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
         n.dnd ? h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo'))) : null].filter(Boolean)),
       group('', [toggleItem({ title: '桌面图标未读红点' }, n.badge, v => { n.badge = v; commit('chats'); })]));
   });
 }
 
 /* ================= 联动方式与时间 ================= */
+/** 标题旁边的小 i：点一下看简短说明 */
+const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
 function openLinkTime() {
-  sub('linktime', '联动方式与时间', (body, re) => {
-    const st = time.story(), a = state.apps.chat;
-    const day = input({ value: String(st.day), type: 'number' }), hm = input({ value: `${String(st.hh).padStart(2, '0')}:${String(st.mm).padStart(2, '0')}`, type: 'time' });
-    const p2 = n => String(n).padStart(2, '0');
-    const dateIn = input({ value: st.date ? `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}` : '', type: 'date' });
+  sub('linktime', '联动方式与时间', body => {
+    const st = time.story(), a = state.apps.chat, p2 = n => String(n).padStart(2, '0');
+    const hm = input({ value: `${p2(st.hh)}:${p2(st.mm)}`, type: 'time' });
+    const dateIn = input({ value: `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}`, type: 'date' });
+    const nowText = () => { if (S().timeSrc === 'story') { const s1 = time.story(); return `${time.fmtDate(s1.date)} ${p2(s1.hh)}:${p2(s1.mm)}`; } const d = new Date(); return `${time.fmtDate(d)} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+    const nowItem = item({ title: '现在', value: nowText() });
+    // 切换「跟随剧情 / 现实时间」只显示 / 藏起手动设定那一块，不重画整页
+    const manual = h('div.as-field', { hidden: S().timeSrc !== 'story' }, h('span.as-field__label', '读不到剧情时间时：手动设定'),
+      h('div.as-settings-time', { style: { padding: 0 } }, dateIn, hm),
+      btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); }));
     body.append(
-      group('联动方式', [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))]),
+      group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
+        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))]),
       group('时间', [
-        h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); re(); })),
-        S().timeSrc === 'story' ? item({ title: '现在', value: `${st.date ? time.fmtDate(st.date) + ' · ' : ''}第 ${st.day} 天 ${hm.value}`, sub: S().storyTime.src === 'story' ? '刚从正文里读到' : '手动设定，跟着现实时间往前走' }) : null,
-        S().timeSrc === 'story' ? h('div.as-field', h('span.as-field__label', '读不到剧情时间时：手动设定'), h('div.as-settings-time', { style: { padding: 0 } }, day, hm),
-          h('div.as-settings-time', { style: { padding: '8px 0 0' } }, dateIn),
-          btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStory(+day.value || 1, hh || 0, mm || 0, 'manual', dateIn.value || null); toast('剧情时间已更新'); re(); })) : null,
-      ].filter(Boolean)));
+        h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),
+        nowItem, manual]));
   });
 }
 

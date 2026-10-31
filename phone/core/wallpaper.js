@@ -32,6 +32,7 @@ const FS = `
 precision highp float;
 uniform sampler2D uDay, uNight, uFish, uFlD, uFlN; uniform vec2 uFlSzD, uFlSzN;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
+uniform vec4 uCrop;   // 自己的壁纸调过位置：只用图里 (x, y, 宽, 高) 这一块
 uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
@@ -94,6 +95,7 @@ void main(){
     offN = off;
   }
   vec2 tuv = clamp(iuv + off, .001, .999), tuvN = clamp(iuv + offN, .001, .999);
+  if (uKind > 1.5) { tuv = uCrop.xy + tuv * uCrop.zw; tuvN = uCrop.xy + tuvN * uCrop.zw; }
   float b = uUnlock * .007;
   vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuvN, b);
   if (uKind < .5) {
@@ -244,7 +246,7 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
+    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch', 'uCrop']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
     gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -260,7 +262,7 @@ export class Wallpaper {
     this.stopVideo();
     if (typeof src === 'string') { this.kind = WALLPAPERS[src] ? src : 'castle'; this.custom = null; this.srcKey = this.kind; }
     else {
-      this.kind = 'custom'; this.custom = src; this.srcKey = 'custom:' + src.id;
+      this.kind = 'custom'; this.custom = src; this.srcKey = 'custom:' + src.id + ':' + (src.crop || []).join(',');
       // 太大的图先缩一下，免得手机显卡吃不下
       const im = src.img;
       if (im && !src.still) {
@@ -306,7 +308,7 @@ export class Wallpaper {
   setKind(kind) { this.setSource(kind, { glitch: true }); }
   /** 换壁纸：截一张当前画面盖在上面，换好后慢慢淡掉（交叉淡入，不闪黑） */
   setSource(src, { glitch = false } = {}) {
-    const key = typeof src === 'string' ? src : 'custom:' + src.id;
+    const key = typeof src === 'string' ? src : 'custom:' + src.id + ':' + (src.crop || []).join(',');
     if (key === this.srcKey) return;
     if (glitch) this.glitch();
     const apply = () => { this.useSrc(src); this.bind(); };
@@ -476,7 +478,7 @@ export class Wallpaper {
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, this.tex.flN);
       gl.uniform2f(U.uFlSzD, ...FLOWERS.day.size); gl.uniform2f(U.uFlSzN, ...FLOWERS.night.size);
       gl.uniform2f(U.uRes, this.glc.width, this.glc.height);
-      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : this.kind === 'water' ? 1 : 0);
+      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform4fv(U.uCrop, custom && this.custom.crop ? this.custom.crop : [0, 0, 1, 1]); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : this.kind === 'water' ? 1 : 0);
       const s = this.mix, p = Math.min(1, Math.max(0, (t - s.start) / s.dur));
       gl.uniform1f(U.uMixFrom, p >= 1 ? s.to : s.from); gl.uniform1f(U.uMixTo, s.to);
       gl.uniform3f(U.uReveal, s.cx, s.cy, p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6);

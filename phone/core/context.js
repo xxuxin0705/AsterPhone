@@ -11,11 +11,14 @@ export function rawStory(n = C().count) {
   return c.chat.filter(m => !m.is_system && m.mes && (C().withUser || !m.is_user)).slice(-n).map(m => ({ name: m.name, text: String(m.mes) }));
 }
 
-/** 这几条正文里出现过的标签和次数（<!-- --> 记作「!--」） */
-export function detectTags(list = rawStory()) {
+// 排版用的 HTML 标签（加粗、换行…）不算「标签」：永远只去掉记号、留下里面的字
+const FORMAT = new Set('b i u s em strong br p span div small big font del ins sub sup code pre blockquote a img hr ul ol li h1 h2 h3 h4 h5 h6 center q mark ruby rt'.split(' '));
+const tagsIn = text => [...String(text).matchAll(/<([a-zA-Z][\w:-]*)[\s>]/g)].map(m => m[1].toLowerCase()).filter(t => !FORMAT.has(t));
+/** 最近正文里出现过的标签和次数（<!-- --> 记作「!--」）。多扫一些，免得漏掉 */
+export function detectTags(list = rawStory(30)) {
   const count = {};
   for (const m of list) {
-    for (const [, t] of m.text.matchAll(/<([a-zA-Z][\w:-]*)[\s>]/g)) { const k = t.toLowerCase(); count[k] = (count[k] || 0) + 1; }
+    for (const k of tagsIn(m.text)) count[k] = (count[k] || 0) + 1;
     const nc = (m.text.match(/<!--/g) || []).length; if (nc) count['!--'] = (count['!--'] || 0) + nc;
   }
   delete count[(state.timeTagName || 'astertime').toLowerCase()]; delete count.astertime; delete count.asterphone;
@@ -23,16 +26,14 @@ export function detectTags(list = rawStory()) {
 }
 
 const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${t}\\b[^>]*>[\\s\\S]*?<\\/${t}>`, 'gi');
-/** 按设置清洗一条正文：去掉「不要」的标签；有「要」的标签就只留它们里面的内容，再去掉里面「不要」的 */
+/** 按设置清洗一条正文：勾了「发给手机」的标签留下里面的字，没勾的标签连内容一起去掉 */
 export function cleanText(text) {
-  const s = C();
+  const keep = C().keep;
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
-  for (const tag of s.drop) t = t.replace(block(tag), '');
-  const kept = s.keep.flatMap(tag => [...t.matchAll(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi'))].map(m => m[1]));
-  if (kept.length) t = kept.join('\n');
-  for (const tag of s.inner) t = t.replace(block(tag), '');
-  return t.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  if (!keep.includes('!--')) t = t.replace(block('!--'), '');
+  for (const tag of new Set(tagsIn(t))) if (!keep.includes(tag)) t = t.replace(block(tag), '');
+  return t.replace(/<!--|-->/g, '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** 发给模型的正文：每条「名字：内容」 */
