@@ -10,7 +10,7 @@ import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
 import { WALLPAPERS } from '../../core/wallpaper.js';
 
-export const VERSION = '0.3.1';
+export const VERSION = '0.4.0';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };

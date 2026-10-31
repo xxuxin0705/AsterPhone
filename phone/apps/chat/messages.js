@@ -38,11 +38,26 @@ export function renderMessages(ctx) {
         btn('AI 智能加载', 'text', () => toast('AI 智能加载下一轮做')))));
       return;
     }
-    listBox.appendChild(h('div.as-chat-convs', list.map(row)));
+    // 分组：置顶一组，联系人分组各一组，剩下的一组；每组可以折叠
+    const fold = state.apps.chat.folded || (state.apps.chat.folded = {});
+    const sections = [];
+    const pinned = list.filter(c => c.pinned);
+    if (pinned.length) sections.push(['__pin', '置顶', pinned]);
+    const rest = list.filter(c => !c.pinned);
+    state.groups.forEach(g => { const xs = rest.filter(c => contact(c.contactId).group === g); if (xs.length) sections.push([g, g, xs]); });
+    const others = rest.filter(c => !state.groups.includes(contact(c.contactId).group));
+    if (others.length) sections.push(['__rest', sections.length ? '其他' : '', others]);
+    sections.forEach(([key, label, xs]) => {
+      const sec = h('section.as-chat-sec' + (fold[key] ? '.is-folded' : ''));
+      if (label) sec.appendChild(h('button.as-chat-sec__head', { onclick: () => { fold[key] = !fold[key]; commit('chats'); sec.classList.toggle('is-folded', !!fold[key]); } },
+        key === '__pin' ? icon('bookmark', 13, 2) : null, h('span', label), h('span.as-chat-sec__n', String(xs.length)), h('span.as-chat-sec__chev', icon('chevron', 14, 2))));
+      sec.appendChild(h('div.as-chat-convs', xs.map(row)));
+      listBox.appendChild(sec);
+    });
   }
   function row(chat) {
     const c = contact(chat.contactId), name = nameOf(c);
-    const ava = h('span.as-chat-conv__ava', avatar(avatarOf(c, chat), name, 48, chat.cfg.avatarShape === 'square' ? 'square' : 'round'),
+    const ava = h('span.as-chat-conv__ava', (() => { const a = avatar(avatarOf(c, chat), name, 48); a.style.borderRadius = (chat.cfg.avatarRadius ?? (chat.cfg.avatarShape === 'square' ? 24 : 50)) + '%'; return a; })(),
       chat.muted ? (chat.unread ? h('span.as-chat-dot') : null) : badge(chat.unread || 0));
     const icons = h('span.as-chat-conv__icons',
       chat.cfg.streak && chat.streak && chat.streak.days >= 2 ? h('span.is-flame', icon('flame', 13, 2), chat.streak.days) : null,

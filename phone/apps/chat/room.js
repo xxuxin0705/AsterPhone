@@ -1,7 +1,7 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
 import { h, onLongPress, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -11,6 +11,28 @@ import * as E from './engine.js';
 import { openProfile } from './people.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
+
+/** 头像怎么显示：谁显示、多大、多圆。旧数据里的 showAvatar / avatarShape 也认 */
+export function avatarCfg(cfg) {
+  const who = cfg.avatarWho || (cfg.showAvatar === false ? 'none' : 'both');
+  const size = cfg.avatarSize || 38;
+  const radius = cfg.avatarRadius ?? (cfg.avatarShape === 'square' ? 24 : 50);
+  return { who, size, radius, me: who === 'both' || who === 'me', them: who === 'both' || who === 'them' };
+}
+export function chatAvatar(url, name, cfg) {
+  const a = avatarCfg(cfg), el = avatar(url, name, a.size);
+  el.style.borderRadius = a.radius + '%';
+  return el;
+}
+const hm = m => time.isStory() && m.st ? `${String(Math.floor(m.st.m / 60)).padStart(2, '0')}:${String(m.st.m % 60).padStart(2, '0')}` : new Date(m.at).toTimeString().slice(0, 5);
+/** 两条消息之间要不要放一条时间线：隔了一小时以上、或者换了一天才放 */
+function sepFor(m, prev) {
+  if (!prev) return time.sepLabel(m, null);
+  const sameDay = time.isStory() && m.st && prev.st ? m.st.d === prev.st.d : new Date(m.at).toDateString() === new Date(prev.at).toDateString();
+  const gap = time.isStory() && m.st && prev.st ? (m.st.d - prev.st.d) * 1440 + m.st.m - prev.st.m : (m.at - prev.at) / 60000;
+  return sameDay && gap < 60 && gap > -1 ? '' : time.sepLabel(m, null);
+}
+const solo = m => m.from === 'sys' || m.recalled;
 const PAGE_SIZE = 80;
 
 export async function openRoom(chat) {
@@ -23,19 +45,25 @@ export async function openRoom(chat) {
   /* ---------- 骨架 ---------- */
   const nameEl = h('div.as-chat-room__name', E.nameOf(c)), statusEl = h('div.as-chat-room__status');
   const p = page({ app: 'chat', id: 'chat-room', back: true, cls: 'as-chat-room', right: navBtn('more', '聊天设置', () => openSettings(chat, redraw)) });
-  p.nav.querySelector('.as-navbar__title').replaceChildren(nameEl, statusEl);
+  const headAva = h('span.as-chat-room__ava', chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...chat.cfg, avatarSize: 32 }));
+  headAva.addEventListener('click', () => openProfile(c.id, { onMessage: () => nav.pop() }));
+  p.nav.querySelector('.as-navbar__title').replaceChildren(headAva, h('div.as-chat-room__names', nameEl, statusEl));
+  p.nav.classList.add('is-inline');
   const list = h('div.as-chat-msgs', { role: 'log', 'aria-live': 'polite' });
   p.body.replaceWith(list);
   const inputEl = h('textarea.as-chat-input', { rows: 1, placeholder: '发消息…', 'aria-label': '输入消息' });
   inputEl.value = chat.draft || '';
   const sendBtn = h('button.as-chat-sendbtn', { 'aria-label': '发送' });
-  const plusBtn = h('button.as-chat-iconbtn', { 'aria-label': '更多', onclick: () => { plus.hidden = !plus.hidden; plusBtn.classList.toggle('is-active', !plus.hidden); } }, icon('plus', 24, 1.8));
+  const plusBtn = h('button.as-chat-iconbtn', { 'aria-label': '更多', onclick: () => { plus.hidden = !plus.hidden; plusBtn.classList.toggle('is-active', !plus.hidden); } }, icon('plus', 22, 1.8));
   const quoteBar = h('div.as-chat-quotebar', { hidden: true });
   const plus = h('div.as-chat-plus', { hidden: true }, [
     ['poke', '拍一拍', 'sparkle'], ['photo', '相册', 'image'], ['call', '语音通话', 'phone'], ['transfer', '转账', 'wallet'],
     ['packet', '红包', 'box'], ['loc', '位置', 'moments'], ['music', '一起听', 'mic'], ['card', '名片', 'user'],
   ].map(([k, label, ic]) => h('button' + (k === 'poke' ? '' : '.is-soon'), { onclick: () => plusAction(k) }, h('span', icon(ic, 24, 1.7)), h('span', label))));
-  const inputWrap = h('div.as-chat-inputwrap', quoteBar, h('div.as-chat-inputbar', plusBtn, inputEl, h('button.as-chat-iconbtn', { 'aria-label': '表情', onclick: () => toast('表情包面板下一轮做') }, icon('smile', 24, 1.7)), sendBtn), plus);
+  const soon = (ic, label, msg) => h('button.as-chat-iconbtn', { 'aria-label': label, onclick: () => toast(msg) }, icon(ic, 21, 1.7));
+  const inputWrap = h('div.as-chat-inputwrap', quoteBar, inputEl,
+    h('div.as-chat-toolbar', plusBtn, soon('smile', '表情', '表情包面板下一轮做'), soon('image', '图片', '发图片下一轮做'), soon('mic', '语音', '语音下一轮做'), h('span.as-spacer'), sendBtn),
+    plus);
   const selectBar = h('div.as-chat-selectbar', { hidden: true },
     h('button.is-danger', { onclick: () => bulk('del') }, icon('trash', 22, 1.7), '删除'),
     h('button', { onclick: () => bulk('pin') }, icon('link', 22, 1.7), '注入正文'),
@@ -45,64 +73,70 @@ export async function openRoom(chat) {
   applyBg();
 
   /* ---------- 画消息 ---------- */
-  const lastMine = () => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].from === 'me' && !msgs[i].recalled) return msgs[i]; return null; };
-  function msgNode(m, prev, anim) {
+  function msgNode(m, prev, next, anim) {
     const frag = [];
-    const sep = time.sepLabel(m, prev); if (sep) frag.push(h('div.as-chat-time', sep));
-    if (m.from === 'sys' || m.recalled) {
+    const sep = sepFor(m, prev); if (sep) frag.push(h('div.as-chat-time', sep));
+    if (solo(m)) {
       const mine = m.from === 'me';
       frag.push(h('div.as-chat-sys', { dataset: { id: m.id } }, m.recalled ? (mine ? '你撤回了一条消息' : `「${E.nameOf(c)}」撤回了一条消息`) : m.text,
         m.recalled && mine && m.text ? h('button', { onclick: () => { inputEl.value = m.text; syncBtn(); inputEl.focus(); } }, '重新编辑') : null));
       return frag;
     }
-    const me = m.from === 'me';
-    const cont = prev && !sep && prev.from === m.from && !prev.recalled && prev.from !== 'sys';
-    const shape = chat.cfg.avatarShape === 'square' ? 'square' : 'round';
-    const ava = chat.cfg.showAvatar !== false ? avatar(me ? E.myAvatarIn(chat) : E.avatarOf(c, chat), me ? (state.me.nick || '我') : E.nameOf(c), 38, shape) : null;
-    if (ava) { ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me); }
-    const bubble = h('div.as-chat-bubble', m.quote ? h('span.as-chat-quote', `${m.quote.who}：${m.quote.text}`) : null, m.text);
+    const me = m.from === 'me', A = avatarCfg(chat.cfg);
+    const cont = prev && !sep && prev.from === m.from && !solo(prev);
+    const lastOfRun = !next || next.from !== m.from || solo(next) || !!sepFor(next, m);
+    const showAva = me ? A.me : A.them;
+    let ava = null;
+    if (showAva) {
+      ava = chatAvatar(me ? E.myAvatarIn(chat) : E.avatarOf(c, chat), me ? (state.me.nick || '我') : E.nameOf(c), chat.cfg);
+      ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me);
+    }
+    const bubble = h('div.as-chat-bubble',
+      m.quote ? h('span.as-chat-quote', h('b', `回复 ${m.quote.who}`), h('span', m.quote.text)) : null, m.text);
     onLongPress(bubble, () => { if (!selecting) openMenu(m, bubble); });
     bubble.addEventListener('pointerdown', () => bubble.classList.add('is-pressed'));
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bubble.addEventListener(ev, () => bubble.classList.remove('is-pressed')));
     const rx = Object.values(m.reactions || {}).filter(Boolean);
+    const tags = [];
+    if (m.fromStory) tags.push(h('span.as-chat-story-tag', icon('note', 10, 2.2), '来自剧情'));
+    if (m.pinned) tags.push(h('span.as-chat-pin-tag', { title: '已钉住注入正文' }, icon('link', 12, 2)));
+    if (m.edited) tags.push(h('span', '已编辑'));
     const meta = [];
-    if (m.fromStory) meta.push(h('span.as-chat-story-tag', icon('note', 10, 2.2), '来自剧情'));
-    if (m.pinned) meta.push(h('span.as-chat-pin-tag', { title: '已钉住注入正文' }, icon('link', 12, 2)));
-    if (m.edited) meta.push(h('span', '已编辑'));
-    if (me && m === lastMine() && chat.cfg.showRead !== false) meta.push(h('span', m.read ? '已读' : '送达'));
+    if (lastOfRun) {
+      const bits = [];
+      if (chat.cfg.showTime !== false) bits.push(hm(m));
+      if (me && chat.cfg.showRead !== false) bits.unshift(m.read ? '已读' : '送达');
+      if (bits.length) meta.push(h('span', bits.join(' · ')));
+    }
     const col = h('div.as-chat-msg__col',
       !me && m.inner && chat.cfg.showThink ? h('button.as-chat-inner', { onclick: e => e.currentTarget.classList.toggle('is-open') }, '💭', h('span', `${E.nameOf(c)} 心里在想：${m.inner}`)) : null,
-      bubble, rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null, meta.length ? h('div.as-chat-msg__meta', meta) : null);
+      bubble, rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,
+      tags.length ? h('div.as-chat-msg__tags', tags) : null,
+      meta.length ? h('div.as-chat-msg__meta', meta) : null);
     const check = h('span.as-chat-check.as-chat-msg__check' + (selected.has(m.id) ? '.is-active' : ''), icon('check', 14, 2.6));
-    const row = h('div.as-chat-msg' + (me ? '.is-me' : '.is-them') + (cont ? '.is-cont' : '') + (anim ? '' : '.no-anim'), { dataset: { id: m.id } }, check, ava, col);
+    const row = h('div.as-chat-msg' + (me ? '.is-me' : '.is-them') + (cont ? '.is-cont' : '') + (lastOfRun ? '.is-last' : '') + (anim ? '' : '.no-anim'),
+      { dataset: { id: m.id }, style: { '--ava': (showAva ? A.size : 0) + 'px' } }, check, ava, col);
+    if (ava && cont) ava.style.visibility = 'hidden';
     row.addEventListener('click', () => { if (!selecting) return; selected.has(m.id) ? selected.delete(m.id) : selected.add(m.id); check.classList.toggle('is-active', selected.has(m.id)); syncSelectBar(); });
     frag.push(row);
     return frag;
   }
-  function redraw(keepScroll) {
+  function redraw(keepScroll, animId) {
     const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
     const oldH = list.scrollHeight, oldTop = list.scrollTop;
     list.innerHTML = '';
     list.classList.toggle('has-bg', !!chat.cfg.bg);
+    list.classList.toggle('is-compact', chat.cfg.density === 'compact');
     const start = Math.max(0, msgs.length - shown);
     if (start > 0) list.appendChild(h('button.as-chat-more', { onclick: () => { shown += PAGE_SIZE; redraw(true); } }, '查看更早的消息'));
     else if (!msgs.length) list.appendChild(h('div.as-chat-sys', `和 ${E.nameOf(c)} 的聊天。发几句话，再点「让 TA 回复」`));
-    for (let i = start; i < msgs.length; i++) list.append(...msgNode(msgs[i], msgs[i - 1], false));
+    for (let i = start; i < msgs.length; i++) list.append(...msgNode(msgs[i], msgs[i - 1], msgs[i + 1], msgs[i].id === animId));
     if (E.busy.has(chat.id)) list.appendChild(typingNode());
-    if (keepScroll && !atBottom) list.scrollTop = oldTop + (list.scrollHeight - oldH) * (keepScroll === true ? 1 : 0);
-    else list.scrollTop = list.scrollHeight;
+    if (animId || !keepScroll || atBottom) list.scrollTo({ top: list.scrollHeight, behavior: animId ? 'smooth' : 'auto' });
+    else list.scrollTop = oldTop + (list.scrollHeight - oldH);
   }
-  function append(m) {
-    shown++;
-    list.querySelector('.as-chat-typing-row')?.remove();
-    const i = msgs.indexOf(m);
-    // 「已读 / 送达」只挂在最后一条我的消息上，所以我新发一条时要刷新上一条
-    if (m.from === 'me') list.querySelectorAll('.as-chat-msg.is-me .as-chat-msg__meta').forEach(el => [...el.children].forEach(x => { if (/^(已读|送达)$/.test(x.textContent)) x.remove(); }));
-    list.append(...msgNode(m, msgs[i - 1], true));
-    if (E.busy.has(chat.id)) list.appendChild(typingNode());
-    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-  }
-  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', chat.cfg.showAvatar !== false ? avatar(E.avatarOf(c, chat), E.nameOf(c), 38, chat.cfg.avatarShape === 'square' ? 'square' : 'round') : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
+  function append(m) { shown++; redraw(false, m.id); }
+  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
   function applyBg() { list.style.backgroundImage = chat.cfg.bg ? `url(${chat.cfg.bg})` : ''; }
 
   /* ---------- 头像：单击看资料，双击拍一拍 ---------- */
@@ -127,7 +161,7 @@ export async function openRoom(chat) {
     sendBtn.className = 'as-chat-sendbtn' + (busy ? '.is-loading' : has ? '' : pend ? '.is-reply' : '.is-idle').replace('.', ' ');
     sendBtn.replaceChildren(busy ? h('i.as-spin') : icon(has ? 'send' : 'sparkle', 18, 2), h('span', `让 ${E.nameOf(c).slice(0, 4)} 回复`));
     sendBtn.setAttribute('aria-label', busy ? '正在回复' : has ? '发送' : '让 TA 回复');
-    inputEl.style.height = 'auto'; inputEl.style.height = Math.min(120, inputEl.scrollHeight) + 'px';
+    inputEl.style.height = 'auto'; inputEl.style.height = Math.min(130, Math.max(40, inputEl.scrollHeight)) + 'px';
   }
   async function doSend() {
     const text = inputEl.value.trim();
@@ -250,7 +284,7 @@ export async function openRoom(chat) {
   markRead();
   const prevOnShow = shell.onShow;
   shell.onShow = () => { if (shell.activeChat === chat.id) markRead(); };
-  p.el._onShow = () => { shell.activeChat = chat.id; markRead(); nameEl.textContent = E.nameOf(c); applyBg(); redraw(true); };
+  p.el._onShow = () => { shell.activeChat = chat.id; markRead(); nameEl.textContent = E.nameOf(c); headAva.replaceChildren(chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...chat.cfg, avatarSize: 32 })); applyBg(); redraw(true); };
   p.el._onLeave = () => { offs.forEach(f => f()); if (shell.activeChat === chat.id) shell.activeChat = null; shell.onShow = prevOnShow; commit('chats'); };
 
   redraw(); syncBtn();
@@ -260,36 +294,48 @@ export async function openRoom(chat) {
 }
 
 /* ================= 聊天设置 ================= */
+let lastTab = 'look';
 function openSettings(chat, redrawRoom) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const p = page({ app: 'chat', id: 'chat-room-settings', title: '聊天设置', back: true });
   const save = () => { commit('chats'); };
-  const imgItem = (title, key, max = 320) => item({ title, right: cfg[key] ? avatar(cfg[key], '', 30, 'square') : h('span.as-muted', '默认'), chevron: true, onClick: async () => {
-    const v = await actionSheet(title, [{ value: 'pick', label: '从相册选择', icon: 'image' }, cfg[key] && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
-    if (v === 'pick') { const f = await pickFile(); if (f) { cfg[key] = await fileToDataURL(f, max); save(); draw(); } }
-    if (v === 'clear') { cfg[key] = ''; save(); draw(); }
-  } });
   const sliderRow = (label, min, max, step, val, fn, fmt = v => v) => {
     const out = h('output', fmt(val));
     return h('div.as-settings-slider-row', h('span', label), slider({ min, max, step, value: val, onInput: v => { out.textContent = fmt(v); fn(v); } }), out);
   };
+  const TABS = [['look', '外观'], ['act', '行为'], ['mem', '记忆'], ['data', '数据']];
+  const tabsEl = h('div.as-chat-set-tabs', { role: 'tablist' }, TABS.map(([k, label]) => h('button', { role: 'tab', dataset: { k }, onclick: () => { lastTab = k; draw(); } }, label)));
+  const head = h('div.as-chat-set-head');
+  const box = h('div');
+  p.body.append(head, tabsEl, box);
+
+  function drawHead() {
+    head.style.backgroundImage = cfg.bg ? `url(${cfg.bg})` : '';
+    head.replaceChildren(h('div.as-chat-set-head__ava', chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 76 })),
+      h('div.as-chat-set-head__name', E.nameOf(c)), h('div.as-chat-set-head__sign', c.sign || '查看资料 ›'));
+    head.onclick = () => openProfile(c.id, { onMessage: () => { nav.pop(); nav.pop(); } });
+  }
   function draw() {
-    p.body.innerHTML = '';
+    drawHead();
+    [...tabsEl.children].forEach(b => b.classList.toggle('is-active', b.dataset.k === lastTab));
+    box.innerHTML = '';
     const conns = state.connections.text;
-    p.body.append(
-      group('', [item({ icon: avatar(E.avatarOf(c, chat), E.nameOf(c), 30), color: 'transparent', title: E.nameOf(c), sub: '查看资料', chevron: true, onClick: () => openProfile(c.id, { onMessage: () => { nav.pop(); nav.pop(); } }), cls: 'as-chat-person' })]),
-      group('本聊天的头像（情侣头像在这里换）', [imgItem('我在这里的头像', 'myAvatar'), imgItem('TA 在这里的头像', 'theirAvatar')]),
+    if (lastTab === 'look') box.append(
+      group('资料', [
+        item({ icon: 'user', color: 'blue', title: '头像与备注', sub: '显示谁的头像、大小、圆角、备注名', chevron: true, onClick: () => openAvatarPage(chat, draw) }),
+        item({ icon: 'image', color: 'teal', title: '聊天背景', sub: cfg.bg ? '当前使用自定义图片' : '默认（跟随主题）', chevron: true, onClick: () => openBgPage(chat, draw) }),
+      ]),
+      group('显示', [
+        toggleItem({ title: '时间戳', sub: '一组消息下面显示时间' }, cfg.showTime !== false, v => { cfg.showTime = v; save(); }),
+        toggleItem({ title: '已读', sub: '我的消息下面显示「已读 / 送达」' }, cfg.showRead !== false, v => { cfg.showRead = v; save(); }),
+        toggleItem({ title: '显示 TA 的心里话', sub: 'TA 回复时想了但没说出口的话' }, !!cfg.showThink, v => { cfg.showThink = v; save(); }),
+        h('div.as-field', h('span.as-field__label', '排版密度'), segmented([['comfy', '舒适'], ['compact', '紧凑']], cfg.density || 'comfy', v => { cfg.density = v; save(); })),
+      ]));
+    if (lastTab === 'act') box.append(
       group('基础', [
         toggleItem({ title: '置顶聊天' }, chat.pinned, v => { chat.pinned = v; save(); }),
         toggleItem({ title: '消息免打扰' }, chat.muted, v => { chat.muted = v; save(); }),
-        toggleItem({ title: '显示已读' }, cfg.showRead !== false, v => { cfg.showRead = v; save(); }),
         toggleItem({ title: '续火花', sub: '两边当天都说过话就 +1 天，跟随时间来源' }, cfg.streak !== false, v => { cfg.streak = v; save(); }),
-      ]),
-      group('剧情关联', [
-        h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); }),
-          h('span.as-field__hint', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')),
-        sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
-        item({ title: '注入记录', sub: '看看正文 AI 实际读到了什么', chevron: true, onClick: () => openInjectLog(chat) }),
       ]),
       group('AI', [
         item({ title: '使用的连接', value: cfg.conn && cfg.conn !== 'follow' ? connLabel(conns.find(x => x.id === cfg.conn)) : '跟随应用设置', chevron: true, onClick: async () => {
@@ -298,17 +344,20 @@ function openSettings(chat, redrawRoom) {
         } }),
         toggleItem({ title: '专属温度', sub: cfg.temperature == null ? '关着时跟随连接的设置' : null }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); draw(); }),
         cfg.temperature != null ? sliderRow('温度', 0, 1.5, .05, cfg.temperature, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)) : null,
-        toggleItem({ title: '显示 TA 的心里话', sub: 'TA 回复时想了但没说出口的话' }, !!cfg.showThink, v => { cfg.showThink = v; save(); }),
       ].filter(Boolean)),
       group('输出设定', [
         sliderRow('最少几句', 1, 8, 1, cfg.minLines || 1, v => { cfg.minLines = v; if (cfg.maxLines < v) cfg.maxLines = v; save(); }),
         sliderRow('最多几句', 1, 10, 1, cfg.maxLines || 4, v => { cfg.maxLines = v; if (cfg.minLines > v) cfg.minLines = v; save(); }),
-      ], '语音条数、主动消息、翻译：下一轮做'),
-      group('外观', [
-        imgItem('聊天背景', 'bg', 1100),
-        field('头像形状', segmented([['round', '圆形'], ['square', '方形']], cfg.avatarShape || 'round', v => { cfg.avatarShape = v; save(); })),
-        toggleItem({ title: '显示头像' }, cfg.showAvatar !== false, v => { cfg.showAvatar = v; save(); }),
+      ], '语音条数、主动消息、翻译：下一轮做'));
+    if (lastTab === 'mem') box.append(
+      group('剧情关联', [
+        h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); }),
+          h('span.as-field__hint', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')),
+        sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
+        item({ title: '注入记录', sub: '看看正文 AI 实际读到了什么', chevron: true, onClick: () => openInjectLog(chat) }),
       ]),
+      group('', [item({ title: 'TA 的记忆', value: '下一轮', sub: '记忆宫殿做好后，在这里查看和编辑' })]));
+    if (lastTab === 'data') box.append(
       group('记录', [
         item({ title: '导出聊天记录', chevron: true, onClick: async () => {
           const data = { app: 'AsterPhone', kind: 'chat', contact: c, chat, msgs: await getMsgs(chat.id) };
@@ -322,7 +371,60 @@ function openSettings(chat, redrawRoom) {
       ]));
   }
   draw();
+  p.el._onShow = draw;
   p.el._onLeave = () => { redrawRoom && setTimeout(() => redrawRoom(true), 0); };
+  nav.push(p.el);
+}
+
+/** 头像与备注 */
+function openAvatarPage(chat, after) {
+  const c = contact(chat.contactId), cfg = chat.cfg;
+  const p = page({ app: 'chat', id: 'chat-room-avatar', title: '头像与备注', back: true });
+  const pick = async (key, label) => {
+    const v = await actionSheet(label, [{ value: 'pick', label: '从相册选择', icon: 'image' }, cfg[key] && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
+    if (v === 'pick') { const f = await pickFile(); if (f) { cfg[key] = await fileToDataURL(f, 320); commit('chats'); draw(); } }
+    if (v === 'clear') { cfg[key] = ''; commit('chats'); draw(); }
+  };
+  const preview = h('div.as-chat-ava-preview');
+  function draw() {
+    const A = avatarCfg(cfg);
+    p.body.innerHTML = '';
+    preview.replaceChildren(
+      h('button', { onclick: () => pick('theirAvatar', 'TA 在这个聊天的头像') }, chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 72 }), h('span', 'TA')),
+      h('button', { onclick: () => pick('myAvatar', '我在这个聊天的头像') }, chatAvatar(E.myAvatarIn(chat), state.me.nick || '我', { ...cfg, avatarSize: 72 }), h('span', '我')));
+    const out = (v, u) => h('output', v + u);
+    const sizeOut = out(A.size, 'px'), radOut = out(A.radius, '%');
+    p.body.append(
+      group('显示谁的头像', [h('div.as-field', h('div.as-chips', [['both', '双方'], ['them', '仅对方'], ['me', '仅我'], ['none', '都不']].map(([k, label]) =>
+        h('button.as-chip' + (A.who === k ? '.is-active' : ''), { onclick: () => { cfg.avatarWho = k; cfg.showAvatar = k !== 'none'; commit('chats'); draw(); } }, label))))]),
+      group('头像（点一下更换，只在这个聊天里生效，情侣头像在这换）', [preview]),
+      group('大小和圆角', [
+        h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 26, max: 56, step: 1, value: A.size, onInput: v => { cfg.avatarSize = v; sizeOut.textContent = v + 'px'; commit('chats'); repaint(); } }), sizeOut),
+        h('div.as-settings-slider-row', h('span', '圆角'), slider({ min: 0, max: 50, step: 1, value: A.radius, onInput: v => { cfg.avatarRadius = v; radOut.textContent = v + '%'; commit('chats'); repaint(); } }), radOut),
+      ]),
+      group('备注', [field('备注名（只有你看得到，聊天顶部和列表里显示这个）', input({ value: c.remark || '', placeholder: c.nick || c.name, onInput: v => { c.remark = v.trim(); commit('contacts'); } }))]));
+  }
+  function repaint() { preview.querySelectorAll('.as-avatar').forEach(a => { a.style.borderRadius = avatarCfg(cfg).radius + '%'; }); }
+  draw();
+  p.el._onLeave = () => after && after();
+  nav.push(p.el);
+}
+
+/** 聊天背景 */
+function openBgPage(chat, after) {
+  const cfg = chat.cfg;
+  const p = page({ app: 'chat', id: 'chat-room-bg', title: '聊天背景', back: true });
+  function draw() {
+    p.body.innerHTML = '';
+    p.body.append(group('聊天背景', [
+      h('div.as-chat-bg-preview', { style: cfg.bg ? { backgroundImage: `url(${cfg.bg})` } : {} }, cfg.bg ? null : h('span', '默认：跟随主题的蓝色渐变')),
+      h('div.as-chat-bg-btns',
+        btn('导入背景', 'secondary', async () => { const f = await pickFile(); if (f) { cfg.bg = await fileToDataURL(f, 1100); commit('chats'); draw(); } }),
+        btn('恢复默认', 'secondary', () => { cfg.bg = ''; commit('chats'); draw(); })),
+    ], '语音通话的背景，等通话功能上线后也放在这里。'));
+  }
+  draw();
+  p.el._onLeave = () => after && after();
   nav.push(p.el);
 }
 

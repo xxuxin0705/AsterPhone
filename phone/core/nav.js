@@ -12,7 +12,11 @@ export const depth = () => stack.length;
 export const top = () => stack[stack.length - 1];
 const notify = () => onChange && onChange(stack.length);
 
-function prepare(el) { el.classList.add('as-stack__page'); host.appendChild(el); }
+function prepare(el) {
+  el.classList.add('as-stack__page'); host.appendChild(el);
+  // 输入框获得焦点时，浏览器会把整页往上推，顶栏就被推出去了；整页本身永远不许滚
+  el.addEventListener('scroll', () => { if (el.scrollTop) el.scrollTop = 0; });
+}
 
 /** 打开 App：从图标的位置长出来 */
 export function openApp(el, rect, app) {
