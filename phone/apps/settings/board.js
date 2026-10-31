@@ -664,6 +664,7 @@ export function openBoard({ list }) {
           pull.disabled = true; toast('正在拉取模型…');
           try {
             const models = await listModels(d);
+            if (!models) { toast('这个类型拉不了模型列表，手动填就行'); return; }
             if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
             toast(`拉到 ${models.length} 个模型`);
             const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });

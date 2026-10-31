@@ -15,10 +15,11 @@ export const CHANNELS = {
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
     { v: 'novelai', label: 'NovelAI / NAI', base: 'https://image.novelai.net', model: 'nai-diffusion-4-5-full', site: 'https://novelai.net', note: '二次元最好用。尺寸不超过 1024×1024、步数不超过 28，订阅用户不额外扣点。密钥在官网 账户设置 → Get Persistent API Token。' },
-    { v: 'openai-image', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys', note: '官方 OpenAI，或者任何 OpenAI 格式的中转站、第三方（地址填到 /v1）。' },
+    { v: 'openai-image', label: 'OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys' },
     { v: 'sd-webui', label: '本地 SD', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
     { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
     { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
+    { v: 'image-compat', label: '第三方（OpenAI 兼容）', base: '', model: '', custom: true, note: '中转站、公益站都选这个，地址填到 /v1。' },
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
@@ -30,13 +31,13 @@ export const CHANNELS = {
   tts: [
     { v: 'minimax-cn', label: 'MiniMax 国内', base: 'https://api.minimaxi.com', model: 'speech-2.8-hd', voice: 'female-shaonv', site: 'https://platform.minimaxi.com', fields: [['groupId', 'Group ID（可不填）']], note: '国内版。音色 ID 在官网「音色库」里看，比如 female-shaonv、male-qn-qingse，也可以填自己克隆的音色。' },
     { v: 'minimax-intl', label: 'MiniMax 国际', base: 'https://api.minimax.io', model: 'speech-2.8-hd', voice: 'female-shaonv', site: 'https://www.minimax.io/platform', fields: [['groupId', 'Group ID（可不填）']], note: '国际版，密钥和国内版不通用。' },
-    { v: 'openai-tts', label: 'OpenAI', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini-tts', voice: 'alloy', site: 'https://platform.openai.com/api-keys', note: '音色：alloy、nova、shimmer、echo、onyx、fable 等。' },
+    { v: 'openai-tts', label: 'OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini-tts', voice: 'alloy', site: 'https://platform.openai.com/api-keys', note: '音色：alloy、nova、shimmer、echo、onyx、fable 等。' },
     { v: 'fish', label: 'Fish Audio', base: 'https://api.fish.audio', model: 's2.1-pro', voice: '', site: 'https://fish.audio/app/api-keys', note: '音色填声音模型的 ID（在 Fish Audio 网站上点开一个声音，地址里那串）。免费开发者额度用模型 s2.1-pro-free。' },
     { v: 'elevenlabs', label: 'ElevenLabs', base: 'https://api.elevenlabs.io', model: 'eleven_multilingual_v2', voice: 'JBFqnCBsd6RMkjVDRZzb', site: 'https://elevenlabs.io/app/settings/api-keys', note: '音色填 Voice ID（在 ElevenLabs 的 Voices 里复制）。' },
     { v: 'indextts', label: 'IndexTTS 本地', base: 'http://127.0.0.1:8000/v1', model: 'indextts', voice: '', site: 'https://github.com/index-tts/index-tts', noKey: true, note: '自己电脑上跑的 IndexTTS，要开 OpenAI 格式的接口（/v1/audio/speech），地址填到 /v1。音色填你在服务里起的名字。' },
     { v: 'mimo', label: '小米 MiMo', base: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-tts', voice: 'mimo_default', site: 'https://mimo.mi.com', note: '内置音色：冰糖、茉莉、苏打、白桦、Mia、Chloe、Milo、Dean，不填就是默认。' },
     { v: 'doubao-tts', label: '豆包 / 火山引擎', base: 'https://openspeech.bytedance.com/api/v1', model: 'volcano_tts', voice: 'BV001_streaming', site: 'https://console.volcengine.com/speech/app', fields: [['appId', 'App ID']], note: '在火山引擎「语音技术」里建应用，拿到 App ID 和 Access Token（填在密钥里）。模型这里填 Cluster，一般是 volcano_tts。' },
-    { v: 'custom-tts', label: '第三方（OpenAI 格式）', base: '', model: 'tts-1', voice: 'alloy', site: '', note: '自己的接口、中转站：只要是 /v1/audio/speech 这种 OpenAI 格式就行，地址填到 /v1。', custom: true },
+    { v: 'custom-tts', label: '第三方（OpenAI 兼容）', base: '', model: 'tts-1', voice: 'alloy', site: '', note: '中转站、自己的接口：只要是 /v1/audio/speech 这种 OpenAI 格式就行，地址填到 /v1。', custom: true },
   ],
 };
 
@@ -175,8 +176,11 @@ async function readOut(res, pickDelta, pickWhole) {
 }
 
 /** 拉取模型列表 */
+// 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
+const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed']);
+/** 拉模型列表；这个渠道没有模型列表可拉时返回 null */
 export async function listModels(conn) {
-  if (OAI(conn.type)) {
+  if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
     const res = await fetch(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id).sort();
@@ -191,7 +195,7 @@ export async function listModels(conn) {
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
   }
-  return [];
+  return null;
 }
 
 /** 测试连接：发一句很短的话 */
@@ -429,6 +433,12 @@ export function seedChannels() {
   C.seeded = C.seeded || {};
   // 以前「GPT / OpenAI 兼容」一个类型包了官方和中转站：地址不是 OpenAI 官方的，改成「第三方」
   for (const c of C.text) if (c.type === 'openai' && c.base && !/api\.openai\.com/.test(c.base)) { c.type = 'openai-compat'; changed = true; }
+  // 生图、语音也一样拆成「OpenAI 官方」和「第三方」；以前自动建的那个改用新名字
+  for (const [kind, from, to, old] of [['image', 'openai-image', 'image-compat', 'GPT / OpenAI 兼容'], ['tts', 'openai-tts', 'custom-tts', 'OpenAI']]) for (const c of C[kind]) {
+    if (c.type !== from) continue;
+    if (c.base && !/api\.openai\.com/.test(c.base)) { c.type = to; changed = true; }
+    if (c.preset && c.name === old) { c.name = 'OpenAI 官方'; changed = true; }
+  }
   C.embed = C.embed || [];
   for (const kind of ['image', 'tts', 'embed']) {
     const pre = kind === 'image' ? 'img_' : kind === 'tts' ? 'tts_' : 'emb_';
