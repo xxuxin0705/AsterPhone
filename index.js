@@ -75,12 +75,24 @@ const SKIP_KEY = 'asterphone-skip-version';
 const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
 const extName = () => decodeURIComponent((/\/extensions\/third-party\/([^/]+)\//.exec(new URL(BASE).pathname) || [])[1] || 'AsterPhone');
 const stHeaders = () => { const c = stCtx(); return (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' }; };
-/** 问酒馆自己（和「管理扩展」里的更新提示是同一个检查）。不知道装在「当前用户」还是「所有用户」，两种同时问 */
+/** 装在「所有用户」还是「当前用户」：问酒馆自己记的（和「管理扩展」用的同一份）。问错地方 Tauri 会弹「后端错误」，所以只问对的那个 */
+async function installedGlobal() {
+    try {
+        const { extensionTypes } = await import(new URL('../../../extensions.js', import.meta.url).href);
+        const t = extensionTypes && extensionTypes['third-party/' + extName()];
+        if (t) return [t === 'global'];
+    } catch (e) { /* 读不到就两种都试 */ }
+    return [false, true];
+}
+/** 问酒馆自己（和「管理扩展」里的更新提示是同一个检查） */
 async function tavernStatus() {
-    const ask = global => fetch('/api/extensions/version', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) })
-        .then(res => res.ok ? res.json() : null).then(d => d && typeof d.isUpToDate === 'boolean' ? d : null).catch(() => null);
-    const [mine, all] = await Promise.all([ask(false), ask(true)]);
-    return mine || all;
+    for (const global of await installedGlobal()) {
+        try {
+            const res = await fetch('/api/extensions/version', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) });
+            if (res.ok) { const d = await res.json(); if (typeof d.isUpToDate === 'boolean') return d; }
+        } catch (e) { /* 试下一种 */ }
+    }
+    return null;
 }
 let lastCheck = 0;
 /** 返回 { local, remote, newer }；force = 手机里点「检查更新」，这时就算点过「知道了」也照样提示。
@@ -115,7 +127,7 @@ function showUpdateCard(v, skip) {
 }
 /** 让酒馆替我们 git pull 一下，好了就刷新页面。插件装在「所有用户」还是「当前用户」不知道，两种都试 */
 async function updateNow() {
-    for (const global of [false, true]) {
+    for (const global of await installedGlobal()) {
         try {
             const res = await fetch('/api/extensions/update', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) });
             if (res.ok) { if (window.toastr) window.toastr.success('AsterPhone 更新好了，马上刷新'); setTimeout(() => location.reload(), 1200); return true; }
