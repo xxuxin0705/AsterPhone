@@ -7,19 +7,19 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, testConn, testImage, testVoice, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 
 const C = () => state.connections;
 const subscribeConn = fn => subscribe(w => { if (w === 'connections' || w === 'all') fn(); });
-const KIND_NAME = { text: '文字', image: '生图', tts: '语音' };
-/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 发动态、写评论这类小活，没插就跟聊天走 */
+const KIND_NAME = { text: '文字', image: '生图', tts: '语音', embed: '向量' };
+/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 向量记忆（Embedding），以后找旧聊天用 */
 const CORDS = [
   { use: 'text', kind: 'text', label: '聊天', sym: '@', ink: [52, 120, 220], glow: [140, 200, 255] },
   { use: 'image', kind: 'image', label: '生图', sym: '#', ink: [130, 92, 220], glow: [200, 170, 255] },
   { use: 'tts', kind: 'tts', label: '语音', sym: 'S', ink: [210, 132, 40], glow: [255, 210, 140] },
-  { use: 'aux', kind: 'text', label: '其他', sym: '%', ink: [28, 150, 132], glow: [120, 240, 210] },
+  { use: 'aux', kind: 'embed', label: '其他', sym: '%', ink: [28, 150, 132], glow: [120, 240, 210] },
 ];
 let lastCord = 0;     // 上次看的是哪根线（这次打开还停在那里）
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -79,7 +79,7 @@ export function openBoard({ list }) {
     : (!keysOf(c).length && !((CHANNELS.image.find(x => x.v === c.type) || CHANNELS.tts.find(x => x.v === c.type) || {}).noKey) && c.type !== 'tavern' ? '还没填密钥' : c.model || '');
   /** 显示顺序：置顶的在最前（按置顶先后），其余按拖动排好的顺序，没排过的接在后面 */
   function ordered() {
-    const all = ['text', 'image', 'tts'].flatMap(k => (C()[k] || []).map(c => ({ c, kind: k })));
+    const all = ['text', 'image', 'tts', 'embed'].flatMap(k => (C()[k] || []).map(c => ({ c, kind: k })));
     const pin = C().pinned || [], ord = C().order || [];
     const rank = x => { const pi = pin.indexOf(x.c.id); if (pi >= 0) return pi - 1e6; const oi = ord.indexOf(x.c.id); return oi >= 0 ? oi : 1e5 + all.indexOf(x); };
     return all.sort((a, b) => rank(a) - rank(b));
@@ -140,14 +140,33 @@ export function openBoard({ list }) {
     if (schemeChip.textContent !== sc) schemeChip.textContent = sc;
   }
 
-  /* ----- 长按格子拖动排序 ----- */
+  /* ----- 长按格子拖动排序 -----
+   * 按住 0.3 秒，格子「拿起来」：一个浮起来的影子跟着手指走（不会抖、不会跳），原来的位置留一个淡淡的空位。
+   * 手指移到别的格子中间，空位就挪过去，别的格子滑开让位；松手影子落回空位。 */
   let sorting = null;
+  const flip = fn => {      // 先记下每个格子的位置，改完顺序再让它们从旧位置滑过去
+    const before = new Map(tiles.map(o => [o.el, o.el.getBoundingClientRect()]));
+    fn();
+    for (const o of tiles) {
+      const r0 = before.get(o.el), r1 = o.el.getBoundingClientRect();
+      if (!r0 || (Math.abs(r0.left - r1.left) < 1 && Math.abs(r0.top - r1.top) < 1)) continue;
+      o.el.style.transition = 'none'; o.el.style.transform = `translate(${r0.left - r1.left}px, ${r0.top - r1.top}px)`;
+      o.el.getBoundingClientRect();
+      o.el.style.transition = 'transform 240ms cubic-bezier(.2,.8,.2,1)'; o.el.style.transform = '';
+    }
+  };
+  const layoutRect = el => {
+    const r = el.getBoundingClientRect(), tf = getComputedStyle(el).transform;
+    if (!tf || tf === 'none') return r;
+    const m = new DOMMatrix(tf);
+    return { left: r.left - m.m41, right: r.right - m.m41, top: r.top - m.m42, bottom: r.bottom - m.m42, width: r.width, height: r.height };
+  };
   function bindSort(t) {
     let timer = 0, start = null;
     t.el.addEventListener('pointerdown', e => {
-      if (e.button > 0 || dragging()) return;
+      if (e.button > 0 || dragging() || sorting) return;
       start = { x: e.clientX, y: e.clientY, id: e.pointerId };
-      clearTimeout(timer); timer = setTimeout(() => beginSort(t, start), 420);
+      clearTimeout(timer); timer = setTimeout(() => { if (start) beginSort(t, start); }, 300);
     });
     t.el.addEventListener('pointermove', e => { if (start && !sorting && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) { clearTimeout(timer); start = null; } });
     const cancel = () => { clearTimeout(timer); start = null; };
@@ -156,61 +175,55 @@ export function openBoard({ list }) {
   }
   function beginSort(t, start) {
     if (dragging()) return;
-    const r = t.el.getBoundingClientRect();
-    sorting = { t, id: start.id, ox: start.x - r.left, oy: start.y - r.top, x: start.x, y: start.y };
-    t.el.classList.add('is-lifted'); panel.classList.add('is-sorting'); vib(12);
+    const r = t.el.getBoundingClientRect(), b = B();
+    const ghost = t.el.cloneNode(true);
+    ghost.classList.add('as-pb__ghost'); ghost.removeAttribute('data-id');
+    Object.assign(ghost.style, { width: r.width + 'px', height: r.height + 'px', left: r.left - b.left + 'px', top: r.top - b.top + 'px', transform: 'scale(1.06)' });
+    p.body.appendChild(ghost);
+    t.el.classList.add('is-slot');
+    sorting = { t, ghost, id: start.id, ox: start.x - r.left, oy: start.y - r.top };
+    panel.classList.add('is-sorting'); vib(12);
     try { panel.setPointerCapture(start.id); } catch (e) { /* 忽略 */ }
-    moveSort(start.x, start.y);
   }
   function moveSort(x, y) {
-    const s0 = sorting, el = s0.t.el;
-    s0.x = x; s0.y = y;
-    // 手指底下是哪个格子，就把自己挪到它前面 / 后面（FLIP：先记位置，挪完再动画回去，看起来是滑过去的）
-    const over = tiles.find(o => o !== s0.t && o.c && (() => { const r = o.el.getBoundingClientRect(); return x > r.left && x < r.right && y > r.top && y < r.bottom; })());
-    if (over) {
-      const before = new Map(tiles.map(o => [o.el, o.el.getBoundingClientRect()]));
-      const i = tiles.indexOf(s0.t), j = tiles.indexOf(over);
-      tiles.splice(i, 1); tiles.splice(j, 0, s0.t);
-      grid.insertBefore(el, j > i ? over.el.nextSibling : over.el);
-      for (const o of tiles) {
-        if (o === s0.t) continue;
-        const a = before.get(o.el), b = o.el.getBoundingClientRect();
-        if (!a || (a.left === b.left && a.top === b.top)) continue;
-        o.el.style.transition = 'none'; o.el.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
-        requestAnimationFrame(() => { o.el.style.transition = ''; o.el.style.transform = ''; });
-      }
-    }
-    const r = el.getBoundingClientRect();
-    el.style.transform = `translate(${x - s0.ox - r.left + (parseFloat(el.dataset.tx) || 0)}px, ${y - s0.oy - r.top + (parseFloat(el.dataset.ty) || 0)}px) scale(1.06)`;
-    el.dataset.tx = x - s0.ox - r.left + (parseFloat(el.dataset.tx) || 0); el.dataset.ty = y - s0.oy - r.top + (parseFloat(el.dataset.ty) || 0);
-    // 拖到边上自动滚
+    const S0 = sorting, b = B();
+    S0.ghost.style.left = x - S0.ox - b.left + 'px'; S0.ghost.style.top = y - S0.oy - b.top + 'px';
+    // 手指到了哪个格子的中间区域，空位就挪到那儿
+    // 用格子「该在的位置」判断（扣掉正在滑动的动画偏移），不然刚让开的格子还在原地，会来回换
+    const over = tiles.find(o => o !== S0.t && o.c && !o.el.hidden && (() => { const r = layoutRect(o.el); return x > r.left + r.width * .2 && x < r.right - r.width * .2 && y > r.top + r.height * .2 && y < r.bottom - r.height * .2; })());
+    if (over) flip(() => {
+      const i = tiles.indexOf(S0.t), j = tiles.indexOf(over);
+      tiles.splice(i, 1); tiles.splice(j, 0, S0.t);
+      grid.insertBefore(S0.t.el, j > i ? over.el.nextSibling : over.el);
+    });
     const pr = panel.getBoundingClientRect();
-    if (y < pr.top + 30) panel.scrollTop -= 8; else if (y > pr.bottom - 30) panel.scrollTop += 8;
+    if (y < pr.top + 40) panel.scrollTop -= 8; else if (y > pr.bottom - 40) panel.scrollTop += 8;
   }
   panel.addEventListener('pointermove', e => { if (sorting && e.pointerId === sorting.id) { e.preventDefault(); moveSort(e.clientX, e.clientY); } });
   const endSort = e => {
     if (!sorting || e.pointerId !== sorting.id) return;
-    const el = sorting.t.el; sorting = null;
-    el.classList.remove('is-lifted'); panel.classList.remove('is-sorting');
-    el.style.transform = ''; delete el.dataset.tx; delete el.dataset.ty;
-    // 排好的顺序记下来；置顶的还是在最前面
+    const { t, ghost } = sorting; sorting = null;
+    // 影子飞回空位，再消失
+    const r = t.el.getBoundingClientRect(), b = B();
+    ghost.style.transition = 'left 200ms ease, top 200ms ease, transform 200ms ease';
+    ghost.style.left = r.left - b.left + 'px'; ghost.style.top = r.top - b.top + 'px'; ghost.style.transform = 'none';
+    setTimeout(() => { ghost.remove(); t.el.classList.remove('is-slot'); }, 210);
+    panel.classList.remove('is-sorting');
     const ids = tiles.filter(o => o.c).map(o => o.c.id), pin = C().pinned || [];
     C().order = ids.filter(id => !pin.includes(id));
     C().pinned = pin.filter(id => ids.includes(id)).sort((a, b) => ids.indexOf(a) - ids.indexOf(b));
     commit('connections'); quietUntil = performance.now() + 350;
   };
   panel.addEventListener('pointerup', endSort); panel.addEventListener('pointercancel', endSort);
+  // 手机上：拿起格子后手指再动，不能让列表跟着滚走（否则浏览器会把拖动当成滚动，直接打断）
+  panel.addEventListener('touchmove', e => { if (sorting) e.preventDefault(); }, { passive: false });
   function togglePin(id) {
     const pin = C().pinned || (C().pinned = []), i = pin.indexOf(id);
     if (i >= 0) pin.splice(i, 1); else pin.push(id);
     commit('connections');
-    // 挪过去用 FLIP 滑一下
-    const before = new Map(tiles.map(o => [o.el, o.el.getBoundingClientRect()]));
-    updateTiles();
-    for (const o of tiles) { const a = before.get(o.el), b = o.el.getBoundingClientRect(); if (!a || (a.left === b.left && a.top === b.top)) continue; o.el.style.transition = 'none'; o.el.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`; requestAnimationFrame(() => { o.el.style.transition = ''; o.el.style.transform = ''; }); }
+    flip(() => updateTiles());
     return i < 0;
   }
-  let lastTestImg = '';
   const status = {};   // id → 'test' | 'ok' | 'bad'（这次打开页面里测出来的）
   const stOf = c => status[c.id] || (c.ok === true ? 'ok' : c.ok === false ? 'bad' : '');
 
@@ -310,36 +323,20 @@ export function openBoard({ list }) {
     burst(pl.x, pl.y, 20, 'spark'); layoutLabels(); ocean.kick(1);
     if (t) t.joyUntil = performance.now() + 900;
     if (again) return;
+    // 插上就算接好了：不发请求，直接笑脸。想确认真能用，点格子里的「测试」
     C().defaults[pl.use] = id; C().scheme = ''; commit('connections'); syncUses();
-    runTest(t.c, t.kind, pl);
+    if (status[id] !== 'bad') status[id] = 'ok';
+    flowing = { pl, until: performance.now() + 900 };
   }
-  async function runTest(c, kind, pl, real) {
-    status[c.id] = 'test'; flowing = { pl: pl || plugs.find(x => x.target === c.id), until: performance.now() + 60000 };
-    let ok = false, msg = '';
-    try {
-      if (kind === 'text') { await testConn(c); ok = true; }
-      else if (kind === 'image') {
-        const ch = CHANNELS.image.find(x => x.v === c.type) || {};
-        if (!ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
-        // 插线时只看有没有密钥（不花钱）；真画一张在详情里点「测试」
-        if (!ch.noKey && !real) { delete status[c.id]; flowing = null; toast(`插好了「${c.name}」。想确认能不能画，点它里面的「测试」`); return; }
-        if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) { delete status[c.id]; flowing = null; return; }
-        else { const url = await testImage(c); ok = true; lastTestImg = url; }
-      } else {
-        // 语音：插线时只看有没有密钥；点「测试」真说一句话
-        const ch = CHANNELS.tts.find(x => x.v === c.type) || {};
-        if (!ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
-        if (!real && !ch.noKey) { delete status[c.id]; flowing = null; toast(`插好了「${c.name}」。想听听效果，点它里面的「测试」`); return; }
-        await testVoice(c); ok = true;
-      }
-    } catch (e) { msg = e.message || '连不上'; }
-    status[c.id] = ok ? 'ok' : 'bad'; c.ok = ok; c.okAt = Date.now(); commit('connections');
-    flowing = ok ? { pl: flowing && flowing.pl, until: performance.now() + 1200 } : null;
-    if (!p.el.isConnected) return;
-    const t = tileOf(c.id);
-    if (ok) { if (t) t.joyUntil = performance.now() + 1100; const q = t && portOf(t, plugs[0]); if (q) burst(q.x, q.y - 40, 14, 'ok'); toast(`「${c.name}」连上了`); }
-    else { const pq = plugs.find(x => x.target === c.id); if (pq) { pq.shake = 1.6; burst(pq.x, pq.y + 20, 22, 'bad'); } toast(`「${c.name}」连不上：${msg}`, { label: '查看日志', fn: () => shell.openApp('log') }); }
-    return ok;
+  /** 真的去测一下（只在详情里点「测试」时才会发请求）。c 可以是还没保存的草稿 */
+  async function doTest(c, kind) {
+    const chs = CHANNELS[kind] || [], ch = chs.find(x => x.v === c.type) || {};
+    if (kind !== 'text' && !ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
+    if (kind === 'text') { await testConn(c); return {}; }
+    if (kind === 'embed') { const n = await testEmbed(c); return { note: `返回了 ${n} 维向量` }; }
+    if (kind === 'tts') { await testVoice(c); return {}; }
+    if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) return { cancel: true };
+    return { img: await testImage(c) };
   }
 
   /* ----- 火花 ----- */
@@ -367,8 +364,7 @@ export function openBoard({ list }) {
       else if (dp && !compat) f = 'dim';
       else if (dp && compat) { f = 'curious'; const q = portOf(t, dp); look = Math.max(-1, Math.min(1, (dp.x - q.x) / 120)); }
       else if (used && st === 'bad') f = 'bad';
-      else if (used && st === 'ok') f = 'ok';
-      else if (used) f = 'plugged';
+      else if (used) f = 'ok';         // 插着就是笑脸；只有真的测过、连不上才哭
       else f = 'idle';
       if ((f === 'idle' || f === 'curious' || f === 'plugged') && now < t.blinkUntil) f = f === 'plugged' ? 'blink' : 'blink';
       const txt = FACE[f];
@@ -539,11 +535,20 @@ export function openBoard({ list }) {
     const subEl = h('span.as-pbd__subline');
     const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
     paintSub();
+    // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
     const testBtn = h('button.as-pbd__test', { onclick: async () => {
-      if (isNew || dirty) { toast('先保存，再测试'); return; }
       testBtn.disabled = true; status[orig.id] = 'test'; paintSt();
-      lastTestImg = ''; await runTest(orig, kind, null, true); paintSt(); testBtn.disabled = false;
-      if (lastTestImg) card.after(h('img.as-pbd__testimg', { src: lastTestImg, alt: '测试画出来的图' }));
+      let r = {}, err = '';
+      try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; }
+      testBtn.disabled = false;
+      if (r.cancel) { delete status[orig.id]; paintSt(); return; }
+      status[orig.id] = err ? 'bad' : 'ok';
+      if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
+      paintSt();
+      const t = tileOf(orig.id); if (t && !err) t.joyUntil = performance.now() + 1100;
+      if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log') });
+      else toast(r.note ? `连上了，${r.note}` : dirty || isNew ? '连上了，记得保存' : '连上了');
+      if (r.img) { card.parentNode.querySelector('.as-pbd__testimg')?.remove(); card.after(h('img.as-pbd__testimg', { src: r.img, alt: '测试画出来的图' })); }
     } }, icon('sparkle', 14, 2), '测试');
     const card = h('div.as-pbd__card', faceEl, h('div.as-pbd__info', nameEl, subEl, stText), testBtn);
 
@@ -673,7 +678,7 @@ export function openBoard({ list }) {
       d.name = (d.name || '').trim() || `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label} ${d.model || ''}`.trim();
       d.keys = d.keys.filter(k => String(k).trim());
       if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
-      else { const keyChanged = JSON.stringify([orig.base, orig.key, orig.keys, orig.model, orig.type]) !== JSON.stringify([d.base, d.key, d.keys, d.model, d.type]); Object.assign(orig, d); if (keyChanged) { delete orig.ok; delete status[orig.id]; } }
+      else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
       commit('connections'); dirty = false; savedTag.textContent = '已保存'; savedTag.classList.remove('is-dirty');
       toast('保存好了'); s.close(); refresh();
     } }, tavern ? '好的' : '保存');
@@ -698,8 +703,8 @@ export function openBoard({ list }) {
       h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '失败了自动重试'), switchEl(R.on, v => { R.on = v; commit('connections'); }, '失败自动重试')),
       h('div.as-pbd__row', h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(R.max || 1), v => { R.max = +v; commit('connections'); }))),
       h('p.as-pbd__hint', '付费接口按字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
-      h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用「其他」的接口'), switchEl(R.fallback, v => { R.fallback = v; commit('connections'); }, '聊天线断了改用其他线的接口')),
-      h('p.as-pbd__hint', '要先把「其他」线插在一个接口上才有用。'));
+      h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用酒馆当前连接'), switchEl(R.fallback, v => { R.fallback = v; commit('connections'); }, '聊天线断了改用酒馆当前连接')),
+      h('p.as-pbd__hint', '只在酒馆里有用：你插的接口连不上时，这一次先借酒馆正在用的连接回复。'));
     sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
   }
   function schemes() {

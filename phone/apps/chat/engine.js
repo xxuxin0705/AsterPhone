@@ -376,7 +376,7 @@ export async function deliverFromStory(name, text) {
 
 /* ---------- 动态 ---------- */
 export async function genMoment(c) {
-  const conn = resolveConn('aux', 'chat');   // 发动态这种小活走杂活线
+  const conn = resolveConn('text', 'chat');
   const raw = await generate({ conn, system: globalSystem(), app: '动态', maxTokens: 400,
     prompt: render('moment', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: recentStory(4) || '（暂无）', time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
@@ -395,7 +395,7 @@ export async function genComments(mo) {
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
     mo.likes.length ? `已点赞：${mo.likes.map(who).join('、')}` : ''].filter(Boolean).join('\n');
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
-  const raw = await generate({ conn: resolveConn('aux', 'chat'), system: globalSystem(), app: '动态', maxTokens: 600, prompt: render('comment', { post, people: peopleText, time: time.forPrompt() }) });
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: globalSystem(), app: '动态', maxTokens: 600, prompt: render('comment', { post, people: peopleText, time: time.forPrompt() }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
   let added = 0;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {

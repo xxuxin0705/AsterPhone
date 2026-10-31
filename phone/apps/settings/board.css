@@ -146,9 +146,10 @@
 .as-phone[data-mode="night"] .as-pb__tile.is-tavern .as-pb__kind { color: #f3c27a; }
 .as-pb__tile.is-gone { opacity: .55; }
 /* 长按拖动排序 */
-.as-pb__tile { will-change: transform; transition: transform 260ms var(--as-ease-spring), opacity 200ms, box-shadow 260ms, filter 200ms; }
+.as-pb__tile { transition: opacity 200ms, box-shadow 260ms, filter 200ms; }
 .as-pb__panel.is-sorting { touch-action: none; }
-.as-pb__tile.is-lifted { z-index: 5; transition: none !important; box-shadow: 0 16px 34px rgba(20,30,60,.28), inset 0 1px 0 rgba(255,255,255,.6); opacity: .96; }
+.as-pb__tile.is-slot { opacity: .25; transform: scale(.94); }
+.as-pb__ghost { position: absolute; z-index: 20; margin: 0; pointer-events: none; box-shadow: 0 18px 40px rgba(10,20,50,.32), inset 0 1px 0 rgba(255,255,255,.6) !important; transition: transform 160ms ease; }
 .as-pbd__fbody .as-pbd__row.is-inline:has(.as-pbd__v) { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
 .as-pbd__v { font: 500 13px/1.3 var(--font-ui); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-pbd__pinbtn { flex: 1; padding: 11px; border-radius: 14px; border: 1px solid var(--as-color-glass-line); background: none; color: var(--as-color-accent); font: 600 13px/1 var(--font-ui); cursor: pointer; }

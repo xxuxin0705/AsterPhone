@@ -6,9 +6,9 @@ import { log } from './log.js';
 
 export const CHANNELS = {
   text: [
-    { v: 'openai', label: 'OpenAI 兼容', base: 'https://api.openai.com/v1' },
-    { v: 'claude', label: 'Claude', base: 'https://api.anthropic.com' },
-    { v: 'gemini', label: 'Gemini', base: 'https://generativelanguage.googleapis.com' },
+    { v: 'openai', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', site: 'https://platform.openai.com/api-keys', note: '官方 GPT，或者任何 OpenAI 格式的中转站、公益站（地址填到 /v1）。DeepSeek、Kimi、通义这些也走这个。' },
+    { v: 'claude', label: 'Claude', base: 'https://api.anthropic.com', site: 'https://console.anthropic.com/settings/keys', note: 'Anthropic 官方格式。' },
+    { v: 'gemini', label: 'Gemini', base: 'https://generativelanguage.googleapis.com', site: 'https://aistudio.google.com/apikey', note: 'Google 官方格式，密钥在 AI Studio 免费申请。' },
   ],
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
@@ -17,6 +17,12 @@ export const CHANNELS = {
     { v: 'sd-webui', label: '本地 SD', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
     { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
     { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
+  ],
+  // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
+  embed: [
+    { v: 'siliconflow-embed', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
+    { v: 'zhipu-embed', label: '智谱', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
+    { v: 'openai-embed', label: '第三方（OpenAI 格式）', base: '', model: 'text-embedding-3-small', site: '', custom: true, note: '任何 /v1/embeddings 格式的接口，地址填到 /v1；本地 Ollama 也行。' },
   ],
   // 语音渠道：同样先填好地址、默认模型、默认音色、官网。fields = 这个渠道额外要填的东西
   tts: [
@@ -32,12 +38,9 @@ export const CHANNELS = {
   ],
 };
 
-/** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认。kind 可以是 text / aux（杂活，没插就跟聊天线走）/ image / tts */
+/** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认。kind = text / image / tts / embed（「其他」线：向量记忆） */
 export function resolveConn(kind = 'text', app = 'chat', override = 'follow') {
-  if (kind === 'aux') {
-    const a = (state.connections.text || []).find(c => c.id === state.connections.defaults.aux);
-    return a || resolveConn('text', app);
-  }
+  if (kind === 'embed') return (state.connections.embed || []).find(c => c.id === state.connections.defaults.aux) || null;
   const list = state.connections[kind] || [];
   const pick = id => list.find(c => c.id === id);
   if (override && override !== 'follow' && pick(override)) return pick(override);
@@ -77,10 +80,11 @@ export async function generate(opts) {
     catch (e) { last = e; if (!isRetryErr(e.message) || t === tries - 1) break; log('warn', app, `第 ${t + 1} 次失败，${t + 1 < tries ? '再试一次' : ''}：${e.message}`); await sleep(800 * (t + 1)); }
   }
   // 聊天线断了 → 改插杂活接口（只换一次，不来回换）
-  const aux = (state.connections.text || []).find(c => c.id === state.connections.defaults.aux);
-  if (R.fallback && !opts.noFallback && aux && aux.id !== conn.id && conn.id === state.connections.defaults.text) {
-    log('warn', app, `「${conn.name}」连不上，改用杂活接口「${aux.name}」`);
-    return generateOnce({ ...opts, conn: aux, noFallback: true });
+  // 聊天线断了 → 改用「酒馆当前连接」（只换一次）
+  const tv = (state.connections.text || []).find(c => c.type === 'tavern');
+  if (R.fallback && !opts.noFallback && tv && tv.id !== conn.id && inTavern()) {
+    log('warn', app, `「${conn.name}」连不上，改用酒馆当前连接`);
+    return generateOnce({ ...opts, conn: tv, noFallback: true });
   }
   throw last;
 }
@@ -400,8 +404,9 @@ export function syncTavernProfiles() {
 export function seedChannels() {
   const C = state.connections; let changed = false;
   C.seeded = C.seeded || {};
-  for (const kind of ['image', 'tts']) {
-    const pre = kind === 'image' ? 'img_' : 'tts_';
+  C.embed = C.embed || [];
+  for (const kind of ['image', 'tts', 'embed']) {
+    const pre = kind === 'image' ? 'img_' : kind === 'tts' ? 'tts_' : 'emb_';
     for (let i = C[kind].length - 1; i >= 0; i--) {
       const c = C[kind][i];
       if (c.preset && !CHANNELS[kind].some(ch => ch.v === c.type) && !keysOf(c).length) {
@@ -414,6 +419,20 @@ export function seedChannels() {
       C.seeded[pre + ch.v] = true; changed = true;
     }
   }
+  // 以前「其他」线插的是聊天接口，现在它专门接向量：插错类的拔掉，默认插在硅基流动上
+  const d = C.defaults;
+  if (d.aux && !C.embed.some(c => c.id === d.aux)) { d.aux = ''; changed = true; }
+  if (!d.aux && !C.seeded.embPlug && C.embed.some(c => c.id === 'emb_siliconflow-embed')) { d.aux = 'emb_siliconflow-embed'; changed = true; }
+  C.seeded.embPlug = true;
   return changed;
 }
 export const seedImageChannels = seedChannels;
+/** 测向量接口：把「你好」变成一串数字 */
+export async function testEmbed(conn) {
+  const key = keysOf(conn)[0] || '';
+  const res = await fetch(trim(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
+  if (!res.ok) throw new Error(await readErr(res));
+  const j = await res.json(), v = j.data?.[0]?.embedding;
+  if (!Array.isArray(v)) throw new Error('接口没有返回向量');
+  return v.length;
+}
