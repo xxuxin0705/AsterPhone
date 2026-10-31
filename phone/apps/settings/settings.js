@@ -9,10 +9,10 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
-import { importClockFont, removeClockFont, userFonts, fontKey } from '../../core/fonts.js';
+import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.16';
+export const VERSION = '0.6.17';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -50,6 +50,7 @@ export function open() {
       ]),
       group('', [
         item({ icon: 'palette', color: 'orange', title: '外观', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
+        item({ icon: 'image', color: 'teal', title: '壁纸', value: wallLabel(), chevron: true, onClick: () => openWalls() }),
         item({ icon: 'lock', color: 'gray', title: '锁屏与密码', value: S().lock.enabled ? LOCK_LABEL[S().lock.method] : '关闭', chevron: true, onClick: openLock }),
         item({ icon: 'bell', color: 'red', title: '通知', chevron: true, onClick: openNotify }),
       ]),
@@ -270,7 +271,7 @@ function paintClock() {
   clockBox.dataset.font = fontKey((S().clock || {}).font);
   clockBox.replaceChildren(h('span', n.date), withAp(n));
   const night = shell.phone.dataset.mode === 'night', c = S().clockColor;
-  const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
+  const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'custom' ? S().clockHex || '#8fb4ff' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
   clockBox.style.color = col;
 }
 function openLook() {
@@ -295,16 +296,49 @@ function openLook() {
           const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
           try { const x = await importClockFont(f); S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); toast('已导入「' + x.name + '」'); re(); } catch (e) { toast(e.message); }
         } }),
-        segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); })),
+        segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
+        S().clockColor === 'custom' ? colorWheel(S().clockHex || '#8fb4ff', hex => { S().clockHex = hex; shell.phone.style.setProperty('--clock-hex', hex); paintClock(); commit('look'); }) : null,
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('小时制', segmented([['24', '24 小时'], ['12', '12 小时']], S().clock.h12 ? '12' : '24', v => { S().clock.h12 = v === '12'; commit('look'); shell.applyLook(); paintClock(); })),
-      ], '日期只显示年月日（比如 2026年10月31日）。用剧情时间时，正文里写了日期就显示剧情日期，没写就显示今天的日期。锁屏、桌面和状态栏一起改。\n自己导入的字体只存在这台设备上，换手机要再导入一次。'),
+      ].filter(Boolean)),
       group('字号', [prev, sliderRow('大小', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
-      group('', [item({ icon: 'image', color: 'teal', title: '壁纸', sub: '锁屏和桌面分开选，可以用自己的图片和 Live 图，也可以随机', value: wallLabel(), chevron: true, onClick: () => openWalls() })]),
-      group('', [item({ title: '状态栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }), item({ title: '字体', value: '系统默认', sub: '换字体放在资源库（下一轮）' })]));
+      group('', [item({ title: '顶部时间栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }),
+        // 整个手机的字：从资源库的字体库里挑，也可以当场导入（导入的会放进资源库）
+        item({ title: '字体', value: fontName(S().uiFont) || '系统默认', chevron: true, onClick: async () => {
+          const v = await actionSheet('整个手机用的字体', [{ label: '系统默认', value: '', active: !S().uiFont }, ...userFonts().map(x => ({ label: x.name, value: 'u:' + x.id, active: S().uiFont === 'u:' + x.id })), { label: '导入字体文件', value: '__add' }]);
+          if (v == null) return;
+          if (v === '__add') {
+            const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+            try { const x = await importClockFont(f); S().uiFont = 'u:' + x.id; toast('已导入「' + x.name + '」'); } catch (e) { toast(e.message); return; }
+          } else S().uiFont = v;
+          commit('look'); shell.applyLook(); re();
+        } })]));
   });
 }
 const segField = (label, seg) => h('div.as-field', h('span.as-field__label', label), seg);
+
+/** 圆形色轮：手指按到哪就是哪个颜色（越往外越鲜艳），下面一条调亮暗。onChange 收到 #rrggbb */
+function colorWheel(hex, onChange) {
+  const toHsv = x => { const n = parseInt(x.slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+    const hh = !d ? 0 : mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(hh * 60 + 360) % 360, mx ? d / mx : 0, mx]; };
+  const toHex = (hh, s, v) => { const f = k => { const m = (k + hh / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(m, 4 - m, 1)))); }; return '#' + [f(5), f(3), f(1)].map(x => x.toString(16).padStart(2, '0')).join(''); };
+  let [hu, sa, va] = toHsv(hex);
+  const R = 90, cvs = h('canvas.as-wheel__disc', { width: R * 4, height: R * 4 }), knob = h('span.as-wheel__knob'), ctx = cvs.getContext('2d'), img = ctx.createImageData(R * 4, R * 4);
+  for (let y = 0; y < R * 4; y++) for (let x = 0; x < R * 4; x++) {
+    const dx = x - R * 2, dy = y - R * 2, r = Math.hypot(dx, dy) / (R * 2); if (r > 1) continue;
+    const c = toHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, r, 1), i = (y * R * 4 + x) * 4, n = parseInt(c.slice(1), 16);
+    img.data[i] = n >> 16 & 255; img.data[i + 1] = n >> 8 & 255; img.data[i + 2] = n & 255; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const place = () => { const a = hu * Math.PI / 180; knob.style.left = 50 + Math.cos(a) * sa * 50 + '%'; knob.style.top = 50 + Math.sin(a) * sa * 50 + '%'; knob.style.background = toHex(hu, sa, va); cvs.style.filter = `brightness(${.25 + va * .75})`; };
+  const pick = e => { const r = cvs.getBoundingClientRect(), dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
+    hu = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360; sa = Math.min(1, Math.hypot(dx, dy) / (r.width / 2)); place(); onChange(toHex(hu, sa, va)); };
+  const wrap = h('div.as-wheel__wrap', { 'data-no-swipe': '' }, cvs, knob);
+  wrap.addEventListener('pointerdown', e => { e.preventDefault(); wrap.setPointerCapture(e.pointerId); pick(e); });
+  wrap.addEventListener('pointermove', e => { if (wrap.hasPointerCapture(e.pointerId)) pick(e); });
+  place();
+  return h('div.as-wheel', wrap, sliderRow('亮度', { min: .1, max: 1, step: .01, value: va, fmt: v => Math.round(v * 100) + '%', onInput: v => { va = v; place(); onChange(toHex(hu, sa, va)); } }));
+}
 
 /* ---------- 壁纸 ---------- */
 function wallLabel() {
@@ -369,10 +403,10 @@ function openWalls() {
   });
 }
 function openStatusbar() {
-  sub('statusbar', '状态栏', (body, re) => {
+  sub('statusbar', '顶部时间栏', (body, re) => {
     const sb = S().statusbar;
     const apps = [['lock', '锁屏'], ['home', '桌面'], ['settings', '设置'], ['chat', '聊天'], ['library', '资源库'], ['log', '日志']];
-    body.append(group('', [toggleItem({ title: '显示状态栏' }, sb.global, v => { sb.global = v; commit('look'); shell.applyLook(); re(); })], '状态栏右边的 ⓧ 是关闭手机的按钮。隐藏状态栏后，可以在桌面再返回一次关闭，或开启「连点三下」。'),
+    body.append(group('', [toggleItem({ title: '显示顶部时间栏' }, sb.global, v => { sb.global = v; commit('look'); shell.applyLook(); re(); })], '时间栏右边的 ⓧ 是关闭手机的按钮。隐藏以后，可以在桌面再返回一次关闭，或开启「连点三下」。'),
       group('按应用', apps.map(([k, label]) => h('div.as-field', h('span.as-field__label', label),
         segmented([['follow', '跟随全局'], ['show', '显示'], ['hide', '隐藏']], sb.apps[k] == null ? 'follow' : sb.apps[k] ? 'show' : 'hide', v => {
           if (v === 'follow') delete sb.apps[k]; else sb.apps[k] = v === 'show'; commit('look'); shell.applyLook();

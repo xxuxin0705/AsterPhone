@@ -8,7 +8,7 @@ import { Wallpaper } from './wallpaper.js';
 import { shell } from './shell.js';
 import { applySkins } from './skin.js';
 import * as walls from './walls.js';
-import { loadClockFonts, applyClockFont } from './fonts.js';
+import { loadClockFonts, applyFonts } from './fonts.js';
 import { postToParent, inTavern } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
@@ -53,7 +53,8 @@ function applyLook() {
   const s = state.settings;
   phone.style.setProperty('--as-font-scale', s.fontScale || 1);
   phone.dataset.clock = s.clockColor || 'auto';
-  applyClockFont();
+  applyFonts();
+  if (s.clockColor === 'custom') phone.style.setProperty('--clock-hex', s.clockHex || '#8fb4ff');
   if (wallpaper && wallpaper.gl !== undefined) { wallpaper.setLiveMode(s.walls.live); showWall(wallNow(), { glitch: true }); }
   syncStatusbar();
   syncFoot();

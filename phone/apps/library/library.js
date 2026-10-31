@@ -1,9 +1,11 @@
-// 资源库：换主题（一套颜色）、管理皮肤（自己写 / 导入的 CSS）、皮肤说明书。
+// 资源库：换主题（一套颜色）、管理皮肤（自己写 / 导入的 CSS）、字体库、皮肤说明书。
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SCOPES, lib, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
+import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
+import { shell } from '../../core/shell.js';
 
 const EXAMPLES = [
   { name: '朋友圈改名', scope: 'all', css: `/* 把「动态」改叫「朋友圈」，「我」改叫「我的」 */
@@ -33,18 +35,34 @@ const CLASSES = [
 let tab = 'theme';
 export function open() {
   const p = page({ app: 'library', id: 'library-main', title: '资源库', large: true, back: true });
-  const tabs = h('div.as-chat-set-tabs', { style: { gridTemplateColumns: 'repeat(3,1fr)' } }, [['theme', '主题'], ['skins', '皮肤'], ['guide', '怎么写']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; draw(); } }, l)));
+  const tabs = h('div.as-chat-set-tabs', { style: { gridTemplateColumns: 'repeat(4,1fr)' } }, [['theme', '主题'], ['skins', '皮肤'], ['fonts', '字体'], ['guide', '怎么写']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; draw(); } }, l)));
   const box = h('div');
   p.body.append(tabs, box);
   function draw() {
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.k === tab));
-    box.innerHTML = '';
-    if (tab === 'theme') drawThemes(box, draw);
-    if (tab === 'skins') drawSkins(box, draw);
-    if (tab === 'guide') drawGuide(box, draw);
+    // 先在旁边画好再一次换上去，返回这页时不会闪
+    const nb = h('div');
+    if (tab === 'theme') drawThemes(nb, draw);
+    if (tab === 'skins') drawSkins(nb, draw);
+    if (tab === 'fonts') drawFonts(nb, draw);
+    if (tab === 'guide') drawGuide(nb, draw);
+    box.replaceChildren(...nb.childNodes);
   }
   draw(); p.el._onShow = draw;
   return p.el;
+}
+
+/** 字体库：在这里导入的、在「外观」里导入的都在这；锁屏时间和整个手机的字都从这里挑 */
+function drawFonts(box, redraw) {
+  const S = state.settings, used = id => [S.clock.font === 'u:' + id ? '锁屏时间' : '', S.uiFont === 'u:' + id ? '整个手机' : ''].filter(Boolean).join('、');
+  box.append(h('div.as-lib-actions', btn('导入字体文件', 'secondary', async () => {
+    const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+    try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 外观」里选用`); redraw(); } catch (e) { toast(e.message); }
+  })));
+  box.appendChild(userFonts().length ? group('我的字体', userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
+    if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
+    await removeClockFont(x.id); commit('look'); shell.applyLook(); redraw();
+  } })), '点一下可以删除。导入的字体只存在这台设备上，换手机要再导入一次。') : empty('还没有字体。导入 .otf / .ttf 以后，锁屏时间和整个手机的字都能用它。'));
 }
 
 function drawThemes(box, redraw) {

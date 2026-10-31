@@ -1,5 +1,5 @@
-// 锁屏时钟字体：内置三种（苹果粗体 / 纤细 / 优雅衬线）之外，可以导入好几个字体文件，
-// 存在这台设备的浏览器里（IndexedDB 键 fonts:clock），选哪个用哪个。选中的记在 settings.clock.font = 'u:<id>'。
+// 字体库（资源库 → 字体）：导入的字体文件存在这台设备的浏览器里（IndexedDB 键 fonts:clock）。
+// 锁屏时间（settings.clock.font = 'u:<id>'）和整个手机的字（settings.uiFont = 'u:<id>'）都从这里挑。
 import { kvGet, kvSet, kvDel, state } from './store.js';
 
 let list = [];                 // [{ id, name }]
@@ -14,12 +14,18 @@ async function install(id, blob) {
   await f.load();
   document.fonts.add(f); faces.set(id, f);
 }
-/** 把选中的导入字体接到 --font-clock-user 上；选中的已经被删了就换回苹果粗体 */
-export function applyClockFont() {
-  const c = state.settings.clock, f = c.font || 'sf';
-  if (f.startsWith('u:') && !list.some(x => x.id === f.slice(2))) c.font = 'sf';
-  document.documentElement.style.setProperty('--font-clock-user', c.font.startsWith('u:') ? `"${family(c.font.slice(2))}"` : '"AsterClockBuiltin"');
+const has = f => (f || '').startsWith('u:') && list.some(x => x.id === f.slice(2));
+let baseUi = '';
+/** 把选中的字体接到 CSS 变量上；选中的已经被删了就换回默认 */
+export function applyFonts() {
+  const s = state.settings, c = s.clock, root = document.documentElement.style;
+  if ((c.font || '').startsWith('u:') && !has(c.font)) c.font = 'sf';
+  if (s.uiFont && !has(s.uiFont)) s.uiFont = '';
+  root.setProperty('--font-clock-user', c.font.startsWith('u:') ? `"${family(c.font.slice(2))}"` : '"AsterClockBuiltin"');
+  if (!baseUi) baseUi = getComputedStyle(document.documentElement).getPropertyValue('--font-ui');
+  if (s.uiFont) root.setProperty('--font-ui', `"${family(s.uiFont.slice(2))}", ${baseUi}`); else root.removeProperty('--font-ui');
 }
+export const fontName = f => has(f) ? list.find(x => x.id === f.slice(2)).name : '';
 /** 启动时调用：装上所有导入过的字体（旧版只存一个，顺手搬过来，并且继续用它） */
 export async function loadClockFonts() {
   const recs = (await kvGet('fonts:clock').catch(() => null)) || [];
@@ -34,7 +40,7 @@ export async function loadClockFonts() {
   for (const r of recs) {
     try { await install(r.id, r.blob); list.push({ id: r.id, name: r.name }); } catch (e) { console.warn('[AsterPhone] 时钟字体读取失败', r.name, e); }
   }
-  applyClockFont();
+  applyFonts();
   return list.length;
 }
 /** 导入字体文件（.otf / .ttf / .woff / .woff2），返回 { id, name } */
@@ -53,5 +59,5 @@ export async function removeClockFont(id) {
   faces.delete(id); list = list.filter(x => x.id !== id);
   const recs = (await kvGet('fonts:clock').catch(() => null)) || [];
   await kvSet('fonts:clock', recs.filter(r => r.id !== id));
-  applyClockFont();
+  applyFonts();
 }

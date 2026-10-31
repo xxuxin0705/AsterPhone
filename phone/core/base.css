@@ -69,6 +69,7 @@ button { font: inherit; color: inherit; }
 .as-phone[data-clock="light"] { --ink: #f6f3ee; --ink-2: rgba(246,243,238,.7); }
 .as-phone[data-clock="dark"]  { --ink: #1b2540; --ink-2: rgba(27,37,64,.62); }
 .as-phone[data-clock="accent"] { --ink: var(--accent); --ink-2: color-mix(in srgb, var(--accent) 75%, transparent); }
+.as-phone[data-clock="custom"] { --ink: var(--clock-hex); --ink-2: color-mix(in srgb, var(--clock-hex) 75%, transparent); }
 @media (max-width: 520px) {
   body { place-items: stretch; }
   .as-phone { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
