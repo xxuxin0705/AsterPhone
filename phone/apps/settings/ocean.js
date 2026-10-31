@@ -1,7 +1,7 @@
 // 连接页背景：一片字符拼成的海。
 // 鱼的形状直接用主页「水中月」壁纸里那群鱼（core/wallpaper.js 的 drawFishBody），不另外画。
 // 做法：把鱼画到一张很小的画布上（一格字符 = 一个像素），再按每格的深浅换成 . : o t x % S 8 # @。
-// 白天：米白底、灰色字符；夜晚：深海蓝底、发光的蓝字符。一秒只更新十来次，省电。
+// 白天：米白底、深蓝字符；夜晚：深海蓝底、发光的蓝字符。一秒只更新十来次，省电。
 import { drawFishBody } from '../../core/wallpaper.js';
 
 const CW = 7, CH = 10;                         // 一格字符的宽高
@@ -72,14 +72,14 @@ export class AsciiOcean {
     const night = this.isNight(), ctx = this.ctx, tick = Math.floor(now / 240);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); ctx.clearRect(0, 0, this.W, this.H);
     ctx.font = `600 ${CH - 2}px ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const ink = night ? [150, 190, 255] : [70, 78, 92], box = night ? [90, 140, 230] : [120, 128, 140];
+    const ink = night ? [150, 190, 255] : [22, 52, 120], box = night ? [90, 140, 230] : [70, 110, 190];   // 白天：深蓝小鱼
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
       const a = px[(y * cols + x) * 4 + 3] / 255; if (a < .06) continue;
       const cx = x * CW + CW / 2, cy = y * CH + CH / 2;
       const jit = hash(x * 31 + y, tick) < .12 ? (hash(x, y + tick) < .5 ? -1 : 1) : 0;
       const ch = RAMP[Math.max(0, Math.min(RAMP.length - 1, Math.round(a * (RAMP.length - 1)) + jit))];
       if (a > .45) { ctx.fillStyle = `rgba(${box},${(night ? .16 : .14) + a * (night ? .22 : .2)})`; ctx.fillRect(cx - CW / 2 + 1, cy - CH / 2 + 1, CW - 2, CH - 2); }
-      ctx.fillStyle = `rgba(${ink},${.3 + a * .65})`; ctx.fillText(ch, cx, cy + .5);
+      ctx.fillStyle = `rgba(${ink},${(night ? .3 : .38) + a * (night ? .65 : .6)})`; ctx.fillText(ch, cx, cy + .5);
     }
     // 3. 远处零零星星的小横线（像水里的光点），慢慢往左漂
     for (const d of this.dash) {
