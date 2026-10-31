@@ -66,7 +66,7 @@ export function pop() {
   notify();
 }
 /** 关闭 App：缩回图标 */
-export function closeApp() {
+export function closeApp(slide) {
   const cur = stack[0]; if (!cur) return;
   const pr = host.getBoundingClientRect(), rect = iconRect;
   stack.slice(1).forEach(s => { leave(s.el); s.el.remove(); });
@@ -74,7 +74,8 @@ export function closeApp() {
   stack.length = 0;
   const el = cur.el;
   el.classList.add('is-zooming');
-  if (rect) {
+  if (slide) { el.style.transform = 'translateX(100%)'; }
+  else if (rect) {
     el.style.transformOrigin = '0 0';
     el.style.transform = `translate(${rect.left - pr.left}px, ${rect.top - pr.top}px) scale(${rect.width / pr.width}, ${rect.height / pr.height})`;
     el.style.borderRadius = '40px'; el.style.opacity = '0';
@@ -124,12 +125,11 @@ function enableSwipe() {
   }
   function move(dx) {
     const w = host.clientWidth;
-    if (single) { const k = Math.min(1, dx / w); cur.el.style.transform = `scale(${1 - k * .12}) translateX(${dx * .3}px)`; cur.el.style.borderRadius = `${k * 40}px`; return; }
     cur.el.style.transform = `translateX(${dx}px)`;
-    if (prev) prev.el.style.transform = `translateX(${-28 + (dx / w) * 28}%)`;
   }
   function finish(go) {
     cur.el.style.transition = ''; if (prev) prev.el.style.transition = '';
+    if (go && single) { closeApp(true); return; }
     if (go) { cur.el.style.transform = ''; cur.el.style.borderRadius = ''; if (prev) prev.el.style.transform = ''; back(); }
     else { cur.el.style.transform = ''; cur.el.style.borderRadius = ''; if (prev) prev.el.style.transform = ''; }
   }

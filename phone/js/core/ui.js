@@ -40,9 +40,9 @@ export function page({ app, id, title = '', large = false, back = true, right = 
   const titleEl = h('div.as-navbar__title', title);
   const nav = h('header.as-navbar', backBtn, titleEl, h('div.as-navbar__right', right));
   const body = h('div.as-page__body');
-  if (large) { body.appendChild(h('h1.as-largetitle', title)); nav.classList.add('is-large'); }
+  if (large) nav.classList.add('is-inline');   // 标题直接放在返回键旁边
   const el = h('section.as-page' + (cls ? '.' + cls : ''), { dataset: { asApp: app, asPage: id } }, nav, body);
-  if (large) body.addEventListener('scroll', () => nav.classList.toggle('is-scrolled', body.scrollTop > 30), { passive: true });
+  body.addEventListener('scroll', () => nav.classList.toggle('is-scrolled', body.scrollTop > 8), { passive: true });
   return { el, body, nav, setTitle: t => { titleEl.textContent = t; } };
 }
 export const navBtn = (iconName, label, onclick) => h('button.as-navbar__btn', { 'aria-label': label, onclick }, icon(iconName, 22, iconName === 'more' ? 3.2 : 1.8));

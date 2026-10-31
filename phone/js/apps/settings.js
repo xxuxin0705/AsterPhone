@@ -10,7 +10,7 @@ import { shell } from '../core/shell.js';
 import { inTavern } from '../core/bridge.js';
 import { WALLPAPERS } from '../core/wallpaper.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -236,6 +236,18 @@ function openPrompts() {
 }
 
 /* ================= 外观 ================= */
+let clockBox = null;
+function clockPreview(night) {
+  clockBox = h('div.as-settings-clockpv', { style: { backgroundImage: `url(assets/wallpapers/${night ? WALLPAPERS[S().wallpaper].night : WALLPAPERS[S().wallpaper].day})` } },
+    h('b', time.now().hm), h('span', time.now().date));
+  paintClock(); return clockBox;
+}
+function paintClock() {
+  if (!clockBox) return;
+  const night = shell.phone.dataset.mode === 'night', c = S().clockColor;
+  const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
+  clockBox.style.color = col;
+}
 function openLook() {
   sub('appearance', '外观', (body, re) => {
     const prev = h('div.as-settings-preview', '今晚的月亮很圆。你那边能看到吗？');
@@ -246,7 +258,7 @@ function openLook() {
       group('主题', [item({ title: '默认主题', sub: '更多主题和 App 皮肤放在资源库（下一轮）', value: '星夜', chevron: true, onClick: () => toast('资源库下一轮做') })]),
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))],
         '切换时整个手机会从你点的地方扩散着变色。'),
-      group('锁屏时间颜色', [h('div.as-field', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); }))]),
+      group('锁屏时间颜色（只改锁屏上那个大时间）', [clockPreview(night), h('div.as-field', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); }))]),
       group('字号', [prev, sliderRow('大小', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
       group('壁纸（锁屏和桌面共用，桌面是虚化的样子）', [h('div.as-settings-walls', Object.keys(WALLPAPERS).map(wall))]),
       group('', [item({ title: '状态栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }), item({ title: '字体', value: '系统默认', sub: '换字体放在资源库（下一轮）' })]));

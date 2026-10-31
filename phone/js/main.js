@@ -21,7 +21,12 @@ const APP_LOADERS = {
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
 /* ---------- 外观 ---------- */
-const sysDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+// 跟随系统：问自己这层，也问酒馆那层（有的浏览器只告诉其中一层）
+const sysDark = () => {
+  const q = '(prefers-color-scheme: dark)';
+  try { if (matchMedia(q).matches) return true; } catch (e) { /* 忽略 */ }
+  try { return !!(window.parent !== window && window.parent.matchMedia(q).matches); } catch (e) { return false; }
+};
 const wantNight = () => state.settings.mode === 'night' || (state.settings.mode === 'auto' && sysDark());
 function setNight(night, originEl, instant) {
   let origin = null;
@@ -193,7 +198,12 @@ async function boot() {
     if (e.target.closest('button, .as-lock-notice, .as-pin, .as-home-widget, .as-home-app, .as-sheet, .as-dialog-mask')) return;
     const p = phone.getBoundingClientRect(); wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
   });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (state.settings.mode === 'auto') setNight(wantNight()); });
+  const follow = () => { if (state.settings.mode === 'auto' && (phone.dataset.mode === 'night') !== wantNight()) setNight(wantNight()); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow);
+  try { window.parent.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow); } catch (e) { /* 忽略 */ }
+  // 有的手机浏览器切深色模式时不发通知，就每 2 秒自己看一眼；切回手机时也看一眼
+  setInterval(follow, 2000);
+  document.addEventListener('visibilitychange', follow); addEventListener('focus', follow);
   if (navigator.getBattery) navigator.getBattery().then(b => { const f = () => $('#sbBattery').setAttribute('width', Math.max(2, 16 * b.level)); f(); b.addEventListener('levelchange', f); }).catch(() => {});
   bindTripleTap();
   subscribe(what => {
