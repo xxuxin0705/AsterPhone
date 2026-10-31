@@ -23,13 +23,13 @@ const CORDS = [
 ];
 let lastCord = 0;     // 上次看的是哪根线（这次打开还停在那里）
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const FACE = { idle: '·_·', blink: '-_-', curious: '·_·?', dim: '-_-', test: '°o°', ok: '^‿^', joy: '≧▽≦', bad: 'T_T', need: '·_·?', plugged: '·‿·' };
+const FACE = { idle: '·_·', blink: '-_-', curious: '·_·', dim: '-_-', test: '°o°', ok: '^‿^', joy: '≧▽≦', bad: 'T_T', need: '·_·', plugged: '·‿·' };
 // 同一种心情有好几张脸，每个格子挑不一样的；每插一次 / 测通一次换一张
 const FACES = {
   idle: ['·_·', '•_•', '°_°', '·ㅅ·', '·ω·'],
   ok: ['^‿^', '^▽^', '◕‿◕', '^ω^', 'ᵔᴥᵔ', '≧◡≦', '^_^'],
   joy: ['≧▽≦', '✧▽✧', '^o^', '★▽★', '≧ω≦'],
-  need: ['·_·?', '?_?', '°~°?', '•_•?', 'ˀ_ˀ'],
+  need: ['·_·', '•_•', '°~°', '°_°', '·.·'],
   bad: ['T_T', 'ಥ_ಥ', ';_;', '×_×', 'ToT'],
   test: ['°o°', '·o·', '°□°'],
 };
@@ -97,7 +97,7 @@ export function openBoard({ list }) {
     return all.sort((a, b) => rank(a) - rank(b));
   }
   function makeTile(c, kind) {
-    const eyes = h('b', FACE.idle), face = h('span.as-pb__face', eyes), port = h('span.as-pb__port', h('i'));
+    const eyes = h('b', FACE.idle), qm = h('i.as-pb__q', '?'), face = h('span.as-pb__face', eyes, qm), port = h('span.as-pb__port', h('i'));
     if (!c) {
       const el = h('div.as-pb__tile.is-add', { role: 'button', tabindex: 0, 'aria-label': '添加接口' }, h('span.as-pb__face', h('b', '+')), h('span.as-pb__name', '添加'), port);
       const t = { c: null, kind: null, el, face, eyes, port };
@@ -106,7 +106,7 @@ export function openBoard({ list }) {
     }
     const kindEl = h('span.as-pb__kind'), nameEl = h('span.as-pb__name'), subEl = h('span.as-pb__model'), usesEl = h('span.as-pb__uses'), pinEl = h('span.as-pb__pin', { 'aria-hidden': 'true' }, '📌');
     const el = h('div.as-pb__tile', { role: 'button', tabindex: 0, dataset: { kind, id: c.id } }, kindEl, pinEl, face, nameEl, subEl, usesEl, port);
-    const t = { c, kind, el, face, eyes, port, nameEl, subEl, kindEl, usesEl, pinEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
+    const t = { c, kind, el, face, eyes, qm, qSide: 1, port, nameEl, subEl, kindEl, usesEl, pinEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
     el.addEventListener('click', () => { if (dragging() || sorting || performance.now() < quietUntil) return; openDetail(t.c, t.kind); });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.click(); });
     bindSort(t);
@@ -344,8 +344,9 @@ export function openBoard({ list }) {
   async function landed(pl) {
     const id = pl.target, t = tileOf(id), again = pl.back && C().defaults[pl.use] === id;
     pl.mode = 'plugged'; pl.prev = null; pl.back = false; pl.shake = 1; vib(18);
-    burst(pl.x, pl.y, 20, 'spark'); layoutLabels(); ocean.kick(1);
-    if (t) { t.joyUntil = performance.now() + 900; t.mood = (t.mood || 0) + 1; }
+    const huh = t && t.c && needSetup(t.c, t.kind);
+    burst(pl.x, pl.y, huh ? 8 : 20, huh ? 'dust' : 'spark'); layoutLabels(); ocean.kick(huh ? .4 : 1);
+    if (t) { t.mood = (t.mood || 0) + 1; if (huh) t.huhUntil = performance.now() + 700; else t.joyUntil = performance.now() + 900; }
     if (again) return;
     // 插上就算接好了：不发请求，直接笑脸。想确认真能用，点格子里的「测试」
     C().defaults[pl.use] = id; C().scheme = ''; commit('connections'); syncUses();
@@ -383,7 +384,9 @@ export function openBoard({ list }) {
       const st = stOf(t.c), compat = dp && dp.kind === t.kind, near = dp && nearTile(dp) === t;
       if (now > t.blinkAt) { t.blinkUntil = now + 140; t.blinkAt = now + 2200 + Math.random() * 4200; }
       let f, look = 0;
-      if (now < t.joyUntil) f = 'joy';
+      if (now < (t.huhUntil || 0)) f = 'need';
+      else if (plugs.some(q => q.mode === 'snap' && q.target === t.c.id)) f = 'curious';   // 插头正飞过来：先好奇地看着
+      else if (now < t.joyUntil) f = 'joy';
       else if (status[t.c.id] === 'test') f = 'test';
       else if (dp && !compat) f = 'dim';
       else if (dp && compat) { f = 'curious'; const q = portOf(t, dp); look = Math.max(-1, Math.min(1, (dp.x - q.x) / 120)); }
@@ -391,10 +394,24 @@ export function openBoard({ list }) {
       else if (used && needSetup(t.c, t.kind)) f = 'need';     // 黄：插上了，但还没填密钥
       else if (used) f = 'ok';                                  // 绿：插着就算好（外面不会主动去测）
       else f = 'idle';
+      const wonder = f === 'curious';
       if ((f === 'idle' || f === 'curious' || f === 'plugged') && now < t.blinkUntil) f = f === 'plugged' ? 'blink' : 'blink';
       const txt = f === 'blink' || f === 'dim' || f === 'curious' ? FACE[f] : faceText(f, t.c.id, t.mood || 0);
       if (t.eyes.textContent !== txt) t.eyes.textContent = txt;
-      t.eyes.style.transform = `translateX(${(look * 3).toFixed(1)}px)`;
+      // 眼睛看向插头：插头在右边就往右看、在下面就往下看；拖着的时候看得更认真
+      const pl = cur(); let lx = 0, ly = 0;
+      if (pl && isOn(pl) && f !== 'dim') {
+        const fr = t.face.getBoundingClientRect(), b0 = B(), fx = fr.left - b0.left + fr.width / 2, fy = fr.top - b0.top + fr.height / 2;
+        const hx = pl.x, hy = pl.mode === 'plugged' && pl.target === t.c.id ? fy + 200 : pl.y + PL * .4;
+        const gain = dp ? 1 : .6, cl = v => Math.max(-1, Math.min(1, v));
+        lx = cl((hx - fx) / 110) * gain; ly = cl((hy - fy) / 200) * gain;
+      }
+      t.lx = (t.lx || 0) + (lx - (t.lx || 0)) * .25; t.ly = (t.ly || 0) + (ly - (t.ly || 0)) * .25;
+      t.eyes.style.transform = `translate(${(t.lx * 7).toFixed(1)}px, ${(t.ly * 3).toFixed(1)}px)`;
+      // 问号：看向右边时冒在左边，看向左边时冒在右边（离得近才换边，免得来回跳）
+      const showQ = f === 'need' || wonder || now < (t.huhUntil || 0);
+      if (t.lx > .2) t.qSide = -1; else if (t.lx < -.2) t.qSide = 1;
+      t.qm.classList.toggle('is-on', showQ); t.qm.classList.toggle('is-left', t.qSide < 0);
       t.el.dataset.face = f;
       t.el.classList.toggle('is-near', !!near); t.el.classList.toggle('is-dim', !!dp && !compat); t.el.classList.toggle('is-used', used);
     }
@@ -557,7 +574,7 @@ export function openBoard({ list }) {
     const paintSt = () => {
       const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none');
       stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置（没填密钥）' : '还没测过';
-      faceEl.firstChild.textContent = faceText(s || 'idle', orig.id);
+      faceEl.firstChild.textContent = faceText(s || 'idle', orig.id) + (s === 'need' ? '?' : '');
       faceEl.dataset.face = s || 'idle';
     };
     paintSt();

@@ -51,6 +51,13 @@
 .as-pb__tile[data-face="ok"] .as-pb__face, .as-pb__tile[data-face="joy"] .as-pb__face { box-shadow: 0 0 0 2px rgba(80,220,150,.45), 0 0 18px rgba(80,220,150,.45), inset 0 1px 0 #fff; }
 .as-pb__tile[data-face="bad"] .as-pb__face b { color: #ffb0b0; text-shadow: 0 0 10px rgba(255,90,90,.8); }
 .as-pb__tile[data-face="bad"] .as-pb__face { box-shadow: 0 0 0 2px rgba(240,90,90,.45), 0 0 18px rgba(240,90,90,.4), inset 0 1px 0 #fff; }
+/* 小问号：单独一个字，跟着视线换边（看右边就冒在左边） */
+.as-pb__q { position: absolute; z-index: 2; top: 13px; right: 12px; font: 800 14px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-style: normal; color: #ffd76a; text-shadow: 0 0 8px rgba(255,200,60,.9);
+  opacity: 0; transform: scale(.4) rotate(-20deg); transition: opacity 160ms, transform 260ms var(--as-ease-spring), left 200ms, right 200ms; pointer-events: none; }
+.as-pb__q.is-on { opacity: 1; transform: none; animation: pb-q 1.6s ease-in-out infinite; }
+.as-pb__q.is-left { right: auto; left: 12px; }
+.as-pb__tile[data-face="curious"] .as-pb__q { color: #cfe6ff; text-shadow: 0 0 8px rgba(160,210,255,.8); }
+@keyframes pb-q { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
 /* 黄：插上了但还没配置（没填密钥） */
 .as-pb__tile[data-face="need"] .as-pb__face b { color: #ffe08a; text-shadow: 0 0 10px rgba(255,200,60,.85); animation: pb-wobble 1.4s ease-in-out infinite; }
 .as-pb__tile[data-face="need"] .as-pb__face { box-shadow: 0 0 0 2px rgba(240,190,60,.55), 0 0 18px rgba(240,190,60,.45), inset 0 1px 0 #fff; }
