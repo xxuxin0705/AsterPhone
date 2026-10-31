@@ -31,7 +31,7 @@ export function renderMe(ctx) {
       group('', [
         item({ icon: 'wallet', color: 'gold', title: '钱包', value: '¥' + (me.balance ?? 0), chevron: true, onClick: openWallet }),
         item({ icon: 'bookmark', color: 'orange', title: '收藏', value: String(state.favorites.length), chevron: true, onClick: openFavorites }),
-        item({ icon: 'smile', color: 'pink', title: '表情包', value: '下一轮', chevron: true, onClick: () => toast('表情包管理下一轮做') }),
+        item({ icon: 'smile', color: 'pink', title: '表情包', value: String(state.stickers.length), chevron: true, onClick: () => import('./specials.js').then(m => m.openStickerManager()) }),
         item({ icon: 'image', color: 'teal', title: '聊天背景', chevron: true, onClick: () => toast('在每个聊天的「···」→ 外观 里换') }),
       ]),
       group('我的动态', [h('div', { style: { paddingBottom: '4px' } }, (() => { const f = h('div'); feedInto(f, state.moments.filter(m => m.author === 'me'), draw); return f; })())]));
@@ -72,7 +72,8 @@ function openWallet() {
       const v = await dialog({ title: '修改余额', input: { value: String(state.me.balance ?? 0) } });
       if (v != null && !isNaN(parseFloat(v))) { state.me.balance = Math.round(parseFloat(v) * 100) / 100; commit('me'); nav.pop(); toast('已修改'); }
     } })]),
-    group('收支明细', [empty('还没有记录。转账、红包下一轮上线。')]));
+    group('收支明细', []));
+  import('./specials.js').then(m => { p.body.lastElementChild.querySelector('.as-list-group__body').append(...m.ledgerList()); });
   nav.push(p.el);
 }
 export function openFavorites() {

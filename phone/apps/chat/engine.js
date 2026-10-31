@@ -8,6 +8,7 @@ import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { render, globalSystem, myName, myPersona, getPrompt } from '../../core/promptstore.js';
+import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -33,8 +34,7 @@ export function preview(m) {
   if (!m) return '';
   if (m.recalled) return m.from === 'me' ? '你撤回了一条消息' : '对方撤回了一条消息';
   if (m.type === 'poke') return m.text;
-  if (m.type === 'image') return '[图片]';
-  return m.text || '';
+  return previewOf(m);
 }
 function touch(chat, m) {
   chat.lastAt = m.at; chat.lastSt = m.st; chat.lastText = preview(m); chat.lastFrom = m.from;
@@ -55,6 +55,32 @@ export async function addSystem(chat, text, extra = {}) {
   msgs.push(m); touch(chat, m); saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
   return m;
 }
+/** 发一条特殊消息（语音、图片、转账……） */
+export async function sendSpecial(chat, fields) {
+  const msgs = await getMsgs(chat.id);
+  const m = { id: uid('m'), from: 'me', ...fields, ...time.stamp() };
+  if ((m.type === 'transfer' || m.type === 'packet') && !m.status) m.status = 'pending';
+  if (m.type === 'transfer' || m.type === 'packet') ledger(-m.amount, `给 ${nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
+  msgs.push(m); touch(chat, m);
+  saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
+  return m;
+}
+/** 钱包记一笔：正数是进账，负数是花出去 */
+export function ledger(amount, note) {
+  const me = state.me; me.balance = Math.round(((me.balance ?? 0) + Number(amount)) * 100) / 100;
+  (me.ledger = me.ledger || []).unshift({ at: Date.now(), amount: Number(amount), note });
+  me.ledger.splice(200); commit('me');
+}
+/** 我点开 TA 的转账 / 红包：收下或退还 */
+export async function settle(chat, m, accept) {
+  m.status = accept ? 'accepted' : 'returned';
+  if (accept) ledger(m.amount, `收到 ${nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
+  saveMsgs(chat.id);
+  await addSystem(chat, `你${accept ? '收下了' : '退还了'}「${nameOf(contact(chat.contactId))}」的${m.type === 'packet' ? '红包' : '转账'} ${money(m.amount)}`);
+  emit('reload', chat.id);
+}
+export { emit };
+
 /** 还没被回复的我的消息条数 */
 export function pending(msgs) {
   let n = 0;
@@ -68,14 +94,14 @@ function historyText(msgs, c, n = 24) {
   return msgs.filter(m => !m.recalled).slice(-n).map(m => {
     if (m.from === 'sys') return `（${m.text}）`;
     const q = m.quote ? `（引用「${m.quote.text}」）` : '';
-    return `${who(m)}：${q}${m.type === 'image' ? '[图片]' : m.text}`;
+    return `${who(m)}：${q}${forAI(m)}`;
   }).join('\n') || '（还没有聊过）';
 }
 export function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const min = Math.max(1, cfg.minLines || 1), max = Math.max(min, cfg.maxLines || 4);
   return {
-    system: globalSystem(),
+    system: [globalSystem(), specialsGuide()].filter(Boolean).join('\n\n'),
     prompt: render('reply', {
       char: c ? (c.name || nameOf(c)) : 'TA', persona: personaOf(c) || '（没有更多资料）', user_persona: myPersona() || '（没有更多资料）',
       story: cfg.linkMode === 'follow' ? (recentStory(6) || '（暂无）') : '（这是一段只在手机上的聊天，和正文无关）',
@@ -110,23 +136,48 @@ export async function requestReply(chat) {
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     saveMsgs(chat.id); emit('read', chat.id);
     const batch = uid('b'), cap = Math.max(chat.cfg.maxLines || 4, 1) + 2;
-    for (let i = 0; i < Math.min(lines.length, cap); i++) {
-      const line = lines[i];
-      if (i > 0) { emit('typing', chat.id, true); await sleep(Math.min(2400, 420 + line.length * 70)); }
-      const m = { id: uid('m'), from: 'them', type: 'text', text: line, batch, ...time.stamp() };
-      if (i === 0 && inner) m.inner = inner;
+    let shown = 0, first = true;
+    for (const line of lines) {
+      if (shown >= cap) break;
+      const p = parseLine(line);
+      // 收下 / 退还我刚发的转账、红包
+      if (p.type === 'accept' || p.type === 'return') {
+        const t = [...msgs].reverse().find(x => x.from === 'me' && (x.type === 'transfer' || x.type === 'packet') && x.status === 'pending');
+        if (t) {
+          t.status = p.type === 'accept' ? 'accepted' : 'returned';
+          if (t.status === 'returned') ledger(t.amount, `${nameOf(c)} 退还了${t.type === 'packet' ? '红包' : '转账'}`);
+          await addSystem(chat, `${nameOf(c)} ${t.status === 'accepted' ? '收下了' : '退还了'}你的${t.type === 'packet' ? '红包' : '转账'} ${money(t.amount)}`);
+          emit('reload', chat.id);
+        }
+        continue;
+      }
+      if (p.type === 'poke-them') { await addSystem(chat, `「${nameOf(c)}」拍了拍你${state.me.pokeSuffix || ''}`, { pokeMe: true }); continue; }
+      if (!first) { emit('typing', chat.id, true); await sleep(Math.min(2400, 420 + String(p.text || '').length * 70)); }
+      const m = { id: uid('m'), from: 'them', ...p, batch, ...time.stamp() };
+      if (first && inner) m.inner = inner;
+      first = false; shown++;
       msgs.push(m); touch(chat, m);
       if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
       bumpStreak(chat);
       saveMsgs(chat.id); commit('chats');
       emit('msg', chat.id, m);
-      shell.notify({ chatId: chat.id, title: nameOf(c), text: line, avatarUrl: avatarOf(c, chat) });
+      shell.notify({ chatId: chat.id, title: nameOf(c), text: preview(m), avatarUrl: avatarOf(c, chat) });
     }
+    if (!shown) saveMsgs(chat.id);
   } catch (e) {
     emit('error', chat.id, e.message || String(e));
   } finally {
     busy.delete(chat.id); emit('typing', chat.id, false);
   }
+}
+/** 通话中：TA 接着说几句（不写进聊天记录，挂断时整段变成一条通话记录） */
+export async function callReply(chat, lines, mode) {
+  const c = contact(chat.contactId), msgs = await getMsgs(chat.id);
+  const { prompt } = buildReplyPrompt(chat, msgs);
+  const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
+  const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: globalSystem(), prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话' });
+  return parseReply(raw, c).lines.filter(l => !/^\[/.test(l)).slice(0, 3);
 }
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
 export async function regenerate(chat, msgId) {

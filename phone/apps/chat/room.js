@@ -9,6 +9,7 @@ import { log } from '../../core/log.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
 import { openProfile } from './people.js';
+import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
 
@@ -54,16 +55,19 @@ export async function openRoom(chat) {
   const inputEl = h('textarea.as-chat-input', { rows: 1, placeholder: '发消息…', 'aria-label': '输入消息' });
   inputEl.value = chat.draft || '';
   const sendBtn = h('button.as-chat-sendbtn', { 'aria-label': '发送' });
-  const plusBtn = h('button.as-chat-iconbtn', { 'aria-label': '更多', onclick: () => { plus.hidden = !plus.hidden; plusBtn.classList.toggle('is-active', !plus.hidden); } }, icon('plus', 22, 1.8));
+  const plusBtn = h('button.as-chat-iconbtn', { 'aria-label': '更多', onclick: () => { const open = plus.hidden; closePanels(); plus.hidden = !open; plusBtn.classList.toggle('is-active', open); } }, icon('plus', 22, 1.8));
   const quoteBar = h('div.as-chat-quotebar', { hidden: true });
-  const plus = h('div.as-chat-plus', { hidden: true }, [
-    ['poke', '拍一拍', 'sparkle'], ['photo', '相册', 'image'], ['call', '语音通话', 'phone'], ['transfer', '转账', 'wallet'],
-    ['packet', '红包', 'box'], ['loc', '位置', 'moments'], ['music', '一起听', 'mic'], ['card', '名片', 'user'],
-  ].map(([k, label, ic]) => h('button' + (k === 'poke' ? '' : '.is-soon'), { onclick: () => plusAction(k) }, h('span', icon(ic, 24, 1.7)), h('span', label))));
-  const soon = (ic, label, msg) => h('button.as-chat-iconbtn', { 'aria-label': label, onclick: () => toast(msg) }, icon(ic, 21, 1.7));
+  const closePanels = () => { plus.hidden = true; stick.el.hidden = true; plusBtn.classList.remove('is-active'); };
+  const plus = h('div.as-chat-plus', { hidden: true }, PLUS.map(([k, label, ic]) => h('button' + (k === 'music' ? '.is-soon' : ''), { onclick: () => { closePanels(); plusAction(k); } }, h('span', icon(ic, 24, 1.7)), h('span', label))));
+  const stick = stickerPanel(chat, () => {}); stick.el.hidden = true;
+  const tool = (ic, label, fn) => h('button.as-chat-iconbtn', { 'aria-label': label, onclick: fn }, icon(ic, 21, 1.7));
   const inputWrap = h('div.as-chat-inputwrap', quoteBar, inputEl,
-    h('div.as-chat-toolbar', plusBtn, soon('smile', '表情', '表情包面板下一轮做'), soon('image', '图片', '发图片下一轮做'), soon('mic', '语音', '语音下一轮做'), h('span.as-spacer'), sendBtn),
-    plus);
+    h('div.as-chat-toolbar', plusBtn,
+      tool('smile', '表情包', () => { const open = stick.el.hidden; closePanels(); stick.el.hidden = !open; if (open) stick.draw(); }),
+      tool('image', '图片', () => { closePanels(); plusAction('photo'); }),
+      tool('mic', '语音', () => { closePanels(); plusAction('voice'); }),
+      h('span.as-spacer'), sendBtn),
+    stick.el, plus);
   const selectBar = h('div.as-chat-selectbar', { hidden: true },
     h('button.is-danger', { onclick: () => bulk('del') }, icon('trash', 22, 1.7), '删除'),
     h('button', { onclick: () => bulk('pin') }, icon('link', 22, 1.7), '注入正文'),
@@ -91,8 +95,7 @@ export async function openRoom(chat) {
       ava = chatAvatar(me ? E.myAvatarIn(chat) : E.avatarOf(c, chat), me ? (state.me.nick || '我') : E.nameOf(c), chat.cfg);
       ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me);
     }
-    const bubble = h('div.as-chat-bubble',
-      m.quote ? h('span.as-chat-quote', h('b', `回复 ${m.quote.who}`), h('span', m.quote.text)) : null, m.text);
+    const bubble = buildBubble(m, { chat, c, redraw });
     onLongPress(bubble, () => { if (!selecting) openMenu(m, bubble); });
     bubble.addEventListener('pointerdown', () => bubble.classList.add('is-pressed'));
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bubble.addEventListener(ev, () => bubble.classList.remove('is-pressed')));
@@ -179,14 +182,13 @@ export async function openRoom(chat) {
   sendBtn.addEventListener('click', doSend);
   inputEl.addEventListener('input', () => { chat.draft = inputEl.value; syncBtn(); });
   inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); doSend(); } });
-  inputEl.addEventListener('focus', () => { plus.hidden = true; plusBtn.classList.remove('is-active'); setTimeout(() => list.scrollTo({ top: list.scrollHeight }), 300); });
+  inputEl.addEventListener('focus', () => { closePanels(); setTimeout(() => list.scrollTo({ top: list.scrollHeight }), 300); });
   function setQuote(m) {
     quote = m; quoteBar.hidden = !m;
     if (m) quoteBar.replaceChildren(h('span', `引用 ${m.from === 'me' ? '我' : E.nameOf(c)}：${m.text}`), h('button', { 'aria-label': '取消引用', onclick: () => setQuote(null) }, icon('close', 16, 2)));
   }
   function plusAction(k) {
-    if (k === 'poke') { plus.hidden = true; plusBtn.classList.remove('is-active'); const all = list.querySelectorAll('.as-chat-msg.is-them .as-chat-msg__avatar'); const a = all[all.length - 1] || h('span'); poke(a, false); return; }
-    toast('转账、红包、语音、图片这些特殊消息下一轮做');
+    return doPlus(k, chat, c, { poke: () => { const all = list.querySelectorAll('.as-chat-msg.is-them .as-chat-msg__avatar'); poke(all[all.length - 1] || h('span'), false); } });
   }
 
   /* ---------- 长按菜单 ---------- */

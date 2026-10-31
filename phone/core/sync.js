@@ -8,6 +8,7 @@ import { inTavern, onTavern, setInjection, hideTagsIn, chatMessage, ctx } from '
 import { log } from './log.js';
 import * as time from './time.js';
 import { getPrompt, render, myName } from './promptstore.js';
+import { forAI } from '../apps/chat/msgtypes.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
 const seen = new Set();
@@ -65,7 +66,7 @@ async function readMessage(id) {
 }
 
 /* ---------- 3. 注入正文 ---------- */
-const TYPE_OF = m => m.recalled ? 'recall' : m.type === 'poke' ? 'poke' : m.quote ? 'quote' : (m.type || 'text');
+const TYPE_OF = m => m.recalled ? 'recall' : m.type === 'poke' ? 'poke' : m.quote ? 'quote' : m.type === 'packet' ? 'transfer' : (m.type || 'text');
 export async function collectInjection() {
   const table = state.apps.chat.injectTable, auto = [], pinned = [];
   for (const chat of state.chats) {
@@ -82,7 +83,7 @@ export function lineOf({ chat, m }) {
   const when = time.isStory() && m.st ? `第${m.st.d}天 ${String(Math.floor(m.st.m / 60)).padStart(2, '0')}:${String(m.st.m % 60).padStart(2, '0')}` : new Date(m.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   if (m.from === 'sys') return `（${when}）${m.text}`;
   const q = m.quote ? `（引用「${m.quote.text}」）` : '';
-  const body = m.type === 'image' ? '[发了一张图片]' : m.text;
+  const body = forAI(m);
   return m.from === 'me' ? `（${when}）${me} 发给 ${other}：${q}${body}` : `（${when}）${other} 发给 ${me}：${q}${body}`;
 }
 export async function injectionText() {

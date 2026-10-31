@@ -104,17 +104,61 @@ export async function testConn(conn) {
 
 /* ---------- 演示回复（单独打开预览、没有酒馆时用）---------- */
 const DEMO = [
-  ['在呢', '刚洗完澡 头发还湿着', '你今天怎么这么晚还不睡'],
-  ['哈哈哈哈', '你这人', '行吧 听你的'],
+  ['在呢', '[语音]刚洗完澡 头发还湿着', '你今天怎么这么晚还不睡'],
+  ['[收下]', '哈哈哈哈 谢谢老板', '[红包]6.66|早点睡'],
   ['嗯…', '<inner>其实有点想她</inner>', '明天要不要一起吃早饭'],
-  ['刚看到', '我在路上了', '十分钟到'],
+  ['刚看到', '[位置]海边那家咖啡店', '十分钟到'],
   ['你又熬夜', '快去睡觉', '晚安 🌙'],
 ];
 let demoIdx = 0;
 function demoReply(prompt) {
   if (/谁点赞/.test(prompt)) { const names = [...prompt.matchAll(/^- ([^：\n]+)/gm)].map(m => m[1].trim()); const a = names[0] || '某人', b = names[1] || a; return `赞|${a}\n评论|${b}|拍得不错\n回复|${a}|${b}|你也在线啊`; }
   if (/发一条朋友圈动态/.test(prompt)) return ['今天的晚霞好看到不想回家', '路过的猫比我还会生活 🐈', '下雨天，适合发呆'][demoIdx++ % 3];
+  if (/正在(语音|视频)通话/.test(prompt)) return ['喂？听得到吗', '（那边有点风声）我刚到楼下'][demoIdx++ % 2];
   if (/只回复两个字/.test(prompt)) return '在的';
   const lines = DEMO[demoIdx++ % DEMO.length];
   return lines.join('\n');
+}
+
+/* ---------- 生图（OpenAI 兼容 /images/generations） ---------- */
+export async function generateImage(prompt, app = '聊天') {
+  const conn = resolveConn('image', 'chat');
+  if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里加一个');
+  const res = await fetch(trim(conn.base) + '/images/generations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
+    body: JSON.stringify({ model: conn.model || undefined, prompt, n: 1, size: conn.size || '1024x1024', response_format: 'b64_json' }),
+  });
+  if (!res.ok) { const msg = await readErr(res); log('error', app, '生图失败：' + msg); throw new Error(msg); }
+  const j = await res.json(), d = (j.data || [])[0] || {};
+  if (d.b64_json) return 'data:image/png;base64,' + d.b64_json;
+  if (d.url) return d.url;
+  throw new Error('生图接口没有返回图片');
+}
+
+/* ---------- 朗读：有语音连接就用它，没有就用浏览器自带的（免费） ---------- */
+let playing = null;
+export async function speak(text, { voice } = {}) {
+  stopSpeak();
+  const conn = resolveConn('tts', 'chat');
+  if (conn && conn.type === 'openai-tts') {
+    try {
+      const res = await fetch(trim(conn.base) + '/audio/speech', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
+        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: voice || conn.voice || 'alloy' }),
+      });
+      if (!res.ok) throw new Error(await readErr(res));
+      const a = new Audio(URL.createObjectURL(await res.blob())); playing = a; await a.play();
+      return new Promise(r => { a.onended = r; a.onerror = r; });
+    } catch (e) { log('warn', '语音', '语音连接朗读失败，改用浏览器朗读：' + e.message); }
+  }
+  if (!('speechSynthesis' in window)) throw new Error('这个浏览器不能朗读');
+  return new Promise(r => {
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = 1.02;
+    const v = speechSynthesis.getVoices().find(x => /zh|Chinese/i.test(x.lang + x.name)); if (v) u.voice = v;
+    u.onend = r; u.onerror = r; playing = u; speechSynthesis.speak(u);
+  });
+}
+export function stopSpeak() {
+  try { if (playing instanceof Audio) playing.pause(); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* 忽略 */ }
+  playing = null;
 }

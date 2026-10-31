@@ -301,3 +301,94 @@
 /* 聊天背景 */
 .as-chat-bg-preview { height: 170px; margin: 12px 14px; border-radius: 18px; background: var(--as-color-bg-grad); background-size: cover; background-position: center; display: grid; place-items: center; color: var(--as-color-text-2); font: 400 13px/1 var(--font-ui); box-shadow: inset 0 0 0 1px var(--as-color-glass-line); }
 .as-chat-bg-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px 14px; }
+
+/* ================= 特殊消息 ================= */
+/* 语音条 */
+.as-chat-voice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; min-width: 92px; }
+.as-chat-voice__play { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--as-color-accent) 18%, transparent); color: var(--as-color-accent); }
+.as-chat-voice__wave { display: flex; align-items: center; gap: 2px; height: 18px; }
+.as-chat-voice__wave i { width: 3px; border-radius: 2px; background: currentColor; opacity: .55; }
+.as-chat-voice.is-playing .as-chat-voice__wave i { animation: as-wave .9s ease-in-out infinite; }
+.as-chat-voice.is-playing .as-chat-voice__wave i:nth-child(2n) { animation-delay: .15s; }
+.as-chat-voice.is-playing .as-chat-voice__wave i:nth-child(3n) { animation-delay: .3s; }
+@keyframes as-wave { 50% { transform: scaleY(.4); opacity: 1; } }
+.as-chat-voice__dur { font-size: .85em; opacity: .75; font-variant-numeric: tabular-nums; }
+.as-chat-voice__text { flex-basis: 100%; margin-top: 4px; padding-top: 6px; border-top: 1px dashed color-mix(in srgb, currentColor 25%, transparent); font-size: .92em; }
+/* 图片 */
+.as-chat-pic { padding: 4px; }
+.as-chat-pic img { display: block; max-width: 180px; max-height: 240px; border-radius: 14px; cursor: zoom-in; }
+.as-chat-imgcard { display: grid; gap: 8px; width: 190px; }
+.as-chat-imgcard__art { height: 96px; border-radius: 12px; display: grid; place-items: center; color: var(--as-color-accent); background: linear-gradient(140deg, rgba(255,255,255,.55), color-mix(in srgb, var(--as-color-accent-2) 30%, transparent)); }
+.as-chat-imgcard__desc { font-size: .9em; line-height: 1.5; }
+.as-chat-imgcard__gen { justify-self: start; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--as-color-glass-line); background: rgba(255,255,255,.4); color: var(--as-color-accent); border-radius: 999px; padding: 5px 10px; font: 600 12px/1 var(--font-ui); cursor: pointer; }
+.as-chat-imgcard__gen:disabled { opacity: .7; }
+.as-chat-viewer { position: absolute; inset: 0; z-index: 95; background: rgba(4,14,26,.88); display: grid; place-content: center; justify-items: center; gap: 12px; padding: 20px; animation: as-fade 200ms; cursor: zoom-out; }
+.as-chat-viewer img { max-width: 100%; max-height: 72vh; border-radius: 12px; }
+.as-chat-viewer p { color: #dbeefe; font: 400 13px/1.5 var(--font-ui); margin: 0; text-align: center; }
+/* 表情包：没有气泡底 */
+.as-chat-bubble.as-chat-sticker { padding: 0; background: none !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.as-chat-sticker img { display: block; width: 110px; height: 110px; object-fit: contain; }
+/* 转账 / 红包 */
+.as-chat-bubble.as-chat-money { width: 210px; padding: 0; overflow: hidden; cursor: pointer; color: #fff !important; background: linear-gradient(150deg, #5fc8f5, #2496dd) !important; border-color: rgba(255,255,255,.5) !important; }
+.as-chat-bubble.as-chat-money.is-packet { background: linear-gradient(150deg, #ff9a7a, #f0605a) !important; }
+.as-chat-bubble.as-chat-money.is-done { filter: saturate(.55) brightness(1.05); }
+.as-chat-money__top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.as-chat-money__top > div { display: grid; gap: 3px; min-width: 0; }
+.as-chat-money__top b { font: 600 15px/1.2 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-chat-money__top span { font: 400 12px/1.2 var(--font-ui); opacity: .88; }
+.as-chat-money__icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.22); flex: none; }
+.as-chat-money__foot { padding: 6px 14px; font: 400 11px/1.2 var(--font-ui); background: rgba(255,255,255,.88); color: var(--as-color-text-2); }
+.as-phone[data-mode="night"] .as-chat-money__foot { background: rgba(10,30,50,.75); }
+/* 位置 */
+.as-chat-bubble.as-chat-loc { width: 200px; padding: 0; overflow: hidden; }
+.as-chat-loc__map { height: 88px; display: grid; place-items: center; color: var(--as-color-danger); background: repeating-linear-gradient(35deg, rgba(255,255,255,.4) 0 10px, rgba(160,210,240,.35) 10px 20px), linear-gradient(160deg, #cfeefc, #a9dcf6); }
+.as-chat-loc__map span { filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.as-chat-loc__name { padding: 8px 12px; font: 500 13.5px/1.4 var(--font-ui); }
+/* 通话记录 */
+.as-chat-callrec { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+/* 名片 */
+.as-chat-bubble.as-chat-card { width: 210px; padding: 0; overflow: hidden; cursor: pointer; }
+.as-chat-card__top { display: flex; gap: 10px; align-items: center; padding: 12px 14px; }
+.as-chat-card__top > div { display: grid; gap: 3px; min-width: 0; }
+.as-chat-card__top b { font: 600 15px/1.2 var(--font-ui); }
+.as-chat-card__top span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-chat-card__foot { padding: 6px 14px; border-top: 1px solid var(--as-color-border); font: 400 11px/1.2 var(--font-ui); color: var(--as-color-text-2); }
+
+/* 表情包面板 */
+.as-chat-stickers { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 2px 4px; max-height: 210px; overflow-y: auto; }
+.as-chat-stickers button { border: 0; background: rgba(255,255,255,.3); border-radius: 12px; padding: 4px; aspect-ratio: 1; display: grid; place-items: center; cursor: pointer; transition: transform var(--as-dur-fast); }
+.as-chat-stickers button:active { transform: scale(.9); }
+.as-chat-stickers img { width: 100%; height: 100%; object-fit: contain; }
+.as-chat-stickers__add { color: var(--as-color-accent); border: 1px dashed var(--as-color-glass-line) !important; }
+.as-chat-stickers__tip { grid-column: 2 / -1; align-self: center; font: 400 12px/1.5 var(--font-ui); color: var(--as-color-text-2); }
+.as-chat-stickers.is-manage { grid-template-columns: repeat(4, 1fr); max-height: none; }
+.as-chat-stickers.is-manage button { aspect-ratio: auto; gap: 4px; padding: 8px 4px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); }
+.as-chat-stickers.is-manage img { height: 60px; }
+.as-chat-stickers.is-manage span { font: 400 11px/1.2 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.as-chat-plus { grid-template-columns: repeat(4, 1fr); }
+
+/* 通话界面 */
+.as-chat-call { position: absolute; inset: 0; z-index: 88; display: flex; flex-direction: column; align-items: center; padding: calc(var(--as-sb-h) + 40px) 18px max(28px, env(safe-area-inset-bottom, 0px)); color: #fff; opacity: 0; transform: scale(1.04); transition: opacity 320ms, transform 420ms var(--as-ease-standard); overflow: hidden; }
+.as-chat-call.is-open { opacity: 1; transform: none; }
+.as-chat-call { background: #0d2c4a; }
+.as-chat-call__bg { position: absolute; inset: -40px; z-index: -1; background-color: #1b4f7c; background-image: linear-gradient(170deg, #2a6fa8, #0d2c4a); background-size: cover; background-position: center; filter: blur(30px) brightness(.55) saturate(1.2); }
+.as-chat-call.is-video .as-chat-call__bg { filter: blur(6px) brightness(.6); }
+.as-chat-call__head { display: grid; justify-items: center; gap: 10px; }
+.as-chat-call__head .as-avatar { box-shadow: 0 0 0 6px rgba(255,255,255,.12), 0 12px 30px rgba(0,0,0,.3); animation: as-call-pulse 2.4s ease-in-out infinite; }
+@keyframes as-call-pulse { 50% { box-shadow: 0 0 0 14px rgba(255,255,255,.06), 0 12px 30px rgba(0,0,0,.3); } }
+.as-chat-call__head b { font: 600 22px/1.2 var(--font-ui); }
+.as-chat-call__time { font: 400 13px/1 var(--font-ui); opacity: .8; font-variant-numeric: tabular-nums; }
+.as-chat-call__log { flex: 1; width: 100%; overflow-y: auto; margin: 22px 0 12px; display: flex; flex-direction: column; gap: 8px; mask-image: linear-gradient(transparent, #000 18%); -webkit-mask-image: linear-gradient(transparent, #000 18%); }
+.as-chat-call__log > :first-child { margin-top: auto; }
+.as-chat-call__line { align-self: flex-start; max-width: 82%; padding: 8px 12px; border-radius: 16px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.2); font: 400 14px/1.5 var(--font-ui); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: as-fade-up 320ms var(--as-ease-standard); }
+.as-chat-call__line.is-me { align-self: flex-end; background: rgba(92,205,252,.3); }
+.as-chat-call__bar { width: 100%; display: flex; gap: 8px; margin-bottom: 18px; }
+.as-chat-call__input { flex: 1; min-width: 0; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.14); color: #fff; border-radius: 999px; padding: 11px 16px; font: 400 15px/1 var(--font-ui); outline: none; user-select: text; -webkit-user-select: text; }
+.as-chat-call__input::placeholder { color: rgba(255,255,255,.6); }
+.as-chat-call__say { width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(92,205,252,.85); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.as-chat-call__btns { display: flex; gap: 34px; }
+.as-chat-call__btns button { width: 58px; height: 58px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.16); color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: transform var(--as-dur-fast); }
+.as-chat-call__btns button:active { transform: scale(.92); }
+.as-chat-call__btns button.is-on { background: #fff; color: #0d2c4a; }
+.as-chat-call__btns .is-hang { background: #f0605a; border-color: transparent; transform: rotate(135deg); }
+.as-chat-call__btns .is-hang:active { transform: rotate(135deg) scale(.92); }

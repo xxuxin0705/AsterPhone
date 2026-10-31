@@ -32,7 +32,7 @@ export const kvKeys = () => idb('readonly', s => s.getAllKeys());
 
 /* ---------- 默认值 ---------- */
 export const CHAT_MSG_TYPES = [
-  ['text', '文字'], ['voice', '语音（写文字内容）'], ['image', '图片（写图片描述）'], ['transfer', '转账 / 红包'],
+  ['text', '文字'], ['voice', '语音（写文字内容）'], ['image', '图片（写图片描述）'], ['transfer', '转账 / 红包'], ['sticker', '表情包'], ['location', '位置'],
   ['card', '名片'], ['call', '通话（写摘要）'], ['quote', '引用回复（带被引用的那句）'],
   ['poke', '拍一拍'], ['reaction', 'emoji 反应'], ['recall', '撤回提示'], ['read', '已读'], ['streak', '续火花'], ['music', '一起听切歌'],
 ];
@@ -58,13 +58,14 @@ export function defaults() {
         conn: { text: 'follow', image: 'follow', tts: 'follow' },
         prompts: {},                      // 改过的提示词存这里；没改过就用默认
         defaults: { linkMode: 'follow', proactive: false, proactiveFreq: 'normal', proactiveLimit: 5, friendFirst: false, groupDm: 'inline', imageGen: false },
-        injectTable: { text: true, voice: true, image: true, transfer: true, card: true, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
+        injectTable: { text: true, voice: true, image: true, transfer: true, sticker: true, location: true, card: true, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',
-    me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520 },
+    me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520, ledger: [], pokeSuffix: '' },
+    stickers: [], friendRequests: [],
     contacts: [], chats: [], moments: [], favorites: [], groups: ['家人', '朋友'],
   };
 }
