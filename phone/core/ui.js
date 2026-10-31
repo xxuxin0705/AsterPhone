@@ -148,6 +148,14 @@ export function actionSheet(title, options) {
 }
 
 /* ---------- 弹窗 ---------- */
+/** 聚焦输入框但不让界面跟着跳：手机弹键盘时浏览器会把输入框「滚进视野」，连本来不该滚的手机外框也滚歪，那一下看着像闪。滚了就拨回去 */
+function focusStill(el) {
+  const keep = [];
+  for (let e = el.parentElement; e; e = e.parentElement) keep.push([e, e.scrollTop, e.scrollLeft]);
+  const back = () => keep.forEach(([e, t, l]) => { if (e.scrollTop !== t) e.scrollTop = t; if (e.scrollLeft !== l) e.scrollLeft = l; });
+  el.focus({ preventScroll: true });
+  addEventListener('scroll', back, true); setTimeout(() => removeEventListener('scroll', back, true), 800);
+}
 export function dialog({ title, text, confirm = '确定', cancel = '取消', danger = false, typed = null, input: inp = null }) {
   return new Promise(res => {
     const mask = h('div.as-dialog-mask');
@@ -163,7 +171,7 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
     const box = h('div.as-dialog', { role: 'alertdialog' }, h('div.as-dialog__title', title), text && h('div.as-dialog__text', text), field1,
       h('div.as-dialog__actions', cancel && h('button.as-dialog__btn', { onclick: () => done(null) }, cancel), ok));
     mask.appendChild(box); root.appendChild(mask);
-    requestAnimationFrame(() => { mask.classList.add('is-open'); field1 && field1.focus(); });
+    requestAnimationFrame(() => { mask.classList.add('is-open'); field1 && focusStill(field1); });
     function done(v) { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 260); res(v === true ? true : v == null ? (typed || inp ? null : false) : v); }
   });
 }

@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.33';
+export const VERSION = '0.6.34';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -249,17 +249,17 @@ function openCat(cat) {
     ] : []));
     const rows = blocksIn(cat).map(b => {
       if (!sid) return item({ title: b.name, chevron: true, onClick: () => openBlock(cat, '', b.id) });
-      const sw = switchEl(b.on, v => setOn(cat, sid, b.id, v), b.name), handle = h('span.as-prompt-handle', { 'aria-label': '拖动排序' }, icon('list', 18, 2));
-      const row = item({ title: b.name, right: h('span.as-prompt-end', sw, handle), chevron: true, onClick: () => openBlock(cat, sid, b.id) });
-      row.dataset.id = b.id; bindDrag(row, handle);
+      const row = item({ title: b.name, right: switchEl(b.on, v => setOn(cat, sid, b.id, v), b.name), chevron: true, onClick: () => openBlock(cat, sid, b.id) });
+      row.dataset.id = b.id; bindDrag(row);
       return row;
     });
     const bodyEl = group('', rows);
-    // 按住右边的三条线上下拖动排顺序
-    function bindDrag(row, handle) {
-      handle.addEventListener('click', e => e.stopPropagation());
-      handle.addEventListener('pointerdown', e => {
-        e.preventDefault(); e.stopPropagation(); row.classList.add('is-dragging');
+    // 长按一行，再上下拖动排顺序
+    function bindDrag(row) {
+      let dragging = false;
+      row.addEventListener('touchmove', e => { if (dragging) e.preventDefault(); }, { passive: false });   // 拖的时候别让页面跟着滚
+      longPress(row, () => {
+        dragging = true; row.classList.add('is-dragging');
         const move = ev => {
           const box = row.parentNode, sibs = [...box.children].filter(x => x !== row);
           const after = sibs.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
@@ -267,7 +267,7 @@ function openCat(cat) {
         };
         // 挪动行会让手指「捕获」失效，所以在整个窗口上听
         const up = () => {
-          removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
+          dragging = false; removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
           moveBlock(cat, sid, row.dataset.id, [...row.parentNode.children].indexOf(row));
         };
         addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
