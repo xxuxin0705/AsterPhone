@@ -25,7 +25,7 @@ export const CHANNELS = {
   embed: [
     { v: 'siliconflow-embed', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
     { v: 'zhipu-embed', label: '智谱', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
-    { v: 'openai-embed', label: '第三方（OpenAI 格式）', base: '', model: 'text-embedding-3-small', site: '', custom: true, note: '任何 /v1/embeddings 格式的接口，地址填到 /v1；本地 Ollama 也行。' },
+    { v: 'openai-embed', label: '第三方（OpenAI 兼容）', base: '', model: 'text-embedding-3-small', site: '', custom: true, note: '中转站、公益站、本地 Ollama 都选这个：/v1/embeddings 这种 OpenAI 格式，地址填到 /v1。' },
   ],
   // 语音渠道：同样先填好地址、默认模型、默认音色、官网。fields = 这个渠道额外要填的东西
   tts: [
