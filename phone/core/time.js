@@ -49,7 +49,8 @@ export function now() {
   const c = clockCfg(), en = c.lang === 'en';
   if (isStory()) {
     const s = story(), t = fmtHM(s.hh, s.mm, c);
-    const date = s.date ? fmtDate(s.date, c.lang) : (en ? `Day ${s.day}` : `第 ${s.day} 天`);
+    // 锁屏永远显示年月日：正文给过日期就用剧情日期，没给就用今天的日期
+    const date = fmtDate(s.date || new Date(), c.lang);
     return { ...t, date, sub: en ? 'Story time' : '剧情时间', hour: s.hh };
   }
   const d = new Date(), t = fmtHM(d.getHours(), d.getMinutes(), c);

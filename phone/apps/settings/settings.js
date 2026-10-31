@@ -9,9 +9,10 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
+import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.5.1';
+export const VERSION = '0.5.2';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -262,11 +263,16 @@ function openLook() {
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))],
         '切换时整个手机会从你点的地方扩散着变色。'),
       group('时间', [clockPreview(night),
-        segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); })),
+        segField('锁屏字体', segmented([['sf', '苹果圆体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); })),
+        item({ title: '字体文件', sub: '「苹果圆体」用这里导入的字体，比如 SF Pro Rounded（.otf / .ttf）', value: clockFontName() || '没导入', chevron: true, onClick: async () => {
+          const v = await actionSheet('锁屏字体文件', [{ label: clockFontName() ? '换一个字体文件' : '导入字体文件', value: 'add' }, ...(clockFontName() ? [{ label: '删掉，用系统字体', value: 'del', danger: true }] : [])]);
+          if (v === 'add') { const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return; try { const n = await importClockFont(f); S().clock.font = 'sf'; commit('look'); shell.applyLook(); toast('已换成「' + n + '」'); re(); } catch (e) { toast(e.message); } }
+          if (v === 'del') { await removeClockFont(); shell.applyLook(); toast('已删掉'); re(); }
+        } }),
         segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('小时制', segmented([['24', '24 小时'], ['12', '12 小时']], S().clock.h12 ? '12' : '24', v => { S().clock.h12 = v === '12'; commit('look'); shell.applyLook(); paintClock(); })),
-      ], '日期只显示年月日（比如 2026年10月31日）。用剧情时间时，正文里写了日期就显示日期，没写就显示「第 N 天」。锁屏、桌面和状态栏一起改。'),
+      ], '日期只显示年月日（比如 2026年10月31日）。用剧情时间时，正文里写了日期就显示剧情日期，没写就显示今天的日期。锁屏、桌面和状态栏一起改。\n字体文件只存在这台设备上，换手机要再导入一次。'),
       group('字号', [prev, sliderRow('大小', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
       group('', [item({ icon: 'image', color: 'teal', title: '壁纸', sub: '锁屏和桌面分开选，可以用自己的图片和 Live 图，也可以随机', value: wallLabel(), chevron: true, onClick: () => openWalls() })]),
       group('', [item({ title: '状态栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }), item({ title: '字体', value: '系统默认', sub: '换字体放在资源库（下一轮）' })]));
@@ -429,7 +435,7 @@ function openDevice() {
         S().timeSrc === 'story' ? item({ title: '现在', value: `${st.date ? time.fmtDate(st.date) + ' · ' : ''}第 ${st.day} 天 ${hm.value}`, sub: S().storyTime.src === 'story' ? '刚从正文里读到' : '手动设定，跟着现实时间往前走' }) : null,
         S().timeSrc === 'story' ? h('div.as-field', h('span.as-field__label', '读不到剧情时间时：手动设定'), h('div.as-settings-time', { style: { padding: 0 } }, day, hm),
           h('div.as-settings-time', { style: { padding: '8px 0 0' } }, dateIn),
-          h('span.as-field__hint', '日期可以不填；填了锁屏就显示几年几月几日，不填显示「第 N 天」。'),
+          h('span.as-field__hint', '日期可以不填；填了锁屏就显示剧情里的年月日，不填就显示今天的日期。'),
           btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStory(+day.value || 1, hh || 0, mm || 0, 'manual', dateIn.value || null); toast('剧情时间已更新'); re(); })) : null,
       ].filter(Boolean), '剧情时间靠正文里的时间标签更新（设置 → 通用提示词 → 暗号）。'),
       group('悬浮按钮（酒馆页面上）', [

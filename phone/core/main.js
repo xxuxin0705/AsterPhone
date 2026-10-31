@@ -8,6 +8,7 @@ import { Wallpaper } from './wallpaper.js';
 import { shell } from './shell.js';
 import { applySkins } from './skin.js';
 import * as walls from './walls.js';
+import { loadClockFont } from './fonts.js';
 import { postToParent, inTavern } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
@@ -188,6 +189,7 @@ function bindTripleTap() {
 /* ---------- 启动 ---------- */
 async function boot() {
   await Promise.all([load(), loadLogs()]);
+  loadClockFont().then(n => { if (n) { renderClock(true); renderWidget(); } });
   mountUI(phone);
   applySkins();
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });
