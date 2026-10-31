@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.21';
+export const VERSION = '0.6.22';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -56,7 +56,7 @@ export function open() {
     const dc = resolveConn('text', 'chat');
     p.body.append(
       group('', [
-        item({ icon: 'link', color: 'blue', title: '连接', value: dc ? dc.name : '未设置', chevron: true, onClick: openConnections }),
+        item({ icon: 'link', color: 'blue', title: '连接', chevron: true, onClick: openConnections }),
         item({ icon: 'grid', color: 'purple', title: '应用管理', chevron: true, onClick: openApps }),
         item({ icon: 'note', color: 'teal', title: '提示词', chevron: true, onClick: openPrompts }),
       ]),
@@ -299,10 +299,7 @@ function openBlock(cat, id) {
 let clockBox = null;
 const thumbSeen = new Map();
 const bgOf = (el, id, night) => {
-  const k = id + (night ? ':n' : ':d'), set = u => { if (u) { thumbSeen.set(k, u); el.style.backgroundImage = `url("${u}")`; } };
-  const c = (walls.info(id) || {}).crop;   // 调过位置的壁纸，缩略图也只露出框住的那块
-  if (c) { el.style.backgroundSize = `${100 / c[2]}% auto`; el.style.backgroundPosition = `${c[2] < 1 ? c[0] / (1 - c[2]) * 100 : 50}% ${c[3] < 1 ? c[1] / (1 - c[3]) * 100 : 50}%`; }
-  else { el.style.backgroundSize = ''; el.style.backgroundPosition = ''; }
+  const k = id + (night ? ':n' : ':d') + ((walls.info(id) || {}).crop || ''), set = u => { if (u) { thumbSeen.set(k, u); el.style.backgroundImage = `url("${u}")`; } };
   if (thumbSeen.has(k)) set(thumbSeen.get(k)); else walls.thumb(id, night).then(set);
   return el;
 };
@@ -427,33 +424,33 @@ function longPress(el, fn) {
   el.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   el.addEventListener('contextmenu', e => e.preventDefault());
 }
-/** 调整壁纸位置：框是手机屏幕的比例，拖动挪位置，滑条放大。存成「用图里哪一块」 */
+/** 调整图片：框是手机屏幕的比例，拖动上下左右挪，滑条缩放。存成「用图里哪一块」，可以超出图片（空出来的地方是黑的） */
 async function cropWall(id) {
   const src = await walls.source(id); if (!src || !src.img && !src.video) return false;
   const media = src.img || src.video, iw = media.naturalWidth || media.videoWidth, ih = media.naturalHeight || media.videoHeight;
   const ph = shell.phone.getBoundingClientRect(), FW = 200, FH = Math.round(FW * ph.height / ph.width);
   const old = src.crop || [0, 0, 1, 1];
-  const base = Math.max(FW / iw, FH / ih);
-  let z = Math.max(1, Math.min(4, (FW / (iw * base)) / old[2])), ox = -old[0] * iw * base * z, oy = -old[1] * ih * base * z;
+  const base = Math.max(FW / iw, FH / ih), zMin = Math.min(.5, Math.min(FW / iw, FH / ih) / base);
+  let z = Math.max(zMin, Math.min(4, (FW / (iw * base)) / old[2])), ox = -old[0] * iw * base * z, oy = -old[1] * ih * base * z;
   const pic = h('img.as-crop__img', { src: src.img ? src.img.src : '', alt: '' });
   if (!src.img) { const c = document.createElement('canvas'); c.width = iw; c.height = ih; c.getContext('2d').drawImage(src.video, 0, 0); pic.src = c.toDataURL('image/jpeg', .85); }
   const frame = h('div.as-crop__frame', { style: { width: FW + 'px', height: FH + 'px' } }, pic);
   const place = () => {
     const k = base * z, W = iw * k, H = ih * k;
-    ox = Math.min(0, Math.max(FW - W, ox)); oy = Math.min(0, Math.max(FH - H, oy));
+    ox = Math.min(FW - 40, Math.max(40 - W, ox)); oy = Math.min(FH - 40, Math.max(40 - H, oy));   // 至少留一点在框里，免得拖丢了
     Object.assign(pic.style, { width: W + 'px', height: H + 'px', transform: `translate(${ox}px, ${oy}px)` });
   };
   let drag = null;
   frame.addEventListener('pointerdown', e => { e.preventDefault(); frame.setPointerCapture(e.pointerId); drag = { x: e.clientX - ox, y: e.clientY - oy }; });
   frame.addEventListener('pointermove', e => { if (!drag) return; ox = e.clientX - drag.x; oy = e.clientY - drag.y; place(); });
-  frame.addEventListener('pointerup', () => { drag = null; });
+  ['pointerup', 'pointercancel'].forEach(k => frame.addEventListener(k, () => { drag = null; }));
   const zoomTo = nz => { const cx = FW / 2 - ox, cy = FH / 2 - oy, r = nz / z; z = nz; ox = FW / 2 - cx * r; oy = FH / 2 - cy * r; place(); };
-  frame.addEventListener('wheel', e => { e.preventDefault(); zoomTo(Math.max(1, Math.min(4, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)))); }, { passive: false });
+  frame.addEventListener('wheel', e => { e.preventDefault(); zoomTo(Math.max(zMin, Math.min(4, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)))); }, { passive: false });
   place();
   return new Promise(res => {
     let ok = false;
-    const s = sheet({ title: '调整位置', content: h('div.as-crop', frame,
-      sliderRow('放大', { min: 1, max: 4, step: .01, value: z, fmt: v => Math.round(v * 100) + '%', onInput: v => zoomTo(v) }),
+    const s = sheet({ title: '调整图片', content: h('div.as-crop', frame,
+      sliderRow('缩放', { min: zMin, max: 4, step: .01, value: z, fmt: v => Math.round(v * 100) + '%', onInput: v => zoomTo(v) }),
       h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => {
         const k = base * z; walls.setCrop(id, [-ox / (iw * k), -oy / (ih * k), FW / (iw * k), FH / (ih * k)]); ok = true; s.close();
       }))), onClose: () => res(ok) });
@@ -483,11 +480,23 @@ function openWalls() {
     };
     const tile = (which, id) => {
       const x = walls.info(id), on = !w[which + 'Random'] && w[which] === id;
-      const t = bgOf(h('button.as-walls-tile' + (on ? '.is-active' : ''), { 'aria-label': x.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => { w[which] = id; w[which + 'Random'] = false; apply(); paint(which); } },
-        x.type === 'live' ? h('span.as-walls-tile__live', 'LIVE') : null, h('span.as-walls-tile__name', x.name)), id, night);
+      const t = bgOf(h('button.as-walls-tile' + (on ? '.is-active' : ''), { 'aria-label': x.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => {
+        if (sel.size) { if (!walls.isBuiltin(id)) { sel.has(id) ? sel.delete(id) : sel.add(id); paintSel(); } return; }
+        w[which] = id; w[which + 'Random'] = false; apply(); paint(which);
+      } },
+        x.type === 'live' ? h('span.as-walls-tile__live', 'LIVE') : null, h('span.as-walls-tile__pick', icon('check', 12, 3)), h('span.as-walls-tile__name', x.name)), id, night);
       refs[which].tiles.set(id, t);
-      if (!walls.isBuiltin(id)) longPress(t, () => wallMenu(id));
+      if (!walls.isBuiltin(id)) longPress(t, () => { sel.add(id); paintSel(); });
       return t;
+    };
+    // 长按进入多选：可以一起删；调整图片、改名一次只能一张。也是只改勾选，不重画
+    const sel = new Set();
+    const one = [btn('调整图片', 'secondary', () => crop([...sel][0])), btn('改名', 'secondary', () => rename([...sel][0]))];
+    const delBtn = btn('删除', 'danger', () => removeSel());
+    const selBar = h('div.as-prompt-bar.as-walls-selbar', { hidden: true }, btn('取消', 'secondary', () => { sel.clear(); paintSel(); }), ...one, delBtn);
+    const paintSel = () => {
+      for (const k of ['lock', 'home']) refs[k].tiles.forEach((t, id) => { t.classList.toggle('is-picking', sel.size > 0); t.classList.toggle('is-picked', sel.has(id)); t.classList.toggle('is-off', sel.size > 0 && walls.isBuiltin(id)); });
+      selBar.hidden = !sel.size; one.forEach(b => { b.disabled = sel.size !== 1; }); delBtn.textContent = sel.size > 1 ? `删除 ${sel.size} 张` : '删除';
     };
     // 每一排最后一个「+」：加进来的直接用在这一排（锁屏或桌面）
     const row = which => h('div.as-walls-row', walls.allIds().map(id => tile(which, id)), h('button.as-walls-tile.as-walls-tile--add', { 'aria-label': '添加图片或 Live 图', onclick: () => add(which) }, icon('plus', 26, 2), h('span.as-walls-tile__name', '添加')));
@@ -508,12 +517,12 @@ function openWalls() {
       const it = toggleItem({ title }, w[which + 'Random'], v => { w[which + 'Random'] = v; if (v) walls.reroll(which); apply(); paint(which); });
       refs[which].sw = it.querySelector('.as-switch'); return it;
     };
-    const wallMenu = async id => {
-      const x = walls.info(id);
-      const v = await actionSheet(x.name, [{ label: '调整位置', value: 'crop' }, { label: '改名', value: 'rename' }, { label: '删除', value: 'del', danger: true }]);
-      if (v === 'crop') { if (await cropWall(id)) { apply(); paint('lock'); paint('home'); refs.lock.tiles.get(id) && bgOf(refs.lock.tiles.get(id), id, night); refs.home.tiles.get(id) && bgOf(refs.home.tiles.get(id), id, night); } }
-      if (v === 'rename') { const name = await dialog({ title: '改名', input: { value: x.name } }); if (name) { walls.rename(id, name); for (const k of ['lock', 'home']) { const t = refs[k].tiles.get(id); t && (t.querySelector('.as-walls-tile__name').textContent = walls.info(id).name); } } }
-      if (v === 'del') { if (!(await dialog({ title: '删除这张壁纸？', confirm: '删除', danger: true }))) return; await walls.remove(id); apply(); re(); }
+    const crop = async id => { if (await cropWall(id)) { apply(); paint('lock'); paint('home'); refs.lock.tiles.get(id) && bgOf(refs.lock.tiles.get(id), id, night); refs.home.tiles.get(id) && bgOf(refs.home.tiles.get(id), id, night); } sel.clear(); paintSel(); };
+    const rename = async id => { const name = await dialog({ title: '改名', input: { value: walls.info(id).name } }); if (name) { walls.rename(id, name); for (const k of ['lock', 'home']) { const t = refs[k].tiles.get(id); t && (t.querySelector('.as-walls-tile__name').textContent = walls.info(id).name); } } sel.clear(); paintSel(); };
+    const removeSel = async () => {
+      if (!(await dialog({ title: sel.size > 1 ? `删除这 ${sel.size} 张壁纸？` : '删除这张壁纸？', confirm: '删除', danger: true }))) return;
+      for (const id of sel) await walls.remove(id);
+      apply(); re();
     };
     body.append(
       h('div.as-walls-pv', pv('lock'), pv('home')),
@@ -523,6 +532,7 @@ function openWalls() {
         h('div.as-field', segmented([['press', '按住播放'], ['loop', '一直循环']], w.live, v => { w.live = v; apply(); re(); })),
         w.live === 'press' ? toggleItem({ title: '亮屏时播放一次' }, w.liveWake, v => { w.liveWake = v; commit('walls'); }) : null,
       ].filter(Boolean)),
+      selBar,
     );
   });
 }

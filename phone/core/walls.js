@@ -40,7 +40,14 @@ async function blobs(id) {
 /** 缩略图地址（自带的跟着日夜换） */
 export async function thumb(id, night) {
   if (isBuiltin(id)) return 'assets/wallpapers/' + (night ? WALLPAPERS[id].night : WALLPAPERS[id].day);
-  const b = await blobs(id); return b ? b.img : '';
+  const b = await blobs(id); if (!b) return '';
+  const c = (info(id) || {}).crop; if (!c || !b.img) return b.img;
+  // 调过的图：缩略图直接切出框住的那块（框超出图片的地方是黑的）
+  const img = await loadImg(b.img), cv = document.createElement('canvas'), g = cv.getContext('2d');
+  cv.width = 240; cv.height = Math.round(240 * c[3] * img.naturalHeight / (c[2] * img.naturalWidth));
+  g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+  g.drawImage(img, -c[0] / c[2] * cv.width, -c[1] / c[3] * cv.height, cv.width / c[2], cv.height / c[3]);
+  return new Promise(r => cv.toBlob(x => r(x ? URL.createObjectURL(x) : b.img), 'image/jpeg', .85));
 }
 const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 function loadVideo(src) {

@@ -241,7 +241,7 @@ export function openBoard({ list }) {
     return i < 0;
   }
   const status = {};   // id → 'test' | 'ok' | 'bad'（这次打开页面里测出来的）
-  const stOf = c => status[c.id] || (c.ok === true ? 'ok' : c.ok === false ? 'bad' : '');
+  const stOf = c => status[c.id] || '';   // 只认这次点「测试」的结果；插上就算好，以前测失败的不再一直挂着哭脸
 
   /* ----- 线（插头） ----- */
   const plugs = CORDS.map((cd, i) => ({ ...cd, i, x: 0, y: 0, vx: 0, vy: 0, tilt: 0, tv: 0, sway: 0, swayV: 0, mode: 'rest', target: null, prev: null, snapT: 0, from: null, grab: null, vis: 1, shake: 0 }));
@@ -350,7 +350,7 @@ export function openBoard({ list }) {
     if (again) return;
     // 插上就算接好了：不发请求，直接笑脸。想确认真能用，点格子里的「测试」
     C().defaults[pl.use] = id; C().scheme = ''; commit('connections'); syncUses();
-    if (status[id] !== 'bad') status[id] = 'ok';
+    status[id] = 'ok';
     flowing = { pl, until: performance.now() + 900 };
   }
   /** 真的去测一下（只在详情里点「测试」时才会发请求）。c 可以是还没保存的草稿 */
@@ -569,7 +569,7 @@ export function openBoard({ list }) {
     // 置顶 · 复制一份 · 删除 放在同一排
     const pinBtn = () => { const pinned = () => (C().pinned || []).includes(orig.id), b = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); b.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶'); return b; };
     const touch = () => { dirty = true; paintSt(); };
-    const st = () => { const s = status[orig.id] || (orig.ok === true ? 'ok' : orig.ok === false ? 'bad' : ''); return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
+    const st = () => { const s = status[orig.id] || ''; return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
     const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE.idle));
     const stText = h('span.as-pbd__st');
     const paintSt = () => {
@@ -653,13 +653,19 @@ export function openBoard({ list }) {
           keyBox.appendChild(h('button.as-pbd__dash', { onclick: () => { d.keys.push(''); touch(); drawKeys(); } }, icon('plus', 15, 2), '再加一把密钥'));
         };
         drawKeys();
-        const modelIn = input({ value: d.model, placeholder: kind === 'text' ? '例如 claude-opus' : kind === 'image' ? '例如 gpt-image-2' : '例如 tts-1', onInput: v => { d.model = v; paintSub(); touch(); } });
+        const modelIn = input({ value: d.model, placeholder: kind === 'text' ? '例如 claude-opus' : kind === 'image' ? '例如 gpt-image-2' : '例如 tts-1', onInput: v => { d.model = v; paintSub(); touch(); paintModels(); } });
+        d.models = d.models || (d.model ? [d.model] : []);
+        const modelBox = h('div.as-chips.as-pbd__models');
+        const paintModels = () => modelBox.replaceChildren(...d.models.map(m => h('span.as-chip' + (m === d.model ? '.is-active' : ''), { onclick: () => useModel(m) }, m,
+          h('button.as-pbd__chipx', { 'aria-label': '删掉这个模型', onclick: e => { e.stopPropagation(); d.models = d.models.filter(x => x !== m); touch(); paintModels(); } }, icon('close', 11, 2.4)))));
+        const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
+        paintModels();
         const pull = h('button.as-pbd__mini', { onclick: async () => {
           pull.disabled = true;
           try {
             const models = await listModels(d);
             if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
-            const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { d.model = m; modelIn.value = m; paintSub(); touch(); s.close(); } }, h('span', m)))) });
+            const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
           } catch (e) { toast('拉取失败：' + e.message); } finally { pull.disabled = false; }
         } }, icon('link', 13, 2), '拉取');
         // 官网：去哪拿密钥
@@ -673,18 +679,19 @@ export function openBoard({ list }) {
         const extra = (CHANNELS[kind].find(x => x.v === d.type) || {}).fields || [];
         const extraRows = extra.map(([k, label]) => row(label, input({ value: d[k] || '', onInput: v => { d[k] = v.trim(); touch(); } })));
         b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
-          row('模型', h('div.as-pbd__line', modelIn, pull), '拉不到的话，直接在框里手动填。'));
+          row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
       }, true));
       if (kind === 'text') {
         const T = [['off', '关'], ['low', '低'], ['medium', '中'], ['high', '高']];
-        groups.push(fold('生成参数', 'gear', () => `${(+d.params.temperature).toFixed(2)} · 推理${(T.find(x => x[0] === d.params.thinking) || T[0])[1]}`, (b, re) => {
+        groups.push(fold('生成参数', 'gear', () => `${(+d.params.temperature).toFixed(2)} · 推理${(T.find(x => x[0] === d.params.thinking) || T[0])[1]}${d.stream === false ? ' · 不流式' : ''}`, (b, re) => {
           const out = h('output.as-pbd__val', (+d.params.temperature).toFixed(2));
           const sl = slider({ min: 0, max: 2, step: .05, value: d.params.temperature, onInput: v => { d.params.temperature = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } });
           const chipBox = h('div.as-pbd__chips');
           const chips = () => { chipBox.innerHTML = ''; [0, .3, .7, 1, 1.3].forEach(v => chipBox.appendChild(h('button' + (Math.abs(d.params.temperature - v) < .001 ? '.is-on' : ''), { onclick: () => { d.params.temperature = v; sl.value = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } }, v.toFixed(1)))); };
           chips();
           b.append(row('温度', h('div.as-pbd__line', sl, out), '越低越稳，越高越放飞。单个聊天里还能另外设。'), chipBox,
-            row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'));
+            row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'),
+            h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
         }));
         if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
           b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '提示词缓存'), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')),
@@ -720,6 +727,7 @@ export function openBoard({ list }) {
       if (tavern) { s.close(); return; }
       d.name = (d.name || '').trim() || `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label} ${d.model || ''}`.trim();
       d.keys = d.keys.filter(k => String(k).trim());
+      if (d.model && d.models && !d.models.includes(d.model)) d.models.push(d.model);
       if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
       else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
       commit('connections'); dirty = false;

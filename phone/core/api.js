@@ -6,9 +6,11 @@ import { log } from './log.js';
 
 export const CHANNELS = {
   text: [
-    { v: 'openai', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', site: 'https://platform.openai.com/api-keys', note: '官方 GPT，或者任何 OpenAI 格式的中转站、公益站（地址填到 /v1）。DeepSeek、Kimi、通义这些也走这个。' },
-    { v: 'claude', label: 'Claude', base: 'https://api.anthropic.com', site: 'https://console.anthropic.com/settings/keys', note: 'Anthropic 官方格式。' },
-    { v: 'gemini', label: 'Gemini', base: 'https://generativelanguage.googleapis.com', site: 'https://aistudio.google.com/apikey', note: 'Google 官方格式，密钥在 AI Studio 免费申请。' },
+    { v: 'openai', label: 'OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini', site: 'https://platform.openai.com/api-keys' },
+    { v: 'claude', label: 'Claude 官方', base: 'https://api.anthropic.com', site: 'https://console.anthropic.com/settings/keys' },
+    { v: 'gemini', label: 'Gemini 官方', base: 'https://generativelanguage.googleapis.com', site: 'https://aistudio.google.com/apikey' },
+    { v: 'deepseek', label: 'DeepSeek 官方', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', site: 'https://platform.deepseek.com/api_keys' },
+    { v: 'openai-compat', label: '第三方（OpenAI 兼容）', base: '', note: '中转站、公益站都选这个，地址填到 /v1。' },
   ],
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
@@ -92,6 +94,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
+  const stream = conn.stream !== false;   // 默认流式：边生成边收，长回复不容易超时
   const keys = keysOf(conn);
   let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   const t0 = performance.now();
@@ -112,34 +115,35 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
       const pf = tavernProfiles().list.find(x => x.id === conn.profileId);
       if (!pf) throw new Error(`酒馆里找不到「${conn.name}」这个连接配置了`);
       out = await generateWithProfile(pf, { system, prompt, maxTokens });
-    } else if (conn.type === 'openai') {
+    } else if (OAI(conn.type)) {
       out = await withKey(async key => {
-        const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
+        const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
         if (think) { body.reasoning_effort = P.thinking; delete body.temperature; body.max_completion_tokens = maxTokens + think; delete body.max_tokens; }
         const res = await fetch(trim(conn.base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
-        const j = await res.json(); return j.choices?.[0]?.message?.content ?? '';
+        return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content);
       });
     } else if (conn.type === 'claude') {
       out = await withKey(async key => {
         // 提示词缓存：人设 / 设定这类每次都一样的东西走缓存，便宜又快
         const sys = !system ? undefined : (conn.adv && conn.adv.cache) ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system;
-        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, messages: [{ role: 'user', content: prompt }] };
+        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, stream, messages: [{ role: 'user', content: prompt }] };
         if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
         const res = await fetch(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
-        const j = await res.json(); return (j.content || []).filter(p => p.type === 'text').map(p => p.text).join('');
+        return readOut(res, j => j.type === 'content_block_delta' && j.delta?.type === 'text_delta' ? j.delta.text : '', j => (j.content || []).filter(p => p.type === 'text').map(p => p.text).join(''));
       });
     } else if (conn.type === 'gemini') {
       out = await withKey(async key => {
         const gc = { temperature: temp, maxOutputTokens: maxTokens + think };
         if (think) gc.thinkingConfig = { thinkingBudget: think };
-        const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:generateContent?key=${encodeURIComponent(key)}`;
+        const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
         const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
         if (!res.ok) throw new Error(await readErr(res));
-        const j = await res.json(); return (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+        const parts = j => (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+        return readOut(res, parts, parts);
       });
     } else throw new Error('这个渠道还不能用来生成文字：' + conn.type);
     log('info', app, `生成完成（${conn.name}，${Math.round(performance.now() - t0)} 毫秒）`);
@@ -151,9 +155,29 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
   }
 }
 
+/** OpenAI 格式的几家：官方、DeepSeek、第三方中转 */
+const OAI = t => t === 'openai' || t === 'deepseek' || t === 'openai-compat';
+/** 读回复：流式就一段段拼起来（data: {...}），服务器没按流式回就当普通 JSON 读 */
+async function readOut(res, pickDelta, pickWhole) {
+  if (!res.body || /application\/json/.test(res.headers.get('content-type') || '')) return pickWhole(await res.json()) ?? '';
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = '', out = '', raw = '';
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    const piece = dec.decode(value, { stream: true }); buf += piece; raw += piece;
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const l of lines) {
+      const m = /^data:\s*(.*)$/.exec(l.trim()); if (!m || m[1] === '[DONE]') continue;
+      try { out += pickDelta(JSON.parse(m[1])) || ''; } catch (e) { /* 半截的行，等下一段 */ }
+    }
+  }
+  if (!out && /^\s*\{/.test(raw)) { try { return pickWhole(JSON.parse(raw)) ?? ''; } catch (e) { /* 不是 JSON */ } }
+  return out;
+}
+
 /** 拉取模型列表 */
 export async function listModels(conn) {
-  if (conn.type === 'openai') {
+  if (OAI(conn.type)) {
     const res = await fetch(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id).sort();
@@ -404,6 +428,8 @@ export function syncTavernProfiles() {
 export function seedChannels() {
   const C = state.connections; let changed = false;
   C.seeded = C.seeded || {};
+  // 以前「GPT / OpenAI 兼容」一个类型包了官方和中转站：地址不是 OpenAI 官方的，改成「第三方」
+  for (const c of C.text) if (c.type === 'openai' && c.base && !/api\.openai\.com/.test(c.base)) { c.type = 'openai-compat'; changed = true; }
   C.embed = C.embed || [];
   for (const kind of ['image', 'tts', 'embed']) {
     const pre = kind === 'image' ? 'img_' : kind === 'tts' ? 'tts_' : 'emb_';

@@ -98,6 +98,10 @@ void main(){
   if (uKind > 1.5) { tuv = uCrop.xy + tuv * uCrop.zw; tuvN = uCrop.xy + tuvN * uCrop.zw; }
   float b = uUnlock * .007;
   vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuvN, b);
+  if (uKind > 1.5) {   // 调图片时框超出了图片：超出的地方是黑的
+    vec2 qD = step(0., tuv) * step(tuv, vec2(1.)), qN = step(0., tuvN) * step(tuvN, vec2(1.));
+    cD *= qD.x * qD.y; cN *= qN.x * qN.y;
+  }
   if (uKind < .5) {
     // 花头一朵一朵贴上去（远的先贴，近的盖在上面）；桌面虚化时花也跟着虚
     vec2 P = tuv * vec2(852., 1846.), bp = vec2(b * 852., b * 1846.);
