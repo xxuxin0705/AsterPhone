@@ -4,7 +4,7 @@
 // 白天：米白底、灰色字符；夜晚：深海蓝底、发光的蓝字符。一秒只更新十来次，省电。
 import { drawFishBody } from '../../core/wallpaper.js';
 
-const CW = 9, CH = 12;                         // 一格字符的宽高
+const CW = 7, CH = 10;                         // 一格字符的宽高
 const RAMP = ['.', ':', "'", 'o', 't', 'x', ';', '%', 'S', 'X', '8', '#', '@'];
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -30,10 +30,11 @@ export class AsciiOcean {
     if (!this.fish.length) this.seed();
   }
   seed() {
-    const n = 5;
+    // 小鱼：一大群小的，偶尔一条稍大一点
+    const n = 9;
     this.fish = Array.from({ length: n }, (_, i) => ({
       x: rand(0, this.cols), y: rand(this.rows * .1, this.rows * .95),
-      a: rand(0, Math.PI * 2), turn: rand(-.25, .25), sp: rand(1.2, 2.4), len: i === 0 ? rand(26, 32) : rand(12, 22), ph: rand(0, 6.28), shade: rand(.75, 1),
+      a: rand(0, Math.PI * 2), turn: rand(-.25, .25), sp: rand(1.2, 2.4), len: i === 0 ? rand(17, 20) : rand(9, 13), ph: rand(0, 6.28), shade: rand(.75, 1),
     }));
     this.dash = Array.from({ length: 46 }, () => ({ x: rand(0, this.cols), y: rand(0, this.rows), n: 1 + (Math.random() * 3 | 0), sp: rand(.05, .25), tw: rand(0, 6.28) }));
   }

@@ -10,7 +10,19 @@ export const CHANNELS = {
     { v: 'claude', label: 'Claude', base: 'https://api.anthropic.com' },
     { v: 'gemini', label: 'Gemini', base: 'https://generativelanguage.googleapis.com' },
   ],
-  image: [{ v: 'openai-image', label: 'OpenAI 兼容（生图）', base: 'https://api.openai.com/v1' }],
+  // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
+  image: [
+    { v: 'openai-image', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys', note: '官方 OpenAI，或者任何 OpenAI 格式的中转站（地址填到 /v1）。' },
+    { v: 'novelai', label: 'NovelAI', base: 'https://image.novelai.net', model: 'nai-diffusion-4-5-full', site: 'https://novelai.net', note: '二次元最好用。尺寸不超过 1024×1024、步数不超过 28，订阅用户不额外扣点。密钥在官网 账户设置 → Get Persistent API Token。' },
+    { v: 'pollinations', label: 'Pollinations（免费）', base: 'https://image.pollinations.ai', model: 'flux', site: 'https://pollinations.ai', noKey: true, note: '免费、不用密钥，打开就能用；高峰期会慢一点。' },
+    { v: 'gemini-image', label: 'Gemini 生图', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.1-flash-image', site: 'https://aistudio.google.com/apikey', note: 'Google 官方（Nano Banana）。密钥在 AI Studio 免费申请。' },
+    { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
+    { v: 'seedream', label: '豆包 / 火山引擎', base: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-seedream-4-0-250828', site: 'https://console.volcengine.com/ark', note: '豆包 Seedream。模型名要和火山方舟控制台里开通的一致。' },
+    { v: 'minimax-image', label: 'MiniMax 生图', base: 'https://api.minimax.cn/v1', model: 'image-01', site: 'https://platform.minimaxi.com', note: '国内版。国际版把地址换成 https://api.minimax.io/v1。' },
+    { v: 'grok-image', label: 'Grok 生图', base: 'https://api.x.ai/v1', model: 'grok-imagine-image', site: 'https://console.x.ai', note: 'xAI 官方。' },
+    { v: 'sd-webui', label: '本地 SD（WebUI）', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
+    { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
+  ],
   tts: [{ v: 'openai-tts', label: 'OpenAI 兼容（语音）', base: 'https://api.openai.com/v1' }],
 };
 
@@ -186,20 +198,105 @@ function demoReply(prompt) {
   return lines.join('\n');
 }
 
-/* ---------- 生图（OpenAI 兼容 /images/generations） ---------- */
-export async function generateImage(prompt, app = '聊天') {
-  const conn = resolveConn('image', 'chat');
-  if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里加一个');
-  const res = await fetch(trim(conn.base) + '/images/generations', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
-    body: JSON.stringify({ model: conn.model || undefined, prompt: [conn.img && conn.img.tags, prompt].filter(Boolean).join(', ') + (conn.img && conn.img.neg ? `\n\nAvoid: ${conn.img.neg}` : ''), n: 1, size: (conn.img && conn.img.size) || conn.size || '1024x1024', response_format: 'b64_json' }),
-  });
-  if (!res.ok) { const msg = await readErr(res); log('error', app, '生图失败：' + msg); throw new Error(msg); }
-  const j = await res.json(), d = (j.data || [])[0] || {};
-  if (d.b64_json) return 'data:image/png;base64,' + d.b64_json;
-  if (d.url) return d.url;
-  throw new Error('生图接口没有返回图片');
+/* ---------- 生图：每个渠道的请求格式不一样，这里一个个对上 ---------- */
+const sizeOf = c => (c.img && c.img.size) || c.size || '1024x1024';
+const ratioOf = size => { const [w, h] = size.split('x').map(Number); return w === h ? '1:1' : w > h ? '3:2' : '2:3'; };
+const b64png = b => 'data:image/png;base64,' + b;
+const blobUrl = async res => URL.createObjectURL(await res.blob());
+/** NovelAI 返回的是一个 zip，里面一张 png：手动拆开 */
+async function firstFileInZip(buf) {
+  const v = new DataView(buf);
+  if (v.getUint32(0, true) !== 0x04034b50) throw new Error('NovelAI 返回的不是图片压缩包');
+  const method = v.getUint16(8, true), csize = v.getUint32(18, true), nlen = v.getUint16(26, true), xlen = v.getUint16(28, true);
+  const start = 30 + nlen + xlen, data = new Uint8Array(buf, start, csize || buf.byteLength - start);
+  if (method === 0) return new Blob([data], { type: 'image/png' });
+  const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Blob([await new Response(ds).arrayBuffer()], { type: 'image/png' });
 }
+export async function generateImage(prompt, app = '聊天', connIn) {
+  const conn = connIn || resolveConn('image', 'chat');
+  if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
+  const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(Number);
+  const full = [I.tags, prompt].filter(Boolean).join(', '), neg = I.neg || '';
+  const key = keysOf(conn)[0] || '', base = trim(conn.base);
+  const fail = async res => { const msg = await readErr(res); log('error', app, `生图失败（${conn.name}）：${msg}`); throw new Error(msg); };
+  try {
+    switch (conn.type) {
+      case 'novelai': {
+        const res = await fetch(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify({ input: full, model: conn.model || 'nai-diffusion-4-5-full', action: 'generate', parameters: {
+            params_version: 3, width: Math.min(W, 1024), height: Math.min(H, 1024), scale: I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(I.steps || 28, 28), n_samples: 1, ucPreset: 0, qualityToggle: true, negative_prompt: neg,
+            v4_prompt: { caption: { base_caption: full, char_captions: [] }, use_coords: false, use_order: true },
+            v4_negative_prompt: { caption: { base_caption: neg, char_captions: [] }, legacy_uc: false } } }) });
+        if (!res.ok) await fail(res);
+        return URL.createObjectURL(await firstFileInZip(await res.arrayBuffer()));
+      }
+      case 'pollinations': {
+        const u = `${base}/prompt/${encodeURIComponent(full)}?width=${W}&height=${H}&model=${encodeURIComponent(conn.model || 'flux')}&nologo=true&seed=${Math.floor(Math.random() * 1e6)}` + (neg ? `&negative=${encodeURIComponent(neg)}` : '') + (key ? `&token=${encodeURIComponent(key)}` : '');
+        const res = await fetch(u); if (!res.ok) await fail(res); return blobUrl(res);
+      }
+      case 'gemini-image': {
+        const res = await fetch(`${base}/v1beta/models/${encodeURIComponent(conn.model)}:generateContent?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: full + (neg ? `\nAvoid: ${neg}` : '') }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'], imageConfig: { aspectRatio: ratioOf(size) } } }) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(), part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData || p.inline_data);
+        if (!part) throw new Error('Gemini 没有返回图片（可能被安全过滤了）');
+        const d = part.inlineData || part.inline_data; return `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}`;
+      }
+      case 'siliconflow': {
+        const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: size, batch_size: 1 }) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return u;
+      }
+      case 'minimax-image': {
+        const res = await fetch(base + '/image_generation', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify({ model: conn.model || 'image-01', prompt: full, aspect_ratio: ratioOf(size), response_format: 'base64', n: 1 }) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
+        const b = j.data?.image_base64?.[0]; if (!b) throw new Error('MiniMax 没有返回图片'); return 'data:image/jpeg;base64,' + b;
+      }
+      case 'sd-webui': {
+        const res = await fetch(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: I.steps || 24, sampler_name: I.sampler || 'Euler a', cfg_scale: I.scale || 6 }) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(); if (!j.images?.[0]) throw new Error('SD 没有返回图片'); return b64png(j.images[0]);
+      }
+      case 'comfyui': {
+        if (!I.workflow) throw new Error('ComfyUI 要先在「画风」里粘贴工作流（API 格式）');
+        const wf = JSON.parse(I.workflow.replaceAll('%prompt%', JSON.stringify(full).slice(1, -1)).replaceAll('%negative%', JSON.stringify(neg).slice(1, -1)).replaceAll('%seed%', String(Math.floor(Math.random() * 1e9))));
+        const r1 = await fetch(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });
+        if (!r1.ok) await fail(r1);
+        const id = (await r1.json()).prompt_id;
+        for (let i = 0; i < 180; i++) {
+          await sleep(1000);
+          const hj = await (await fetch(`${base}/history/${id}`)).json(), outs = hj[id] && hj[id].outputs;
+          const img = outs && Object.values(outs).flatMap(o => o.images || [])[0];
+          if (img) return `${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`;
+        }
+        throw new Error('ComfyUI 等了 3 分钟还没出图');
+      }
+      default: {     // GPT / OpenAI 兼容、豆包、Grok：都是 /images/generations
+        const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1 };
+        if (conn.type === 'seedream') Object.assign(body, { size, response_format: 'b64_json', watermark: false });
+        else if (conn.type === 'grok-image') body.response_format = 'b64_json';
+        else body.size = size;
+        const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(), d = (j.data || [])[0] || {};
+        if (d.b64_json) return b64png(d.b64_json);
+        if (d.url) return d.url;
+        throw new Error('生图接口没有返回图片');
+      }
+    }
+  } catch (e) {
+    const msg = e && e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : (e && e.message) || String(e);
+    if (!/生图失败/.test(msg)) log('error', app, `生图失败（${conn.name}）：${msg}`);
+    throw new Error(msg);
+  }
+}
+/** 测生图接口：真画一张小图（Pollinations、本地的不花钱；付费的会花一张图的钱，所以先问） */
+export async function testImage(conn) { return generateImage('a small cute star, simple icon', '设置', conn); }
 
 /* ---------- 朗读：有语音连接就用它，没有就用浏览器自带的（免费） ---------- */
 let playing = null;
@@ -259,4 +356,17 @@ export function syncTavernProfiles() {
     if (tv.cur !== cur || tv.model !== model || tv.curApi !== api) { tv.cur = cur; tv.model = model; tv.curApi = api; changed = true; }
   }
   return changed;
+}
+
+/** 第一次用：把常见的生图渠道都先建好（没密钥的灰着，填了就能用）。只做一次，之后删了就不会再加回来 */
+export function seedImageChannels() {
+  const C = state.connections;
+  if (C.imageSeeded) return false;
+  for (const ch of CHANNELS.image) {
+    if (C.image.some(c => c.type === ch.v)) continue;
+    C.image.push({ id: 'img_' + ch.v, name: ch.label.replace(/（.*）/, ''), type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', preset: true });
+  }
+  if (!C.defaults.image) C.defaults.image = 'img_pollinations';     // 默认插在免费的 Pollinations 上，打开就能画
+  C.imageSeeded = true;
+  return true;
 }

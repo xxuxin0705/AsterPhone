@@ -1,14 +1,14 @@
 /* AsterPhone · 设置 → 连接 · 插线板（森林剪影风，白天 / 夜晚） */
 .as-pb-page {
   --pb-paper: #f5f4f0; --pb-grid: rgba(60,60,70,.045); --pb-halo: rgba(255,255,255,.9);
-  --pb-ink: #1d2230; --pb-ink-2: rgba(29,34,48,.6); --pb-glass: rgba(255,255,255,.3); --pb-glass-2: rgba(255,255,255,.62); --pb-line: rgba(255,255,255,.9);
+  --pb-ink: #1d2230; --pb-ink-2: rgba(29,34,48,.6); --pb-glass: rgba(255,255,255,.1); --pb-glass-2: rgba(255,255,255,.42); --pb-line: rgba(255,255,255,.9);
   --pb-shadow: 0 10px 30px rgba(30,70,90,.16); --pb-chrome: linear-gradient(160deg, #ffffff, #c9d4de 40%, #f2f6f9 55%, #9fb0c0);
   --pb-hole: radial-gradient(circle at 50% 40%, #33475e, #142233 70%); --pb-face: #e9f4ff;
   background: var(--pb-paper); color: var(--pb-ink);
 }
 .as-phone[data-mode="night"] .as-pb-page {
   --pb-paper: #0b1626; --pb-grid: rgba(120,160,230,.05); --pb-halo: rgba(60,110,200,.22);
-  --pb-ink: #e8f1ff; --pb-ink-2: rgba(220,232,255,.68); --pb-glass: rgba(18,38,70,.3); --pb-glass-2: rgba(40,70,120,.42); --pb-line: rgba(170,200,255,.26);
+  --pb-ink: #e8f1ff; --pb-ink-2: rgba(220,232,255,.68); --pb-glass: rgba(18,38,70,.12); --pb-glass-2: rgba(40,70,120,.3); --pb-line: rgba(170,200,255,.26);
   --pb-shadow: 0 12px 34px rgba(0,0,0,.4); --pb-chrome: linear-gradient(160deg, #cfdaea, #6f819b 45%, #a9b8cc 60%, #4d5d75);
   --pb-hole: radial-gradient(circle at 50% 40%, #1b2e4a, #070e1a 70%); --pb-face: #bfe6ff;
   background: var(--pb-paper);
@@ -20,8 +20,8 @@
 
 /* ---------- 背景：字符海洋（ocean.js 画鱼，这里只铺底色和淡淡的格子线） ---------- */
 .as-pb__ocean { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
-.as-pb-body { background-color: var(--pb-paper); background-image: linear-gradient(var(--pb-grid) 1px, transparent 1px), linear-gradient(90deg, var(--pb-grid) 1px, transparent 1px); background-size: 9px 12px; }
-.as-pb-body::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 70% 45% at 50% 45%, var(--pb-halo), transparent 70%); }
+.as-pb-body { background-color: var(--pb-paper); background-image: linear-gradient(var(--pb-grid) 1px, transparent 1px), linear-gradient(90deg, var(--pb-grid) 1px, transparent 1px); background-size: 7px 10px; }
+.as-pb-body::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 60% 30% at 50% 22%, var(--pb-halo), transparent 70%); }
 /* ---------- 标题 ---------- */
 .as-pb__head { position: relative; z-index: 2; flex: none; padding: 54px 20px 10px; text-align: center; color: var(--pb-ink); }
 .as-pb__title { margin: 0; font: 300 32px/1.1 var(--font-ui); letter-spacing: .14em; padding-left: .14em; }
@@ -33,11 +33,11 @@
 
 /* ---------- 玻璃板 + 格子 ---------- */
 .as-pb__panel { position: relative; z-index: 2; flex: 1 1 auto; min-height: 120px; margin: 4px 14px 0; padding: 12px; border-radius: 30px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
-  background: var(--pb-glass); border: 1px solid var(--pb-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), var(--pb-shadow); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); scrollbar-width: none; }
+  background: var(--pb-glass); border: 1px solid var(--pb-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), var(--pb-shadow); -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); scrollbar-width: none; }
 .as-pb__panel::-webkit-scrollbar { display: none; }
 .as-pb__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .as-pb__tile { position: relative; display: grid; justify-items: center; align-content: start; gap: 6px; padding: 18px 6px 22px; border-radius: 46px 46px 20px 20px; cursor: pointer; color: var(--pb-ink); text-align: center;
-  background: linear-gradient(180deg, var(--pb-glass-2), var(--pb-glass)); border: 1px solid var(--pb-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+  background: linear-gradient(180deg, var(--pb-glass-2), rgba(255,255,255,.18)); border: 1px solid var(--pb-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
   transition: transform 260ms var(--as-ease-spring), opacity 200ms, box-shadow 260ms, filter 200ms; -webkit-tap-highlight-color: transparent; }
 .as-pb__tile:active { transform: scale(.97); }
 .as-pb__tile.is-near { transform: scale(1.06); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 0 2px rgba(120,200,255,.7), 0 0 24px rgba(120,200,255,.55); }
@@ -152,3 +152,17 @@
 .as-pbd__fbody .as-pbd__row.is-inline:has(.as-pbd__v) { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
 .as-pbd__v { font: 500 13px/1.3 var(--font-ui); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-pbd__pinbtn { flex: 1; padding: 11px; border-radius: 14px; border: 1px solid var(--as-color-glass-line); background: none; color: var(--as-color-accent); font: 600 13px/1 var(--font-ui); cursor: pointer; }
+
+/* 底部：这根线给谁（切换） */
+.as-pb__cords { height: 210px; }
+.as-pb__tabs { position: absolute; left: 14px; right: 14px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 6; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; border-radius: 99px; pointer-events: auto;
+  background: var(--pb-glass-2); border: 1px solid var(--pb-line); box-shadow: var(--pb-shadow); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.as-pb__tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 9px 4px; border: 0; border-radius: 99px; background: none; color: var(--pb-ink-2); font: 600 13.5px/1 var(--font-ui); cursor: pointer; transition: background 220ms, color 220ms; }
+.as-pb__tab i { font: 700 11px/1 ui-monospace, Menlo, monospace; font-style: normal; color: var(--c); }
+.as-pb__tab.is-on { background: var(--c); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--c) 40%, transparent); }
+.as-pb__tab.is-on i { color: #fff; }
+.as-pb__cordhint { position: absolute; left: 0; right: 0; bottom: 64px; z-index: 6; text-align: center; font: 500 12px/1.4 var(--font-ui); color: var(--pb-ink-2); pointer-events: none; }
+.as-pb__tile[hidden] { display: none; }
+.as-pbd__site { display: grid; gap: 6px; }
+.as-pbd__sitelink { justify-self: start; display: inline-flex; align-items: center; gap: 5px; font: 600 12.5px/1.2 var(--font-ui); color: var(--as-color-accent); text-decoration: none; padding: 6px 10px; border-radius: 99px; background: color-mix(in srgb, var(--as-color-accent) 10%, transparent); word-break: break-all; }
+.as-pbd__testimg { width: 100%; max-height: 260px; object-fit: contain; border-radius: 18px; background: rgba(0,0,0,.05); }

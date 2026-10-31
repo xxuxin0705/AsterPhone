@@ -189,6 +189,7 @@ function bindTripleTap() {
 /* ---------- 启动 ---------- */
 async function boot() {
   await Promise.all([load(), loadLogs()]);
+  try { const { seedImageChannels } = await import('./api.js'); if (seedImageChannels()) commit('connections'); } catch (e) { console.warn(e); }
   loadClockFont().then(n => { if (n) { renderClock(true); renderWidget(); } });
   mountUI(phone);
   applySkins();
