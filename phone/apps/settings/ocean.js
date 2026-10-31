@@ -63,8 +63,8 @@ export class AsciiOcean {
       if (f.x < -m) f.x = cols + m; if (f.x > cols + m) f.x = -m;
       if (f.y < -m) f.y = rows + m; if (f.y > rows + m) f.y = -m;
       sctx.globalAlpha = f.shade;
-      // 字符格子是竖长的（9×12），鱼要压扁一点才不会被拉长
-      sctx.save(); sctx.scale(1, CW / CH); drawFishBody(sctx, f.x, f.y * CH / CW, f.a + Math.PI, m, f.ph); sctx.restore();
+      // 字符格子是竖长的（9×12），鱼要压扁一点才不会被拉长；鱼头朝着真正游的方向（drawFishBody 里鱼头在 +x）
+      sctx.save(); sctx.scale(1, CW / CH); drawFishBody(sctx, f.x, f.y * CH / CW, Math.atan2(Math.sin(f.a) * 2 * CH / CW, Math.cos(f.a) * 3), m, f.ph); sctx.restore();
     }
     sctx.globalAlpha = 1;
     const px = sctx.getImageData(0, 0, cols, rows).data;
