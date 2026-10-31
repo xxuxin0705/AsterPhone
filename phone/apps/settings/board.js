@@ -23,7 +23,18 @@ const CORDS = [
 ];
 let lastCord = 0;     // 上次看的是哪根线（这次打开还停在那里）
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const FACE = { idle: '·_·', blink: '-_-', curious: '·_·?', dim: '-_-', test: '°o°', ok: '^‿^', joy: '≧▽≦', bad: 'T_T', plugged: '·‿·' };
+const FACE = { idle: '·_·', blink: '-_-', curious: '·_·?', dim: '-_-', test: '°o°', ok: '^‿^', joy: '≧▽≦', bad: 'T_T', need: '·_·?', plugged: '·‿·' };
+// 同一种心情有好几张脸，每个格子挑不一样的；每插一次 / 测通一次换一张
+const FACES = {
+  idle: ['·_·', '•_•', '°_°', '·ㅅ·', '·ω·'],
+  ok: ['^‿^', '^▽^', '◕‿◕', '^ω^', 'ᵔᴥᵔ', '≧◡≦', '^_^'],
+  joy: ['≧▽≦', '✧▽✧', '^o^', '★▽★', '≧ω≦'],
+  need: ['·_·?', '?_?', '°~°?', '•_•?', 'ˀ_ˀ'],
+  bad: ['T_T', 'ಥ_ಥ', ';_;', '×_×', 'ToT'],
+  test: ['°o°', '·o·', '°□°'],
+};
+const strHash = str => { let n = 7; for (let i = 0; i < str.length; i++) n = (n * 31 + str.charCodeAt(i)) | 0; return Math.abs(n); };
+const faceText = (f, id, mood = 0) => { const set = FACES[f]; return set ? set[(strHash(id || '') + mood) % set.length] : FACE[f]; };
 
 /* ---------- ASCII 插头：形状（局部坐标，插头尖在 (0,0)，往下是身体） ---------- */
 const PLEN = 128, SC = .62, PL = PLEN * SC;
@@ -73,6 +84,7 @@ export function openBoard({ list }) {
   const tileMap = new Map();
   let quietUntil = 0;  // 刚拖完线 / 刚排完序，别把松手当成点格子
   const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
+  const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
   const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : KIND_NAME[kind];
   const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
     : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
@@ -333,7 +345,7 @@ export function openBoard({ list }) {
     const id = pl.target, t = tileOf(id), again = pl.back && C().defaults[pl.use] === id;
     pl.mode = 'plugged'; pl.prev = null; pl.back = false; pl.shake = 1; vib(18);
     burst(pl.x, pl.y, 20, 'spark'); layoutLabels(); ocean.kick(1);
-    if (t) t.joyUntil = performance.now() + 900;
+    if (t) { t.joyUntil = performance.now() + 900; t.mood = (t.mood || 0) + 1; }
     if (again) return;
     // 插上就算接好了：不发请求，直接笑脸。想确认真能用，点格子里的「测试」
     C().defaults[pl.use] = id; C().scheme = ''; commit('connections'); syncUses();
@@ -375,11 +387,12 @@ export function openBoard({ list }) {
       else if (status[t.c.id] === 'test') f = 'test';
       else if (dp && !compat) f = 'dim';
       else if (dp && compat) { f = 'curious'; const q = portOf(t, dp); look = Math.max(-1, Math.min(1, (dp.x - q.x) / 120)); }
-      else if (used && st === 'bad') f = 'bad';
-      else if (used) f = 'ok';         // 插着就是笑脸；只有真的测过、连不上才哭
+      else if (used && st === 'bad') f = 'bad';                 // 红：点了测试，连不上
+      else if (used && needSetup(t.c, t.kind)) f = 'need';     // 黄：插上了，但还没填密钥
+      else if (used) f = 'ok';                                  // 绿：插着就算好（外面不会主动去测）
       else f = 'idle';
       if ((f === 'idle' || f === 'curious' || f === 'plugged') && now < t.blinkUntil) f = f === 'plugged' ? 'blink' : 'blink';
-      const txt = FACE[f];
+      const txt = f === 'blink' || f === 'dim' || f === 'curious' ? FACE[f] : faceText(f, t.c.id, t.mood || 0);
       if (t.eyes.textContent !== txt) t.eyes.textContent = txt;
       t.eyes.style.transform = `translateX(${(look * 3).toFixed(1)}px)`;
       t.el.dataset.face = f;
@@ -500,13 +513,12 @@ export function openBoard({ list }) {
     ctx.globalAlpha = 1;
     ctx.font = `700 ${CH}px ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const tick = reduce ? 0 : Math.floor(now / 170);
-    const bb = B(), pr = panel.getBoundingClientRect(), pt = pr.top - bb.top, pbm = pr.bottom - bb.bottom + H(), pl0 = pr.left - bb.left, pr0 = pr.right - bb.left;
     for (let k = 0; k < dens.length; k++) {
       const d = dens[k]; if (d < .05) continue;
       const cd = plugs[own[k] - 1]; if (!cd) continue;
       const x = (k % cols) * CW + CW / 2, y = ((k / cols) | 0) * CH + CH / 2;
       const base = night ? cd.glow : cd.ink;
-      if (d > .5 && !(y > pt && y < pbm - 8 && x > pl0 && x < pr0 && Math.hypot(x - cd.x, y - cd.y) > 34)) { ctx.fillStyle = `rgba(${base},${night ? .14 + (d - .5) * .4 : .12 + (d - .5) * .3})`; ctx.fillRect(x - CW / 2 + .5, y - CH / 2 + .5, CW - 1, CH - 1); }
+      if (d > .5) { ctx.fillStyle = `rgba(${base},${night ? .14 + (d - .5) * .4 : .12 + (d - .5) * .3})`; ctx.fillRect(x - CW / 2 + .5, y - CH / 2 + .5, CW - 1, CH - 1); }
       let ch, col = base, a = .35 + .65 * d;
       if (typ[k] === 3) { ch = cd.sym; col = night ? [255, 255, 255] : [255, 255, 255]; ctx.fillStyle = `rgba(${base},.95)`; ctx.fillRect(x - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2); a = 1; }
       else if (typ[k] === 2) { ch = hash(k, tick) < .5 ? '0' : '1'; col = night ? [230, 255, 255] : [20, 60, 120]; a = 1; }
@@ -514,11 +526,6 @@ export function openBoard({ list }) {
         const jit = hash(k, tick + ((hash(k, 7) * 9) | 0)) < .1 ? (hash(k, tick) < .5 ? -1 : 1) : 0;
         ch = RAMP[Math.max(0, Math.min(RAMP.length - 1, Math.round(d * (RAMP.length - 1)) + jit))];
         if (typ[k] === 1) col = night ? [235, 245, 255] : [120, 132, 156];
-      }
-      // 线在玻璃板里面、离插头远的地方淡一点，免得盖住格子上的字
-      if (y > pt && y < pbm - 8 && x > pl0 && x < pr0 && typ[k] !== 3) {
-        const pq = plugs[own[k] - 1], headLen = pq.mode === 'plugged' ? PL * .3 : PL + 6;   // 插好的插头只留尖尖清楚，身子淡下去，别挡住下面格子的脸
-        if (Math.hypot(x - pq.x, y - pq.y) > 30 && !(y > pq.y - 4 && y < pq.y + headLen && Math.abs(x - pq.x) < 22)) a *= pq.mode === 'plugged' ? .3 : .42;
       }
       a *= cd.vis;
       ctx.fillStyle = `rgba(${col},${a})`; ctx.fillText(ch, x, y + .5);
@@ -537,11 +544,16 @@ export function openBoard({ list }) {
     const tavern = isTv(d);
     let dirty = !!isNew;
     const savedTag = h('span.as-pbd__saved', isNew ? '还没保存' : '已保存');
-    const touch = () => { dirty = true; savedTag.textContent = '有改动，记得保存'; savedTag.classList.add('is-dirty'); };
-    const st = () => status[orig.id] || (orig.ok === true ? 'ok' : orig.ok === false ? 'bad' : '');
-    const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE[st() === 'ok' ? 'ok' : st() === 'bad' ? 'bad' : 'idle']));
+    const touch = () => { dirty = true; savedTag.textContent = '有改动，记得保存'; savedTag.classList.add('is-dirty'); paintSt(); };
+    const st = () => { const s = status[orig.id] || (orig.ok === true ? 'ok' : orig.ok === false ? 'bad' : ''); return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
+    const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE.idle));
     const stText = h('span.as-pbd__st');
-    const paintSt = () => { const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none'); stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : '还没测过'; faceEl.firstChild.textContent = FACE[s === 'ok' ? 'ok' : s === 'bad' ? 'bad' : s === 'test' ? 'test' : 'idle']; };
+    const paintSt = () => {
+      const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none');
+      stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置（没填密钥）' : '还没测过';
+      faceEl.firstChild.textContent = faceText(s || 'idle', orig.id);
+      faceEl.dataset.face = s || 'idle';
+    };
     paintSt();
     const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆当前连接' : d.name || (isNew ? '新接口' : ''));
     const subEl = h('span.as-pbd__subline');
@@ -557,7 +569,7 @@ export function openBoard({ list }) {
       status[orig.id] = err ? 'bad' : 'ok';
       if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
       paintSt();
-      const t = tileOf(orig.id); if (t && !err) t.joyUntil = performance.now() + 1100;
+      const t = tileOf(orig.id); if (t && !err) { t.joyUntil = performance.now() + 1100; t.mood = (t.mood || 0) + 1; }
       if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log') });
       else toast(r.note ? `连上了，${r.note}` : dirty || isNew ? '连上了，记得保存' : '连上了');
       if (r.img) { card.parentNode.querySelector('.as-pbd__testimg')?.remove(); card.after(h('img.as-pbd__testimg', { src: r.img, alt: '测试画出来的图' })); }

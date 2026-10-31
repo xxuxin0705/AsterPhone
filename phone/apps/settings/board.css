@@ -51,6 +51,17 @@
 .as-pb__tile[data-face="ok"] .as-pb__face, .as-pb__tile[data-face="joy"] .as-pb__face { box-shadow: 0 0 0 2px rgba(80,220,150,.45), 0 0 18px rgba(80,220,150,.45), inset 0 1px 0 #fff; }
 .as-pb__tile[data-face="bad"] .as-pb__face b { color: #ffb0b0; text-shadow: 0 0 10px rgba(255,90,90,.8); }
 .as-pb__tile[data-face="bad"] .as-pb__face { box-shadow: 0 0 0 2px rgba(240,90,90,.45), 0 0 18px rgba(240,90,90,.4), inset 0 1px 0 #fff; }
+/* 黄：插上了但还没配置（没填密钥） */
+.as-pb__tile[data-face="need"] .as-pb__face b { color: #ffe08a; text-shadow: 0 0 10px rgba(255,200,60,.85); animation: pb-wobble 1.4s ease-in-out infinite; }
+.as-pb__tile[data-face="need"] .as-pb__face { box-shadow: 0 0 0 2px rgba(240,190,60,.55), 0 0 18px rgba(240,190,60,.45), inset 0 1px 0 #fff; }
+/* 详情里的小脸也跟着变色 */
+.as-pbd__face[data-face="ok"] b { color: #9dffcb; text-shadow: 0 0 10px rgba(80,240,160,.8); }
+.as-pbd__face[data-face="ok"] { box-shadow: 0 0 0 2px rgba(80,220,150,.45), 0 0 18px rgba(80,220,150,.45), inset 0 1px 0 #fff; }
+.as-pbd__face[data-face="need"] b { color: #ffe08a; text-shadow: 0 0 10px rgba(255,200,60,.85); }
+.as-pbd__face[data-face="need"] { box-shadow: 0 0 0 2px rgba(240,190,60,.55), 0 0 18px rgba(240,190,60,.45), inset 0 1px 0 #fff; }
+.as-pbd__face[data-face="bad"] b { color: #ffb0b0; text-shadow: 0 0 10px rgba(255,90,90,.8); }
+.as-pbd__face[data-face="bad"] { box-shadow: 0 0 0 2px rgba(240,90,90,.45), 0 0 18px rgba(240,90,90,.4), inset 0 1px 0 #fff; }
+.as-pbd__st.is-need { color: #c98a00; } .as-pbd__st.is-need::before { background: #ffc53d; box-shadow: 0 0 8px #ffc53d; }
 .as-pb__tile[data-face="test"] .as-pb__face b { color: #ffe1a0; text-shadow: 0 0 10px rgba(255,190,80,.8); animation: pb-wobble 600ms ease-in-out infinite; }
 .as-pb__tile[data-face="joy"] .as-pb__face b { animation: pb-hop 420ms var(--as-ease-spring); }
 /* 哭脸掉眼泪 */
