@@ -7,7 +7,7 @@
 :root {
   --stage: #dfeefb; --stage-ink: #4b6b86;
   --font-clock: "Cormorant Garamond", "Noto Serif SC", "Songti SC", Georgia, serif;
-  --font-clock-sf: "AsterClock", "AsterClockBuiltin", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Nunito", "PingFang SC", "HarmonyOS Sans SC", "MiSans", system-ui, sans-serif;
+  --font-clock-sf: "AsterClockBuiltin", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Nunito", "PingFang SC", "HarmonyOS Sans SC", "MiSans", system-ui, sans-serif;
   --font-clock-thin: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", "PingFang SC", system-ui, sans-serif;
   --font-cn: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-ui: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;

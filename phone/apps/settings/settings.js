@@ -9,10 +9,10 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
-import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
+import { importClockFont, removeClockFont, userFonts, fontKey } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.15';
+export const VERSION = '0.6.16';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -267,7 +267,7 @@ function clockPreview(night) {
 function paintClock() {
   if (!clockBox) return;
   const n = time.now();
-  clockBox.dataset.font = (S().clock || {}).font || 'sf';
+  clockBox.dataset.font = fontKey((S().clock || {}).font);
   clockBox.replaceChildren(h('span', n.date), withAp(n));
   const night = shell.phone.dataset.mode === 'night', c = S().clockColor;
   const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
@@ -279,14 +279,21 @@ function openLook() {
     const night = shell.phone.dataset.mode === 'night';
     body.append(
       group('主题', [item({ title: '主题和皮肤', sub: '换一整套颜色，或者用自己写的 CSS 皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
-      group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))],
-        '切换时整个手机会从你点的地方扩散着变色。'),
+      group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))]),
       group('时间', [clockPreview(night),
         segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
-        item({ title: '字体文件', sub: '默认内置苹果粗体（SF Pro Display Bold）；想换别的字体可以导入 .otf / .ttf', value: clockFontName() || '内置苹果粗体', chevron: true, onClick: async () => {
-          const v = await actionSheet('锁屏字体文件', [{ label: clockFontName() ? '换一个字体文件' : '导入字体文件', value: 'add' }, ...(clockFontName() ? [{ label: '删掉，换回内置苹果粗体', value: 'del', danger: true }] : [])]);
-          if (v === 'add') { const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return; try { const n = await importClockFont(f); S().clock.font = 'sf'; commit('look'); shell.applyLook(); toast('已换成「' + n + '」'); re(); } catch (e) { toast(e.message); } }
-          if (v === 'del') { await removeClockFont(); shell.applyLook(); toast('已删掉'); re(); }
+        // 导入的字体：点一下就用它，右边可以删；可以导入好几个
+        ...userFonts().map(x => item({ title: x.name, cls: 'as-font-row',
+          right: h('span.as-font-row__end', S().clock.font === 'u:' + x.id ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null,
+            h('button.as-textbtn.as-font-row__del', { onclick: async e => {
+              e.stopPropagation();
+              if (!(await dialog({ title: `删掉「${x.name}」？`, confirm: '删除', danger: true }))) return;
+              await removeClockFont(x.id); commit('look'); shell.applyLook(); paintClock(); re();
+            } }, '删除')),
+          onClick: () => { S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); re(); } })),
+        item({ title: '导入字体文件', value: '.otf / .ttf', chevron: true, onClick: async () => {
+          const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+          try { const x = await importClockFont(f); S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); toast('已导入「' + x.name + '」'); re(); } catch (e) { toast(e.message); }
         } }),
         segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),
@@ -316,7 +323,7 @@ function openWalls() {
     const pv = which => {
       const n = time.now();
       const card = bgOf(h('div.as-walls-pv__screen' + (which === 'home' ? '.is-home' : '')), walls.current(which), night);
-      if (which === 'lock') card.append(h('div.as-walls-pv__clock', { dataset: { font: S().clock.font } }, h('span', n.date), withAp(n)));
+      if (which === 'lock') card.append(h('div.as-walls-pv__clock', { dataset: { font: fontKey(S().clock.font) } }, h('span', n.date), withAp(n)));
       else card.append(h('div.as-walls-pv__apps', [0, 1, 2, 3].map(() => h('i'))));
       if (w[which + 'Random']) card.append(h('span.as-walls-pv__tag', icon('sparkle', 12, 2), '随机'));
       return h('div.as-walls-pv__item', card, which === 'lock' ? '锁屏' : '桌面');

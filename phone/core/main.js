@@ -8,7 +8,7 @@ import { Wallpaper } from './wallpaper.js';
 import { shell } from './shell.js';
 import { applySkins } from './skin.js';
 import * as walls from './walls.js';
-import { loadClockFont } from './fonts.js';
+import { loadClockFonts, applyClockFont } from './fonts.js';
 import { postToParent, inTavern } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
@@ -53,6 +53,7 @@ function applyLook() {
   const s = state.settings;
   phone.style.setProperty('--as-font-scale', s.fontScale || 1);
   phone.dataset.clock = s.clockColor || 'auto';
+  applyClockFont();
   if (wallpaper && wallpaper.gl !== undefined) { wallpaper.setLiveMode(s.walls.live); showWall(wallNow(), { glitch: true }); }
   syncStatusbar();
   syncFoot();
@@ -190,7 +191,7 @@ function bindTripleTap() {
 async function boot() {
   await Promise.all([load(), loadLogs()]);
   try { const { seedImageChannels } = await import('./api.js'); if (seedImageChannels()) commit('connections'); } catch (e) { console.warn(e); }
-  loadClockFont().then(n => { if (n) { renderClock(true); renderWidget(); } });
+  loadClockFonts().then(n => { if (n) { commit('look'); renderClock(true); renderWidget(); } });
   mountUI(phone);
   applySkins();
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });

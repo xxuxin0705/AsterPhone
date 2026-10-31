@@ -20,7 +20,7 @@ export function initHome() {
   const widget = h('div.as-home-widget', wTime, wDate, wSub, wMsg);
   const appBtn = a => h('button.as-home-app', { dataset: { asApp: a.id }, 'aria-label': a.name, onclick: e => shell.openApp(a.id, { from: e.currentTarget.querySelector('.as-home-app__icon') }) },
     h('span.as-home-app__icon', icon(a.icon, 28, 1.7)), h('span.as-home-app__name', a.name));
-  homeEl.append(widget, h('div.as-home-grid', APPS.map(appBtn)), h('p.as-home-hint', '左右边缘滑动返回 · 桌面再返回就收起手机'));
+  homeEl.append(widget, h('div.as-home-grid', APPS.map(appBtn)));
   setInterval(renderWidget, 1000);
   renderWidget(); renderBadges();
 }

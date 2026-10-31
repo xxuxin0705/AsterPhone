@@ -6,6 +6,7 @@ import { avatar, toast } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { patternPad, BACKUP_Z } from './pattern.js';
+import { fontKey } from '../../core/fonts.js';
 
 let lockEl, pinEl, finger, ring, clockEl, dateEl, noticeBox, pinBtn, swipeEl;
 let locked = true, onUnlockCb = null, pendingOpen = null;
@@ -35,7 +36,7 @@ export function initLock({ onUnlock }) {
   finger = h('button.as-lock-finger', { 'aria-label': '按住指纹解锁', html: FINGER_SVG });
   ring = finger.querySelector('.as-lock-finger__progress');
   pinBtn = h('button.as-textbtn', { onclick: openPin }, '使用密码');
-  swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (usePattern()) openPattern(); else if (!usePin()) unlock(swipeEl); } },
+  swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (usePattern()) openPattern(); else if (usePin()) openPin(); else unlock(swipeEl); } },
     h('span', { html: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>' }), '上滑解锁');
   lockEl.append(h('div.as-lock__head', dateEl, clockEl), noticeBox,
     h('div.as-lock__foot', h('span'), finger, pinBtn), swipeEl);
@@ -56,9 +57,9 @@ export function initLock({ onUnlock }) {
 
 export function syncFoot() {
   const m = state.settings.lock.method;
-  const swipe = m === 'none' || (m === 'pin' && !usePin()) || m === 'pattern';
-  swipeEl.lastChild.textContent = usePattern() ? '上滑画图案' : '上滑解锁';
-  pinBtn.hidden = !usePin();
+  const swipe = m !== 'finger';
+  swipeEl.lastChild.textContent = usePattern() ? '上滑画图案' : usePin() ? '上滑输入密码' : '上滑解锁';
+  pinBtn.hidden = true;
   finger.hidden = swipe; swipeEl.hidden = !swipe;
   finger.querySelector('.as-lock-finger__hint').textContent = usePin() ? '点一下输入密码' : '按住指纹解锁';
   finger.setAttribute('aria-label', usePin() ? '输入密码' : '按住指纹解锁');
@@ -94,7 +95,7 @@ export function renderClock(force) {
   const n = time.now();
   const sb = $('#sbTime'); if (sb) sb.textContent = n.hm;
   dateEl.textContent = n.date;
-  clockEl.dataset.font = (state.settings.clock || {}).font || 'sf';
+  clockEl.dataset.font = fontKey((state.settings.clock || {}).font);
   clockEl.dataset.ap = n.ap; clockEl.dataset.apSide = (state.settings.clock || {}).lang === 'en' ? 'after' : 'before';
   if (n.hm === shown && !force) return;
   if (force || n.hm.length !== shown.length || clockEl.children.length !== n.hm.length) {

@@ -17,6 +17,7 @@
 .as-phone .as-lock-clock[data-font="serif"], .as-phone .as-lock-clock[data-font="thin"] { --clk-a: 1; }
 .as-lock-clock[data-font="serif"] { --dw: .52em; font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
 .as-lock-clock[data-font="thin"] { --dw: .56em; font: 200 clamp(84px, 26vw, 110px)/0.9 var(--font-clock-thin); letter-spacing: 0; color: var(--ink); }
+.as-lock-clock[data-font="custom"] { --dw: .58em; font: 400 clamp(84px, 26vw, 110px)/0.92 var(--font-clock-user), var(--font-clock-sf); letter-spacing: 0; }
 .as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 1px 0 rgba(255,255,255,.08), 0 2px 26px rgba(0,0,0,.3); }
 .as-lock-clock__digit { position: relative; display: inline-block; overflow: hidden; height: 1em; width: var(--dw); text-align: center; }
 .as-lock-clock__digit > span { position: absolute; left: 0; right: 0; top: 0; transition: transform 520ms var(--as-ease-spring), opacity 420ms; }
@@ -94,7 +95,7 @@
 .as-pin__bar > span { display: flex; min-width: var(--key, 80px); }
 .as-pin__bar-btn { min-width: var(--key, 80px); padding: 10px 0; font: 500 17px/1 var(--font-ui); letter-spacing: .04em; color: var(--ink); }
 .as-pin__bar-btn[hidden] { display: none; }
-@media (max-height: 700px) { .as-pin { --key: 70px; padding-top: 16%; } .as-key b { font-size: 31px; } .as-lock-pin-dots { margin: 16px 0 26px; } .as-pin__pad { margin-top: 56px; } }
+@media (max-height: 700px) { .as-pin { --key: 70px; padding-top: 16%; } .as-key b { font-size: 31px; } .as-lock-pin-dots { margin: 16px 0 26px; } }
 @media (max-height: 600px) { .as-pin { --key: 60px; padding-top: 10%; } .as-key b { font-size: 26px; } }
 
 /* 关闭了状态栏时，内容往上提 */
@@ -105,8 +106,8 @@
 .as-phone.is-locked .as-stack, .as-phone.is-locked .as-home, .as-phone.is-locksetup .as-stack, .as-phone.is-locksetup .as-home { visibility: hidden; }
 
 /* ---------- 手势密码 ---------- */
-.as-pattern { padding-top: 22%; }
-.as-pin__pad { width: 100%; display: flex; justify-content: center; align-items: center; margin-top: 76px; height: calc(4 * var(--key, 80px) + 3 * 18px); }
+.as-pattern { padding-top: calc(22% + 70px); }
+.as-pin__pad { width: 100%; display: flex; justify-content: center; align-items: center; margin-top: 6px; height: calc(4 * var(--key, 80px) + 3 * 18px); }
 .as-lock-pattern-wrap { width: min(88%, calc(3 * var(--key, 80px) + 2 * 26px + 40px)); }
 .as-lock-pattern { width: 100%; height: auto; aspect-ratio: 1; display: block; touch-action: none; overflow: visible; }
 .as-lock-pattern__ring { fill: color-mix(in srgb, currentColor 6%, transparent); stroke: color-mix(in srgb, currentColor 22%, transparent); stroke-width: 1.5; transition: fill 160ms, stroke 160ms; }
@@ -119,3 +120,4 @@
 .as-lock-pattern.is-error .as-lock-pattern__line { fill: none; }
 .as-lock-pattern.is-error { animation: as-shake 420ms var(--as-ease-standard); }
 .as-lock-pattern.is-ok .as-lock-pattern__line { stroke: var(--as-color-success, #30a46c); }
+@media (max-height: 700px) { .as-pattern { padding-top: calc(16% + 50px); } }
