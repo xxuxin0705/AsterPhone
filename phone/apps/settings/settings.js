@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.43';
+export const VERSION = '0.6.44';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -90,8 +90,14 @@ function openConnList() {
   // 点进去和插线板是同一个「接口详情」；列表没有线可插，所以多一个「设为默认」
   const hooks = () => ({ refresh: () => p.el._onShow(), setDefault: true });
   const add = () => import('./board.js').then(m => m.newConn(connKind, hooks()));
+  // 音色库只在「语音」那一栏出现
+  const mic = navBtn('mic', '音色库', async () => {
+    const [v, m] = await Promise.all([import('./voices.js'), import('./board.js')]);
+    v.openVoicePage({ onChange: () => p.el._onShow(), openConn: c => m.openDetail(c, 'tts', false, hooks()) });
+  });
   const p = sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
+    mic.hidden = connKind !== 'tts';
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '向量']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => add()))); return; }
     const def = state.connections.defaults[connKind];
@@ -102,10 +108,7 @@ function openConnList() {
       return el;
     }), '打勾的是全局默认。各个 App、各个聊天还能单独指定。'));
     body.appendChild(btn('新建连接', 'secondary', () => add(), { style: { width: '100%' } }));
-  }, { right: [navBtn('mic', '音色库', async () => {
-    const [v, m] = await Promise.all([import('./voices.js'), import('./board.js')]);
-    v.openVoicePage({ onChange: () => p.el._onShow(), openConn: c => m.openDetail(c, 'tts', false, hooks()) });
-  }), navBtn('more', '更多', async () => {
+  }, { right: [mic, navBtn('more', '更多', async () => {
     const m = await import('./board.js');
     m.connMenu({ mode: 'list', schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add,
       switchMode: () => { S().connView = ''; commit('settings'); nav.pop(); openConnections(); } });

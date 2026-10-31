@@ -207,3 +207,10 @@
 .as-pb__voices .as-pb__more { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--pb-chrome); color: var(--pb-ink); font: 700 9.5px/1 var(--font-ui); }
 .as-pb-body.is-voice .as-pb__tile[data-kind="tts"] .as-pb__voices { display: flex; }
 .as-pb__avghost { position: absolute; z-index: 30; pointer-events: none; transform: translate(-50%, -50%) scale(1.25); box-shadow: 0 6px 16px rgba(0,0,0,.3); border-radius: 50%; }
+
+/* 语音线上的小拨片 */
+.as-pb__modesw { position: absolute; z-index: 7; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border: 0; border-radius: 99px; background: var(--pb-chrome, #fff); color: var(--pb-ink); font: 700 10.5px/1 var(--font-ui); box-shadow: 0 3px 10px rgba(20,40,70,.25); cursor: pointer; touch-action: manipulation; }
+.as-pb__modesw i { position: relative; width: 26px; height: 14px; border-radius: 99px; background: rgb(210, 132, 40); transition: background 240ms; }
+.as-pb__modesw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 240ms var(--as-ease-spring, ease); }
+.as-pb__modesw.is-each i { background: linear-gradient(90deg, #f25a5a, #f2b84b, #5ac97a, #4aa8f0, #9a6af0); }
+.as-pb__modesw.is-each i::after { transform: translateX(12px); }

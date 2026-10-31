@@ -63,11 +63,18 @@ function plugAt(x, y) {
   return [Math.max(0, d), metal];
 }
 const hash = (a, b) => { let n = (a * 374761393 + b * 668265263) | 0; n = (n ^ (n >>> 13)) * 1274126177; return ((n ^ (n >>> 16)) >>> 0) / 4294967295; };
+/** 彩虹色：语音线在「每个人用自己的渠道」时是彩色的，沿着线慢慢流动 */
+function rainbow(pos, now, night) {
+  const hue = ((pos * 1.4 + now / 18) % 360 + 360) % 360, l = night ? .7 : .52, s0 = .7, a = s0 * Math.min(l, 1 - l);
+  const f = n => { const k = (n + hue / 30) % 12; return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); };
+  return [f(0), f(8), f(4)];
+}
 const vib = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* 忽略 */ } };
 
 /* ================= 页面 ================= */
 export function openBoard({ list }) {
   const p = page({ app: 'settings', id: 'settings-board', title: '', back: true, cls: 'as-pb-page', right: [navBtn('mic', '音色库', () => voicePage(null, 'conn')), navBtn('more', '更多', () => menu())] });
+  const micBtn = p.nav.querySelector('[aria-label="音色库"]');   // 音色库只在看「语音」线时出现
   p.body.classList.add('as-pb-body');
   const head = h('div.as-pb__head', h('h1.as-pb__title', '连接'), h('div.as-pb__rule', h('i'), h('span', '✦'), h('i')), h('p.as-pb__sub', '拎起一根线，插进想用的接口'));
   const schemeChip = h('button.as-pb__scheme', { onclick: () => schemes() });
@@ -306,6 +313,13 @@ export function openBoard({ list }) {
   const tabs = h('div.as-pb__tabs', { role: 'tablist' }, plugs.map(pl => h('button.as-pb__tab', { role: 'tab', style: { '--c': `rgb(${pl.ink})` }, onclick: () => setActive(pl.i) }, h('i', pl.sym), pl.label)));
   const cordHint = h('span.as-pb__cordhint');
   cordsBox.append(cordHint, tabs);
+  // 语音线上的小拨片：统一一个渠道 ↔ 每个人用自己的渠道（各自时线变成彩色）。位置每帧跟着线走
+  const modeLbl = h('span'), modeSw = h('button.as-pb__modesw', { 'aria-label': '每个人用哪个渠道', onclick: e => {
+    e.stopPropagation(); V().mode = V().mode === 'each' ? 'one' : 'each'; saveVoice(); paintMode(); paintVoices(); forceDraw = true; vib(8);
+    toast(V().mode === 'each' ? '每个人用自己的渠道' : '统一用一个渠道');
+  } }, h('i'), modeLbl);
+  const paintMode = () => { const each = V().mode === 'each'; modeSw.classList.toggle('is-each', each); modeLbl.textContent = each ? '各自' : '统一'; modeSw.setAttribute('aria-pressed', String(each)); };
+  paintMode(); modeSw.hidden = micBtn.hidden = cur().kind !== 'tts'; p.body.appendChild(modeSw);
   function layoutLabels() {
     [...tabs.children].forEach((b, i) => { b.classList.toggle('is-on', i === active); b.setAttribute('aria-selected', String(i === active)); });
     const pl = cur(); cordHint.textContent = pl.mode === 'drag' ? `把「${pl.label}」插进一个${KIND_NAME[pl.kind]}接口` : pl.mode === 'rest' ? `「${pl.label}」还没插，拎起来插进上面一个接口` : '';
@@ -315,7 +329,7 @@ export function openBoard({ list }) {
     if (i === active || dragging()) return;
     active = lastCord = i;
     const pl = cur(); pl.vis = 0;
-    filterTiles(); panel.scrollTop = 0;
+    filterTiles(); panel.scrollTop = 0; modeSw.hidden = micBtn.hidden = pl.kind !== 'tts';
     requestAnimationFrame(() => { placePlugs(true); layoutLabels(); forceDraw = true; });
     ocean.kick(.3);
   }
@@ -532,6 +546,7 @@ export function openBoard({ list }) {
         const t = i / n, u = 1 - t;
         const x = u * u * u * A.x + 3 * u * u * t * P1.x + 3 * u * t * t * P2.x + t * t * t * Bp.x, y = u * u * u * A.y + 3 * u * u * t * P1.y + 3 * u * t * t * P2.y + t * t * t * Bp.y;
         const ang = Math.atan2(y - py, x - px); px = x; py = y;
+        if (pl.use === 'tts' && i === Math.round(n * .22)) { modeSw.style.left = x + 'px'; modeSw.style.top = y + 'px'; }
         const pulse = flow ? Math.max(0, 1 - Math.abs(((t * 2.4 - now / 600) % 1 + 1) % 1 - .5) * 8) : 0;
         for (const [o, a] of [[0, .82], [-4, .5], [4, .42], [-7, .14]]) stamp(x - Math.sin(ang) * o, y + Math.cos(ang) * o, Math.min(1, a + pulse * .5), pl.i + 1, pulse > .3 ? 2 : 0);
       }
@@ -560,7 +575,7 @@ export function openBoard({ list }) {
       const d = dens[k]; if (d < .05) continue;
       const cd = plugs[own[k] - 1]; if (!cd) continue;
       const x = (k % cols) * CW + CW / 2, y = ((k / cols) | 0) * CH + CH / 2;
-      const base = night ? cd.glow : cd.ink;
+      const base = cd.use === 'tts' && V().mode === 'each' ? rainbow(x + y, now, night) : night ? cd.glow : cd.ink;
       if (d > .5 && !(y > pt && y < pbm - 8 && x > pl0 && x < pr0 && Math.hypot(x - cd.x, y - cd.y) > 34)) { ctx.fillStyle = `rgba(${base},${night ? .14 + (d - .5) * .4 : .12 + (d - .5) * .3})`; ctx.fillRect(x - CW / 2 + .5, y - CH / 2 + .5, CW - 1, CH - 1); }
       let ch, col = base, a = .35 + .65 * d;
       if (typ[k] === 3) { ch = cd.sym; col = night ? [255, 255, 255] : [255, 255, 255]; ctx.fillStyle = `rgba(${base},.95)`; ctx.fillRect(x - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2); a = 1; }
@@ -586,14 +601,14 @@ export function openBoard({ list }) {
   const addNew = kind => newConn(kind || cur().kind, hooks());
   /* ================= 右上角菜单 ================= */
   const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list });
-  const voicePage = (conn, tab) => openVoicePage({ conn, tab, onChange: paintVoices, openConn: c => detail(c, 'tts') });
+  const voicePage = (conn, tab) => openVoicePage({ conn, tab, onChange: () => { paintVoices(); paintMode(); forceDraw = true; }, openConn: c => detail(c, 'tts') });
   const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
     // 线一根根换过去：先拔下来，再飞到新接口
     plugs.forEach((pl, i) => { setTimeout(() => { const id = C().defaults[pl.use]; if (id && tileOf(id)) snapTo(pl, id, true); else { pl.mode = 'rest'; pl.target = null; } layoutLabels(); syncUses(); }, i * 140); });
   } });
 
   /* ----- 刷新（加 / 删 / 改了接口之后） ----- */
-  function refresh() { if (syncTavernProfiles()) commit('connections'); updateTiles(); requestAnimationFrame(() => { placePlugs(false); layoutLabels(); forceDraw = true; }); }
+  function refresh() { if (syncTavernProfiles()) commit('connections'); updateTiles(); paintMode(); requestAnimationFrame(() => { placePlugs(false); layoutLabels(); forceDraw = true; }); }
   p.el._onShow = refresh;
   // 酒馆那边改了连接配置（加 / 删 / 切换）时，这里跟着就地更新
   const unsub = subscribeConn(() => { if (p.el.isConnected) { updateTiles(); placePlugs(false); layoutLabels(); } });
