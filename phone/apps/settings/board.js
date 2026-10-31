@@ -199,9 +199,9 @@ export function openBoard({ list }) {
     const pr = panel.getBoundingClientRect();
     if (y < pr.top + 40) panel.scrollTop -= 8; else if (y > pr.bottom - 40) panel.scrollTop += 8;
   }
-  panel.addEventListener('pointermove', e => { if (sorting && e.pointerId === sorting.id) { e.preventDefault(); moveSort(e.clientX, e.clientY); } });
+  panel.addEventListener('pointermove', e => { if (sorting && e.pointerId === sorting.id) { e.preventDefault(); e.stopPropagation(); moveSort(e.clientX, e.clientY); } });
   const endSort = e => {
-    if (!sorting || e.pointerId !== sorting.id) return;
+    if (!sorting || (e && e.pointerId !== sorting.id)) return;
     const { t, ghost } = sorting; sorting = null;
     // 影子飞回空位，再消失
     const r = t.el.getBoundingClientRect(), b = B();
@@ -215,6 +215,10 @@ export function openBoard({ list }) {
     commit('connections'); quietUntil = performance.now() + 350;
   };
   panel.addEventListener('pointerup', endSort); panel.addEventListener('pointercancel', endSort);
+  // 保险：手指在别处松开、或者拖动被别的东西抢走了，也要把浮起来的格子放回去，不能卡在屏幕上
+  panel.addEventListener('lostpointercapture', endSort);
+  const winUp = e => endSort(e);
+  window.addEventListener('pointerup', winUp, true); window.addEventListener('pointercancel', winUp, true);
   // 手机上：拿起格子后手指再动，不能让列表跟着滚走（否则浏览器会把拖动当成滚动，直接打断）
   panel.addEventListener('touchmove', e => { if (sorting) e.preventDefault(); }, { passive: false });
   function togglePin(id) {
@@ -276,9 +280,9 @@ export function openBoard({ list }) {
     for (let i = plugs.length - 1; i >= 0; i--) {
       const pl = plugs[i]; if (pl.mode === 'snap' || !isOn(pl)) continue;
       const dx = x - pl.x, dy = y - pl.y;
-      if (Math.abs(dx) < 26 && dy > -14 && dy < PL + 14) return pl;
+      if (Math.abs(dx) < 32 && dy > -20 && dy < PL + 14) return pl;
       // 插着的时候，也可以按在格子的接口口子上拎起来
-      if (pl.mode === 'plugged' && !sorting) { const t = tileOf(pl.target); if (t) { const r = t.port.getBoundingClientRect(), b = B(); if (x > r.left - b.left - 10 && x < r.right - b.left + 10 && y > r.top - b.top - 12 && y < r.bottom - b.top + 12) return pl; } }
+      if (pl.mode === 'plugged' && !sorting) { const t = tileOf(pl.target); if (t) { const r = t.port.getBoundingClientRect(), b = B(); if (x > r.left - b.left - 18 && x < r.right - b.left + 18 && y > r.top - b.top - 18 && y < r.bottom - b.top + 26) return pl; } }
     }
     return null;
   };
@@ -293,8 +297,16 @@ export function openBoard({ list }) {
     try { p.body.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
     vib(6); layoutLabels();
   }, true);
+  p.body.addEventListener('touchstart', e => {
+    if (sorting) return;
+    const t = e.touches[0], b = B();
+    if (t && hitPlug(t.clientX - b.left, t.clientY - b.top)) e.preventDefault();   // 按在插头上：别滚动、别弹长按菜单，不然拖到一半会被打断
+  }, { passive: false, capture: true });
+  p.body.addEventListener('touchmove', e => { if (dragging()) e.preventDefault(); }, { passive: false });
+  p.body.addEventListener('contextmenu', e => e.preventDefault());
   p.body.addEventListener('pointermove', e => {
     const pl = plugs.find(x => x.mode === 'drag' && x.grab && x.grab.id === e.pointerId); if (!pl) return;
+    e.stopPropagation();
     const q = local(e); pl.grab.x = q.x; pl.grab.y = q.y;
     if (!pl.grab.moved && Math.hypot(q.x - pl.grab.x0, q.y - pl.grab.y0) > 8) pl.grab.moved = true;   // 真的拖起来了，别的格子才开始变暗 / 好奇
   });
@@ -742,7 +754,7 @@ export function openBoard({ list }) {
   nav.push(p.el);
   updateTiles();
   requestAnimationFrame(() => { resize(); placePlugs(true); layoutLabels(); last = performance.now(); raf = requestAnimationFrame(step); });
-  const mo = new MutationObserver(() => { if (!p.el.isConnected && p.el._wasIn) { alive = false; cancelAnimationFrame(raf); ocean.stop(); unsub(); mo.disconnect(); } if (p.el.isConnected) p.el._wasIn = true; });
+  const mo = new MutationObserver(() => { if (!p.el.isConnected && p.el._wasIn) { alive = false; cancelAnimationFrame(raf); ocean.stop(); unsub(); mo.disconnect(); window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); } if (p.el.isConnected) p.el._wasIn = true; });
   setTimeout(() => { p.el._wasIn = p.el.isConnected; if (p.el.parentNode) mo.observe(p.el.parentNode, { childList: true }); }, 0);
   return p;
 }
