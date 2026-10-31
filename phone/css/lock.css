@@ -1,0 +1,105 @@
+/* AsterPhone · 锁屏（lock）+ 数字密码（lock-pin）+ 桌面（home） */
+
+/* ---------- 锁屏 ---------- */
+.as-lock, .as-pin, .as-home { position: absolute; inset: 0; }
+.as-lock { z-index: 30; color: var(--ink); transition: opacity 320ms var(--as-ease-standard), transform 420ms var(--as-ease-standard), color var(--as-dur-base); }
+.as-lock.is-hidden { opacity: 0; transform: translateY(-18px) scale(.98); pointer-events: none; }
+.as-lock__head { position: absolute; top: 8.5%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; pointer-events: none; }
+.as-lock-clock { font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; display: flex; align-items: flex-end; font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 18px rgba(0,0,0,.08); }
+.as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 2px 24px rgba(0,0,0,.35); }
+.as-lock-clock__digit { position: relative; display: inline-block; overflow: hidden; height: 1em; width: .52em; text-align: center; }
+.as-lock-clock__digit > span { position: absolute; left: 0; right: 0; top: 0; transition: transform 520ms var(--as-ease-spring), opacity 420ms; }
+.as-lock-clock__colon { width: .26em; text-align: center; transform: translateY(-.06em); opacity: .9; }
+.as-lock-date { margin-top: 12px; font: 400 15px/1.4 var(--font-cn); letter-spacing: .14em; }
+.as-lock-sub { margin-top: 8px; font: 500 11px/1 var(--font-clock); letter-spacing: .34em; text-transform: uppercase; color: var(--ink-2); padding-left: .34em; }
+
+.as-lock-notice { position: absolute; left: max(16px, 4.5%); right: max(16px, 4.5%); top: var(--notice-top, 29.5%); transition: top 420ms var(--as-ease-standard); display: flex; flex-direction: column; gap: 8px; }
+.as-lock-notice:empty { display: none; }
+.as-lock-notice__item { position: relative; display: grid; grid-template-columns: 38px 1fr auto; gap: 2px 11px; align-items: center; padding: 12px 14px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-line); color: var(--card-ink); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); cursor: pointer; transition: transform 420ms var(--as-ease-spring), opacity 300ms, margin 420ms var(--as-ease-spring), background var(--as-dur-base); animation: as-notice-in 620ms var(--as-ease-spring) backwards; }
+.as-lock-notice__item:nth-child(2) { animation-delay: 90ms; }
+.as-lock-notice__item:nth-child(3) { animation-delay: 160ms; }
+.as-lock-notice__item > * { transition: opacity 240ms; }
+.as-lock-notice__item:active { transform: scale(.97); }
+.as-lock-notice.is-stacked .as-lock-notice__item:nth-child(n+2) { margin-top: -66px; transform: translateY(14px) scale(.93); opacity: .72; z-index: -1; }
+.as-lock-notice.is-stacked .as-lock-notice__item:nth-child(3) { transform: translateY(26px) scale(.86); opacity: .5; z-index: -2; }
+.as-lock-notice.is-stacked .as-lock-notice__item:nth-child(n+2) > * { opacity: 0; }
+.as-lock-notice__item .as-avatar { grid-row: span 2; }
+.as-lock-notice__more { position: absolute; right: 6px; top: calc(100% + 26px); font: 400 11px/1 var(--font-ui); letter-spacing: .08em; color: var(--ink-2); transition: opacity 240ms; text-shadow: 0 0 8px var(--card); }
+.as-lock-notice:not(.is-stacked) .as-lock-notice__more { opacity: 0; }
+@keyframes as-notice-in { from { opacity: 0; transform: translateY(-14px) scale(.96); } }
+.as-lock-notice__name { font: 600 14px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-lock-notice__time { font: 400 12px/1 var(--font-ui); color: var(--card-ink-2); justify-self: end; }
+.as-lock-notice__text { grid-column: 2 / 4; font: 400 14px/1.4 var(--font-ui); color: var(--card-ink); opacity: .86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.as-lock__foot { position: absolute; left: 0; right: 0; bottom: max(30px, calc(env(safe-area-inset-bottom, 0px) + 22px)); display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; padding: 0 18px; }
+.as-textbtn { background: none; border: 0; color: var(--ink); font: 500 13px/1 var(--font-ui); letter-spacing: .06em; padding: 10px 6px; cursor: pointer; opacity: .88; text-shadow: 0 0 10px var(--card), 0 0 2px var(--card); transition: opacity var(--as-dur-base), transform var(--as-dur-fast); }
+.as-textbtn:active { transform: scale(.95); }
+.as-textbtn[hidden] { display: none; }
+.as-textbtn:focus-visible, .as-lock-finger:focus-visible, .as-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.as-lock__foot > :first-child { justify-self: start; }
+.as-lock__foot > :last-child { justify-self: end; }
+
+.as-lock-finger { position: relative; width: 78px; height: 78px; border-radius: 50%; border: 0; padding: 0; background: var(--card); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); color: var(--card-ink); cursor: pointer; touch-action: none; display: grid; place-items: center; transition: transform 160ms var(--as-ease-standard); }
+.as-lock-finger.is-pressed { transform: scale(.96); }
+.as-lock-finger__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.as-lock-finger__ring circle { fill: none; stroke-width: 2.2; }
+.as-lock-finger__track { stroke: currentColor; opacity: .22; }
+.as-lock-finger__progress { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 213.6; stroke-dashoffset: 213.6; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.as-lock-finger__icon { width: 38px; height: 38px; transition: opacity 200ms, transform 300ms var(--as-ease-spring); }
+.as-lock-finger__check { position: absolute; width: 30px; height: 30px; opacity: 0; transform: scale(.6); transition: opacity 200ms, transform 360ms var(--as-ease-spring); color: var(--accent); }
+.as-lock-finger.is-success .as-lock-finger__icon { opacity: 0; transform: scale(.7); }
+.as-lock-finger.is-success .as-lock-finger__check { opacity: 1; transform: scale(1); }
+.as-lock-finger__hint { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); white-space: nowrap; font: 400 12px/1 var(--font-ui); letter-spacing: .12em; color: var(--ink); opacity: .8; text-shadow: 0 0 10px var(--card), 0 0 2px var(--card); }
+.as-lock-swipe { display: none; }
+
+/* ---------- 数字密码 ---------- */
+.as-pin { z-index: 31; display: flex; flex-direction: column; align-items: center; padding-top: 18%; color: var(--ink); background: var(--veil); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); opacity: 0; pointer-events: none; transition: opacity 280ms var(--as-ease-standard); }
+.as-pin.is-open { opacity: 1; pointer-events: auto; }
+.as-pin__title { font: 400 17px/1.4 var(--font-cn); letter-spacing: .12em; }
+.as-pin__hint { margin-top: 6px; min-height: 18px; font: 400 12px/1.5 var(--font-ui); color: var(--ink-2); letter-spacing: .04em; text-align: center; padding: 0 24px; }
+.as-pin__hint.is-error { color: #e5484d; }
+.as-phone[data-mode="night"] .as-pin__hint.is-error { color: #ff6b70; }
+.as-lock-pin-dots { display: flex; gap: 16px; margin: 22px 0 34px; }
+.as-lock-pin-dots.is-error { animation: as-shake 420ms var(--as-ease-standard); }
+@keyframes as-shake { 20% { transform: translateX(-10px) } 40% { transform: translateX(9px) } 60% { transform: translateX(-6px) } 80% { transform: translateX(3px) } }
+.as-lock-pin-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.4px solid currentColor; transition: background var(--as-dur-fast), transform 260ms var(--as-ease-spring), border-color var(--as-dur-fast); }
+.as-lock-pin-dots i.is-active { background: var(--accent); border-color: var(--accent); transform: scale(1.18); }
+.as-lock-pin-dots.is-error i { background: #e5484d; border-color: #e5484d; }
+.as-lock-keypad { display: grid; grid-template-columns: repeat(3, 74px); gap: 16px 26px; }
+.as-key { width: 74px; height: 74px; border-radius: 50%; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; font: 300 32px/1 var(--font-clock); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), background var(--as-dur-fast); }
+.as-key:active { transform: scale(.94); background: color-mix(in srgb, currentColor 18%, transparent); }
+.as-key--text { border: 0; background: none; font: 400 14px/1 var(--font-ui); letter-spacing: .06em; }
+.as-pin__forgot { margin-top: 22px; }
+@media (max-height: 640px) { .as-lock-keypad { grid-template-columns: repeat(3, 62px); gap: 10px 22px; } .as-key { width: 62px; height: 62px; font-size: 27px; } .as-pin { padding-top: 12%; } }
+
+/* ---------- 桌面 ---------- */
+.as-home { z-index: 10; color: var(--ink); opacity: 0; pointer-events: none; transition: opacity 360ms var(--as-ease-standard) 80ms, transform 420ms var(--as-ease-standard); transform: scale(1.04); display: flex; flex-direction: column; padding: 56px 20px max(22px, calc(env(safe-area-inset-bottom, 0px) + 14px)); box-sizing: border-box; }
+.as-home.is-open { opacity: 1; pointer-events: auto; transform: none; }
+.as-phone.has-app .as-home { transform: scale(.94); opacity: .4; transition-delay: 0ms; }
+.as-home-widget { padding: 20px 22px 18px; border-radius: 28px; background: var(--card); border: 1px solid var(--card-line); color: var(--card-ink); -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3); display: grid; gap: 4px; }
+.as-home-widget__time { font: 300 54px/1 var(--font-clock); letter-spacing: .01em; font-variant-numeric: lining-nums tabular-nums; }
+.as-home-widget__date { font: 400 14px/1.4 var(--font-cn); letter-spacing: .12em; }
+.as-home-widget__sub { font: 500 10.5px/1 var(--font-clock); letter-spacing: .3em; text-transform: uppercase; color: var(--card-ink-2); margin-top: 4px; }
+.as-home-widget__msg { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-line); display: flex; align-items: center; gap: 10px; font: 400 13px/1.4 var(--font-ui); color: var(--card-ink-2); cursor: pointer; min-width: 0; }
+.as-home-widget__msg span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-home-widget__msg b { color: var(--card-ink); font-weight: 600; }
+.as-home-grid { margin-top: 26px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px 8px; justify-items: center; align-content: start; flex: 1; }
+.as-home-dock { margin-top: auto; padding: 12px 10px; border-radius: 30px; background: var(--card); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3); display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; }
+.as-home-app { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink); width: 70px; -webkit-tap-highlight-color: transparent; }
+.as-home-app__icon { width: 58px; height: 58px; border-radius: 17px; display: grid; place-items: center; color: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.35); transition: transform 220ms var(--as-ease-spring), filter 200ms; }
+.as-home-app:active .as-home-app__icon { transform: scale(.9); filter: brightness(.9); }
+.as-home-app__name { font: 500 12px/1 var(--font-ui); letter-spacing: .04em; text-shadow: 0 1px 6px var(--card); white-space: nowrap; }
+.as-home-dock .as-home-app__name { display: none; }
+.as-home-app .as-badge { position: absolute; top: -5px; right: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,.6); }
+.as-home-app[data-as-app="chat"] .as-home-app__icon { background: linear-gradient(150deg, #ffb07a, #f07a45); }
+.as-home-app[data-as-app="settings"] .as-home-app__icon { background: linear-gradient(150deg, #a3adc2, #6d7891); }
+.as-home-app[data-as-app="library"] .as-home-app__icon { background: linear-gradient(150deg, #c7a6ef, #8d6fd6); }
+.as-home-app[data-as-app="log"] .as-home-app__icon { background: linear-gradient(150deg, #83cfc1, #3f9c8e); }
+.as-home-hint { text-align: center; font: 400 11px/1.4 var(--font-ui); letter-spacing: .1em; color: var(--ink-2); margin: 10px 0 0; text-shadow: 0 0 8px var(--card); }
+
+/* 关闭了状态栏时，内容往上提 */
+.as-phone.no-statusbar .as-navbar { margin-top: 10px; }
+.as-phone.no-statusbar .as-home { padding-top: 22px; }
+
+/* 锁着的时候，下面打开着的 App 和桌面都藏起来，只露出壁纸 */
+.as-phone.is-locked .as-stack, .as-phone.is-locked .as-home { visibility: hidden; }
