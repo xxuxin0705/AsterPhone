@@ -96,6 +96,7 @@
 .as-walls-selbar[hidden] { display: none; }
 .as-walls-selbar { gap: 8px; }
 .as-walls-selbar .as-btn { padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+.as-walls-selbar .as-walls-selbar__del { color: var(--as-color-danger); }
 .as-walls-tile--add { display: grid; place-items: center; background: var(--as-color-surface-2); color: var(--as-color-accent); border: 1.5px dashed color-mix(in srgb, var(--as-color-accent) 45%, transparent); }
 .as-walls-tile--add .as-walls-tile__name { color: var(--as-color-accent); background: none; }
 .as-info-head { display: inline-flex; align-items: center; gap: 4px; }

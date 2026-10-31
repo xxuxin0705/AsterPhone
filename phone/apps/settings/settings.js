@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.34';
+export const VERSION = '0.6.35';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -498,7 +498,7 @@ function openWalls() {
     // 长按进入多选：可以一起删；调整图片、改名一次只能一张。也是只改勾选，不重画
     const sel = new Set();
     const one = [btn('调整图片', 'secondary', () => crop([...sel][0])), btn('改名', 'secondary', () => rename([...sel][0]))];
-    const delBtn = btn('删除', 'danger', () => removeSel());
+    const delBtn = btn('删除', 'secondary', () => removeSel()); delBtn.classList.add('as-walls-selbar__del');
     const selBar = h('div.as-prompt-bar.as-walls-selbar', { hidden: true }, btn('取消', 'secondary', () => { sel.clear(); paintSel(); }), ...one, delBtn);
     const paintSel = () => {
       for (const k of ['lock', 'home']) refs[k].tiles.forEach((t, id) => { t.classList.toggle('is-picking', sel.size > 0); t.classList.toggle('is-picked', sel.has(id)); t.classList.toggle('is-off', sel.size > 0 && walls.isBuiltin(id)); });

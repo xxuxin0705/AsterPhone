@@ -23,7 +23,7 @@ export function patternPad({ onDone, hintZ = false } = {}) {
     const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.setAttribute('r', 8.5); dot.classList.add('as-lock-pattern__dot');
     g.append(ring, dot); svg.appendChild(g); return g;
   });
-  let seq = [], drawing = false;
+  let seq = [], drawing = false, later = 0;
   const toLocal = e => {
     const m = svg.getScreenCTM && svg.getScreenCTM();
     if (m) { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return { x: p.x, y: p.y }; }
@@ -42,7 +42,8 @@ export function patternPad({ onDone, hintZ = false } = {}) {
     seq.push(i); paint(); if (navigator.vibrate) try { navigator.vibrate(8); } catch (e) { /* 忽略 */ }
   };
   const reset = () => { seq = []; tail.style.display = 'none'; paint(); svg.classList.remove('is-error', 'is-ok'); };
-  svg.addEventListener('pointerdown', e => { e.preventDefault(); reset(); drawing = true; try { svg.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ } add(hit(toLocal(e))); });
+  // 上一次画完（错了变红 / 对了）的清空还没到点就又开始画：先把那次清空取消，不然会把正在画的这次清掉
+  svg.addEventListener('pointerdown', e => { e.preventDefault(); clearTimeout(later); reset(); drawing = true; try { svg.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ } add(hit(toLocal(e))); });
   svg.addEventListener('pointermove', e => {
     if (!drawing) return; const q = toLocal(e); add(hit(q));
     const l = seq[seq.length - 1]; if (l == null) return;
@@ -53,8 +54,8 @@ export function patternPad({ onDone, hintZ = false } = {}) {
     tail.style.display = 'none';
     if (!seq.length) return;
     const ok = onDone ? onDone(seq.join('')) : true;
-    if (ok === false) { svg.classList.add('is-error'); setTimeout(reset, 800); }
-    else if (ok === true) { svg.classList.add('is-ok'); setTimeout(reset, 400); }
+    if (ok === false) { svg.classList.add('is-error'); later = setTimeout(reset, 800); }
+    else if (ok === true) { svg.classList.add('is-ok'); later = setTimeout(reset, 400); }
     else reset();
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);

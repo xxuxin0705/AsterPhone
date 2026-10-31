@@ -165,9 +165,15 @@ function onMessage(e) {
     if (d.aster === 'update-now') updateNow();
 }
 
+/** 手机放大 / 缩小的中心对准悬浮按钮（按钮藏起来时就从屏幕中间） */
+function aimAtFab() {
+    const r = fab.getBoundingClientRect(), f = overlay.firstChild;
+    f.style.transformOrigin = r.width ? `${r.left + r.width / 2 - f.offsetLeft}px ${r.top + r.height / 2 - f.offsetTop}px` : '';
+}
 function open() {
     if (opened) return;
     opened = true;
+    aimAtFab();
     overlay.classList.add('open');
     fab.classList.add('is-hidden');
     post({ aster: 'visible', v: true });
@@ -175,6 +181,7 @@ function open() {
 function close() {
     if (!opened) return;
     opened = false;
+    aimAtFab();
     overlay.classList.remove('open');
     applyFab();
     post({ aster: 'visible', v: false });

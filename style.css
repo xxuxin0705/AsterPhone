@@ -37,9 +37,9 @@
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 260ms, visibility 0s 260ms;
+    transition: opacity 320ms, visibility 0s 320ms;
 }
-#aster-overlay.open { visibility: visible; opacity: 1; pointer-events: auto; transition: opacity 260ms; }
+#aster-overlay.open { visibility: visible; opacity: 1; pointer-events: auto; transition: opacity 320ms; }
 #aster-overlay .aster-frame {
     width: min(100vw, calc((100dvh - 40px) * 390 / 844), calc(420px * var(--aster-scale, 1)));
     aspect-ratio: 390 / 844;
@@ -48,8 +48,9 @@
     overflow: hidden;
     background: #121826;
     box-shadow: 0 30px 80px rgba(10, 14, 30, .45), 0 0 0 10px #0d0f14, 0 0 0 11px rgba(255, 255, 255, .08);
-    transform: scale(.94);
-    transition: transform 420ms cubic-bezier(.34, 1.4, .64, 1);
+    /* 从悬浮按钮那里放大出来、缩回去（transform-origin 由 index.js 对准按钮），整屏不会一下子亮暗切换 */
+    transform: scale(.2);
+    transition: transform 400ms cubic-bezier(.2, .8, .2, 1);
 }
 #aster-overlay.open .aster-frame { transform: none; }
 #aster-overlay iframe { width: 100%; height: 100%; border: 0; display: block; background: #121826; }
