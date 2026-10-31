@@ -101,7 +101,7 @@ function enableSwipe() {
   host.addEventListener('pointerdown', e => {
     if (!stack.length || e.button > 0) return;
     const r = host.getBoundingClientRect(), x = e.clientX - r.left;
-    if (e.target.closest('input, textarea, .as-slider, .as-sheet, .as-dialog-mask, .as-chat-menu, .as-chat-indexbar')) return;
+    if (e.target.closest('input, textarea, .as-slider, .as-sheet, .as-dialog-mask, .as-chat-menu, .as-chat-indexbar, [data-no-swipe]')) return;
     // 贴着左右边缘（44px 内）起手最灵敏；在页面中间起手也行，但要滑得更明显、更水平
     const edge = x < 44 ? 1 : x > r.width - 44 ? -1 : 0;
     s = { x0: e.clientX, y0: e.clientY, dir: edge || 1, edge: !!edge, t0: performance.now(), active: false, id: e.pointerId };

@@ -1,0 +1,115 @@
+// 壁纸库：自带两套（月夜城堡 / 水中月）+ 自己加的图片和 Live 图。
+// 锁屏和桌面各选各的，也可以「随机」：每次锁屏 / 每次打开手机换一张。
+// 图片和视频本体存在 IndexedDB（键 wall:<id>），state 里只记名字和类型。
+import { state, commit, kvGet, kvSet, kvDel } from './store.js';
+import { uid } from './util.js';
+import { WALLPAPERS } from './wallpaper.js';
+
+export const BUILTIN = Object.keys(WALLPAPERS);
+export const W = () => state.settings.walls;
+export const isBuiltin = id => BUILTIN.includes(id);
+export const allIds = () => [...BUILTIN, ...W().list.map(x => x.id)];
+export const info = id => isBuiltin(id) ? { id, name: WALLPAPERS[id].name, type: 'builtin' } : W().list.find(x => x.id === id);
+const exists = id => !!info(id);
+
+/* ---------- 现在锁屏 / 桌面用的是哪张 ---------- */
+// 随机模式下「这一次抽到的」只记在内存里；没开随机就用设置里选的
+const drawn = { lock: null, home: null };
+export function current(which) {
+  const w = W();
+  if (w[which + 'Random']) { if (!drawn[which] || !exists(drawn[which])) reroll(which); return drawn[which]; }
+  return exists(w[which]) ? w[which] : 'castle';
+}
+/** 随机换一张（尽量别和上一张一样） */
+export function reroll(which) {
+  const ids = allIds(), prev = drawn[which];
+  const pool = ids.length > 1 ? ids.filter(i => i !== prev) : ids;
+  drawn[which] = pool[Math.floor(Math.random() * pool.length)] || 'castle';
+  return drawn[which];
+}
+
+/* ---------- 读图 ---------- */
+const urls = new Map();     // id → { img, video }（object URL，读一次就缓存）
+async function blobs(id) {
+  if (urls.has(id)) return urls.get(id);
+  const rec = await kvGet('wall:' + id).catch(() => null);
+  if (!rec) return null;
+  const u = { img: rec.img ? URL.createObjectURL(rec.img) : '', video: rec.video ? URL.createObjectURL(rec.video) : '' };
+  urls.set(id, u); return u;
+}
+/** 缩略图地址（自带的跟着日夜换） */
+export async function thumb(id, night) {
+  if (isBuiltin(id)) return 'assets/wallpapers/' + (night ? WALLPAPERS[id].night : WALLPAPERS[id].day);
+  const b = await blobs(id); return b ? b.img : '';
+}
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+function loadVideo(src) {
+  return new Promise((res, rej) => {
+    const v = document.createElement('video');
+    Object.assign(v, { muted: true, playsInline: true, preload: 'auto', loop: false, crossOrigin: 'anonymous' });
+    v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.onloadeddata = () => res(v); v.onerror = () => rej(new Error('视频读不了'));
+    v.src = src; v.load();
+  });
+}
+/** 给壁纸层用的：自带的直接给名字；自己的给 { img, video, aspect } */
+export async function source(id) {
+  if (isBuiltin(id)) return id;
+  const b = await blobs(id); if (!b) return 'castle';
+  const img = await loadImg(b.img).catch(() => null);
+  const video = b.video ? await loadVideo(b.video).catch(() => null) : null;
+  if (!img && !video) return 'castle';
+  const w = img ? img.naturalWidth : video.videoWidth, h = img ? img.naturalHeight : video.videoHeight;
+  return { id, img, video, aspect: w && h ? w / h : 9 / 19.5 };
+}
+
+/* ---------- 添加 / 删除 ---------- */
+/** 从视频里截一帧当封面 */
+function posterOf(file) {
+  return new Promise(async res => {
+    try {
+      const v = await loadVideo(URL.createObjectURL(file));
+      const go = () => {
+        const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+        c.getContext('2d').drawImage(v, 0, 0); c.toBlob(b => { URL.revokeObjectURL(v.src); res(b); }, 'image/jpeg', .9);
+      };
+      if (v.duration > .2) { v.currentTime = Math.min(.1, v.duration / 2); v.onseeked = go; } else go();
+    } catch (e) { res(null); }
+  });
+}
+/**
+ * 加一批文件：图片 → 普通壁纸；视频 → Live 图（自动截第一帧当封面）。
+ * 同一次选了「一张图 + 一个视频」→ 合成一张 Live 图，图片当封面（苹果 Live 图导出来就是这样一对）。
+ */
+export async function addFiles(files) {
+  files = [...files].filter(f => /^(image|video)\//.test(f.type) || /\.(mov|mp4|webm|m4v|heic|jpe?g|png|webp|gif)$/i.test(f.name));
+  const imgs = files.filter(f => !/^video\//.test(f.type) && !/\.(mov|mp4|webm|m4v)$/i.test(f.name));
+  const vids = files.filter(f => !imgs.includes(f));
+  const pairs = [];
+  if (imgs.length === 1 && vids.length === 1) pairs.push({ img: imgs[0], video: vids[0] });
+  else { imgs.forEach(f => pairs.push({ img: f })); vids.forEach(f => pairs.push({ video: f })); }
+  const added = [];
+  for (const p of pairs) {
+    if (p.video && p.video.size > 80 * 1024 * 1024) throw new Error(`「${p.video.name}」太大了（超过 80MB），剪短一点再试`);
+    const img = p.img || await posterOf(p.video);
+    if (!img && !p.video) continue;
+    const id = uid('w_'), name = ((p.img || p.video).name || '').replace(/\.[^.]+$/, '').slice(0, 20) || (p.video ? 'Live 图' : '图片');
+    await kvSet('wall:' + id, { img, video: p.video || null });
+    W().list.push({ id, name, type: p.video ? 'live' : 'image', at: Date.now() });
+    added.push(id);
+  }
+  if (added.length) commit('walls');
+  return added;
+}
+export async function remove(id) {
+  if (isBuiltin(id)) return;
+  const w = W();
+  w.list = w.list.filter(x => x.id !== id);
+  if (w.lock === id) w.lock = 'castle';
+  if (w.home === id) w.home = 'castle';
+  for (const k of ['lock', 'home']) if (drawn[k] === id) drawn[k] = null;
+  const u = urls.get(id); if (u) { u.img && URL.revokeObjectURL(u.img); u.video && URL.revokeObjectURL(u.video); urls.delete(id); }
+  await kvDel('wall:' + id).catch(() => {});
+  commit('walls');
+}
+export function rename(id, name) { const x = info(id); if (x && !isBuiltin(id)) { x.name = String(name).slice(0, 20); commit('walls'); } }

@@ -27,7 +27,7 @@ export function initHome() {
 export function renderWidget() {
   if (!wTime) return;
   const n = time.now();
-  wTime.textContent = n.hm; wDate.textContent = n.date; wSub.textContent = n.sub;
+  wTime.textContent = n.hm; if (n.ap) wTime.appendChild(h('small', n.ap)); wDate.textContent = n.date; wSub.textContent = n.sub;
 }
 export function renderBadges() {
   if (!homeEl) return;

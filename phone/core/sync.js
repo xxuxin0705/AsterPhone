@@ -47,7 +47,8 @@ async function readMessage(id) {
   const text = String(m.mes || '');
   import('../apps/chat/engine.js').then(E => E.storyNudge(text)).catch(() => {});
   const t = time.parseTimeTag(text);
-  if (t) { const cur = time.story(); if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm) time.setStory(t.day, t.hh, t.mm, 'story'); }
+  if (t) { const cur = time.story(), cd = cur.date ? `${cur.date.getFullYear()}-${String(cur.date.getMonth() + 1).padStart(2, '0')}-${String(cur.date.getDate()).padStart(2, '0')}` : null;
+    if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd)) time.setStory(t.day, t.hh, t.mm, 'story', t.date); }
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {

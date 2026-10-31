@@ -14,7 +14,7 @@ export const DEFAULT_PROMPTS = {
 
   // ---------- 暗号 ----------
   timeTag: { name: '时间标签', group: 'tag', on: true,
-    text: '在每次回复的最后另起一行，用 <{{tag}}>第N天 HH:MM</{{tag}}> 写出当前剧情时间（N 为第几天，HH:MM 为 24 小时制）。这一行不属于正文，不要解释它。' },
+    text: '在每次回复的最后另起一行，用 <{{tag}}>第N天 HH:MM</{{tag}}> 写出当前剧情时间（N 为第几天，HH:MM 为 24 小时制）；故事里有明确日期时，写成 <{{tag}}>第N天 YYYY年M月D日 HH:MM</{{tag}}>。这一行不属于正文，不要解释它。' },
   msgTag: { name: '正文消息标签', group: 'tag', on: true,
     text: '如果正文里有角色用手机给 {{user}} 发了消息，在回复最后另起一行写 <asterphone from="角色名">消息内容</asterphone>，一条消息一个标签；没有就不写。' },
 

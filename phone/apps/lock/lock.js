@@ -7,7 +7,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { patternPad, BACKUP_Z } from './pattern.js';
 
-let lockEl, pinEl, finger, ring, clockEl, dateEl, subEl, noticeBox, pinBtn, swipeEl;
+let lockEl, pinEl, finger, ring, clockEl, dateEl, noticeBox, pinBtn, swipeEl;
 let locked = true, onUnlockCb = null, pendingOpen = null;
 const CIRC = 213.6;
 
@@ -30,14 +30,14 @@ export function initLock({ onUnlock }) {
   onUnlockCb = onUnlock;
   lockEl = $('#lock'); pinEl = $('#pin');
   clockEl = h('div.as-lock-clock', { 'aria-live': 'polite' });
-  dateEl = h('div.as-lock-date'); subEl = h('div.as-lock-sub');
+  dateEl = h('div.as-lock-date');
   noticeBox = h('div.as-lock-notice.is-stacked');
   finger = h('button.as-lock-finger', { 'aria-label': '按住指纹解锁', html: FINGER_SVG });
   ring = finger.querySelector('.as-lock-finger__progress');
   pinBtn = h('button.as-textbtn', { onclick: openPin }, '使用密码');
   swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (usePattern()) openPattern(); else if (!usePin()) unlock(swipeEl); } },
     h('span', { html: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>' }), '上滑解锁');
-  lockEl.append(h('div.as-lock__head', clockEl, dateEl, subEl), noticeBox,
+  lockEl.append(h('div.as-lock__head', dateEl, clockEl), noticeBox,
     h('div.as-lock__foot', h('span'), finger, pinBtn), swipeEl);
   bindFinger(); bindSwipe(); buildPin(); buildPattern();
   noticeBox.addEventListener('click', e => {
@@ -93,9 +93,10 @@ let shown = '';
 export function renderClock(force) {
   const n = time.now();
   const sb = $('#sbTime'); if (sb) sb.textContent = n.hm;
-  dateEl.textContent = n.date; subEl.textContent = n.sub;
+  dateEl.textContent = n.date;
+  clockEl.dataset.font = (state.settings.clock || {}).font || 'sf';
   if (n.hm === shown && !force) return;
-  if (force || clockEl.children.length !== 5 || shown.length !== 5) {
+  if (force || n.hm.length !== shown.length || clockEl.children.length !== n.hm.length) {
     clockEl.innerHTML = '';
     [...n.hm].forEach(ch => clockEl.appendChild(ch === ':' ? h('span.as-lock-clock__colon', ':') : h('span.as-lock-clock__digit', h('span', ch))));
   } else {

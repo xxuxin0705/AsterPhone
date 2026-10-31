@@ -5,13 +5,15 @@
 .as-lock { z-index: 30; color: var(--ink); touch-action: none; transition: opacity 320ms var(--as-ease-standard), transform 420ms var(--as-ease-standard), color var(--as-dur-base); }
 .as-lock.is-hidden { opacity: 0; transform: translateY(-18px) scale(.98); pointer-events: none; }
 .as-lock__head { position: absolute; top: 8.5%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; pointer-events: none; }
-.as-lock-clock { font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; display: flex; align-items: flex-end; font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 18px rgba(0,0,0,.08); }
-.as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 2px 24px rgba(0,0,0,.35); }
-.as-lock-clock__digit { position: relative; display: inline-block; overflow: hidden; height: 1em; width: .52em; text-align: center; }
+/* 默认：苹果锁屏那种圆润粗体，半透明；也可以换回优雅衬线 / 纤细 */
+.as-lock-clock { --dw: .6em; font: 800 clamp(88px, 27vw, 116px)/0.9 var(--font-clock-sf); letter-spacing: -.01em; display: flex; align-items: flex-end; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--ink) 74%, transparent); text-shadow: 0 1px 0 rgba(255,255,255,.18), 0 2px 22px rgba(0,0,0,.1); }
+.as-lock-clock[data-font="serif"] { --dw: .52em; font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
+.as-lock-clock[data-font="thin"] { --dw: .56em; font: 200 clamp(84px, 26vw, 110px)/0.9 var(--font-clock-thin); letter-spacing: 0; color: var(--ink); }
+.as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 1px 0 rgba(255,255,255,.08), 0 2px 26px rgba(0,0,0,.35); }
+.as-lock-clock__digit { position: relative; display: inline-block; overflow: hidden; height: 1em; width: var(--dw); text-align: center; }
 .as-lock-clock__digit > span { position: absolute; left: 0; right: 0; top: 0; transition: transform 520ms var(--as-ease-spring), opacity 420ms; }
-.as-lock-clock__colon { width: .26em; text-align: center; transform: translateY(-.06em); opacity: .9; }
-.as-lock-date { margin-top: 12px; font: 400 15px/1.4 var(--font-cn); letter-spacing: .14em; }
-.as-lock-sub { margin-top: 8px; font: 500 11px/1 var(--font-clock); letter-spacing: .34em; text-transform: uppercase; color: var(--ink-2); padding-left: .34em; }
+.as-lock-clock__colon { width: .26em; text-align: center; transform: translateY(-.07em); opacity: .9; }
+.as-lock-date { margin-bottom: 4px; font: 600 17px/1.4 var(--font-clock-sf); letter-spacing: .02em; color: color-mix(in srgb, var(--ink) 86%, transparent); }
 
 .as-lock-notice { position: absolute; left: max(16px, 4.5%); right: max(16px, 4.5%); top: var(--notice-top, 29.5%); transition: top 420ms var(--as-ease-standard); display: flex; flex-direction: column; gap: 8px; }
 .as-lock-notice:empty { display: none; }

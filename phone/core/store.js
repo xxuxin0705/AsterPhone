@@ -40,7 +40,10 @@ export function defaults() {
   return {
     v: 2,
     settings: {
-      mode: 'auto', wallpaper: 'castle', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
+      mode: 'auto', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
+      // 壁纸：锁屏、桌面各选各的；random = 每次锁屏 / 打开手机随机换；live = Live 图怎么动（press 按住播放 / loop 一直循环）
+      walls: { lock: 'castle', home: 'castle', lockRandom: false, homeRandom: false, live: 'press', liveWake: true, list: [] },
+      clock: { lang: 'zh', h12: false, font: 'sf' },   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
       statusbar: { global: true, apps: {} },
       lock: { enabled: false, method: 'none', pin: '', digits: 6 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
       notify: { banner: true, sound: false, volume: .6, dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
@@ -92,6 +95,9 @@ export async function load() {
       const L = saved.settings && saved.settings.lock;
       if ((saved.v || 1) < 2 && L && L.enabled === true && L.method === 'finger' && !L.pin) { L.enabled = false; L.method = 'none'; }
       saved.v = 2;
+      // 以前只有一个 wallpaper（锁屏桌面共用）→ 现在拆成两个
+      const S = saved.settings;
+      if (S && S.wallpaper && !S.walls) S.walls = { lock: S.wallpaper, home: S.wallpaper };
       Object.assign(state, merge(defaults(), saved));
     }
   } catch (e) { console.warn('[AsterPhone] 读取数据失败，使用默认值', e); }
@@ -158,9 +164,11 @@ export async function wipeAll() {
   commit('all');
 }
 export async function usage() {
-  const parts = { 聊天: 0, 动态: 0, 设置: 0 };
+  const parts = { 聊天: 0, 动态: 0, 壁纸: 0, 设置: 0 };
   for (const k of await kvKeys()) {
-    const v = await kvGet(k), n = JSON.stringify(v || '').length * 2;
+    const v = await kvGet(k);
+    if (String(k).startsWith('wall:')) { parts.壁纸 += ((v && v.img && v.img.size) || 0) + ((v && v.video && v.video.size) || 0); continue; }
+    const n = JSON.stringify(v || '').length * 2;
     if (String(k).startsWith('msgs:')) parts.聊天 += n; else parts.设置 += n;
   }
   const m = JSON.stringify(state.moments).length * 2; parts.动态 += m; parts.设置 = Math.max(0, parts.设置 - m);

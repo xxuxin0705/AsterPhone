@@ -14,9 +14,12 @@ const PEND = {
   night: [{ax:0,aw:101,ah:293,px:474,py:0,sx:424,sy:0,len:243},{ax:103,aw:61,ah:150,px:638,py:0,sx:608,sy:0,len:120},{ax:166,aw:83,ah:483,px:687,py:0,sx:646,sy:0,len:442},{ax:251,aw:59,ah:253,px:765,py:456,sx:736,sy:456,len:224},{ax:312,aw:59,ah:350,px:607,py:586,sx:578,sy:586,len:321},{ax:373,aw:35,ah:141,px:825,py:456,sx:808,sy:456,len:124}],
   day:   [{ax:0,aw:105,ah:280,px:479,py:0,sx:427,sy:0,len:228},{ax:107,aw:59,ah:142,px:639,py:0,sx:610,sy:0,len:113},{ax:168,aw:91,ah:502,px:713,py:0,sx:668,sy:0,len:457},{ax:261,aw:84,ah:513,px:813,py:0,sx:768,sy:0,len:468},{ax:347,aw:63,ah:245,px:774,py:476,sx:743,sy:476,len:214},{ax:412,aw:59,ah:196,px:612,py:596,sx:583,sy:596,len:167}]
 };
-for (const k in PEND) PEND[k].forEach((p, i) => { p.ph = i * 1.7 + .4; p.amp = 1; p.w = Math.sqrt(9.8 / Math.max(.12, p.len / 420)) * .55; });
-let swingKick = 0;
 for (const k in PEND) PEND[k].forEach((p, i) => { p.ph = i * 1.7 + .4; p.w = Math.sqrt(9.8 / Math.max(.12, p.len / 420)) * .55; });
+// 城堡的花：每朵花 = 花头圆心 (cx,cy)、半径 r、花茎根部 (px,py)（原图像素）。花头绕根部整朵摆，像被风吹弯
+const FLOWERS = {
+  day:   [[655,1470,88,712,1640],[150,1440,85,95,1590],[165,1640,108,120,1846],[390,1750,95,370,1900],[190,1205,55,165,1320],[140,1055,45,105,1140],[348,1550,42,330,1640],[270,1562,30,280,1640],[296,1612,28,290,1690],[415,1640,34,400,1720],[345,1476,26,330,1540],[30,1355,62,10,1470],[790,1740,115,800,1900],[718,1292,34,735,1380]],
+  night: [[660,1465,85,712,1640],[155,1425,80,100,1580],[165,1640,108,120,1846],[410,1760,92,390,1900],[200,1235,45,175,1330],[140,1070,62,105,1170],[345,1560,36,330,1640],[275,1565,30,280,1640],[310,1625,30,300,1700],[420,1635,30,405,1720],[30,1365,62,10,1470],[790,1740,115,800,1900],[805,1515,48,790,1620],[600,1680,40,590,1760],[125,1170,40,100,1260],[35,1045,45,20,1130]],
+};
 // 水中月：鱼群绕月亮转圈（圆心、横纵比、每条鱼的起始角度和半径）
 const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
   fish: [[-1.077,.4912],[-2.274,.4506],[-.475,.3628],[-3.056,.3695],[2.791,.3206],[.487,.3533],[1.928,.32],[1.095,.4479]] };
@@ -26,7 +29,7 @@ const FS = `
 precision highp float;
 uniform sampler2D uDay, uNight, uFish;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
-uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec3 uTouch; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
+uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
@@ -37,6 +40,20 @@ vec3 tap(sampler2D t, vec2 uv, float b){
   c += texture2D(t, uv+vec2(b,0.)).rgb*.18; c += texture2D(t, uv-vec2(b,0.)).rgb*.18;
   c += texture2D(t, uv+vec2(0.,b)).rgb*.18; c += texture2D(t, uv-vec2(0.,b)).rgb*.18;
   return c;
+}
+// 一朵花的位移（像素）。A = 花头圆心 xy + 花茎根部 zw；B = 半径、摆角、花头自转、0
+vec2 flower(vec2 P, vec4 A, vec4 B){
+  if (B.x <= 0.) return vec2(0.);
+  vec2 q = P - A.zw, sd = A.xy - A.zw;
+  float wH = 1. - smoothstep(B.x * .78, B.x * 1.32, length(P - A.xy));
+  float s = clamp(dot(q, sd) / dot(sd, sd), 0., 1.);
+  float wS = s * s * (1. - smoothstep(B.x * .1, B.x * .3, length(q - sd * s)));
+  float w = max(wH, wS);
+  if (w < .002) return vec2(0.);
+  float a = -B.y * w, ca = cos(a), sn = sin(a);
+  vec2 o = vec2(ca*q.x - sn*q.y, sn*q.x + ca*q.y) - q;
+  vec2 hc = P - A.xy; float t = -B.z * wH; ca = cos(t); sn = sin(t);
+  return o + (vec2(ca*hc.x - sn*hc.y, sn*hc.x + ca*hc.y) - hc);
 }
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes; uv.y = 1. - uv.y;
@@ -50,21 +67,14 @@ void main(){
     float hb = hash(blk + floor(uTime * 26.));
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
-  vec2 off = vec2(0.);
-  if (uKind < .5) {
-    // 花丛随风摆：最下面一大片 + 左边花丛；越靠下（越近）摆得越多；风一阵一阵的
-    float wB = smoothstep(.70, .90, iuv.y);
-    float wL = smoothstep(.44, .60, iuv.y) * (1. - smoothstep(.24, .40, iuv.x));
-    float w = max(wB, wL) * (.45 + iuv.y * .75);
-    float gust = .55 + .45 * sin(uTime * .33 + iuv.x * 2.2) * sin(uTime * .21 + 1.7);
-    off.x += (sin(uTime*1.55 + iuv.y*15. + iuv.x*6.) * .0060 + sin(uTime*.72 + iuv.x*9. + iuv.y*4.) * .0038) * w * gust;
-    off.y += (sin(uTime*1.2 + iuv.x*12. + iuv.y*5.) * .0024) * w * gust;
-    // 手指划过：附近的花被拨开，松手后慢慢回弹
-    if (uTouch.z > .001) {
-      vec2 d = (iuv - uTouch.xy) * vec2(uImgAspect, 1.);
-      float r = length(d);
-      off += (r > .0001 ? d / r : vec2(0.)) * exp(-r*r/.0045) * .016 * uTouch.z * max(w, .25 * wB) / max(.45, w);
-    }
+  vec2 off = vec2(0.), offN = vec2(0.);
+  if (uKind > 1.5) {
+    // 自己的图片 / Live 图：不加特效，原样铺满
+  } else if (uKind < .5) {
+    // 花随风摆：每朵花整朵绕花茎根部转一个小角度（花头是硬的，不会像水一样扭），花茎跟着弯
+    vec2 P = iuv * vec2(852., 1846.);
+    for (int i = 0; i < 16; i++) { off += flower(P, uFD[i*2], uFD[i*2+1]); offN += flower(P, uFN[i*2], uFN[i*2+1]); }
+    off /= vec2(852., 1846.); offN /= vec2(852., 1846.);
   } else {
     off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
                cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
@@ -80,20 +90,22 @@ void main(){
         }
       }
     }
+    offN = off;
   }
-  vec2 tuv = clamp(iuv + off, .001, .999);
+  vec2 tuv = clamp(iuv + off, .001, .999), tuvN = clamp(iuv + offN, .001, .999);
   float b = uUnlock * .007;
-  vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuv, b);
+  vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuvN, b);
   if (uGlitch > .001) {   // 色散
     vec2 ca = vec2(.007 * uGlitch, 0.);
     cD.r = texture2D(uDay, clamp(tuv + ca, .001, .999)).r; cD.b = texture2D(uDay, clamp(tuv - ca, .001, .999)).b;
-    cN.r = texture2D(uNight, clamp(tuv + ca, .001, .999)).r; cN.b = texture2D(uNight, clamp(tuv - ca, .001, .999)).b;
+    cN.r = texture2D(uNight, clamp(tuvN + ca, .001, .999)).r; cN.b = texture2D(uNight, clamp(tuvN - ca, .001, .999)).b;
   }
   float d = length((uv - uReveal.xy) * vec2(sa, 1.));
   float rev = 1. - smoothstep(uReveal.z - .14, uReveal.z, d);
   float m = mix(uMixFrom, uMixTo, rev);
   vec3 col = mix(cD, cN, m);
-  if (uKind > .5) {
+  if (uKind > 1.5) {
+  } else if (uKind > .5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
     float lum = dot(col, vec3(.3,.59,.11));
@@ -118,11 +130,13 @@ void main(){
     float cell = hash(floor(iuv*vec2(70.,150.)));
     col += col * warm * (.16*sin(uTime*(1.6 + cell*2.5) + cell*6.283) + .05*sin(uTime*13. + cell*40.));
   }
-  vec2 mp = mix(uMoonDay, uMoonNight, m);
-  float md = length((iuv - mp) * vec2(uImgAspect, 1.));
-  float g = exp(-md*md/.012) * (.06 + .03*sin(uTime*.6));
-  col += g * mix(vec3(1.,.93,.8), vec3(.78,.84,1.), m) * (uKind > .5 ? .7 : 1.);
-  col += (hash(gl_FragCoord.xy + fract(uTime*7.)*100.) - .5) * (uKind > .5 ? .03 : .014);
+  if (uKind < 1.5) {
+    vec2 mp = mix(uMoonDay, uMoonNight, m);
+    float md = length((iuv - mp) * vec2(uImgAspect, 1.));
+    float g = exp(-md*md/.012) * (.06 + .03*sin(uTime*.6));
+    col += g * mix(vec3(1.,.93,.8), vec3(.78,.84,1.), m) * (uKind > .5 ? .7 : 1.);
+    col += (hash(gl_FragCoord.xy + fract(uTime*7.)*100.) - .5) * (uKind > .5 ? .03 : .014);
+  }
   col *= 1. + uGlitch * .18 * (hash(vec2(floor(uTime*30.), 1.)) - .3);
   gl_FragColor = vec4(col, 1.);
 }`;
@@ -174,7 +188,7 @@ export class Wallpaper {
     this.kind = 'castle'; this.images = {}; this.atlas = {};
     this.mix = { from: 0, to: 0, start: -10, dur: 1.1, cx: .5, cy: .2 };
     this.unlock = { from: 0, to: 0, start: -10, dur: .55 };
-    this.glitchT = -10; this.ripples = new Float32Array(64); this.rIdx = 0; this.lastDrop = { t: -1, x: 0, y: 0 }; this.touch = [.5, .5, 0]; this.finger = null; this.swingKick = 0; this.startle = 0;
+    this.glitchT = -10; this.ripples = new Float32Array(64); this.rIdx = 0; this.lastDrop = { t: -1, x: 0, y: 0 }; this.finger = null; this.prevFinger = null; this.initFlowers(); this.swingKick = 0; this.startle = 0;
     this.zoom = 1.04; this.drift = [0, 0]; this.running = false; this.t0 = performance.now(); this.last = 0;
     this.stars = []; this.motes = []; this.glints = []; this.meteors = []; this.bursts = []; this.nextMeteor = 2;
     this.fish = RING.fish.map(([a, r]) => ({ a, r, sp: rand(.9, 1.15), ph: rand(0, 6.28), len: rand(.15, .21), wob: rand(0, 6.28) }));
@@ -185,10 +199,16 @@ export class Wallpaper {
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); else this.resume(); });
   }
   now() { return (performance.now() - this.t0) / 1000; }
-  get w() { return WALLPAPERS[this.kind]; }
+  get w() {
+    if (this.kind !== 'custom') return WALLPAPERS[this.kind];
+    return { aspect: this.custom.aspect, moonDay: [.5, .3], moonNight: [.5, .3], noticeTop: '38%' };
+  }
 
-  async init(kind) {
-    this.kind = kind || 'castle';
+  /** src：'castle' / 'water'，或者自己的图 { id, img, video, aspect } */
+  async init(src) {
+    this.useSrc(src || 'castle');
+    this.snap = document.createElement('canvas'); this.snap.className = 'as-layer'; this.snap.setAttribute('aria-hidden', 'true');
+    Object.assign(this.snap.style, { zIndex: 0, pointerEvents: 'none', opacity: 0 }); this.glc.after(this.snap);
     this.resize();
     try { this.initGL(); } catch (e) { console.warn('[AsterPhone] WebGL 不可用，改用静态壁纸', e); this.gl = null; }
     const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = this.base + src; });
@@ -210,7 +230,7 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uTouch', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
+    ['uDay', 'uNight', 'uFish', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
     gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -222,9 +242,36 @@ export class Wallpaper {
     gl.bindTexture(gl.TEXTURE_2D, this.tex.fish); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.fishCanvas);
     this.gl = gl;
   }
+  useSrc(src) {
+    this.stopVideo();
+    if (typeof src === 'string') { this.kind = WALLPAPERS[src] ? src : 'castle'; this.custom = null; this.srcKey = this.kind; }
+    else {
+      this.kind = 'custom'; this.custom = src; this.srcKey = 'custom:' + src.id;
+      // 太大的图先缩一下，免得手机显卡吃不下
+      const im = src.img;
+      if (im && !src.still) {
+        const k = Math.min(1, 2048 / Math.max(im.naturalWidth, im.naturalHeight));
+        if (k < 1) { const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); src.still = c; }
+        else src.still = im;
+      }
+      if (src.video) { src.video.onended = () => this.liveStop(); }
+    }
+  }
+  upload(el) {
+    const gl = this.gl; if (!gl || !el) return;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
+    try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el); } catch (e) { /* 视频还没准备好 */ }
+  }
   bind() {
     const gl = this.gl, k = this.kind;
     this.host.style.setProperty('--notice-top', this.w.noticeTop);
+    if (k === 'custom') {
+      const c = this.custom;
+      if (gl) this.upload(c.still || c.video);
+      else this.glc.style.background = c.img ? `center / cover url("${c.img.src}")` : '#121826';
+      this.seed(); this.syncLive(); return;
+    }
+    this.glc.style.background = '';
     if (gl && this.images[k + 'day'] && this.images[k + 'night']) {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.images[k + 'day']);
@@ -235,12 +282,50 @@ export class Wallpaper {
     }
     this.seed();
   }
-  setKind(kind) {
-    if (kind === this.kind || !WALLPAPERS[kind]) return;
-    this.glitch();
-    this.glc.style.opacity = 0; this.fxc.style.opacity = 0;
-    setTimeout(() => { this.kind = kind; this.bind(); this.glc.style.opacity = 1; this.fxc.style.opacity = 1; }, 260);
+  setKind(kind) { this.setSource(kind, { glitch: true }); }
+  /** 换壁纸：截一张当前画面盖在上面，换好后慢慢淡掉（交叉淡入，不闪黑） */
+  setSource(src, { glitch = false } = {}) {
+    const key = typeof src === 'string' ? src : 'custom:' + src.id;
+    if (key === this.srcKey) return;
+    if (glitch) this.glitch();
+    const apply = () => { this.useSrc(src); this.bind(); };
+    if (!this.gl || !this.running || !this.snap) { apply(); return; }
+    this.snapReq = apply;
   }
+  crossfade(fn) {
+    const c = this.snap;
+    c.width = this.glc.width; c.height = this.glc.height;
+    try { c.getContext('2d').drawImage(this.glc, 0, 0); } catch (e) { fn(); return; }
+    c.style.transition = 'none'; c.style.opacity = 1; this.fxc.style.transition = 'none'; this.fxc.style.opacity = 0;
+    fn();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      c.style.transition = 'opacity 560ms ease'; c.style.opacity = 0;
+      this.fxc.style.transition = 'opacity 560ms ease'; this.fxc.style.opacity = 1;
+    }));
+  }
+
+  /* ---------- Live 图：按住播放 / 一直循环；亮屏时也可以自己播一次 ---------- */
+  get video() { return this.kind === 'custom' && this.custom ? this.custom.video : null; }
+  setLiveMode(mode) { this.liveMode = mode || 'press'; this.syncLive(); }
+  syncLive() {
+    const v = this.video; if (!v) return;
+    v.loop = this.liveMode === 'loop';
+    if (this.liveMode === 'loop') { if (this.running) v.play().catch(() => {}); }
+    else if (!this.livePlaying) { v.pause(); }
+  }
+  livePlay() {
+    const v = this.video; if (!v || this.liveMode === 'loop') return false;
+    this.livePlaying = true; try { v.currentTime = 0; } catch (e) { /* 忽略 */ }
+    v.play().catch(() => { this.livePlaying = false; });
+    return true;
+  }
+  liveStop() {
+    const v = this.video; if (!v || this.liveMode === 'loop' || !this.livePlaying) return;
+    this.livePlaying = false; v.pause();
+    const back = () => this.upload(this.custom.still || v);
+    if (this.running && this.gl) this.snapReq = back; else back();
+  }
+  stopVideo() { const v = this.video; if (v) { v.pause(); v.onended = null; } this.livePlaying = false; }
   resize() {
     const r = this.host.getBoundingClientRect(); this.W = r.width; this.H = r.height;
     this.DPR = Math.min(devicePixelRatio || 1, 2);
@@ -270,13 +355,58 @@ export class Wallpaper {
     this.pointer(x, y, true); this.swingKick = Math.max(this.swingKick, .45);
   }
   release() { this.finger = null; }
+
+  /* ---------- 花：每朵是一个带阻尼的弹簧，跟着阵风慢慢弯、再弹回来 ---------- */
+  initFlowers() {
+    this.flowers = {}; this.flowerBuf = {};
+    for (const mode of ['day', 'night']) {
+      this.flowers[mode] = FLOWERS[mode].map(([cx, cy, r, px, py], i) => {
+        const len = Math.hypot(cx - px, cy - py), f0 = .95 - Math.min(.5, (len + r) / 700);   // 越大、茎越长，摆得越慢
+        return { cx, cy, r, px, py, th: 0, om: 0, k: (6.283 * f0) ** 2, ph: i * 2.39 + (mode === 'night' ? .7 : 0), tw: 0 };
+      });
+      this.flowerBuf[mode] = new Float32Array(32 * 4);
+    }
+  }
+  stepFlowers(t, dt) {
+    const kick = this.swingKick, rm = reduceMotion ? .3 : 1;
+    // 一阵一阵的风：大部分时间轻轻吹，偶尔来一阵大的；风从左往右扫过去
+    for (const mode of ['day', 'night']) {
+      const buf = this.flowerBuf[mode];
+      this.flowers[mode].forEach((f, i) => {
+        const tl = t - f.cx / IMG_W * 1.1;
+        const gust = Math.pow(.5 + .5 * Math.sin(tl * .23) * Math.sin(tl * .37 + 1), 2);
+        const target = (.018 + .05 * gust + .03 * kick) * rm
+          + .012 * rm * (Math.sin(t * 1.3 + f.ph) + .6 * Math.sin(t * 2.1 + f.ph * 1.7)) * (.4 + gust);
+        const sub = 3, h = dt / sub;
+        for (let s = 0; s < sub; s++) {
+          const acc = -f.k * (f.th - target) - 2 * .16 * Math.sqrt(f.k) * f.om;
+          f.om += acc * h; f.th += f.om * h;
+        }
+        if (f.th > .16) { f.th = .16; f.om *= -.3; } else if (f.th < -.16) { f.th = -.16; f.om *= -.3; }
+        f.tw += ((-f.om * .05) - f.tw) * Math.min(1, dt * 6);
+        buf.set([f.cx, f.cy, f.px, f.py, f.r, f.th, f.tw, 0], i * 8);
+      });
+    }
+  }
   drop(x, y, w) {
     const [u, v] = this.screenToImg(x, y), i = this.rIdx++ % 16;
     this.ripples.set([u, v, this.tt(), w], i * 4);
     this.lastDrop = { t: this.tt(), x, y };
     if (this.kind === 'water') this.startle = Math.max(this.startle, w);
   }
-  pointer(x, y) { const [u, v] = this.screenToImg(x, y); this.finger = [u, v]; this.touch = [u, v, 1]; }
+  pointer(x, y, push) {
+    const [u, v] = this.screenToImg(x, y), pf = this.finger; this.finger = [u, v];
+    if (!push || this.kind !== 'castle') return;
+    // 手指碰到的花被拨一下：拖动时顺着手指方向，点一下就往远离手指的方向晃
+    const fx = u * IMG_W, fy = v * IMG_H, vx = pf ? (u - pf[0]) * IMG_W : 0;
+    for (const mode of ['day', 'night']) for (const f of this.flowers[mode]) {
+      const d = Math.hypot(fx - f.cx, fy - f.cy);
+      if (d > f.r * 1.6) continue;
+      const near = 1 - d / (f.r * 1.6);
+      const dir = pf ? Math.max(-1, Math.min(1, vx / 18)) : (fx < f.cx ? 1 : -1) * .8;
+      f.om += dir * near * 1.4 * (60 / (40 + f.r));
+    }
+  }
   burst(x, y) {
     const t = this.tt(), m = this.currentMix(this.now());
     const cols = m > .5 ? ['rgb(255,190,140)', 'rgb(255,240,220)', 'rgb(200,215,255)'] : ['rgb(242,150,90)', 'rgb(255,236,200)', 'rgb(255,255,255)'];
@@ -301,8 +431,8 @@ export class Wallpaper {
     this.motes = Array.from({ length: 24 }, () => ({ u: rand(0, 1), v: rand(.45, 1.02), r: rand(.8, 2.4), sp: rand(.006, .016), sw: rand(.4, 1.2), ph: rand(0, 6.28), rot: rand(0, 6.28), vr: rand(-1.5, 1.5) }));
     this.glints = Array.from({ length: 14 }, () => ({ u: rand(.3, .7), v: rand(.45, .98), s: rand(2, 4.5), sp: rand(1.5, 3.2), ph: rand(0, 6.28) }));
   }
-  pause() { this.running = false; }
-  resume() { if (this.running) return; this.running = true; this.last = this.now(); requestAnimationFrame(this.frame); }
+  pause() { this.running = false; const v = this.video; if (v) v.pause(); this.livePlaying = false; }
+  resume() { if (this.running) return; this.running = true; this.last = this.now(); this.syncLive(); requestAnimationFrame(this.frame); }
 
   frame() {
     if (!this.running) return;
@@ -312,25 +442,28 @@ export class Wallpaper {
     this.zoom = 1.035 + .015 * Math.sin(tt * .07) + u * .07;
     this.drift = [Math.sin(tt * .05) * .006, Math.cos(tt * .043) * .006];
     const gl = this.gl;
-    if (gl && this.images[this.kind + 'day']) {
+    const custom = this.kind === 'custom';
+    if (gl && (custom || this.images[this.kind + 'day'])) {
       const w = this.w, U = this.U;
       if (this.kind === 'water') this.drawFish(tt, dd);
+      const v = this.video;
+      if (v && !v.paused && v.readyState >= 2) this.upload(v);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.tex.night);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, custom ? this.tex.day : this.tex.night);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.tex.fish);
       gl.uniform2f(U.uRes, this.glc.width, this.glc.height);
-      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, this.kind === 'water' ? 1 : 0);
+      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : this.kind === 'water' ? 1 : 0);
       const s = this.mix, p = Math.min(1, Math.max(0, (t - s.start) / s.dur));
       gl.uniform1f(U.uMixFrom, p >= 1 ? s.to : s.from); gl.uniform1f(U.uMixTo, s.to);
       gl.uniform3f(U.uReveal, s.cx, s.cy, p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6);
       gl.uniform1f(U.uUnlock, u);
       gl.uniform4fv(U.uRipples, this.ripples);
-      if (!this.finger) this.touch[2] *= Math.pow(.08, dd);
-      gl.uniform3f(U.uTouch, ...this.touch);
+      if (this.kind === 'castle') { this.stepFlowers(tt, dd); gl.uniform4fv(U.uFD, this.flowerBuf.day); gl.uniform4fv(U.uFN, this.flowerBuf.night); }
       gl.uniform2f(U.uMoonDay, ...w.moonDay); gl.uniform2f(U.uMoonNight, ...w.moonNight);
       gl.uniform2f(U.uDrift, ...this.drift); gl.uniform1f(U.uZoom, this.zoom);
       gl.uniform1f(U.uGlitch, this.glitchNow(t));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (this.snapReq) { const f = this.snapReq; this.snapReq = null; this.crossfade(f); }
     }
     this.drawFx(tt, dd, m, u);
     requestAnimationFrame(this.frame);
@@ -426,7 +559,7 @@ export class Wallpaper {
           sparkle(fx, hx, hy, 1.6, a, 'rgb(255,250,235)');
         }
       }
-    } else {
+    } else if (this.kind === 'water') {
       for (const g of this.glints) {
         const tw = Math.pow(Math.max(0, Math.sin(t * g.sp + g.ph)), 6);
         if (tw < .02) { if (Math.sin(t * g.sp + g.ph) < -.98) { g.u = rand(.3, .7); g.v = rand(.45, .98); } continue; }

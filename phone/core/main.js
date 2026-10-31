@@ -7,6 +7,7 @@ import * as nav from './nav.js';
 import { Wallpaper } from './wallpaper.js';
 import { shell } from './shell.js';
 import { applySkins } from './skin.js';
+import * as walls from './walls.js';
 import { postToParent, inTavern } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
@@ -39,11 +40,19 @@ function setNight(night, originEl, instant) {
   if ((phone.dataset.mode === 'night') !== night || instant) wallpaper.setNight(night, origin || [.5, .12], instant);
   phone.dataset.mode = night ? 'night' : 'day';
 }
+/* ---------- 壁纸：锁屏一张、桌面一张 ---------- */
+let wallTok = 0, wallReady = Promise.resolve();
+function showWall(which, opts) {
+  const tok = ++wallTok, id = walls.current(which);
+  wallReady = walls.source(id).then(src => { if (tok === wallTok && wallpaper) wallpaper.setSource(src, opts); }).catch(e => log('error', '壁纸', '读取失败：' + e.message, e));
+  return wallReady;
+}
+const wallNow = () => (isLocked() ? 'lock' : 'home');
 function applyLook() {
   const s = state.settings;
   phone.style.setProperty('--as-font-scale', s.fontScale || 1);
   phone.dataset.clock = s.clockColor || 'auto';
-  wallpaper && wallpaper.setKind(s.wallpaper);
+  if (wallpaper && wallpaper.gl !== undefined) { wallpaper.setLiveMode(s.walls.live); showWall(wallNow(), { glitch: true }); }
   syncStatusbar();
   syncFoot();
   renderClock(true); renderWidget();
@@ -98,16 +107,23 @@ function closePhone() {
 }
 function onVisible(v) {
   shell.visible = v;
+  const W = state.settings.walls;
   if (!v) {
     wallpaper.pause();
-    if (lock()) { setCurrent('lock'); showHome(false); phone.classList.add('is-locked'); }
+    // 随机壁纸：每次收起手机（= 下次打开）换一张
+    if (W.homeRandom) walls.reroll('home');
+    if (lock()) { if (W.lockRandom) walls.reroll('lock'); setCurrent('lock'); showHome(false); phone.classList.add('is-locked'); showWall('lock'); }
+    else showWall('home');
   } else {
     if (isLocked() || nav.depth() === 0) wallpaper.resume();
+    // 亮屏时 Live 锁屏自己动一下（像苹果那样）
+    if (isLocked() && W.liveWake) wallReady.then(() => setTimeout(() => { if (isLocked() && shell.visible) wallpaper.livePlay(); }, 250));
     shell.onShow && shell.onShow();
   }
 }
 function onUnlock(chatId) {
   phone.classList.remove('is-locked');
+  showWall('home');
   if (nav.depth() > 0) { setCurrent(nav.top().app); pauseT = setTimeout(() => wallpaper.pause(), 520); }
   else { setCurrent('home'); }
   showHome(true);
@@ -152,7 +168,8 @@ addEventListener('message', e => {
   const d = e.data; if (!d || typeof d !== 'object') return;
   if (d.aster === 'visible') { if (!booted) pendingVis = !!d.v; else onVisible(!!d.v); }
   if (d.aster === 'reset' && d.what === 'lock') { resetLock(); toast('锁屏已关闭，密码已清除'); }
-  if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} } }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
+  if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} }, clock: { lang: 'zh', h12: false, font: 'sf' } });
+    Object.assign(state.settings.walls, { lock: 'castle', home: 'castle', lockRandom: false, homeRandom: false, live: 'press', liveWake: true }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
 });
 
 /* ---------- 连点三下收起（手机空白处） ---------- */
@@ -186,7 +203,8 @@ async function boot() {
   applyLook();
   if (isLocked()) { phone.classList.add('is-locked'); setCurrent('lock'); }
   else { showHome(true); setCurrent('home'); }
-  await wallpaper.init(state.settings.wallpaper);
+  wallpaper.setLiveMode(state.settings.walls.live);
+  await wallpaper.init(await walls.source(walls.current(wallNow())).catch(() => 'castle'));
   wallpaper.setNight(wantNight(), null, true);
   renderNotices(); renderBadges(); sendUnread();
 
@@ -196,18 +214,20 @@ async function boot() {
     if (nav.depth() > 0) nav.back();
   });
   $('#closeBtn').addEventListener('click', closePhone);
-  // 摸壁纸：按下冒一圈水波；按住拖动，波纹一路跟着手指走
-  let touching = null;
+  // 摸壁纸：按下冒一圈水波 / 拨一下花；按住拖动，波纹一路跟着手指走；Live 图按住不动就播放
+  let touching = null, liveT = 0, livePressed = false, x0 = 0, y0 = 0;
   phone.addEventListener('pointerdown', e => {
     if (nav.depth() > 0 && !isLocked()) return;
     if (e.target.closest('button, .as-lock-notice, .as-pin, .as-home-widget, .as-home-app, .as-sheet, .as-dialog-mask')) return;
-    const p = phone.getBoundingClientRect(); touching = e.pointerId; wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
+    const p = phone.getBoundingClientRect(); touching = e.pointerId; x0 = e.clientX; y0 = e.clientY; wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
+    clearTimeout(liveT); liveT = setTimeout(() => { livePressed = wallpaper.livePlay(); }, 300);
   });
   addEventListener('pointermove', e => {
     if (touching !== e.pointerId) return;
+    if (Math.hypot(e.clientX - x0, e.clientY - y0) > 10) clearTimeout(liveT);
     const p = phone.getBoundingClientRect(); wallpaper.drag(e.clientX - p.left, e.clientY - p.top);
   });
-  const lift = e => { if (touching === e.pointerId) { touching = null; wallpaper.release(); } };
+  const lift = e => { if (touching === e.pointerId) { touching = null; wallpaper.release(); clearTimeout(liveT); if (livePressed) { livePressed = false; wallpaper.liveStop(); } } };
   addEventListener('pointerup', lift); addEventListener('pointercancel', lift);
   const follow = () => { if (state.settings.mode === 'auto' && (phone.dataset.mode === 'night') !== wantNight()) setNight(wantNight()); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow);

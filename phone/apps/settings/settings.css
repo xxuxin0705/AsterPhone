@@ -46,3 +46,24 @@
 /* 提示词编辑 */
 .as-settings-prompt-text { min-height: 260px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, var(--font-ui); font-size: 13px; line-height: 1.6; }
 
+
+/* ---------- 壁纸页 ---------- */
+.as-walls-pv { display: flex; justify-content: center; gap: 22px; padding: 6px 14px 4px; }
+.as-walls-pv__item { display: grid; justify-items: center; gap: 8px; font: 500 13px/1 var(--font-ui); color: var(--as-color-text-2, var(--as-color-text)); }
+.as-walls-pv__screen { position: relative; width: 112px; aspect-ratio: 9 / 19.5; border-radius: 20px; overflow: hidden; background: #c9d6ea center / cover no-repeat; box-shadow: 0 0 0 4px rgba(20,24,36,.88), 0 0 0 5px rgba(255,255,255,.18), 0 14px 30px rgba(14,40,80,.22); }
+.as-walls-pv__screen.is-home::before { content: ""; position: absolute; inset: 0; background: inherit; filter: blur(5px) saturate(1.1); transform: scale(1.1); }
+.as-walls-pv__clock { position: absolute; top: 15%; left: 0; right: 0; display: grid; justify-items: center; gap: 1px; color: rgba(255,255,255,.88); text-shadow: 0 1px 8px rgba(0,0,0,.18); }
+.as-walls-pv__clock span { font: 600 7px/1.2 var(--font-clock-sf); }
+.as-walls-pv__clock b { font: 800 30px/1 var(--font-clock-sf); }
+.as-walls-pv__clock[data-font="serif"] b { font: 300 28px/1 var(--font-clock); }
+.as-walls-pv__clock[data-font="thin"] b { font: 200 29px/1 var(--font-clock-thin); }
+.as-walls-pv__apps { position: absolute; left: 12px; right: 12px; top: 38%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.as-walls-pv__apps i { aspect-ratio: 1; border-radius: 6px; background: rgba(255,255,255,.55); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.8); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.as-walls-pv__tag { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 99px; background: rgba(20,24,36,.55); color: #fff; font: 600 10px/1 var(--font-ui); white-space: nowrap; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.as-walls-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; padding: 12px 14px; }
+.as-walls-tile { position: relative; width: 100%; aspect-ratio: 9 / 16; border: 0; padding: 0; border-radius: 12px; overflow: hidden; cursor: pointer; background: #c9d6ea center / cover no-repeat; box-shadow: inset 0 0 0 1px var(--as-color-glass-line); transition: transform var(--as-dur-fast), box-shadow var(--as-dur-base); }
+.as-walls-tile:active { transform: scale(.95); }
+.as-walls-tile.is-active { box-shadow: 0 0 0 2.5px var(--as-color-accent), 0 6px 14px rgba(14,60,96,.22); }
+.as-walls-tile__name { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 4px 5px; font: 500 10px/1.2 var(--font-ui); color: #fff; text-align: center; background: linear-gradient(transparent, rgba(0,0,0,.45)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-walls-tile__live { position: absolute; left: 5px; top: 5px; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,.82); color: #1b2540; font: 700 8px/1 var(--font-ui); letter-spacing: .06em; }
+.as-walls-mine__thumb { display: block; width: 100%; height: 100%; border-radius: inherit; background: #c9d6ea center / cover no-repeat; }
