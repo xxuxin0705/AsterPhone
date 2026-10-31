@@ -1,0 +1,834 @@
+<title>Aster 锁屏</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Noto+Serif+SC:wght@400;500&display=swap">
+<style>
+/* 布局：舞台居中一部手机；手机宽度 < 520px 时直接铺满屏幕。
+   颜色分两层：舞台跟随浏览者主题；手机内部跟随 Aster 自己的日间 / 夜间。 */
+:root {
+  --stage: #e7ebf1;
+  --stage-ink: #5d6678;
+  --as-accent-day: #F2884B;
+  --as-accent-night: #FF9A55;
+  --as-dur-fast: 120ms;
+  --as-dur-base: 240ms;
+  --as-dur-page: 360ms;
+  --as-ease-standard: cubic-bezier(.2,.8,.2,1);
+  --as-ease-spring: cubic-bezier(.34,1.4,.64,1);
+  --font-clock: "Cormorant Garamond", "Noto Serif SC", "Songti SC", Georgia, serif;
+  --font-cn: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-ui: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --stage: #0b0e16; --stage-ink: #8d96aa; color-scheme: dark } }
+:root[data-theme="dark"] { --stage: #0b0e16; --stage-ink: #8d96aa; color-scheme: dark }
+
+html, body { height: 100%; }
+body { margin: 0; background: var(--stage); color: var(--stage-ink); font-family: var(--font-ui); overflow: hidden; display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
+
+/* ---------- 手机 ---------- */
+.as-phone {
+  /* 日间（默认）和夜间两套 token，由 data-mode 切换 */
+  --ink: #1b2540; --ink-2: rgba(27,37,64,.62);
+  --card: rgba(255,255,255,.52); --card-line: rgba(255,255,255,.55); --card-ink: #1b2540; --card-ink-2: rgba(27,37,64,.6);
+  --accent: var(--as-accent-day); --on-accent: #fff;
+  --veil: rgba(236,240,248,.35);
+  --sheet: rgba(248,247,244,.92); --sheet-ink: #1e1c1a; --sheet-ink-2: #7d776f; --sheet-line: rgba(30,28,26,.08); --sheet-chip: rgba(30,28,26,.06);
+  position: relative; overflow: hidden; isolation: isolate;
+  width: min(100vw, calc((100dvh - 40px) * 390 / 844), 420px);
+  aspect-ratio: 390 / 844; max-width: 100%;
+  border-radius: 46px;
+  box-shadow: 0 30px 80px rgba(10,14,30,.35), 0 0 0 10px #0d0f14, 0 0 0 11px rgba(255,255,255,.08);
+  background: #121826;
+  user-select: none; -webkit-user-select: none;
+  transition: transform var(--as-dur-page) var(--as-ease-standard), opacity var(--as-dur-page) var(--as-ease-standard), border-radius var(--as-dur-page);
+}
+.as-phone[data-mode="night"] {
+  --ink: #f6f3ee; --ink-2: rgba(246,243,238,.66);
+  --card: rgba(14,20,38,.42); --card-line: rgba(255,255,255,.10); --card-ink: #f6f3ee; --card-ink-2: rgba(246,243,238,.62);
+  --accent: var(--as-accent-night); --on-accent: #1a0f08;
+  --veil: rgba(6,10,22,.35);
+  --sheet: rgba(26,27,32,.94); --sheet-ink: #f3f3f5; --sheet-ink-2: #9b9da6; --sheet-line: rgba(255,255,255,.08); --sheet-chip: rgba(255,255,255,.07);
+}
+.as-phone[data-clock="light"] { --ink: #f6f3ee; --ink-2: rgba(246,243,238,.7); }
+.as-phone[data-clock="dark"]  { --ink: #1b2540; --ink-2: rgba(27,37,64,.62); }
+.as-phone[data-clock="accent"] { --ink: var(--accent); --ink-2: color-mix(in srgb, var(--accent) 75%, transparent); }
+@media (max-width: 520px) {
+  body { place-items: stretch; }
+  .as-phone { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+}
+.as-phone.is-closed { transform: scale(.06) translate(380%, 520%); opacity: 0; border-radius: 999px; pointer-events: none; }
+
+canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#gl { z-index: 0; transition: opacity 260ms ease; }
+#fx { z-index: 1; pointer-events: none; }
+.as-fallback { position: absolute; inset: 0; background-size: cover; background-position: center; z-index: 0; }
+
+/* ---------- 状态栏 ---------- */
+.as-statusbar { position: absolute; z-index: 5; top: 0; left: 0; right: 0; height: 44px; padding: 0 18px 0 30px; display: flex; align-items: center; justify-content: space-between; color: var(--ink); font: 600 15px/1 var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: .01em; transition: color var(--as-dur-base); }
+.as-statusbar__right { display: flex; align-items: center; gap: 7px; }
+.as-statusbar svg { display: block; }
+.as-statusbar__close { width: 24px; height: 24px; margin-left: 4px; border-radius: 50%; border: 1.4px solid currentColor; display: grid; place-items: center; background: transparent; color: inherit; padding: 0; cursor: pointer; opacity: .85; transition: transform var(--as-dur-fast) var(--as-ease-standard); }
+.as-statusbar__close:active { transform: scale(.9); }
+
+/* ---------- 锁屏主体 ---------- */
+.as-page { position: absolute; inset: 0; z-index: 3; }
+.as-lock { color: var(--ink); transition: opacity 320ms var(--as-ease-standard), transform 420ms var(--as-ease-standard), color var(--as-dur-base); }
+.as-lock.is-hidden { opacity: 0; transform: translateY(-18px) scale(.98); pointer-events: none; }
+.as-lock__head { position: absolute; top: 8.5%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.as-lock-clock { font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; display: flex; align-items: flex-end; font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 18px rgba(0,0,0,.08); }
+.as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 2px 24px rgba(0,0,0,.35); }
+.as-lock-clock__digit { position: relative; display: inline-block; overflow: hidden; height: 1em; width: .52em; text-align: center; }
+.as-lock-clock__digit > span { position: absolute; left: 0; right: 0; top: 0; transition: transform 520ms var(--as-ease-spring), opacity 420ms; }
+.as-lock-clock__colon { width: .26em; text-align: center; transform: translateY(-.06em); opacity: .9; }
+.as-lock-date { margin-top: 12px; font: 400 15px/1.4 var(--font-cn); letter-spacing: .14em; }
+.as-lock-sub { margin-top: 8px; font: 500 11px/1 var(--font-clock); letter-spacing: .34em; text-transform: uppercase; color: var(--ink-2); padding-left: .34em; }
+
+.as-lock-notice { position: absolute; left: max(16px, 4.5%); right: max(16px, 4.5%); top: 29.5%; display: flex; flex-direction: column; gap: 8px; }
+/* 叠放：只露出第一张，后面的卡片在下面探出一条边；点一下展开 */
+.as-lock-notice__item { position: relative; transition: transform 420ms var(--as-ease-spring), opacity 300ms, margin 420ms var(--as-ease-spring); }
+.as-lock-notice.is-stacked .as-lock-notice__item:nth-child(n+2) { margin-top: -66px; transform: translateY(14px) scale(.93); opacity: .72; z-index: -1; }
+.as-lock-notice.is-stacked .as-lock-notice__item:nth-child(n+2) > * { opacity: 0; }
+.as-lock-notice__item > * { transition: opacity 240ms; }
+.as-lock-notice__more { position: absolute; right: 6px; top: calc(100% + 18px); font: 400 11px/1 var(--font-ui); letter-spacing: .08em; color: var(--ink-2); transition: opacity 240ms; text-shadow: 0 0 8px var(--card); }
+.as-lock-notice:not(.is-stacked) .as-lock-notice__more { opacity: 0; }
+.as-lock-notice__item { display: grid; grid-template-columns: 38px 1fr auto; gap: 2px 11px; align-items: center; padding: 12px 14px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-line); color: var(--card-ink); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), background var(--as-dur-base); animation: noticeIn 620ms var(--as-ease-spring) backwards; }
+.as-lock-notice__item:nth-child(2) { animation-delay: 90ms; }
+.as-lock-notice__item:active { transform: scale(.97); }
+@keyframes noticeIn { from { opacity: 0; transform: translateY(-14px) scale(.96); } }
+.as-avatar { grid-row: span 2; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 500 16px/1 var(--font-cn); color: #fff; }
+.as-lock-notice__name { font: 600 14px/1.3 var(--font-ui); }
+.as-lock-notice__time { font: 400 12px/1 var(--font-ui); color: var(--card-ink-2); justify-self: end; }
+.as-lock-notice__text { grid-column: 2 / 4; font: 400 14px/1.4 var(--font-ui); color: var(--card-ink); opacity: .86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.as-lock__foot { position: absolute; left: 0; right: 0; bottom: max(26px, calc(env(safe-area-inset-bottom, 0px) + 18px)); display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; padding: 0 max(18px, env(safe-area-inset-left, 0px)) 0 max(18px, env(safe-area-inset-right, 0px)); }
+.as-textbtn { background: none; border: 0; color: var(--ink); font: 500 13px/1 var(--font-ui); letter-spacing: .06em; padding: 10px 6px; cursor: pointer; opacity: .88; text-shadow: 0 0 10px var(--card), 0 0 2px var(--card); transition: opacity var(--as-dur-base), transform var(--as-dur-fast); }
+.as-textbtn:active { transform: scale(.95); }
+.as-textbtn:focus-visible, .as-lock-finger:focus-visible, .as-key:focus-visible, .as-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.as-lock__foot .as-textbtn:first-child { justify-self: start; }
+.as-lock__foot .as-textbtn:last-child { justify-self: end; }
+
+.as-lock-finger { position: relative; width: 78px; height: 78px; border-radius: 50%; border: 0; padding: 0; background: var(--card); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); color: var(--card-ink); cursor: pointer; touch-action: none; display: grid; place-items: center; transition: transform 160ms var(--as-ease-standard); }
+.as-lock-finger.is-pressed { transform: scale(.96); }
+.as-lock-finger__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.as-lock-finger__ring circle { fill: none; stroke-width: 2.2; }
+.as-lock-finger__track { stroke: currentColor; opacity: .22; }
+.as-lock-finger__progress { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 213.6; stroke-dashoffset: 213.6; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.as-lock-finger__icon { width: 38px; height: 38px; transition: opacity 200ms, transform 300ms var(--as-ease-spring); }
+.as-lock-finger__check { position: absolute; width: 30px; height: 30px; opacity: 0; transform: scale(.6); transition: opacity 200ms, transform 360ms var(--as-ease-spring); color: var(--accent); }
+.as-lock-finger.is-success .as-lock-finger__icon { opacity: 0; transform: scale(.7); }
+.as-lock-finger.is-success .as-lock-finger__check { opacity: 1; transform: scale(1); }
+.as-lock-finger__hint { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); white-space: nowrap; font: 400 12px/1 var(--font-ui); letter-spacing: .12em; color: var(--ink); opacity: .8; text-shadow: 0 0 10px var(--card), 0 0 2px var(--card); }
+
+/* ---------- 数字密码 ---------- */
+.as-pin { display: flex; flex-direction: column; align-items: center; padding-top: 15%; color: var(--ink); background: var(--veil); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); opacity: 0; pointer-events: none; transition: opacity 280ms var(--as-ease-standard); }
+.as-pin.is-open { opacity: 1; pointer-events: auto; }
+.as-pin__title { font: 400 17px/1.4 var(--font-cn); letter-spacing: .12em; }
+.as-pin__hint { margin-top: 6px; min-height: 18px; font: 400 12px/1.5 var(--font-ui); color: var(--ink-2); letter-spacing: .04em; text-align: center; padding: 0 24px; }
+.as-pin__hint.is-error { color: #e5484d; }
+.as-phone[data-mode="night"] .as-pin__hint.is-error { color: #ff6b70; }
+.as-lock-pin-dots { display: flex; gap: 16px; margin: 22px 0 34px; }
+.as-lock-pin-dots.is-error { animation: shake 420ms var(--as-ease-standard); }
+@keyframes shake { 20% { transform: translateX(-10px) } 40% { transform: translateX(9px) } 60% { transform: translateX(-6px) } 80% { transform: translateX(3px) } }
+.as-lock-pin-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.4px solid currentColor; transition: background var(--as-dur-fast), transform 260ms var(--as-ease-spring), border-color var(--as-dur-fast); }
+.as-lock-pin-dots i.is-active { background: var(--accent); border-color: var(--accent); transform: scale(1.18); }
+.as-lock-pin-dots.is-error i { background: #e5484d; border-color: #e5484d; }
+.as-lock-keypad { display: grid; grid-template-columns: repeat(3, 74px); gap: 16px 26px; }
+.as-key { width: 74px; height: 74px; border-radius: 50%; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; font: 300 32px/1 var(--font-clock); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), background var(--as-dur-fast); }
+.as-key:active, .as-key.is-pressed { transform: scale(.94); background: color-mix(in srgb, currentColor 18%, transparent); }
+.as-key--text { border: 0; background: none; font: 400 14px/1 var(--font-ui); letter-spacing: .06em; }
+.as-pin__forgot { margin-top: 22px; }
+
+/* ---------- 解锁后占位 ---------- */
+.as-home { display: grid; place-items: center; color: var(--ink); opacity: 0; pointer-events: none; transition: opacity 360ms var(--as-ease-standard) 120ms; }
+.as-home.is-open { opacity: 1; pointer-events: auto; }
+.as-home__card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 28px 30px; border-radius: 28px; background: var(--card); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--card-ink); max-width: 78%; }
+.as-home__star { font: 300 28px/1 var(--font-clock); color: var(--accent); }
+.as-home__title { font: 500 18px/1.3 var(--font-cn); letter-spacing: .12em; }
+.as-home__text { font: 400 13px/1.6 var(--font-ui); color: var(--card-ink-2); }
+
+/* ---------- 按钮 / 抽屉 / 轻提示 ---------- */
+.as-btn { border: 0; border-radius: 14px; padding: 12px 22px; font: 600 15px/1 var(--font-ui); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard); }
+.as-btn:active { transform: scale(.96); }
+.as-btn--primary { background: var(--accent); color: var(--on-accent); }
+
+.as-sheet-mask { position: absolute; inset: 0; z-index: 8; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity 260ms; }
+.as-sheet-mask.is-open { opacity: 1; pointer-events: auto; }
+.as-sheet { position: absolute; z-index: 9; left: 8px; right: 8px; bottom: 8px; padding: 10px 18px calc(18px + env(safe-area-inset-bottom, 0px)); border-radius: 28px; background: var(--sheet); color: var(--sheet-ink); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); transform: translateY(110%); transition: transform 460ms var(--as-ease-spring); box-shadow: 0 -10px 40px rgba(0,0,0,.18); }
+.as-sheet.is-open { transform: translateY(0); }
+.as-sheet__grab { width: 38px; height: 5px; border-radius: 3px; background: var(--sheet-line); margin: 0 auto 12px; background: color-mix(in srgb, var(--sheet-ink) 22%, transparent); }
+.as-sheet__title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.as-sheet__title b { font: 600 17px/1.3 var(--font-ui); }
+.as-sheet__title span { font: 400 12px/1 var(--font-ui); color: var(--sheet-ink-2); }
+.as-field { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--sheet-line); }
+.as-field:first-of-type { border-top: 0; }
+.as-field__label { font: 400 13px/1 var(--font-ui); color: var(--sheet-ink-2); }
+.as-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px; border-radius: 12px; background: var(--sheet-chip); }
+.as-segmented button { border: 0; border-radius: 9px; padding: 9px 4px; background: transparent; color: var(--sheet-ink); font: 500 13px/1 var(--font-ui); cursor: pointer; transition: background var(--as-dur-base), color var(--as-dur-base), transform var(--as-dur-fast); }
+.as-segmented button:active { transform: scale(.96); }
+.as-segmented button.is-active { background: var(--accent); color: var(--on-accent); }
+.as-segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.as-toast { position: absolute; z-index: 12; left: 50%; bottom: 128px; transform: translate(-50%, 16px); opacity: 0; padding: 10px 16px; border-radius: 999px; background: rgba(20,22,30,.78); color: #f4f2ee; font: 500 13px/1.3 var(--font-ui); white-space: nowrap; pointer-events: none; transition: opacity 220ms, transform 360ms var(--as-ease-spring); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.as-toast.is-open { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- 悬浮按钮（手机关闭后） ---------- */
+.as-fab { position: fixed; z-index: 20; right: max(22px, env(safe-area-inset-right, 0px)); bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 12px)); width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer; background: #1b2540; color: #ffcf9e; font: 300 26px/1 var(--font-clock); box-shadow: 0 10px 30px rgba(10,14,30,.35); opacity: 0; transform: scale(.4); pointer-events: none; transition: opacity 260ms, transform 420ms var(--as-ease-spring); }
+.as-fab.is-open { opacity: 1; transform: scale(1); pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+</style>
+
+<div class="as-phone" id="phone" data-mode="day" data-clock="auto" data-as-app="lock">
+  <div class="as-fallback" id="fallback" hidden></div>
+  <canvas class="as-layer" id="gl" aria-hidden="true"></canvas>
+  <canvas class="as-layer" id="fx" aria-hidden="true"></canvas>
+
+  <header class="as-statusbar" id="statusbar">
+    <span id="sbTime">21:20</span>
+    <span class="as-statusbar__right">
+      <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor" opacity=".35"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 11.2 5.6 8.6a3.4 3.4 0 0 1 4.8 0z" fill="currentColor"/><path d="M3.3 6.3a6.6 6.6 0 0 1 9.4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M1 3.9a9.9 9.9 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true"><rect x=".7" y=".7" width="22.6" height="11.6" rx="3.6" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect id="sbBattery" x="2.4" y="2.4" width="16" height="8.2" rx="2.2" fill="currentColor"/><path d="M25 4.6v3.8c.9-.3 1.5-1.1 1.5-1.9s-.6-1.6-1.5-1.9z" fill="currentColor" fill-opacity=".5"/></svg>
+      <button class="as-statusbar__close" id="closeBtn" aria-label="关闭手机"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 2l6 6M8 2 2 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+    </span>
+  </header>
+
+  <!-- 锁屏 -->
+  <section class="as-page as-lock" id="lock" data-as-page="lock-main">
+    <div class="as-lock__head">
+      <div class="as-lock-clock" id="clock" aria-live="polite"></div>
+      <div class="as-lock-date" id="date">第 3 天 · 星期六</div>
+      <div class="as-lock-sub" id="sub">✦ Story time</div>
+    </div>
+
+    <div class="as-lock-notice is-stacked" id="notices">
+      <div class="as-lock-notice__item" role="button" tabindex="0">
+        <span class="as-avatar" style="background:#7d8fb3">铭</span>
+        <span class="as-lock-notice__name">阿铭</span>
+        <span class="as-lock-notice__time">刚刚</span>
+        <span class="as-lock-notice__text">睡了吗</span>
+      </div>
+      <div class="as-lock-notice__item" role="button" tabindex="0">
+        <span class="as-avatar" style="background:#b88b74">叙</span>
+        <span class="as-lock-notice__name">周叙白</span>
+        <span class="as-lock-notice__time">5 分钟前</span>
+        <span class="as-lock-notice__text">明天几点见？我在老地方等你</span>
+      </div>
+      <span class="as-lock-notice__more" aria-hidden="true">还有 1 条 · 点开</span>
+    </div>
+
+    <div class="as-lock__foot">
+      <button class="as-textbtn" id="demoBtn">演示设置</button>
+      <button class="as-lock-finger" id="finger" aria-label="按住指纹解锁">
+        <svg class="as-lock-finger__ring" viewBox="0 0 78 78" aria-hidden="true"><circle class="as-lock-finger__track" cx="39" cy="39" r="34"/><circle class="as-lock-finger__progress" id="ring" cx="39" cy="39" r="34"/></svg>
+        <svg class="as-lock-finger__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <path d="M13 10.5C16.2 8.3 20 7 24 7s7.8 1.3 11 3.5"/>
+          <path d="M9.5 25c.8-8 7-14 14.5-14s13.7 6 14.5 14"/>
+          <path d="M14 33c-1-2-1.5-4-1.5-6.5C12.5 20 17.6 15 24 15s11.5 5 11.5 12c0 3-.5 5.5-1.5 7.5"/>
+          <path d="M18.5 35.5c-1.2-2.4-1.8-5-1.8-8 0-4.2 3.3-7.5 7.3-7.5s7.3 3.3 7.3 7.5c0 2.8-.6 5.4-1.6 7.8"/>
+          <path d="M23.8 39c-1.8-3.4-2.6-7.4-2.6-11.4 0-1.6 1.2-2.8 2.8-2.8s2.8 1.2 2.8 2.8c0 3.8-.8 7.3-2.3 10.5"/>
+        </svg>
+        <svg class="as-lock-finger__check" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15.5l5.2 5.2L23 9.8"/></svg>
+        <span class="as-lock-finger__hint">按住指纹解锁</span>
+      </button>
+      <button class="as-textbtn" id="pinBtn">使用密码</button>
+    </div>
+  </section>
+
+  <!-- 数字密码 -->
+  <section class="as-page as-pin" id="pin" data-as-page="lock-pin" aria-hidden="true">
+    <div class="as-pin__title" id="pinTitle">输入密码</div>
+    <div class="as-pin__hint" id="pinHint">演示密码 123456</div>
+    <div class="as-lock-pin-dots" id="pinDots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="as-lock-keypad" id="keypad"></div>
+    <button class="as-textbtn as-pin__forgot" id="forgotBtn">忘记密码？</button>
+  </section>
+
+  <!-- 解锁后（桌面还没做） -->
+  <section class="as-page as-home" id="home" aria-hidden="true">
+    <div class="as-home__card">
+      <div class="as-home__star">✦</div>
+      <div class="as-home__title">已解锁</div>
+      <div class="as-home__text">桌面还在施工中。<br>先回锁屏，再看一遍星星吧。</div>
+      <button class="as-btn as-btn--primary" id="relockBtn">锁上</button>
+    </div>
+  </section>
+
+  <!-- 演示设置 -->
+  <div class="as-sheet-mask" id="sheetMask"></div>
+  <div class="as-sheet" id="sheet" role="dialog" aria-label="演示设置" aria-hidden="true">
+    <div class="as-sheet__grab"></div>
+    <div class="as-sheet__title"><b>演示设置</b><span>正式版放在 设置 → 外观</span></div>
+    <div class="as-field"><span class="as-field__label">壁纸</span>
+      <div class="as-segmented" data-key="kind"><button id="opt-kind-castle" data-v="castle">月夜城堡</button><button id="opt-kind-water" data-v="water">水中月</button></div></div>
+    <div class="as-field"><span class="as-field__label">日间 / 夜间</span>
+      <div class="as-segmented" data-key="mode"><button id="opt-mode-day" data-v="day">日间</button><button id="opt-mode-night" data-v="night">夜间</button><button id="opt-mode-auto" data-v="auto">跟随系统</button></div></div>
+    <div class="as-field"><span class="as-field__label">时间来源</span>
+      <div class="as-segmented" data-key="timeSrc"><button id="opt-time-story" data-v="story">剧情时间</button><button id="opt-time-real" data-v="real">现实时间</button></div></div>
+    <div class="as-field"><span class="as-field__label">时间颜色</span>
+      <div class="as-segmented" data-key="clock"><button id="opt-clock-auto" data-v="auto">自动</button><button id="opt-clock-light" data-v="light">浅色</button><button id="opt-clock-dark" data-v="dark">深色</button><button id="opt-clock-accent" data-v="accent">强调色</button></div></div>
+  </div>
+
+  <div class="as-toast" id="toast" role="status"></div>
+</div>
+
+<button class="as-fab" id="fab" aria-label="打开手机">✦</button>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const phone = $('#phone'), glc = $('#gl'), fxc = $('#fx');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- 壁纸资料 ---------- */
+const WALL = {
+  castle: { day: 'wallpapers/castle-day.jpg', night: 'wallpapers/castle-night.jpg', aspect: 424 / 918,
+            moonDay: [0.47, 0.534], moonNight: [0.381, 0.48] },
+  water:  { day: 'wallpapers/water-day.jpg', night: 'wallpapers/water-night.jpg', aspect: 574 / 1242,
+            moonDay: [0.50, 0.523], moonNight: [0.50, 0.523] }
+};
+// 鱼群：圆心、横纵比、每条鱼的起始角度和半径（量自原图）
+const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
+  fish: [[-1.077,.4912],[-2.274,.4506],[-.475,.3628],[-3.056,.3695],[2.791,.3206],[.487,.3533],[1.928,.32],[1.095,.4479]] };
+
+const S = { kind: 'castle', mode: 'auto', timeSrc: 'story', clock: 'auto' };
+try { Object.assign(S, JSON.parse(localStorage.getItem('aster-lock-demo') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('aster-lock-demo', JSON.stringify(S)); } catch (e) {} };
+
+/* ---------- 轻提示 ---------- */
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('is-open'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('is-open'), 1800); }
+
+/* ---------- 日 / 夜 ---------- */
+function systemDark() {
+  const th = document.documentElement.getAttribute('data-theme');
+  if (th === 'dark') return true; if (th === 'light') return false;
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+}
+const isNight = () => S.mode === 'night' || (S.mode === 'auto' && systemDark());
+
+/* ---------- WebGL ---------- */
+const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
+const FS = `
+precision highp float;
+uniform sampler2D uDay, uNight, uFish;
+uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
+uniform vec3 uReveal; uniform vec4 uRipple; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom;
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
+vec3 tap(sampler2D t, vec2 uv, float b){
+  if (b < .0004) return texture2D(t, uv).rgb;
+  vec3 c = texture2D(t, uv).rgb*.28;
+  c += texture2D(t, uv+vec2(b,0.)).rgb*.18; c += texture2D(t, uv-vec2(b,0.)).rgb*.18;
+  c += texture2D(t, uv+vec2(0.,b)).rgb*.18; c += texture2D(t, uv-vec2(0.,b)).rgb*.18;
+  return c;
+}
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes; uv.y = 1. - uv.y;
+  float sa = uRes.x / uRes.y;
+  vec2 s = sa > uImgAspect ? vec2(1., uImgAspect/sa) : vec2(sa/uImgAspect, 1.);
+  vec2 iuv = (uv - .5) * s + .5;
+  iuv = (iuv - .5) / uZoom + .5 + uDrift;
+  vec2 off = vec2(0.);
+  if (uKind < .5) {
+    float w = smoothstep(.80, 1., iuv.y);
+    off.x += (sin(uTime*1.3 + iuv.y*18. + iuv.x*5.)*.0022 + sin(uTime*.7 + iuv.x*9.)*.0012) * w;
+  } else {
+    off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
+               cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
+    if (uRipple.w > 0.) {
+      vec2 pr = (iuv - uRipple.xy) * vec2(uImgAspect, 1.);
+      float r = length(pr), age = uTime - uRipple.z, front = age*.3;
+      float ring = sin((r-front)*95.) * exp(-abs(r-front)*24.) * exp(-age*1.2) * uRipple.w;
+      off += (r > .0001 ? pr/r : vec2(0.)) * ring * .007;
+    }
+  }
+  vec2 tuv = clamp(iuv + off, .001, .999);
+  float b = uUnlock * .007;
+  vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuv, b);
+  float d = length((uv - uReveal.xy) * vec2(sa, 1.));
+  float rev = 1. - smoothstep(uReveal.z - .14, uReveal.z, d);
+  float m = mix(uMixFrom, uMixTo, rev);
+  vec3 col = mix(cD, cN, m);
+  if (uKind > .5) {
+    float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
+    col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
+    float lum = dot(col, vec3(.3,.59,.11));
+    float sh = smoothstep(.58, .95, lum);
+    float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
+    col += sh * pow(n, 4.) * .55;
+  } else {
+    float n = fbm(iuv*vec2(2.4,4.) + vec2(uTime*.014, uTime*.004));
+    float band = smoothstep(.12,.42,iuv.y)*(1.-smoothstep(.62,.82,iuv.y)) + .55*(1.-smoothstep(0.,.32,iuv.y));
+    vec3 mc = mix(vec3(.97,.97,1.), vec3(.42,.5,.78), m);
+    col = mix(col, mc, n*n*.24*band);
+  }
+  vec2 mp = mix(uMoonDay, uMoonNight, m);
+  float md = length((iuv - mp) * vec2(uImgAspect, 1.));
+  float g = exp(-md*md/.012) * (.06 + .03*sin(uTime*.6));
+  col += g * mix(vec3(1.,.93,.8), vec3(.78,.84,1.), m) * (uKind > .5 ? .7 : 1.);
+  col += (hash(gl_FragCoord.xy + fract(uTime*7.)*100.) - .5) * .03;
+  gl_FragColor = vec4(col, 1.);
+}`;
+
+let gl = null, prog, U = {}, tex = {}, fishTex, fishCanvas, fishCtx;
+const images = {};
+function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
+
+function initGL() {
+  gl = glc.getContext('webgl', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
+  if (!gl) return false;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  ['uDay','uNight','uFish','uRes','uImgAspect','uTime','uKind','uMixFrom','uMixTo','uUnlock','uReveal','uRipple','uMoonDay','uMoonNight','uDrift','uZoom']
+    .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+  gl.uniform1i(U.uDay, 0); gl.uniform1i(U.uNight, 1); gl.uniform1i(U.uFish, 2);
+  return true;
+}
+function makeTex(img) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  if (img) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  return t;
+}
+
+/* ---------- 尺寸 ---------- */
+let W = 0, H = 0, DPR = 1;
+const fx = fxc.getContext('2d');
+function resize() {
+  const r = phone.getBoundingClientRect(); W = r.width; H = r.height;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  for (const c of [glc, fxc]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  if (gl) gl.viewport(0, 0, glc.width, glc.height);
+}
+addEventListener('resize', resize);
+
+/* 图片坐标 → 屏幕坐标（和着色器里的算法一致） */
+let zoom = 1.04, drift = [0, 0];
+function imgToScreen(u, v) {
+  const a = WALL[S.kind].aspect, sa = W / H;
+  const s = sa > a ? [1, a / sa] : [sa / a, 1];
+  const px = (u - .5 - drift[0]) * zoom + .5, py = (v - .5 - drift[1]) * zoom + .5;
+  return [((px - .5) / s[0] + .5) * W, ((py - .5) / s[1] + .5) * H];
+}
+function screenToImg(x, y) {
+  const a = WALL[S.kind].aspect, sa = W / H;
+  const s = sa > a ? [1, a / sa] : [sa / a, 1];
+  const iu = (x / W - .5) * s[0] + .5, iv = (y / H - .5) * s[1] + .5;
+  return [(iu - .5) / zoom + .5 + drift[0], (iv - .5) / zoom + .5 + drift[1]];
+}
+
+/* ---------- 日夜过渡状态 ---------- */
+const mixState = { from: 0, to: 0, start: -10, dur: 1.1, cx: .5, cy: .2 };
+function currentMix(t) {
+  const p = Math.min(1, Math.max(0, (t - mixState.start) / mixState.dur));
+  return p >= 1 ? mixState.to : mixState.from + (mixState.to - mixState.from) * p;
+}
+function setNight(night, origin, instant) {
+  const t = now();
+  const cur = currentMix(t);
+  mixState.from = cur; mixState.to = night ? 1 : 0;
+  mixState.start = instant ? -10 : t;
+  if (origin) { mixState.cx = origin[0]; mixState.cy = origin[1]; }
+  phone.dataset.mode = night ? 'night' : 'day';
+}
+
+/* ---------- 特效粒子 ---------- */
+const rand = (a, b) => a + Math.random() * (b - a);
+let stars = [], motes = [], glints = [], meteors = [], bursts = [];
+function seedFx() {
+  stars = Array.from({ length: 30 }, () => ({ u: rand(.04, .96), v: rand(.04, .56), s: rand(1.6, 4.2), sp: rand(.6, 1.8), ph: rand(0, 6.28), warm: Math.random() < .35 }));
+  // 别让星星落在月亮上
+  stars = stars.filter(s => Math.hypot((s.u - .43) * .46, s.v - .5) > .07);
+  motes = Array.from({ length: 22 }, () => ({ u: rand(0, 1), v: rand(.62, 1.02), r: rand(.8, 2.2), sp: rand(.006, .016), sw: rand(.4, 1.2), ph: rand(0, 6.28) }));
+  glints = Array.from({ length: 14 }, () => ({ u: rand(.3, .7), v: rand(.45, .98), s: rand(2, 4.5), sp: rand(1.5, 3.2), ph: rand(0, 6.28) }));
+}
+seedFx();
+let nextMeteor = 2;
+
+function sparkle(ctx, x, y, r, a, color) {
+  ctx.globalAlpha = a; ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * 2.2); ctx.quadraticCurveTo(x, y, x + r * 2.2, y); ctx.quadraticCurveTo(x, y, x, y + r * 2.2); ctx.quadraticCurveTo(x, y, x - r * 2.2, y); ctx.quadraticCurveTo(x, y, x, y - r * 2.2);
+  ctx.fill();
+  ctx.globalAlpha = a * .35; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 6.283); ctx.fill();
+}
+function drawFx(t, dt, m) {
+  fx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  fx.clearRect(0, 0, W, H);
+  fx.globalCompositeOperation = 'lighter';
+  if (S.kind === 'castle') {
+    for (const s of stars) {
+      const tw = Math.pow(Math.max(0, Math.sin(t * s.sp + s.ph)), 3);
+      const [x, y] = imgToScreen(s.u, s.v);
+      if (y < H * .27 && Math.abs(x - W / 2) < W * .36) continue;   // 不压在时钟上
+      const col = s.warm || m < .5 ? (m < .5 ? '255,236,196' : '255,226,180') : '235,240,255';
+      sparkle(fx, x, y, s.s * (.6 + .4 * tw), (.12 + .75 * tw) * (m < .5 ? .75 : 1), `rgb(${col})`);
+    }
+    // 日间：花丛上飘起的光尘
+    if (m < .98) for (const p of motes) {
+      p.v -= p.sp * dt * .25; if (p.v < .55) { p.v = rand(.95, 1.03); p.u = rand(0, 1); }
+      const [x, y] = imgToScreen(p.u + Math.sin(t * p.sw + p.ph) * .01, p.v);
+      fx.globalAlpha = (1 - m) * .55 * Math.min(1, (p.v - .55) * 5); fx.fillStyle = 'rgb(255,248,226)';
+      fx.beginPath(); fx.arc(x, y, p.r, 0, 6.283); fx.fill();
+    }
+    // 夜间：流星，从右上往左下划过
+    if (m > .5 && !reduceMotion) {
+      if (t > nextMeteor) { meteors.push({ x: rand(.45, 1.05) * W, y: rand(-.02, .22) * H, t0: t, life: rand(.7, 1.1), len: rand(90, 160), v: rand(520, 760) }); nextMeteor = t + rand(3.5, 8); }
+      meteors = meteors.filter(me => t - me.t0 < me.life);
+      for (const me of meteors) {
+        const k = (t - me.t0) / me.life, dx = -.78, dy = .62;
+        const hx = me.x + dx * me.v * (t - me.t0), hy = me.y + dy * me.v * (t - me.t0);
+        const a = Math.sin(k * Math.PI) * m;
+        const g = fx.createLinearGradient(hx, hy, hx - dx * me.len, hy - dy * me.len);
+        g.addColorStop(0, `rgba(255,250,235,${a})`); g.addColorStop(1, 'rgba(255,250,235,0)');
+        fx.globalAlpha = 1; fx.strokeStyle = g; fx.lineWidth = 1.4; fx.lineCap = 'round';
+        fx.beginPath(); fx.moveTo(hx, hy); fx.lineTo(hx - dx * me.len, hy - dy * me.len); fx.stroke();
+        sparkle(fx, hx, hy, 1.6, a, 'rgb(255,250,235)');
+      }
+    }
+  } else {
+    for (const g of glints) {
+      const tw = Math.pow(Math.max(0, Math.sin(t * g.sp + g.ph)), 6);
+      if (tw < .02) { if (Math.sin(t * g.sp + g.ph) < -.98) { g.u = rand(.3, .7); g.v = rand(.45, .98); } continue; }
+      const [x, y] = imgToScreen(g.u, g.v);
+      sparkle(fx, x, y, g.s * (.5 + .5 * tw), tw * .9, m < .5 ? 'rgb(255,250,232)' : 'rgb(236,242,255)');
+    }
+  }
+  // 解锁时的星星碎屑
+  bursts = bursts.filter(p => t - p.t0 < p.life);
+  for (const p of bursts) {
+    const k = (t - p.t0) / p.life, e = 1 - Math.pow(1 - k, 3);
+    const x = p.x + p.vx * e, y = p.y + p.vy * e + 30 * k * k;
+    sparkle(fx, x, y, p.r * (1 - k * .6), (1 - k) * .95, p.c);
+  }
+  fx.globalAlpha = 1; fx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- 鱼（画在图片坐标的离屏画布上，作为着色器里的一张贴图） ---------- */
+const fishState = RING.fish.map(([a, r], i) => ({ a, r, sp: rand(.9, 1.15), ph: rand(0, 6.28), len: rand(.15, .21), wob: rand(0, 6.28) }));
+let startle = 0;
+function drawFishBody(ctx, x, y, ang, L, phase) {
+  const N = 14, top = [], bot = [];
+  const spine = u => {           // u: 0 = 鱼头，1 = 鱼尾
+    const yo = L * .085 * Math.sin(phase - u * 5) * Math.pow(u, 1.5);
+    return [L * (.5 - u), yo];
+  };
+  const width = u => u < .3 ? L * .1 * Math.sin(Math.min(1, (u + .05) / .35) * Math.PI / 2) : L * (.1 - (u - .3) * .13);
+  for (let i = 0; i <= N; i++) {
+    const u = i / N * .84; const [px, py] = spine(u); const [qx, qy] = spine(Math.min(1, u + .02));
+    const tx = qx - px, ty = qy - py, tl = Math.hypot(tx, ty) || 1, nx = -ty / tl, ny = tx / tl, w = width(u);
+    top.push([px + nx * w, py + ny * w]); bot.push([px - nx * w, py - ny * w]);
+  }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]);
+  for (const p of top) ctx.lineTo(p[0], p[1]);
+  const [tx0, ty0] = spine(.84), [tx1, ty1] = spine(1);
+  const dx = tx1 - tx0, dy = ty1 - ty0, dl = Math.hypot(dx, dy) || 1, ux = dx / dl, uy = dy / dl, nx = -uy, ny = ux;
+  const tail = L * .2, spread = L * .1;
+  ctx.lineTo(tx0 + ux * tail + nx * spread, ty0 + uy * tail + ny * spread);
+  ctx.lineTo(tx0 + ux * tail * .45, ty0 + uy * tail * .45);
+  ctx.lineTo(tx0 + ux * tail - nx * spread, ty0 + uy * tail - ny * spread);
+  for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+  ctx.closePath(); ctx.fill();
+  // 胸鳍
+  const [fx0, fy0] = spine(.3);
+  ctx.beginPath(); ctx.moveTo(fx0, fy0 + L * .08); ctx.lineTo(fx0 - L * .12, fy0 + L * .16); ctx.lineTo(fx0 - L * .05, fy0 + L * .07); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(fx0, fy0 - L * .08); ctx.lineTo(fx0 - L * .12, fy0 - L * .16); ctx.lineTo(fx0 - L * .05, fy0 - L * .07); ctx.fill();
+  ctx.restore();
+}
+function drawFish(t, dt) {
+  const fw = fishCanvas.width, fh = fishCanvas.height;
+  fishCtx.clearRect(0, 0, fw, fh);
+  fishCtx.fillStyle = 'rgba(0,0,0,1)';
+  startle *= Math.pow(.25, dt);
+  const base = (Math.PI * 2) / 80;
+  for (const f of fishState) {
+    const sp = base * f.sp * (1 + startle * 3.5);
+    f.a += sp * dt; f.ph += dt * (5 + startle * 14) * f.sp;
+    const r = f.r * (1 + .05 * Math.sin(t * .3 + f.wob));
+    const X = (RING.cx + r * Math.cos(f.a)) * fw;
+    const Y = RING.cy * fh + r * fw * Math.sin(f.a) / RING.k;
+    const ang = Math.atan2(r * fw * Math.cos(f.a) / RING.k, -r * fw * Math.sin(f.a)) + Math.sin(f.ph * .5) * .06;
+    fishCtx.globalAlpha = .9;
+    drawFishBody(fishCtx, X, Y, ang, f.len * fw, f.ph);
+  }
+  fishCtx.globalAlpha = 1;
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fishTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fishCanvas);
+}
+
+/* ---------- 解锁过渡 ---------- */
+const unlockAnim = { from: 0, to: 0, start: -10, dur: .55 };
+function unlockValue(t) { const p = Math.min(1, Math.max(0, (t - unlockAnim.start) / unlockAnim.dur)); const e = 1 - Math.pow(1 - p, 3); return unlockAnim.from + (unlockAnim.to - unlockAnim.from) * e; }
+function setUnlock(v) { const t = now(); unlockAnim.from = unlockValue(t); unlockAnim.to = v; unlockAnim.start = t; }
+
+/* ---------- 水波 ---------- */
+let ripple = [0, 0, -100, 0];
+
+/* ---------- 主循环 ---------- */
+const t0 = performance.now();
+const now = () => (performance.now() - t0) / 1000;
+let last = now(), running = true, kindSwap = null;
+function frame() {
+  if (!running) return;
+  const t = now(), dt = Math.min(.05, t - last); last = t;
+  const tt = reduceMotion ? t * .15 : t;
+  const m = currentMix(t), u = unlockValue(t);
+  zoom = 1.035 + .015 * Math.sin(tt * .07) + u * .07;
+  drift = [Math.sin(tt * .05) * .006, Math.cos(tt * .043) * .006];
+  if (gl && tex.day) {
+    const w = WALL[S.kind];
+    if (S.kind === 'water') drawFish(tt, reduceMotion ? dt * .15 : dt);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex.day);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tex.night);
+    if (S.kind !== 'water') { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, fishTex); }
+    gl.uniform2f(U.uRes, glc.width, glc.height);
+    gl.uniform1f(U.uImgAspect, w.aspect);
+    gl.uniform1f(U.uTime, tt);
+    gl.uniform1f(U.uKind, S.kind === 'water' ? 1 : 0);
+    const p = Math.min(1, Math.max(0, (t - mixState.start) / mixState.dur));
+    const R = p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6;
+    gl.uniform1f(U.uMixFrom, p >= 1 ? mixState.to : mixState.from);
+    gl.uniform1f(U.uMixTo, mixState.to);
+    gl.uniform3f(U.uReveal, mixState.cx, mixState.cy, R);
+    gl.uniform1f(U.uUnlock, u);
+    gl.uniform4f(U.uRipple, ripple[0], ripple[1], ripple[2], ripple[3]);
+    gl.uniform2f(U.uMoonDay, w.moonDay[0], w.moonDay[1]);
+    gl.uniform2f(U.uMoonNight, w.moonNight[0], w.moonNight[1]);
+    gl.uniform2f(U.uDrift, drift[0], drift[1]);
+    gl.uniform1f(U.uZoom, zoom);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+  drawFx(tt, reduceMotion ? dt * .15 : dt, m);
+  requestAnimationFrame(frame);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) running = false; else if (!running) { running = true; last = now(); requestAnimationFrame(frame); }
+});
+
+/* ---------- 换壁纸 ---------- */
+function bindWallpaper(instant) {
+  const w = WALL[S.kind];
+  const apply = () => {
+    if (gl) {
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex.day);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, images[w.day]);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tex.night);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, images[w.night]);
+    } else {
+      $('#fallback').style.backgroundImage = `url(${isNight() ? w.night : w.day})`;
+    }
+    seedFx();
+  };
+  if (instant) { apply(); return; }
+  glc.style.opacity = 0; fxc.style.opacity = 0;
+  setTimeout(() => { apply(); glc.style.opacity = 1; fxc.style.opacity = 1; }, 270);
+}
+
+/* ---------- 时钟 ---------- */
+const STORY = { day: 3, startMin: 21 * 60 + 20, startAt: Date.now() };
+const WEEK = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+const pad = n => String(n).padStart(2, '0');
+function timeNow() {
+  if (S.timeSrc === 'story') {
+    const mins = STORY.startMin + Math.floor((Date.now() - STORY.startAt) / 60000);
+    const day = STORY.day + Math.floor(mins / 1440), mm = mins % 1440;
+    const hh = Math.floor(mm / 60), mi = mm % 60;
+    const part = hh < 5 ? '深夜' : hh < 9 ? '清晨' : hh < 12 ? '上午' : hh < 14 ? '中午' : hh < 18 ? '下午' : hh < 20 ? '傍晚' : '夜晚';
+    return { hm: `${pad(hh)}:${pad(mi)}`, date: `✦ 第 ${day} 天 · ${part}`, sub: `Story time · Day ${pad(day)}` };
+  }
+  const d = new Date();
+  return { hm: `${pad(d.getHours())}:${pad(d.getMinutes())}`, date: `${d.getMonth() + 1}月${d.getDate()}日 · ${WEEK[d.getDay()]}`, sub: 'Aster · Local time' };
+}
+const clockEl = $('#clock'); let shown = '';
+function renderClock(force) {
+  const n = timeNow();
+  $('#sbTime').textContent = n.hm;
+  $('#date').textContent = n.date; $('#sub').textContent = n.sub;
+  if (n.hm === shown && !force) return;
+  if (force || clockEl.children.length !== 5) {
+    clockEl.innerHTML = '';
+    [...n.hm].forEach(ch => {
+      const box = document.createElement('span');
+      if (ch === ':') { box.className = 'as-lock-clock__colon'; box.textContent = ':'; }
+      else { box.className = 'as-lock-clock__digit'; const s = document.createElement('span'); s.textContent = ch; box.appendChild(s); }
+      clockEl.appendChild(box);
+    });
+  } else {
+    [...n.hm].forEach((ch, i) => {
+      if (ch === ':' || ch === shown[i]) return;
+      const box = clockEl.children[i], old = box.firstElementChild, nu = document.createElement('span');
+      nu.textContent = ch; nu.style.transform = 'translateY(100%)'; nu.style.opacity = '0'; box.appendChild(nu);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        old.style.transform = 'translateY(-100%)'; old.style.opacity = '0'; nu.style.transform = 'translateY(0)'; nu.style.opacity = '1';
+        setTimeout(() => old.remove(), 560);
+      }));
+    });
+  }
+  clockEl.setAttribute('aria-label', n.hm); shown = n.hm;
+}
+setInterval(() => renderClock(false), 1000);
+
+/* ---------- 电量 ---------- */
+if (navigator.getBattery) navigator.getBattery().then(b => { const f = () => $('#sbBattery').setAttribute('width', Math.max(2, 16 * b.level)); f(); b.addEventListener('levelchange', f); }).catch(() => {});
+
+/* ---------- 指纹 ---------- */
+const finger = $('#finger'), ring = $('#ring'), CIRC = 213.6;
+let pressT = null, raf = 0, locked = true;
+function ringTo(p) { ring.style.strokeDashoffset = CIRC * (1 - p); }
+function pressStart(e) {
+  if (!locked) return; e.preventDefault();
+  finger.classList.add('is-pressed'); const t = performance.now(); pressT = t;
+  cancelAnimationFrame(raf);
+  const step = () => { if (pressT === null) return; const p = Math.min(1, (performance.now() - t) / 600); ringTo(p); if (p >= 1) { pressT = null; unlock(); } else raf = requestAnimationFrame(step); };
+  raf = requestAnimationFrame(step);
+}
+function pressEnd() {
+  if (pressT === null) return; pressT = null; finger.classList.remove('is-pressed');
+  cancelAnimationFrame(raf);
+  const cur = 1 - parseFloat(ring.style.strokeDashoffset || CIRC) / CIRC, t = performance.now();
+  const back = () => { const p = Math.max(0, cur - (performance.now() - t) / 300); ringTo(p); if (p > 0) raf = requestAnimationFrame(back); };
+  back();
+}
+finger.addEventListener('pointerdown', pressStart);
+['pointerup','pointerleave','pointercancel'].forEach(ev => finger.addEventListener(ev, pressEnd));
+finger.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && pressT === null && !e.repeat) pressStart(e); });
+finger.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') pressEnd(); });
+finger.addEventListener('contextmenu', e => e.preventDefault());
+
+function burstAt(x, y) {
+  const t = now(), m = currentMix(t);
+  const cols = m > .5 ? ['rgb(255,190,140)', 'rgb(255,240,220)', 'rgb(200,215,255)'] : ['rgb(242,150,90)', 'rgb(255,236,200)', 'rgb(255,255,255)'];
+  for (let i = 0; i < 26; i++) {
+    const a = rand(0, Math.PI * 2), d = rand(40, 130);
+    bursts.push({ x, y, vx: Math.cos(a) * d, vy: Math.sin(a) * d - 30, r: rand(1.4, 3.4), t0: t, life: rand(.6, 1.1), c: cols[i % 3] });
+  }
+}
+function unlock() {
+  locked = false;
+  finger.classList.remove('is-pressed'); finger.classList.add('is-success');
+  const r = finger.getBoundingClientRect(), p = phone.getBoundingClientRect();
+  burstAt(r.left - p.left + r.width / 2, r.top - p.top + r.height / 2);
+  setTimeout(() => {
+    $('#lock').classList.add('is-hidden'); setUnlock(1);
+    closePin(); $('#home').classList.add('is-open'); $('#home').setAttribute('aria-hidden', 'false');
+  }, 360);
+}
+function relock() {
+  $('#home').classList.remove('is-open'); $('#home').setAttribute('aria-hidden', 'true');
+  setUnlock(0); $('#lock').classList.remove('is-hidden');
+  finger.classList.remove('is-success'); ringTo(0); locked = true;
+}
+$('#relockBtn').addEventListener('click', relock);
+
+/* ---------- 数字密码 ---------- */
+const PIN = '123456', BACKUP = '000000';
+let entry = '', backupMode = false;
+const keypad = $('#keypad');
+['1','2','3','4','5','6','7','8','9','取消','0','删除'].forEach(k => {
+  const b = document.createElement('button'); b.className = 'as-key' + (k.length > 1 ? ' as-key--text' : ''); b.textContent = k;
+  b.setAttribute('aria-label', k); b.addEventListener('click', () => key(k)); keypad.appendChild(b);
+});
+function renderDots() { [...$('#pinDots').children].forEach((d, i) => d.classList.toggle('is-active', i < entry.length)); }
+function key(k) {
+  if (k === '取消') return closePin();
+  if (k === '删除') { entry = entry.slice(0, -1); return renderDots(); }
+  if (entry.length >= 6) return;
+  entry += k; renderDots();
+  if (entry.length === 6) setTimeout(check, 140);
+}
+function check() {
+  if (entry === (backupMode ? BACKUP : PIN) || entry === BACKUP) { entry = ''; renderDots(); unlockFromPin(); return; }
+  const dots = $('#pinDots'); dots.classList.add('is-error'); $('#pinHint').textContent = '密码错误'; $('#pinHint').classList.add('is-error');
+  setTimeout(() => { dots.classList.remove('is-error'); entry = ''; renderDots(); $('#pinHint').classList.remove('is-error'); $('#pinHint').textContent = backupMode ? '备用密码对所有解锁方式通用' : '演示密码 123456'; }, 700);
+}
+function openPin() { backupMode = false; $('#pinTitle').textContent = '输入密码'; $('#pinHint').textContent = '演示密码 123456'; entry = ''; renderDots(); $('#pin').classList.add('is-open'); $('#pin').setAttribute('aria-hidden', 'false'); $('#lock').classList.add('is-hidden'); }
+function closePin() { $('#pin').classList.remove('is-open'); $('#pin').setAttribute('aria-hidden', 'true'); if (locked) $('#lock').classList.remove('is-hidden'); }
+function unlockFromPin() { locked = false; const p = phone.getBoundingClientRect(); burstAt(p.width / 2, p.height * .2); setUnlock(1); closePin(); $('#lock').classList.add('is-hidden'); $('#home').classList.add('is-open'); $('#home').setAttribute('aria-hidden', 'false'); finger.classList.add('is-success'); }
+$('#pinBtn').addEventListener('click', openPin);
+$('#forgotBtn').addEventListener('click', () => { backupMode = true; entry = ''; renderDots(); $('#pinTitle').textContent = '输入备用密码'; $('#pinHint').textContent = '备用密码对所有解锁方式通用（000000）'; });
+addEventListener('keydown', e => { if (!$('#pin').classList.contains('is-open')) return; if (/^\d$/.test(e.key)) key(e.key); else if (e.key === 'Backspace') key('删除'); else if (e.key === 'Escape') key('取消'); });
+
+/* ---------- 点水面 / 点通知 ---------- */
+phone.addEventListener('pointerdown', e => {
+  if (S.kind !== 'water' || e.target.closest('button, .as-sheet, .as-lock-notice__item, .as-pin')) return;
+  const p = phone.getBoundingClientRect(); const [u, v] = screenToImg(e.clientX - p.left, e.clientY - p.top);
+  ripple = [u, v, reduceMotion ? now() * .15 : now(), 1]; startle = 1;
+});
+const noticeBox = $('#notices');
+document.querySelectorAll('.as-lock-notice__item').forEach(n => n.addEventListener('click', () => {
+  if (noticeBox.classList.contains('is-stacked')) { noticeBox.classList.remove('is-stacked'); return; }
+  toast('解锁后查看消息');
+}));
+phone.addEventListener('click', e => { if (!e.target.closest('.as-lock-notice')) noticeBox.classList.add('is-stacked'); });
+
+/* ---------- 关闭 / 打开手机 ---------- */
+$('#closeBtn').addEventListener('click', () => { phone.classList.add('is-closed'); $('#fab').classList.add('is-open'); running = false; });
+$('#fab').addEventListener('click', () => { $('#fab').classList.remove('is-open'); phone.classList.remove('is-closed'); if (!running) { running = true; last = now(); requestAnimationFrame(frame); } });
+
+/* ---------- 演示设置 ---------- */
+const sheet = $('#sheet'), mask = $('#sheetMask');
+function openSheet() { sheet.classList.add('is-open'); mask.classList.add('is-open'); sheet.setAttribute('aria-hidden', 'false'); }
+function closeSheet() { sheet.classList.remove('is-open'); mask.classList.remove('is-open'); sheet.setAttribute('aria-hidden', 'true'); }
+$('#demoBtn').addEventListener('click', openSheet); mask.addEventListener('click', closeSheet);
+let dragY = null;
+sheet.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragY = e.clientY; sheet.style.transition = 'none'; });
+addEventListener('pointermove', e => { if (dragY === null) return; const dy = Math.max(-12, e.clientY - dragY); sheet.style.transform = `translateY(${dy < 0 ? dy * .3 : dy}px)`; });
+addEventListener('pointerup', e => { if (dragY === null) return; const dy = e.clientY - dragY; dragY = null; sheet.style.transition = ''; sheet.style.transform = ''; if (dy > 70) closeSheet(); });
+
+function syncSeg() {
+  document.querySelectorAll('.as-segmented').forEach(g => g.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', S[g.dataset.key] === b.dataset.v)));
+  phone.dataset.clock = S.clock;
+}
+document.querySelectorAll('.as-segmented').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const key = g.dataset.key, v = b.dataset.v; if (S[key] === v) return;
+  const before = isNight(); S[key] = v; save(); syncSeg();
+  if (key === 'kind') bindWallpaper(false);
+  if (key === 'mode' && isNight() !== before) {
+    const br = b.getBoundingClientRect(), p = phone.getBoundingClientRect();
+    setNight(isNight(), [(br.left + br.width / 2 - p.left) / p.width, (br.top + br.height / 2 - p.top) / p.height]);
+  }
+  if (key === 'timeSrc') renderClock(true);
+}));
+
+const followSystem = () => { if (S.mode === 'auto' && isNight() !== (phone.dataset.mode === 'night')) setNight(isNight(), [.5, .12]); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', followSystem);
+new MutationObserver(followSystem).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ---------- 启动 ---------- */
+async function boot() {
+  resize(); syncSeg(); renderClock(true);
+  setNight(isNight(), null, true);
+  const srcs = [WALL.castle.day, WALL.castle.night, WALL.water.day, WALL.water.night];
+  let ok = false;
+  try { ok = initGL(); } catch (e) { console.warn(e); ok = false; }
+  try {
+    const imgs = await Promise.all(srcs.map(loadImg)); srcs.forEach((s, i) => images[s] = imgs[i]);
+  } catch (e) { toast('壁纸没加载出来，请刷新'); }
+  if (ok) {
+    tex.day = makeTex(); tex.night = makeTex();
+    fishCanvas = document.createElement('canvas'); fishCanvas.width = 512; fishCanvas.height = Math.round(512 / WALL.water.aspect);
+    fishCtx = fishCanvas.getContext('2d'); fishTex = makeTex(fishCanvas);
+    bindWallpaper(true);
+  } else {
+    gl = null; glc.hidden = true; $('#fallback').hidden = false; bindWallpaper(true);
+  }
+  requestAnimationFrame(frame);
+}
+boot();
+})();
+</script>
