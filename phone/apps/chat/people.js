@@ -111,6 +111,8 @@ export function openProfile(cid, { onMessage } = {}) {
         item({ title: '动态', right: h('div.as-chat-thumbs', moments.length ? moments.map(m => m.images && m.images[0] ? h('span', { style: { backgroundImage: `url(${m.images[0]})` } }) : h('span', (m.text || '').slice(0, 8))) : h('span.as-muted', '还没有')), chevron: true,
           onClick: () => import('./moments.js').then(m => m.openUserMoments(c.id)) }),
         item({ title: '人设来源', value: c.charKey ? '角色卡' : c.source === 'story' ? '正文里出现' : '手写' }),
+        // 声音：和设置 → 连接 → 音色库里的是同一份
+        item({ title: '声音', chevron: true, onClick: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }),
       ]),
       personaOf(c) ? group('人设', [h('div.as-chat-me-about', { onclick: e => e.currentTarget.classList.toggle('is-open') }, personaOf(c))], '点一下展开') : null);
   }

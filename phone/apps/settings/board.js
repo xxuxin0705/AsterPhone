@@ -5,11 +5,13 @@
 // 小脸：平时呆呆的 ·_·，拎着线靠近会好奇地看过来，插中先「≧▽≦」，连上了 ^‿^，连不上 T_T 还会掉眼泪。
 import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
-import { page, navBtn, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl } from '../../core/ui.js';
+import { page, navBtn, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
+import { openLibrary, openReadings, voiceInput } from './voices.js';
+import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/voice.js';
 
 const C = () => state.connections;
 const subscribeConn = fn => subscribe(w => { if (w === 'connections' || w === 'all') fn(); });
@@ -105,8 +107,10 @@ export function openBoard({ list }) {
       return t;
     }
     const kindEl = h('span.as-pb__kind'), nameEl = h('span.as-pb__name'), subEl = h('span.as-pb__model'), usesEl = h('span.as-pb__uses'), pinEl = h('span.as-pb__pin', { 'aria-hidden': 'true' }, '📌');
-    const el = h('div.as-pb__tile', { role: 'button', tabindex: 0, dataset: { kind, id: c.id } }, kindEl, pinEl, face, nameEl, subEl, usesEl, port);
-    const t = { c, kind, el, face, eyes, qm, qSide: 1, port, nameEl, subEl, kindEl, usesEl, pinEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
+    // 语音格子：底下挂着用这个渠道说话的人（语音线选中时才露出来），点一下打开音色库
+    const voicesEl = kind === 'tts' ? h('span.as-pb__voices', { onclick: e => { e.stopPropagation(); if (!avDrag && performance.now() >= quietUntil) openLibrary(t.c, paintVoices); } }) : null;
+    const el = h('div.as-pb__tile', { role: 'button', tabindex: 0, dataset: { kind, id: c.id } }, kindEl, pinEl, face, nameEl, subEl, usesEl, voicesEl, port);
+    const t = { c, kind, el, face, eyes, qm, qSide: 1, port, nameEl, subEl, kindEl, usesEl, pinEl, voicesEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
     el.addEventListener('click', () => { if (dragging() || sorting || performance.now() < quietUntil) return; openDetail(t.c, t.kind); });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.click(); });
     bindSort(t);
@@ -137,9 +141,50 @@ export function openBoard({ list }) {
     if (!addTile) addTile = makeTile(null);
     tiles.push(addTile);
     tiles.forEach((t, i) => { if (grid.children[i] !== t.el) grid.insertBefore(t.el, grid.children[i] || null); });
-    filterTiles(); syncUses();
+    filterTiles(); syncUses(); paintVoices();
   }
-  function filterTiles() { const k = cur().kind; for (const t of tiles) if (t.c) { const h0 = t.kind !== k; if (t.el.hidden !== h0) t.el.hidden = h0; } }
+  function filterTiles() { const k = cur().kind; for (const t of tiles) if (t.c) { const h0 = t.kind !== k; if (t.el.hidden !== h0) t.el.hidden = h0; } p.body.classList.toggle('is-voice', k === 'tts'); }
+  /* ----- 音色：每个语音格子挂着在用它的人；「每个人用自己的渠道」时长按头像能拖到别的语音格子上 ----- */
+  let avDrag = null;
+  function paintVoices() {
+    const all = people();
+    for (const t of tiles) {
+      if (!t.voicesEl) continue;
+      const here = all.filter(x => (connFor(x.id) || {}).id === t.c.id), key = here.map(x => x.id + x.avatar).join() + V().mode;
+      if (t.voicesEl.dataset.v === key) continue;
+      t.voicesEl.dataset.v = key;
+      t.voicesEl.replaceChildren(...here.slice(0, 4).map(x => { const a = avatar(x.avatar, x.name, 22); a.title = x.name; bindAvDrag(a, x); return a; }),
+        here.length > 4 ? h('span.as-pb__more', '+' + (here.length - 4)) : null);
+    }
+  }
+  function bindAvDrag(a, person) {
+    let timer = 0, start = null;
+    a.addEventListener('pointerdown', e => {
+      e.stopPropagation(); if (V().mode !== 'each') return;
+      start = { x: e.clientX, y: e.clientY }; clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = B(), g = avatar(person.avatar, person.name, 30); g.classList.add('as-pb__avghost');
+        Object.assign(g.style, { left: start.x - b.left + 'px', top: start.y - b.top + 'px' }); p.body.appendChild(g);
+        avDrag = { g, person }; vib(12);
+      }, 300);
+    });
+    a.addEventListener('pointermove', e => { if (start && !avDrag && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) { clearTimeout(timer); start = null; } });
+    const stop = () => { clearTimeout(timer); start = null; };
+    a.addEventListener('pointerup', stop); a.addEventListener('pointercancel', stop);
+    a.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  window.addEventListener('pointermove', e => { if (!avDrag) return; const b = B(); avDrag.g.style.left = e.clientX - b.left + 'px'; avDrag.g.style.top = e.clientY - b.top + 'px'; });
+  window.addEventListener('pointerup', e => {
+    if (!avDrag) return;
+    const { g, person } = avDrag; avDrag = null; g.remove(); quietUntil = performance.now() + 350;
+    const t = tiles.find(o => o.kind === 'tts' && !o.el.hidden && (r => e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom)(o.el.getBoundingClientRect()));
+    if (!t) return;
+    // 拖回「语音」线插着的格子 = 改回跟随
+    const P = V().people[person.id] || (V().people[person.id] = { conn: '', voices: {} });
+    P.conn = t.c.id === (defaultConn() || {}).id ? '' : t.c.id; saveVoice(); paintVoices();
+    toast(P.conn ? `${person.name}改用「${t.c.name}」说话` : `${person.name}跟随「语音」线`);
+  }, true);
+  p.body.addEventListener('touchmove', e => { if (avDrag) e.preventDefault(); }, { passive: false });
   /** 格子上写着「哪几根线插在我这」 */
   function syncUses() {
     for (const t of tiles) {
@@ -300,7 +345,7 @@ export function openBoard({ list }) {
   };
   const local = e => { const b = B(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
   p.body.addEventListener('pointerdown', e => {
-    if (sorting) return;
+    if (sorting || e.target.closest('.as-pb__voices')) return;   // 按在头像上是点人 / 拖人，不是拎线
     const q = local(e), pl = hitPlug(q.x, q.y);
     if (!pl) return;
     e.stopPropagation(); e.preventDefault();
@@ -312,6 +357,7 @@ export function openBoard({ list }) {
   p.body.addEventListener('touchstart', e => {
     if (sorting) return;
     const t = e.touches[0], b = B();
+    if (e.target.closest('.as-pb__voices')) return;
     if (t && hitPlug(t.clientX - b.left, t.clientY - b.top)) e.preventDefault();   // 按在插头上：别滚动、别弹长按菜单，不然拖到一半会被打断
   }, { passive: false, capture: true });
   p.body.addEventListener('touchmove', e => { if (dragging()) e.preventDefault(); }, { passive: false });
@@ -664,7 +710,6 @@ export function openBoard({ list }) {
           pull.disabled = true; toast('正在拉取模型…');
           try {
             const models = await listModels(d);
-            if (!models) { toast('这个类型拉不了模型列表，手动填就行'); return; }
             if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
             toast(`拉到 ${models.length} 个模型`);
             const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
@@ -680,6 +725,20 @@ export function openBoard({ list }) {
         // 有的渠道要多填一两样（MiniMax 的 Group ID、豆包的 App ID）
         const extra = (CHANNELS[kind].find(x => x.v === d.type) || {}).fields || [];
         const extraRows = extra.map(([k, label]) => row(label, input({ value: d[k] || '', onInput: v => { d[k] = v.trim(); touch(); } })));
+        // 豆包分 V3（2.0 音色，要资源 ID）和 V1（1.0 音色）；第三方语音可以选中转站转发的是哪家的格式
+        if (d.type === 'doubao-tts') {
+          const res = row('资源 ID', input({ value: d.resId || '', placeholder: 'seed-tts-2.0', onInput: v => { d.resId = v.trim(); touch(); } }));
+          res.style.display = d.ver === 'v1' ? 'none' : '';
+          extraRows.push(row('接口版本', segmented([['v3', 'V3（2.0 音色）'], ['v1', 'V1（1.0 音色）']], d.ver || 'v3', v => { d.ver = v; res.style.display = v === 'v1' ? 'none' : ''; touch(); })), res);
+        }
+        if (d.type === 'custom-tts') {
+          const FMT = [['', 'OpenAI 格式'], ['minimax-cn', 'MiniMax 格式'], ['fish', 'Fish 格式'], ['elevenlabs', 'ElevenLabs 格式']];
+          const fb = h('button.as-pbd__select', { onclick: async () => {
+            const v = await actionSheet('接口格式', FMT.map(([k, l]) => ({ value: k || '-', label: l, active: (d.fmt || '') === k })));
+            if (v == null) return; d.fmt = v === '-' ? '' : v; fb.firstChild.textContent = FMT.find(x => x[0] === d.fmt)[1]; touch(); rebuild();
+          } }, h('span', (FMT.find(x => x[0] === (d.fmt || '')) || FMT[0])[1]), icon('chevron', 14, 2));
+          extraRows.push(row('接口格式', fb));
+        }
         b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
           row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
       }, true));
@@ -700,21 +759,43 @@ export function openBoard({ list }) {
             h('p.as-pbd__hint', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。'));
         }));
       }
-      if (kind === 'image') groups.push(fold('画风', 'image', () => `${d.img.size}${d.img.tags ? ' · 有画师串' : ''}`, (b, re) => {
-        b.append(row('尺寸', segmented([['1024x1024', '方'], ['1024x1536', '竖'], ['1536x1024', '横']], d.img.size, v => { d.img.size = v; touch(); re(); })),
-          row('画师串 / 风格词', textarea({ value: d.img.tags, rows: 2, placeholder: '例：masterpiece, soft light, by [artist]', onInput: v => { d.img.tags = v; touch(); re(); } }), '会加在每张图的描述前面。'),
-          row('不要出现', textarea({ value: d.img.neg, rows: 2, placeholder: '例：lowres, bad anatomy', onInput: v => { d.img.neg = v; touch(); } })),
-          (d.type === 'novelai' || d.type === 'sd-webui') ? row('采样器 / 步数', h('div.as-pbd__line',
-            input({ value: d.img.sampler || '', placeholder: d.type === 'novelai' ? 'k_euler_ancestral' : 'Euler a', onInput: v => { d.img.sampler = v; touch(); } }),
-            input({ value: d.img.steps || '', type: 'number', placeholder: d.type === 'novelai' ? '28' : '24', onInput: v => { d.img.steps = +v || undefined; touch(); } }))) : null,
-          d.type === 'comfyui' ? row('工作流（API 格式 JSON）', textarea({ value: d.img.workflow || '', rows: 5, placeholder: '在 ComfyUI 里「保存 (API 格式)」，整段粘过来；正面提示词写 %prompt%，负面写 %negative%，种子写 %seed%', onInput: v => { d.img.workflow = v; touch(); } })) : null);
+      if (kind === 'image') groups.push(fold('画风', 'image', () => `${(d.imgSets || []).find(x => x.id === (d.imgSet || ''))?.name || '默认方案'} · ${d.img.size}`, (b, re, rebuild) => {
+        const t = d.type, I = d.img, oai = t === 'openai-image' || t === 'image-compat';
+        // 生图方案：一整套参数存起来，点一下换（换之前把现在这套存回它自己那格）
+        const sets = d.imgSets || (d.imgSets = [{ id: '', name: '默认方案' }]), cur = d.imgSet || '';
+        const stash = () => { sets.find(x => x.id === cur).img = JSON.parse(JSON.stringify(d.img)); };
+        const go = id => { stash(); d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, JSON.parse(JSON.stringify(sets.find(x => x.id === id).img || {}))); d.imgSet = id; touch(); rebuild(); };
+        const chips = h('div.as-chips', sets.map(x => h('button.as-chip' + (x.id === cur ? '.is-active' : ''), { onclick: () => x.id !== cur && go(x.id) }, x.name)));
+        const acts = h('div.as-pbd__danger',
+          h('button', { onclick: async () => { const n = await dialog({ title: '新建方案', input: { value: `方案 ${sets.length + 1}` } }); if (!n || !n.trim()) return; stash(); const id = uid('is'); sets.push({ id, name: n.trim().slice(0, 12), img: JSON.parse(JSON.stringify(d.img)) }); d.imgSet = id; touch(); rebuild(); } }, '新建方案'),
+          ...(cur ? [h('button', { onclick: async () => { const x = sets.find(y => y.id === cur), n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 12); touch(); rebuild(); } } }, '改名'),
+            h('button.is-danger', { onclick: async () => { if (!(await dialog({ title: '删掉这个方案？', confirm: '删除', danger: true }))) return; d.imgSets = sets.filter(x => x.id !== cur); d.imgSet = ''; d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, sets[0].img || {}); touch(); rebuild(); } }, '删除')] : []));
+        // 尺寸：随便填，下面几个常用的点一下就填好（每家常用的不一样）
+        const SIZES = oai ? ['1024x1024', '1024x1536', '1536x1024'] : t === 'novelai' ? ['832x1216', '1216x832', '1024x1024'] : t === 'siliconflow' ? ['1024x1024', '768x1024', '1024x768'] : ['512x768', '768x512', '1024x1024'];
+        const sizeIn = input({ value: I.size, placeholder: '宽x高', onInput: v => { I.size = v.replace(/[×*X ]/g, 'x'); touch(); re(); paintSz(); } });
+        const szBox = h('div.as-pbd__chips'), paintSz = () => szBox.replaceChildren(...SIZES.map(v => h('button' + (I.size === v ? '.is-on' : ''), { onclick: () => { I.size = sizeIn.value = v; touch(); re(); paintSz(); } }, v.replace('x', '×'))));
+        paintSz();
+        const num = (k, ph) => input({ value: I[k] ?? '', type: 'number', placeholder: ph, onInput: v => { I[k] = v === '' ? undefined : +v; touch(); } });
+        const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
+        const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' }, SAMPLER = { novelai: 'k_euler_ancestral', 'sd-webui': 'Euler a', comfyui: 'euler_ancestral' };
+        b.append(row('方案', h('div', chips)), acts,
+          ...(oai ? [row('请求方式', segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
+          row('尺寸（宽×高）', h('div', sizeIn, szBox)),
+          ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])))] : []),
+          ...(SAMPLER[t] ? [row('采样器', input({ value: I.sampler || '', placeholder: SAMPLER[t], onInput: v => { I.sampler = v.trim(); touch(); } }))] : []),
+          ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '如：artist:xxx, artist:yyy')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
+          row('负面提示词', txt('neg', '例：lowres, bad anatomy')),
+          ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
       }));
       if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
         const sp = h('output.as-pbd__val', d.tts.speed + 'x'), vo = h('output.as-pbd__val', Math.round(d.tts.volume * 100) + '%');
-        const chv = CHANNELS.tts.find(x => x.v === d.type) || {};
-        b.append(row('音色', input({ value: d.tts.voice, placeholder: chv.voice ? '默认 ' + chv.voice : '音色 ID', onInput: v => { d.tts.voice = v; touch(); re(); } }), chv.note || ''),
-          row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: d.tts.speed, onInput: v => { d.tts.speed = +v.toFixed(2); sp.textContent = d.tts.speed + 'x'; touch(); re(); } }), sp)),
-          row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: d.tts.volume, onInput: v => { d.tts.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)));
+        const chv = CHANNELS.tts.find(x => x.v === d.type) || {}, T = d.tts;
+        const set = k => v => { T[k] = v; touch(); re(); };
+        b.append(row('当前音色', voiceInput(() => d, T.voice, set('voice'), chv.voice ? '默认 ' + chv.voice : '音色 ID'), chv.note || ''),
+          row('男声默认', voiceInput(() => d, T.male, set('male'))), row('女声默认', voiceInput(() => d, T.female, set('female'))),
+          row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: T.speed, onInput: v => { T.speed = +v.toFixed(2); sp.textContent = T.speed + 'x'; touch(); re(); } }), sp)),
+          row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: T.volume, onInput: v => { T.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)),
+          ...(isNew ? [] : [h('button.as-pbd__dash', { onclick: () => openLibrary(orig, paintVoices) }, icon('users', 15, 2), '音色库（每个人的声音）')]));
       }));
       if (!isNew) groups.push(h('div.as-pbd__danger', pinBtn(),
         h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),
@@ -739,7 +820,7 @@ export function openBoard({ list }) {
   }
 
   /* ================= 右上角菜单 ================= */
-  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list });
+  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list, voiceChanged: paintVoices });
   const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
     // 线一根根换过去：先拔下来，再飞到新接口
     plugs.forEach((pl, i) => { setTimeout(() => { const id = C().defaults[pl.use]; if (id && tileOf(id)) snapTo(pl, id, true); else { pl.mode = 'rest'; pl.target = null; } layoutLabels(); syncUses(); }, i * 140); });
@@ -759,14 +840,18 @@ export function openBoard({ list }) {
 }
 
 /** 右上角「…」：插线板模式和列表模式共用，只有最后一项（换成另一个模式）不一样 */
-export async function connMenu({ mode, schemes, add, switchMode }) {
+export async function connMenu({ mode, schemes, add, switchMode, voiceChanged = () => {} }) {
   const v = await actionSheet('连接', [
     { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
     { value: 'retry', label: '断线了怎么办' },
+    { value: 'voice', label: '音色库' },
+    { value: 'read', label: '读音表' },
     { value: 'add', label: '添加接口' },
     { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);
   if (v === 'scheme') schemes();
   if (v === 'retry') retrySheet();
+  if (v === 'voice') openLibrary(null, voiceChanged);
+  if (v === 'read') openReadings();
   if (v === 'add') add();
   if (v === 'mode') switchMode();
 }

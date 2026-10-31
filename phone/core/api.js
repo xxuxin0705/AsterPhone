@@ -36,7 +36,7 @@ export const CHANNELS = {
     { v: 'elevenlabs', label: 'ElevenLabs', base: 'https://api.elevenlabs.io', model: 'eleven_multilingual_v2', voice: 'JBFqnCBsd6RMkjVDRZzb', site: 'https://elevenlabs.io/app/settings/api-keys', note: '音色填 Voice ID（在 ElevenLabs 的 Voices 里复制）。' },
     { v: 'indextts', label: 'IndexTTS 本地', base: 'http://127.0.0.1:8000/v1', model: 'indextts', voice: '', site: 'https://github.com/index-tts/index-tts', noKey: true, note: '自己电脑上跑的 IndexTTS，要开 OpenAI 格式的接口（/v1/audio/speech），地址填到 /v1。音色填你在服务里起的名字。' },
     { v: 'mimo', label: '小米 MiMo', base: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-tts', voice: 'mimo_default', site: 'https://mimo.mi.com', note: '内置音色：冰糖、茉莉、苏打、白桦、Mia、Chloe、Milo、Dean，不填就是默认。' },
-    { v: 'doubao-tts', label: '豆包 / 火山引擎', base: 'https://openspeech.bytedance.com/api/v1', model: 'volcano_tts', voice: 'BV001_streaming', site: 'https://console.volcengine.com/speech/app', fields: [['appId', 'App ID']], note: '在火山引擎「语音技术」里建应用，拿到 App ID 和 Access Token（填在密钥里）。模型这里填 Cluster，一般是 volcano_tts。' },
+    { v: 'doubao-tts', label: '豆包 / 火山引擎', base: 'https://openspeech.bytedance.com/api/v1', model: 'volcano_tts', voice: 'zh_female_xiaohe_uranus_bigtts', site: 'https://console.volcengine.com/speech/app', fields: [['appId', 'App ID']], note: '在火山引擎「语音技术」里建应用，拿到 App ID 和 Access Token（填在密钥里）。' },
     { v: 'custom-tts', label: '第三方（OpenAI 兼容）', base: '', model: 'tts-1', voice: 'alloy', site: '', custom: true },
   ],
 };
@@ -178,7 +178,7 @@ async function readOut(res, pickDelta, pickWhole) {
 /** 拉取模型列表 */
 // 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
 const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed']);
-/** 拉模型列表；这个渠道没有模型列表可拉时返回 null。失败了记进日志 */
+/** 拉模型列表：能从网上拉的就拉，没有列表接口的给出这家固定的那几个。失败了记进日志 */
 export async function listModels(conn) {
   try { return await pullModels(conn); }
   catch (e) {
@@ -203,8 +203,19 @@ async function pullModels(conn) {
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
   }
-  return null;
+  // 本地 SD / ComfyUI：拉的是装好的底模
+  if (conn.type === 'sd-webui') { const res = await fetch(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
+  if (conn.type === 'comfyui') { const res = await fetch(trim(conn.base) + '/object_info/CheckpointLoaderSimple'); if (!res.ok) throw new Error(await readErr(res)); const j = await res.json(); return (((j.CheckpointLoaderSimple || {}).input || {}).required || {}).ckpt_name?.[0] || []; }
+  // 没有「模型列表」接口的（NovelAI、Fish、MiniMax、豆包…）：模型就那几个，直接列出来
+  return KNOWN_MODELS[conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type] || [];
 }
+const KNOWN_MODELS = {
+  novelai: ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-4-curated-preview', 'nai-diffusion-3', 'nai-diffusion-furry-3'],
+  'doubao-tts': ['volcano_tts'], 'zhipu-embed': ['embedding-3', 'embedding-2'],
+  'minimax-cn': ['speech-2.8-hd', 'speech-2.8-turbo', 'speech-2.6-hd', 'speech-2.6-turbo'], fish: ['s2.1-pro', 's2.1-pro-free'],
+  elevenlabs: ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_turbo_v2_5'], mimo: ['mimo-v2.5-tts'],
+};
+KNOWN_MODELS['minimax-intl'] = KNOWN_MODELS['minimax-cn'];
 
 /** 测试连接：发一句很短的话 */
 export async function testConn(conn) {
@@ -258,11 +269,41 @@ async function firstFileInZip(buf) {
   const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
   return new Blob([await new Response(ds).arrayBuffer()], { type: 'image/png' });
 }
+/** ComfyUI 没粘工作流时用的最简单的文生图流程（底模 → 正负提示词 → 采样 → 存图） */
+function comfyDefault({ model, full, neg, W, H, steps, scale, sampler }) {
+  if (!model) throw new Error('ComfyUI 要先在「模型」里选一个底模（点拉取）');
+  return {
+    4: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: model } },
+    5: { class_type: 'EmptyLatentImage', inputs: { width: W, height: H, batch_size: 1 } },
+    6: { class_type: 'CLIPTextEncode', inputs: { text: full, clip: ['4', 1] } },
+    7: { class_type: 'CLIPTextEncode', inputs: { text: neg, clip: ['4', 1] } },
+    3: { class_type: 'KSampler', inputs: { seed: Math.floor(Math.random() * 1e9), steps, cfg: scale, sampler_name: sampler, scheduler: 'normal', denoise: 1, model: ['4', 0], positive: ['6', 0], negative: ['7', 0], latent_image: ['5', 0] } },
+    8: { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['4', 2] } },
+    9: { class_type: 'SaveImage', inputs: { filename_prefix: 'asterphone', images: ['8', 0] } },
+  };
+}
+/** 把图片存成能长期留着的格式：临时链接（硅基 1 小时过期）、本页才有效的 blob 地址都转成 data 地址；网站不让读就原样用 */
+async function keep(url) {
+  if (!url || url.startsWith('data:')) return url;
+  try {
+    const b = await (await fetch(url)).blob();
+    return await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+  } catch (e) { return url; }
+}
+/** 聊天接口生图：回复里找图片（markdown 图片、图片链接、data 地址，或者 images 字段） */
+function imageInReply(j) {
+  const m = (j.choices || [])[0]?.message || {};
+  const img = (m.images || [])[0]; if (img) return img.image_url?.url || img.url || '';
+  const text = Array.isArray(m.content) ? m.content.map(x => x.text || x.image_url?.url || '').join('\n') : String(m.content || '');
+  const hit = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(text) || /(data:image\/[\w+]+;base64,[\w+/=]+)/.exec(text) || /(https?:\/\/\S+?\.(?:png|jpe?g|webp|gif)(?:\?\S*)?)(?=[\s)"']|$)/i.exec(text);
+  return hit ? hit[1] : '';
+}
 export async function generateImage(prompt, app = '聊天', connIn) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
-  const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(Number);
-  const full = [I.tags, prompt].filter(Boolean).join(', '), neg = I.neg || '';
+  const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
+  const quality = I.quality ?? (conn.type === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '');
+  const full = [I.tags, quality, prompt].filter(Boolean).join(', '), neg = I.neg || '';
   const key = keysOf(conn)[0] || '', base = trim(conn.base);
   const fail = async res => { const msg = await readErr(res); log('error', app, `生图失败（${conn.name}）：${msg}`); throw new Error(msg); };
   try {
@@ -270,27 +311,32 @@ export async function generateImage(prompt, app = '聊天', connIn) {
       case 'novelai': {
         const res = await fetch(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ input: full, model: conn.model || 'nai-diffusion-4-5-full', action: 'generate', parameters: {
-            params_version: 3, width: Math.min(W, 1024), height: Math.min(H, 1024), scale: I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(I.steps || 28, 28), n_samples: 1, ucPreset: 0, qualityToggle: true, negative_prompt: neg,
+            params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: [] }, use_coords: false, use_order: true },
             v4_negative_prompt: { caption: { base_caption: neg, char_captions: [] }, legacy_uc: false } } }) });
         if (!res.ok) await fail(res);
-        return URL.createObjectURL(await firstFileInZip(await res.arrayBuffer()));
+        return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
       }
       case 'siliconflow': {
         const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: size, batch_size: 1 }) });
+          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5 }) });
         if (!res.ok) await fail(res);
-        const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return u;
+        const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return keep(u);
       }
       case 'sd-webui': {
         const res = await fetch(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: I.steps || 24, sampler_name: I.sampler || 'Euler a', cfg_scale: I.scale || 6 }) });
+          body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: +I.steps || 20, sampler_name: I.sampler || 'Euler a', cfg_scale: +I.scale || 7,
+            ...(conn.model ? { override_settings: { sd_model_checkpoint: conn.model } } : {}) }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); if (!j.images?.[0]) throw new Error('SD 没有返回图片'); return b64png(j.images[0]);
       }
       case 'comfyui': {
-        if (!I.workflow) throw new Error('ComfyUI 要先在「画风」里粘贴工作流（API 格式）');
-        const wf = JSON.parse(I.workflow.replaceAll('%prompt%', JSON.stringify(full).slice(1, -1)).replaceAll('%negative%', JSON.stringify(neg).slice(1, -1)).replaceAll('%seed%', String(Math.floor(Math.random() * 1e9))));
+        const p = { model: conn.model, full, neg, W, H, steps: +I.steps || 20, scale: +I.scale || 7, sampler: I.sampler || 'euler_ancestral' };
+        // 自己的工作流：占位符换成这次的值（数字的连引号一起换，免得变成字符串）
+        const fill = s => [['prompt', JSON.stringify(full).slice(1, -1)], ['negative_prompt', JSON.stringify(neg).slice(1, -1)], ['negative', JSON.stringify(neg).slice(1, -1)], ['model', p.model || ''], ['sampler', p.sampler]]
+          .reduce((t, [k, v]) => t.replaceAll(`%${k}%`, v), [['seed', Math.floor(Math.random() * 1e9)], ['width', W], ['height', H], ['steps', p.steps], ['scale', p.scale]]
+            .reduce((t, [k, v]) => t.replaceAll(`"%${k}%"`, String(v)).replaceAll(`%${k}%`, String(v)), s));
+        const wf = I.workflow && I.workflow.trim() ? JSON.parse(fill(I.workflow)) : comfyDefault(p);
         const r1 = await fetch(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });
         if (!r1.ok) await fail(r1);
         const id = (await r1.json()).prompt_id;
@@ -298,17 +344,23 @@ export async function generateImage(prompt, app = '聊天', connIn) {
           await sleep(1000);
           const hj = await (await fetch(`${base}/history/${id}`)).json(), outs = hj[id] && hj[id].outputs;
           const img = outs && Object.values(outs).flatMap(o => o.images || [])[0];
-          if (img) return `${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`;
+          if (img) return keep(`${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`);
         }
         throw new Error('ComfyUI 等了 3 分钟还没出图');
       }
-      default: {     // GPT / OpenAI 兼容（含中转站、第三方）：/images/generations
-        const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size };
+      default: {     // OpenAI 官方 / 第三方：默认走 /images/generations；有的中转站只能走聊天接口出图
+        if (I.mode === 'chat') {
+          const res = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+            body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})` }] }) });
+          if (!res.ok) await fail(res);
+          const u = imageInReply(await res.json()); if (!u) throw new Error('聊天接口的回复里没有图片'); return keep(u);
+        }
+        const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size: `${W}x${H}` };
         const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) await fail(res);
         const j = await res.json(), d = (j.data || [])[0] || {};
         if (d.b64_json) return b64png(d.b64_json);
-        if (d.url) return d.url;
+        if (d.url) return keep(d.url);
         throw new Error('生图接口没有返回图片');
       }
     }
@@ -330,7 +382,8 @@ export async function synthesize(conn, text, { voice } = {}) {
   const T = conn.tts || {}, v = voice || T.voice || conn.voice || (CHANNELS.tts.find(x => x.v === conn.type) || {}).voice || '';
   const key = keysOf(conn)[0] || '', base = trim(conn.base), speed = T.speed || 1;
   const bad = async res => { throw new Error(await readErr(res)); };
-  switch (conn.type) {
+  // 第三方可以选「接口格式」：中转站转发的是 MiniMax / Fish / ElevenLabs 的格式时，照那家的发
+  switch (conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type) {
     case 'minimax-cn': case 'minimax-intl': {
       const res = await fetch(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0 }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
@@ -358,6 +411,16 @@ export async function synthesize(conn, text, { voice } = {}) {
     }
     case 'doubao-tts': {
       if (!conn.appId) throw new Error('豆包要填 App ID');
+      if (conn.ver !== 'v1') {   // V3 单向流式（2.0 音色）：一行一个 JSON，声音分段放在 data 里
+        const res = await fetch(base.replace(/\/api\/v\d\/?$/, '') + '/api/v3/tts/unidirectional', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Api-App-Id': conn.appId, 'X-Api-Access-Key': key, 'X-Api-Resource-Id': conn.resId || 'seed-tts-2.0' },
+          body: JSON.stringify({ user: { uid: 'asterphone' }, req_params: { text, speaker: v || 'zh_female_xiaohe_uranus_bigtts', audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: Math.round((speed - 1) * 100) } } }) });
+        if (!res.ok) await bad(res);
+        const parts = (await res.text()).match(/\{[^{}]*\}/g) || [], bytes = [];
+        for (const t of parts) { const j = JSON.parse(t); if (j.data) bytes.push(b64ToBlob(j.data)); else if (j.code && j.code !== 20000000) throw new Error(`${j.code} ${j.message || ''}`); }
+        if (!bytes.length) throw new Error('豆包没有返回声音');
+        return URL.createObjectURL(new Blob(bytes, { type: 'audio/mpeg' }));
+      }
       const res = await fetch(base + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer;' + key },
         body: JSON.stringify({ app: { appid: conn.appId, token: key, cluster: conn.model || 'volcano_tts' }, user: { uid: 'asterphone' },
           audio: { voice_type: v || 'BV001_streaming', encoding: 'mp3', speed_ratio: speed }, request: { reqid: Math.random().toString(36).slice(2) + Date.now(), text, operation: 'query' } }) });
@@ -372,6 +435,38 @@ export async function synthesize(conn, text, { voice } = {}) {
     }
   }
 }
+/* ---------- 音色：每家常用的列成表（快选）；能从网上拉的就拉（拉取） ---------- */
+const OPENAI_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'].map(v => [v, v]);
+const MINIMAX_VOICES = [['female-shaonv', '少女'], ['female-yujie', '御姐'], ['female-chengshu', '成熟女性'], ['female-tianmei', '甜美女性'], ['male-qn-qingse', '青涩青年'], ['male-qn-jingying', '精英青年'],
+  ['male-qn-badao', '霸道青年'], ['male-qn-daxuesheng', '青年大学生'], ['presenter_male', '男性主持人'], ['presenter_female', '女性主持人'], ['audiobook_male_1', '男性有声书'], ['audiobook_female_1', '女性有声书']];
+export const VOICES = {
+  'openai-tts': OPENAI_VOICES, 'custom-tts': OPENAI_VOICES, 'minimax-cn': MINIMAX_VOICES, 'minimax-intl': MINIMAX_VOICES,
+  elevenlabs: [['21m00Tcm4TlvDq8ikWAM', 'Rachel（女）'], ['EXAVITQu4vr4xnAvuAyY', 'Sarah（女）'], ['XB0fDUnXU5powFXDhCwa', 'Charlotte（女）'], ['JBFqnCBsd6RMkjVDRZzb', 'George（男）'], ['pNInz6obpgDQGcFmaJgB', 'Adam（男）'], ['onwK4e9ZLuTAKqWW03F9', 'Daniel（男）']],
+  'doubao-tts': [['zh_female_xiaohe_uranus_bigtts', '小何（2.0）'], ['BV001_streaming', '通用女声（1.0）'], ['BV002_streaming', '通用男声（1.0）']],
+  mimo: [['mimo_default', '默认']],
+};
+/** 从网上拉音色列表：[{ id, name }]；这家拉不了返回 null */
+export async function listVoices(conn) {
+  const key = keysOf(conn)[0] || '', base = trim(conn.base), type = conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type;
+  const get = async (url, opts) => { const res = await fetch(url, opts); if (!res.ok) throw new Error(await readErr(res)); return res.json(); };
+  try {
+    if (type === 'minimax-cn' || type === 'minimax-intl') {
+      const j = await get(base + '/v1/get_voice', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ voice_type: 'all' }) });
+      return [...(j.voice_cloning || []), ...(j.voice_generation || []), ...(j.system_voice || [])].map(x => ({ id: x.voice_id, name: x.voice_name || x.voice_id }));
+    }
+    if (type === 'fish') { const j = await get(base + '/model?page_size=100&self=true', { headers: { Authorization: 'Bearer ' + key } }); return (j.items || []).map(x => ({ id: x._id, name: x.title || x._id })); }
+    if (type === 'elevenlabs') { const j = await get(base + '/v1/voices', { headers: { 'xi-api-key': key } }); return (j.voices || []).map(x => ({ id: x.voice_id, name: x.name || x.voice_id })); }
+  } catch (e) {
+    const msg = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message;
+    log('error', '连接', `拉取音色失败（${conn.name || conn.type}）：${msg}`);
+    throw new Error(msg);
+  }
+  return null;
+}
+/** 试听：用这个接口、这个音色念一句 */
+export async function tryVoice(conn, voice, text = '你好呀，能听到我说话吗？') {
+  stopSpeak(); const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play().catch(() => {});
+}
 /** 测语音接口：说一句「你好呀」并播出来 */
 export async function testVoice(conn) {
   const url = await synthesize(conn, '你好呀，能听到我说话吗？');
@@ -379,9 +474,8 @@ export async function testVoice(conn) {
   return url;
 }
 /** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费） */
-export async function speak(text, { voice } = {}) {
+export async function speak(text, { voice, conn = resolveConn('tts', 'chat') } = {}) {
   stopSpeak();
-  const conn = resolveConn('tts', 'chat');
   if (conn) {
     try {
       const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
@@ -441,6 +535,8 @@ export function seedChannels() {
   C.seeded = C.seeded || {};
   // 以前「GPT / OpenAI 兼容」一个类型包了官方和中转站：地址不是 OpenAI 官方的，改成「第三方」
   for (const c of C.text) if (c.type === 'openai' && c.base && !/api\.openai\.com/.test(c.base)) { c.type = 'openai-compat'; changed = true; }
+  // 豆包以前只有 V1：已经填好密钥的老接口继续用 V1，新的默认 V3（2.0 音色）
+  for (const c of C.tts) if (c.type === 'doubao-tts' && !c.ver && keysOf(c).length) { c.ver = 'v1'; changed = true; }
   // 生图、语音也一样拆成「OpenAI 官方」和「第三方」；以前自动建的那个改用新名字
   for (const [kind, from, to, old] of [['image', 'openai-image', 'image-compat', 'GPT / OpenAI 兼容'], ['tts', 'openai-tts', 'custom-tts', 'OpenAI']]) for (const c of C[kind]) {
     if (c.type !== from) continue;

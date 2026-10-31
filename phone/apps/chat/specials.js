@@ -3,7 +3,8 @@ import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { generateImage, speak, stopSpeak } from '../../core/api.js';
+import { generateImage, stopSpeak } from '../../core/api.js';
+import { speakAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 
@@ -22,7 +23,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         if (!m.showText) { m.showText = true; saveMsgs(ctx.chat.id); ctx.redraw(true); }
         el.classList.add('is-playing');
-        try { await speak(m.text); } catch (err) { toast(err.message); }
+        try { await speakAs(mine ? 'me' : m.who || (ctx.c && ctx.c.id), m.text); } catch (err) { toast(err.message); }
         el.classList.remove('is-playing');
       });
       return el;
@@ -206,7 +207,7 @@ export function openCall(chat, c, mode = 'voice') {
     busy = true; say.disabled = true;
     try {
       const out = await E.callReply(chat, lines, mode);
-      for (const l of out) { if (ended) break; add('them', l); await speak(l.replace(/[（(][^）)]*[）)]/g, '')).catch(() => {}); }
+      for (const l of out) { if (ended) break; add('them', l); await speakAs(c.id, l.replace(/[（(][^）)]*[）)]/g, '')).catch(() => {}); }
     } catch (e) { add('them', '（信号不太好……）'); toast('回复失败：' + e.message); }
     busy = false; say.disabled = false;
   }
