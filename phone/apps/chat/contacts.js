@@ -11,11 +11,12 @@ export function renderContacts(ctx) {
   ctx.setRight(navBtn('plus', '添加', async () => {
     const v = await actionSheet('添加联系人', [
       { value: 'add', label: '手动添加好友', icon: 'user' }, { value: 'card', label: '从酒馆角色卡添加', icon: 'box' },
-      { value: 'ai', label: 'AI 智能加载（下一轮）', icon: 'sparkle' }, { value: 'lore', label: '从世界书添加（下一轮）', icon: 'note' },
+      { value: 'ai', label: 'AI 智能加载', icon: 'sparkle' }, { value: 'lore', label: '从世界书添加', icon: 'note' },
     ]);
     if (v === 'add') openContactForm();
     if (v === 'card') { await importFromTavern(); draw(); }
-    if (v === 'ai' || v === 'lore') toast('这个下一轮做');
+    if (v === 'ai') (await import('./aiload.js')).openAiLoad(draw);
+    if (v === 'lore') (await import('./aiload.js')).openLoreAdd(draw);
   }));
   const search = h('input', { placeholder: '搜索名字、备注', value: query, oninput: e => { query = e.target.value.trim(); draw(); } });
   const listBox = h('div');
@@ -27,13 +28,13 @@ export function renderContacts(ctx) {
     listBox.innerHTML = ''; indexBar.innerHTML = '';
     const all = sorted().filter(c => !query || [c.name, c.nick, c.remark].some(x => x && x.includes(query)));
     if (!query) listBox.appendChild(group('', [
-      item({ icon: 'user', color: 'orange', title: '新的朋友', chevron: true, onClick: () => simplePage('chat-contacts-new', '新的朋友', '还没有好友申请。以后 TA 在聊天里发名片给你，就会出现在这里。') }),
+      item({ icon: 'user', color: 'orange', title: '新的朋友', right: state.friendRequests.some(r => r.status === 'pending') ? h('span.as-badge', String(state.friendRequests.filter(r => r.status === 'pending').length)) : null, chevron: true, onClick: () => import('./aiload.js').then(m => m.openNewFriends()) }),
       item({ icon: 'users', color: 'green', title: '群聊', value: String(state.chats.filter(c => c.type === 'group').length), chevron: true, onClick: () => Promise.all([import('./group.js'), import('./room.js')]).then(([G, R]) => G.openGroupList(R.openRoom)) }),
       item({ icon: 'list', color: 'blue', title: '分组', value: String(state.groups.length), chevron: true, onClick: openGroups }),
     ]));
     if (!state.contacts.length) {
       listBox.appendChild(empty('还没有联系人', h('div', { style: { display: 'grid', gap: '10px' } },
-        btn('从酒馆角色卡添加', 'primary', async () => { await importFromTavern(); draw(); }), btn('手动添加', 'secondary', () => openContactForm()))));
+        btn('从酒馆角色卡添加', 'primary', async () => { await importFromTavern(); draw(); }), btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()))));
       return;
     }
     const stars = all.filter(c => c.star);

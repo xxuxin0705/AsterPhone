@@ -63,10 +63,9 @@ export function buildBubble(m, ctx) {
       el.addEventListener('click', async e => {
         e.stopPropagation();
         if (known) { (await import('./people.js')).openProfile(known.id); return; }
-        if (!(await dialog({ title: `加「${m.name}」为好友？`, text: `${mine ? '' : E.nameOf(ctx.c) + ' 推荐的名片。'}加了之后可以直接聊天。`, confirm: '加好友' }))) return;
-        const { blankContact } = await import('./people.js');
-        state.contacts.push({ ...blankContact(), name: m.name, source: 'card', persona: m.persona || '' });
-        commit('contacts'); toast(`已添加 ${m.name}`); ctx.redraw(true);
+        if (!(await dialog({ title: `加「${m.name}」为好友？`, text: `${mine ? '' : E.nameOf(ctx.c) + ' 推荐的名片。'}申请会放进「联系人 → 新的朋友」，在那里接受就能聊天了。`, confirm: '发送申请' }))) return;
+        const { addFriendRequest } = await import('./aiload.js');
+        toast(addFriendRequest(m.name, { from: mine ? '' : E.nameOf(ctx.c), persona: m.persona || '' }) ? '已放进「新的朋友」' : '已经申请过了');
       });
       return el;
     }

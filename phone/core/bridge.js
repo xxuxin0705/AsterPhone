@@ -87,3 +87,27 @@ export function hideTagsIn(mesId, tagName) {
 }
 export function chatMessage(mesId) { const c = ctx(); return c && c.chat ? c.chat[mesId] : null; }
 export function postToParent(msg) { try { P && P.postMessage(Object.assign({ aster: true }, msg), '*'); } catch (e) { /* 忽略 */ } }
+
+/* ---------- 世界书 ---------- */
+/** 所有世界书的名字（从酒馆的世界书下拉框里读） */
+export function worldNames() {
+  try {
+    const c = ctx();
+    if (c && Array.isArray(c.worldNames)) return c.worldNames.slice();
+    const opts = P.document.querySelectorAll('#world_editor_select option, #world_info option');
+    return [...new Set([...opts].map(o => o.textContent.trim()).filter(t => t && !/^-+|^---|None|无$/.test(t)))];
+  } catch (e) { return []; }
+}
+/** 读一本世界书的条目：[{uid, title, keys, content}] */
+export async function worldEntries(name) {
+  const c = ctx(); if (!c) return [];
+  let data = null;
+  try { if (typeof c.loadWorldInfo === 'function') data = await c.loadWorldInfo(name); } catch (e) { /* 用下面的 */ }
+  if (!data) {
+    const headers = c.getRequestHeaders ? c.getRequestHeaders() : { 'Content-Type': 'application/json' };
+    const res = await P.fetch('/api/worldinfo/get', { method: 'POST', headers, body: JSON.stringify({ name }) });
+    if (!res.ok) throw new Error('读不到世界书：' + res.status);
+    data = await res.json();
+  }
+  return Object.values((data && data.entries) || {}).map(e => ({ uid: e.uid, title: e.comment || (e.key || []).join('、') || ('条目 ' + e.uid), keys: e.key || [], content: e.content || '' }));
+}

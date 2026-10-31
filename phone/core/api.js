@@ -114,6 +114,12 @@ let demoIdx = 0;
 function demoReply(prompt) {
   if (/谁点赞/.test(prompt)) { const names = [...prompt.matchAll(/^- ([^：\n]+)/gm)].map(m => m[1].trim()); const a = names[0] || '某人', b = names[1] || a; return `赞|${a}\n评论|${b}|拍得不错\n回复|${a}|${b}|你也在线啊`; }
   if (/发一条朋友圈动态/.test(prompt)) return ['今天的晚霞好看到不想回家', '路过的猫比我还会生活 🐈', '下雨天，适合发呆'][demoIdx++ % 3];
+  if (/布置一部手机里的通讯录/.test(prompt)) return JSON.stringify({ people: [
+    { name: '沈知夏', nick: '夏夏', remark: '学姐', gender: '女', sign: '在写论文，勿扰', pokeSuffix: '的发卡', persona: '研究生学姐，温柔但嘴毒，经常给你带早饭。' },
+    { name: '陆铭', nick: '铭', remark: '室友', gender: '男', sign: '今天也要早睡（假的）', pokeSuffix: '的游戏机', persona: '大学室友，话痨，熬夜冠军。' },
+    { name: '程老板', nick: '咖啡店程', remark: '楼下咖啡店', gender: '男', sign: '新品上了', pokeSuffix: '', persona: '楼下咖啡店老板，跟你很熟。' }],
+    groups: [{ name: '宿舍夜话', intro: '你和室友、学姐的小群', notice: '周五聚餐', owner: '陆铭', members: ['陆铭', '沈知夏'] }] });
+  if (/找出里面写到的人物/.test(prompt)) return JSON.stringify({ people: [{ name: '白鸦', nick: '', remark: '', gender: '', sign: '', pokeSuffix: '', persona: '情报贩子。', entry: '' }] });
   if (/手机群聊/.test(prompt)) {
     const ns = [...prompt.matchAll(/^- ([^（：\n]+)/gm)].map(m => m[1].trim());
     const [a = '某人', b = a, c2 = b] = ns;

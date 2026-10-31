@@ -411,3 +411,14 @@
 .as-chat-tr span { margin-right: 6px; font-size: .78em; padding: 1px 5px; border-radius: 6px; background: color-mix(in srgb, var(--as-color-accent) 16%, transparent); color: var(--as-color-accent); }
 .as-chat-tr.is-orig { color: var(--as-color-text-2); }
 .as-phone[data-mode="night"] .as-chat-tr { background: rgba(255,255,255,.06); }
+
+/* AI 智能加载：预览勾选页 */
+.as-chat-pvs { display: grid; gap: 10px; padding: 10px; }
+.as-chat-pv { display: grid; gap: 6px; padding: 10px 12px; border-radius: 16px; background: rgba(255,255,255,.35); border: 1px solid var(--as-color-glass-line); transition: opacity var(--as-dur-base); }
+.as-phone[data-mode="night"] .as-chat-pv { background: rgba(255,255,255,.06); }
+.as-chat-pv.is-off { opacity: .45; }
+.as-chat-pv__head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.as-chat-pv__head b { font: 600 15px/1.2 var(--font-ui); }
+.as-chat-pv__head em { font-style: normal; font: 400 11px/1 var(--font-ui); padding: 2px 6px; border-radius: 999px; background: var(--as-color-surface-2); color: var(--as-color-text-2); }
+.as-chat-pv__f { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; font: 400 12px/1.2 var(--font-ui); color: var(--as-color-text-2); }
+.as-chat-pv__f .as-input, .as-chat-pv__f .as-textarea { padding: 7px 10px; font-size: 13px; min-height: 0; }

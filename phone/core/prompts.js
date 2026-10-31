@@ -60,6 +60,34 @@ export const DEFAULT_PROMPTS = {
 如果有人想私下单独找 {{user}}（比如不好意思在群里说、想吐槽群里的人），写成：
 私聊|名字：消息内容
 只输出这些行，不要别的。` },
+  aiLoad: { name: 'AI 智能加载联系人', group: 'chat', on: true,
+    text: `你在帮 {{user}} 布置一部手机里的通讯录。请根据下面的角色卡和剧情，想出 {{user}} 手机里会有哪些联系人{{withGroups}}。
+
+【角色卡】
+{{cards}}
+
+【{{user}} 的资料】
+{{user_persona}}
+
+【正文里最近发生的事】
+{{story}}
+
+【已经有的联系人（不要重复）】
+{{existing}}
+
+【要求】
+{{require}}
+
+只输出一个 JSON，不要别的文字，格式：
+{"people":[{"name":"真实姓名","nick":"网名","remark":"{{user}} 给 TA 的备注","gender":"男/女/其他","sign":"个性签名","pokeSuffix":"拍一拍后缀，比如 的小脑袋","persona":"两三句人设：身份、性格、和 {{user}} 的关系"}],
+ "groups":[{"name":"群名","intro":"这个群是干什么的","notice":"群公告，可以为空","owner":"群主名字（必须是 people 里的或已有联系人）","members":["成员名字"]}]}` },
+  lore: { name: '世界书拆人', group: 'chat', on: true,
+    text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
+
+{{entries}}
+
+只输出一个 JSON，不要别的文字，格式：
+{"people":[{"name":"真实姓名","nick":"网名","remark":"","gender":"","sign":"个性签名","pokeSuffix":"","persona":"根据条目写两三句人设","entry":"来自哪个条目（条目标题）"}]}` },
   moment: { name: '动态生成', group: 'chat', on: true,
     text: `你是 {{char}}。根据人设和最近的经历，发一条朋友圈动态。
 

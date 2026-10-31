@@ -97,6 +97,7 @@ async function autoTranslate(chat, m) {
 export const nameOf = c => (c && (c.remark || c.nick || c.name)) || '联系人';
 export function personaOf(c) {
   if (!c) return '';
+  if (c.loreText) return `${c.loreText}\n（这个设定里可能写了好几个人，你只扮演其中的「${c.name}」。）${c.persona ? '\n' + c.persona : ''}`;
   if (c.persona) return c.persona;
   if (c.charKey) { const ch = characters().find(k => k.key === c.charKey); if (ch) return ch.persona; }
   return '';
@@ -210,6 +211,7 @@ export async function requestReply(chat, opts = {}) {
   busy.add(chat.id); emit('typing', chat.id, true);
   try {
     const msgs = await getMsgs(chat.id);
+    if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
     const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
