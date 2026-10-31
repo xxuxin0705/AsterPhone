@@ -1,6 +1,6 @@
 # AsterPhone ✦
 
-SillyTavern 小手机插件（v0.6.42 预览版）。
+SillyTavern 小手机插件（v0.6.43 预览版）。
 
 ## 安装到酒馆
 酒馆 → 扩展 → 安装扩展 → 粘贴 `https://github.com/xxuxin0705/AsterPhone` → 安装。

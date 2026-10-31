@@ -10,7 +10,7 @@ import * as nav from '../../core/nav.js';
 import { CHANNELS, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
-import { openLibrary, openReadings, voiceInput } from './voices.js';
+import { openVoicePage, voiceInput } from './voices.js';
 import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/voice.js';
 
 const C = () => state.connections;
@@ -67,7 +67,7 @@ const vib = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e
 
 /* ================= 页面 ================= */
 export function openBoard({ list }) {
-  const p = page({ app: 'settings', id: 'settings-board', title: '', back: true, cls: 'as-pb-page', right: navBtn('more', '更多', () => menu()) });
+  const p = page({ app: 'settings', id: 'settings-board', title: '', back: true, cls: 'as-pb-page', right: [navBtn('mic', '音色库', () => voicePage(null, 'conn')), navBtn('more', '更多', () => menu())] });
   p.body.classList.add('as-pb-body');
   const head = h('div.as-pb__head', h('h1.as-pb__title', '连接'), h('div.as-pb__rule', h('i'), h('span', '✦'), h('i')), h('p.as-pb__sub', '拎起一根线，插进想用的接口'));
   const schemeChip = h('button.as-pb__scheme', { onclick: () => schemes() });
@@ -102,7 +102,7 @@ export function openBoard({ list }) {
     }
     const kindEl = h('span.as-pb__kind'), nameEl = h('span.as-pb__name'), subEl = h('span.as-pb__model'), usesEl = h('span.as-pb__uses'), pinEl = h('span.as-pb__pin', { 'aria-hidden': 'true' }, '📌');
     // 语音格子：底下挂着用这个渠道说话的人（语音线选中时才露出来），点一下打开音色库
-    const voicesEl = kind === 'tts' ? h('span.as-pb__voices', { onclick: e => { e.stopPropagation(); if (!avDrag && performance.now() >= quietUntil) openLibrary(t.c, paintVoices); } }) : null;
+    const voicesEl = kind === 'tts' ? h('span.as-pb__voices', { onclick: e => { e.stopPropagation(); if (!avDrag && performance.now() >= quietUntil) voicePage(t.c, 'people'); } }) : null;
     const el = h('div.as-pb__tile', { role: 'button', tabindex: 0, dataset: { kind, id: c.id } }, kindEl, pinEl, face, nameEl, subEl, usesEl, voicesEl, port);
     const t = { c, kind, el, face, eyes, qm, qSide: 1, port, nameEl, subEl, kindEl, usesEl, pinEl, voicesEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
     el.addEventListener('click', () => { if (dragging() || sorting || performance.now() < quietUntil) return; detail(t.c, t.kind); });
@@ -585,7 +585,8 @@ export function openBoard({ list }) {
   const detail = (c, k, isNew) => openDetail(c, k, isNew, hooks());
   const addNew = kind => newConn(kind || cur().kind, hooks());
   /* ================= 右上角菜单 ================= */
-  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list, voiceChanged: paintVoices });
+  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list });
+  const voicePage = (conn, tab) => openVoicePage({ conn, tab, onChange: paintVoices, openConn: c => detail(c, 'tts') });
   const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
     // 线一根根换过去：先拔下来，再飞到新接口
     plugs.forEach((pl, i) => { setTimeout(() => { const id = C().defaults[pl.use]; if (id && tileOf(id)) snapTo(pl, id, true); else { pl.mode = 'rest'; pl.target = null; } layoutLabels(); syncUses(); }, i * 140); });
@@ -605,18 +606,14 @@ export function openBoard({ list }) {
 }
 
 /** 右上角「…」：插线板模式和列表模式共用，只有最后一项（换成另一个模式）不一样 */
-export async function connMenu({ mode, schemes, add, switchMode, voiceChanged = () => {} }) {
+export async function connMenu({ mode, schemes, add, switchMode }) {
   const v = await actionSheet('连接', [
     { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
     { value: 'retry', label: '断线了怎么办' },
-    { value: 'voice', label: '音色库' },
-    { value: 'read', label: '读音表' },
     { value: 'add', label: '添加接口' },
     { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);
   if (v === 'scheme') schemes();
   if (v === 'retry') retrySheet();
-  if (v === 'voice') openLibrary(null, voiceChanged);
-  if (v === 'read') openReadings();
   if (v === 'add') add();
   if (v === 'mode') switchMode();
 }
@@ -894,7 +891,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         row('男声默认', voiceInput(() => d, T.male, set('male'))), row('女声默认', voiceInput(() => d, T.female, set('female'))),
         row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: T.speed, onInput: v => { T.speed = +v.toFixed(2); sp.textContent = T.speed + 'x'; touch(); re(); } }), sp)),
         row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: T.volume, onInput: v => { T.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)),
-        ...(isNew ? [] : [h('button.as-pbd__dash', { onclick: () => openLibrary(orig, paintVoices) }, icon('users', 15, 2), '音色库（每个人的声音）')]));
+        ...(isNew ? [] : [h('button.as-pbd__dash', { onclick: () => { s.close(); openVoicePage({ conn: orig, onChange: paintVoices }); } }, icon('mic', 15, 2), '音色库')]));
     }));
     if (!isNew) groups.push(h('div.as-pbd__danger', setDefault ? defBtn() : pinBtn(),
       h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),

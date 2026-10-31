@@ -1,7 +1,8 @@
 // 音色库 / 读音表的抽屉：插线板、列表模式、联系人资料都从这里打开（改的是同一份数据）
 import { h, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { toast, actionSheet, sheet, icon, input, segmented, switchEl, avatar } from '../../core/ui.js';
+import { toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
+import * as nav from '../../core/nav.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
 import { V, save, people, connFor, defaultConn, voiceOf } from '../../core/voice.js';
 
@@ -36,31 +37,60 @@ function voiceLabel(id, conn) {
   return v.from === 'own' ? (v.name || v.voice) : v.voice ? FROM[v.from] : '没有音色';
 }
 
-/** 音色库：统一 / 各自、渠道的默认音色、每个人。conn = 先看哪个渠道（从格子点进来就是那个格子） */
-export function openLibrary(conn, onChange = () => {}) {
+/** 音色库（一整页）：渠道（统一 / 各自、每个渠道的默认音色）· 角色库（每个人）· 读音表。三栏切换只是显示 / 藏起，不重画
+ *  conn = 先看哪个渠道；tab = 先打开哪一栏；onChange = 改了东西告诉插线板（重挂头像） */
+export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openConn } = {}) {
   if (!ttsList().length) { toast('先添加一个语音接口'); return; }
   let cur = conn || defaultConn() || ttsList()[0];
-  const chipBox = h('div.as-chips'), defBox = h('div'), list = h('div.as-vl__people');
-  const paintChips = () => chipBox.replaceChildren(...ttsList().map(c => h('button.as-chip' + (c.id === cur.id ? '.is-active' : ''), { onclick: () => { cur = c; paintChips(); paintDefaults(); paintPeople(); } }, c.name)));
-  // 渠道的三个默认音色：改了马上存（和接口详情里的是同一份）
+  const p = page({ app: 'settings', id: 'settings-voices', title: '音色库', back: true });
+  const changed = () => { paintPeople(); onChange(); };
+  /* 渠道 */
+  const chipBox = h('div.as-chips'), defBox = h('div');
+  const paintChips = () => chipBox.replaceChildren(...ttsList().map(c => h('button.as-chip' + (c.id === cur.id ? '.is-active' : ''), { onclick: () => { cur = c; paintChips(); paintDefaults(); } },
+    c.name + (c.id === (defaultConn() || {}).id ? ' · 默认' : ''))));
   const paintDefaults = () => {
     const T = cur.tts || (cur.tts = { voice: '', speed: 1, volume: 1 }), c = cur;
-    const set = k => v => { T[k] = v; commit('connections'); paintPeople(); onChange(); };
-    defBox.replaceChildren(row('当前音色', voiceInput(() => c, T.voice, set('voice'))), row('男声默认', voiceInput(() => c, T.male, set('male'))), row('女声默认', voiceInput(() => c, T.female, set('female'))));
+    const set = k => v => { T[k] = v; commit('connections'); changed(); };
+    defBox.replaceChildren(group('', [
+      h('div.as-field', h('span.as-field__label', '当前音色'), voiceInput(() => c, T.voice, set('voice'))),
+      h('div.as-field', h('span.as-field__label', '男声默认'), voiceInput(() => c, T.male, set('male'))),
+      h('div.as-field', h('span.as-field__label', '女声默认'), voiceInput(() => c, T.female, set('female'))),
+      ...(openConn ? [item({ title: '接口设置（地址、密钥、模型…）', chevron: true, onClick: () => openConn(c) })] : [])]));
   };
-  const paintPeople = () => list.replaceChildren(...people().map(p => {
-    const c = connFor(p.id), own = V().mode === 'each' && c && c.id !== (defaultConn() || {}).id;
-    return h('button.as-vl__person', { onclick: () => openPerson(p.id, () => { paintPeople(); onChange(); }) },
-      avatar(p.avatar, p.name, 34), h('span.as-vl__name', p.name), h('span.as-vl__sub', c ? (own ? `${c.name} · ` : '') + voiceLabel(p.id, c) : '没有语音接口'), icon('chevron', 14, 2));
+  const connTab = h('div',
+    group('每个人用哪个渠道', [h('div.as-field', segmented([['one', '统一一个渠道'], ['each', '每个人用自己的渠道']], V().mode, v => { V().mode = v; save(); changed(); }))]),
+    group('渠道', [h('div.as-field', chipBox)]), defBox,
+    group('', [toggleItem({ title: '没配音色的联系人用默认音色' }, V().useDefault, v => { V().useDefault = v; save(); changed(); })]));
+  /* 角色库 */
+  const list = h('div.as-vl__people');
+  const paintPeople = () => list.replaceChildren(...people().map(x => {
+    const c = connFor(x.id), own = V().mode === 'each' && c && c.id !== (defaultConn() || {}).id;
+    return h('button.as-vl__person', { onclick: () => openPerson(x.id, changed) },
+      avatar(x.avatar, x.name, 34), h('span.as-vl__name', x.name), h('span.as-vl__sub', c ? (own ? `${c.name} · ` : '') + voiceLabel(x.id, c) : '没有语音接口'), icon('chevron', 14, 2));
   }));
-  const content = h('div.as-pbd__wrap',
-    h('div.as-pbd__row', segmented([['one', '统一一个渠道'], ['each', '每个人用自己的渠道']], V().mode, v => { V().mode = v; save(); paintPeople(); onChange(); })),
-    row('渠道', chipBox), defBox,
-    h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '没配音色的联系人用默认音色'), switchEl(V().useDefault, v => { V().useDefault = v; save(); paintPeople(); onChange(); }, '没配音色的联系人用默认音色')),
-    list);
-  paintChips(); paintDefaults(); paintPeople();
-  sheet({ title: '音色库', cls: 'as-pbd', content });
+  const peopleTab = group('', [list]);
+  /* 读音表：改了马上存 */
+  const rbox = h('div');
+  const R = () => V().readings;
+  const paintReadings = () => rbox.replaceChildren(...R().map((r, i) => h('div.as-pbd__line.as-vl__reading',
+    input({ value: r.from, placeholder: '写法，如 銀時', onInput: v => { r.from = v.trim(); save(); } }), h('span.as-vl__arrow', '→'),
+    input({ value: r.to, placeholder: '读音，如 ぎんとき', onInput: v => { r.to = v.trim(); save(); } }),
+    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async () => {
+      const c = defaultConn(); if (!c) { toast('先插一个语音接口'); return; }
+      toast('正在合成…'); try { await tryVoice(c, voiceOf('me', c).voice, r.to || r.from); } catch (e) { toast('试听失败：' + e.message); }
+    } }, icon('play', 16, 2)),
+    h('button.as-pbd__ibtn', { 'aria-label': '删掉这一行', onclick: () => { R().splice(i, 1); save(); paintReadings(); } }, icon('close', 14, 2)))),
+    h('button.as-pbd__dash', { onclick: () => { R().push({ from: '', to: '' }); save(); paintReadings(); } }, icon('plus', 15, 2), '加一行'));
+  const readTab = group(withInfo('读音表', '念出来的时候把「写法」换成「读音」，比如日语人名。发语音、通话都会用，聊天里显示的字不变。'), [h('div.as-field', rbox)]);
+  /* 三栏 */
+  const tabs = { conn: connTab, people: peopleTab, read: readTab };
+  const show = k => Object.entries(tabs).forEach(([n, el]) => { el.hidden = n !== k; });
+  p.body.append(h('div', { style: { marginBottom: '14px' } }, segmented([['conn', '渠道'], ['people', '角色库'], ['read', '读音表']], tab, show)), connTab, peopleTab, readTab);
+  paintChips(); paintDefaults(); paintPeople(); paintReadings(); show(tab);
+  p.el._onShow = () => { paintChips(); paintDefaults(); paintPeople(); };   // 从接口设置回来：名字、默认渠道可能变了
+  nav.push(p.el);
 }
+const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
 
 /** 一个人的声音：（各自模式下）用哪个渠道 + 在那个渠道上存的几个音色，挑一个用。改完点保存 */
 export function openPerson(id, onDone = () => {}) {
@@ -95,23 +125,4 @@ export function openPerson(id, onDone = () => {}) {
     V().mode === 'each' ? row('声音渠道', connBtn) : null, box,
     h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => s.close() }, '取消'),
       h('button.as-pbd__save', { onclick: () => { V().people[id] = P; save(); toast('保存好了'); s.close(); onDone(); } }, '保存'))) });
-}
-
-/** 读音表：写法 → 读音（全局一张，发语音、通话念出来时都会换；显示的字不动） */
-export function openReadings() {
-  const rows = JSON.parse(JSON.stringify(V().readings));
-  const box = h('div');
-  const paint = () => box.replaceChildren(...rows.map((r, i) => h('div.as-pbd__line.as-vl__reading',
-    input({ value: r.from, placeholder: '写法，如 銀時', onInput: v => { r.from = v; } }), h('span.as-vl__arrow', '→'),
-    input({ value: r.to, placeholder: '读音，如 ぎんとき', onInput: v => { r.to = v; } }),
-    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async () => {
-      const c = defaultConn(); if (!c) { toast('先插一个语音接口'); return; }
-      toast('正在合成…'); try { await tryVoice(c, voiceOf('me', c).voice, r.to || r.from); } catch (e) { toast('试听失败：' + e.message); }
-    } }, icon('play', 16, 2)),
-    h('button.as-pbd__ibtn', { 'aria-label': '删掉这一行', onclick: () => { rows.splice(i, 1); paint(); } }, icon('close', 14, 2)))),
-    h('button.as-pbd__dash', { onclick: () => { rows.push({ from: '', to: '' }); paint(); } }, icon('plus', 15, 2), '加一行'));
-  paint();
-  const s = sheet({ title: '读音表', cls: 'as-pbd', content: h('div.as-pbd__wrap', box,
-    h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => s.close() }, '取消'),
-      h('button.as-pbd__save', { onclick: () => { V().readings = rows.filter(r => r.from.trim()).map(r => ({ from: r.from.trim(), to: r.to.trim() })); save(); toast('保存好了'); s.close(); } }, '保存'))) });
 }
