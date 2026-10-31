@@ -61,8 +61,13 @@ export function open() {
 
 /* ================= 连接 ================= */
 let connKind = 'text';
-function openConnections() {
-  sub('connections', '连接', (body, re) => {
+/** 连接首页：插线板（拖插头）；右上角可以切到老的列表模式 */
+async function openConnections() {
+  const { openPlugboard } = await import('./plug.js');
+  openPlugboard({ edit: (c, kind) => { connKind = kind; editConn(c); }, list: openConnList });
+}
+function openConnList() {
+  sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => editConn(null)))); return; }

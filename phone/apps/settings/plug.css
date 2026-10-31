@@ -1,0 +1,67 @@
+/* AsterPhone · 设置 → 连接 · 插线板 */
+.as-plug-body { padding: 0 !important; overflow: hidden !important; display: flex; }
+.as-plug { position: relative; flex: 1; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+  background-image: linear-gradient(rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.22) 1px, transparent 1px);
+  background-size: 14px 20px; background-position: center top; }
+.as-phone[data-mode="night"] .as-plug { background-image: linear-gradient(rgba(140,180,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(140,180,255,.06) 1px, transparent 1px); }
+.as-plug__canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+/* ---------- 模块轮播 ---------- */
+.as-plug__rail { position: absolute; left: 0; right: 0; top: 34px; height: 196px; z-index: 2; touch-action: none; }
+.as-plug__mod { position: absolute; left: 50%; top: 0; width: 188px; height: 196px; margin-left: -94px; padding: 24px 14px 0; border-radius: 28px; border: 1px solid rgba(255,255,255,.85);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; color: var(--as-color-text); font: inherit; text-align: center;
+  background: linear-gradient(160deg, rgba(255,255,255,.62), rgba(255,255,255,.24) 55%, rgba(220,240,255,.34));
+  box-shadow: inset 0 1px 0 #fff, inset 0 -10px 24px rgba(120,180,230,.18), 0 14px 30px rgba(14,60,110,.18);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3); transition: box-shadow 300ms, opacity 200ms; will-change: transform; }
+.as-plug__mod::before { content: ""; position: absolute; inset: 7px; border-radius: 22px; border: 1px solid rgba(255,255,255,.45); pointer-events: none; }
+.as-plug__mod::after { content: ""; position: absolute; left: 14%; right: 40%; top: 6px; height: 34%; border-radius: 22px 22px 60% 60%; background: linear-gradient(180deg, rgba(255,255,255,.55), transparent); pointer-events: none; }
+.as-phone[data-mode="night"] .as-plug__mod { border-color: rgba(170,200,255,.35); background: linear-gradient(160deg, rgba(120,160,230,.28), rgba(40,70,130,.22) 55%, rgba(60,110,190,.28));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 14px 30px rgba(0,0,0,.35); }
+.as-phone[data-mode="night"] .as-plug__mod::after { background: linear-gradient(180deg, rgba(255,255,255,.18), transparent); }
+.as-plug__screw { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #b9c6d8 55%, #7d8ba3); box-shadow: 0 1px 1px rgba(0,0,0,.15); }
+.as-plug__screw::after { content: ""; position: absolute; left: 1px; right: 1px; top: 3px; height: 1px; background: rgba(60,70,90,.45); transform: rotate(35deg); }
+.as-plug__screw:nth-child(1) { left: 12px; top: 12px; } .as-plug__screw:nth-child(2) { right: 12px; top: 12px; }
+.as-plug__screw:nth-child(3) { left: 12px; bottom: 12px; } .as-plug__screw:nth-child(4) { right: 12px; bottom: 12px; }
+.as-plug__led { position: absolute; right: 26px; top: 22px; width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #b8c2d0 60%, #8c97a8); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); transition: background 300ms, box-shadow 300ms; }
+.as-plug__led.is-idle { background: radial-gradient(circle at 35% 35%, #fff, #8fc6ff 55%, #3d8ee0); box-shadow: 0 0 8px rgba(80,160,255,.7); }
+.as-plug__led.is-ok { background: radial-gradient(circle at 35% 35%, #fff, #6ef0a6 50%, #1fae62); box-shadow: 0 0 10px 2px rgba(48,200,120,.75); }
+.as-plug__led.is-bad { background: radial-gradient(circle at 35% 35%, #fff, #ff8a8a 50%, #d93a3f); box-shadow: 0 0 10px 2px rgba(229,72,77,.75); animation: as-plug-blink 900ms steps(2) 2; }
+.as-plug__led.is-test { background: radial-gradient(circle at 35% 35%, #fff, #ffd27a 50%, #e39a1f); animation: as-plug-pulse 700ms ease-in-out infinite; }
+@keyframes as-plug-pulse { 50% { box-shadow: 0 0 12px 3px rgba(240,170,40,.8); } }
+@keyframes as-plug-blink { 50% { opacity: .25; } }
+.as-plug__logo { position: relative; z-index: 1; width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; font: 800 26px/1 var(--font-ui); color: #fff;
+  background: linear-gradient(160deg, var(--a1, #6fc2ff), var(--a2, #1f86dc)); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -6px 12px rgba(0,0,0,.12), 0 6px 14px rgba(20,80,160,.22); text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.as-plug__mod[data-hue="amber"] { --a1: #ffd08a; --a2: #f0a038; }
+.as-plug__mod[data-hue="coral"] { --a1: #ffb59a; --a2: #e7764f; }
+.as-plug__mod[data-hue="violet"] { --a1: #c4b1ff; --a2: #8a6cf0; }
+.as-plug__mod[data-hue="mint"] { --a1: #8eebc8; --a2: #2bb38a; }
+.as-plug__mod.is-add { border-style: dashed; border-color: rgba(18,137,214,.45); background: rgba(255,255,255,.22); }
+.as-plug__mod.is-add .as-plug__logo { background: rgba(18,137,214,.12); color: var(--as-color-accent); box-shadow: none; }
+.as-plug__name { position: relative; z-index: 1; font: 700 15px/1.2 var(--font-ui); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+.as-plug__type { position: relative; z-index: 1; font: 500 11px/1.2 var(--font-ui); color: var(--as-color-text-2, rgba(27,37,64,.62)); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 插孔：镀铬圈 + 深色槽 */
+.as-plug__socket { position: absolute; left: 50%; bottom: 13px; width: 52px; height: 22px; margin-left: -26px; border-radius: 11px; display: grid; place-items: center;
+  background: linear-gradient(180deg, #f4f7fb, #b4c0d0 45%, #e9eef5 55%, #9aa8bb); box-shadow: inset 0 1px 0 #fff, 0 2px 4px rgba(20,40,80,.25); }
+.as-plug__socket i { width: 38px; height: 10px; border-radius: 5px; background: linear-gradient(180deg, #0e1626, #2a3850); box-shadow: inset 0 2px 3px rgba(0,0,0,.6); transition: box-shadow 300ms; }
+.as-plug__mod.is-plugged .as-plug__socket i { box-shadow: inset 0 2px 3px rgba(0,0,0,.6), 0 0 10px 2px rgba(92,205,252,.55); }
+.as-plug__mod.is-center { box-shadow: inset 0 1px 0 #fff, inset 0 -10px 24px rgba(120,180,230,.18), 0 18px 36px rgba(14,60,110,.24); }
+
+/* ---------- 中间模块的说明 + 按钮 ---------- */
+.as-plug__info { position: absolute; top: 246px; left: 16px; right: 16px; z-index: 2; display: flex; align-items: flex-start; justify-content: space-between; pointer-events: none; transition: opacity 200ms; }
+.as-plug__info > * { pointer-events: auto; }
+.as-plug__info.is-hidden { opacity: 0; pointer-events: none; }
+.as-plug__info-text { width: calc(50% - 48px); min-width: 0; display: grid; gap: 2px; }   /* 中间留空给垂下来的插头 */
+.as-plug__info-text b { font: 700 15px/1.25 var(--font-ui); color: var(--as-color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-plug__info-text span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2, rgba(27,37,64,.62)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-plug__info-btns { width: calc(50% - 48px); display: grid; justify-items: end; gap: 6px; }
+.as-plug__pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,.8); border-radius: 99px; padding: 7px 11px; font: 600 12.5px/1 var(--font-ui); color: var(--as-color-accent); cursor: pointer;
+  background: rgba(255,255,255,.5); box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(14,60,110,.12); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.as-plug__pill:active { transform: scale(.95); }
+.as-phone[data-mode="night"] .as-plug__pill { background: rgba(120,160,230,.18); border-color: rgba(170,200,255,.3); color: #9fd2ff; box-shadow: none; }
+.as-plug__hint { position: absolute; top: 8px; left: 0; right: 0; z-index: 1; text-align: center; font: 500 12px/1.4 var(--font-ui); letter-spacing: .04em; color: var(--as-color-text-2, rgba(27,37,64,.62)); pointer-events: none; }
+
+/* ---------- 底部：这根线给谁 ---------- */
+.as-plug__tabs { position: absolute; left: 16px; right: 16px; bottom: max(14px, env(safe-area-inset-bottom, 0px)); z-index: 3; display: grid; gap: 6px; justify-items: center; }
+.as-plug__tabs-label { font: 600 11px/1 var(--font-ui); letter-spacing: .14em; color: var(--as-color-text-2, rgba(27,37,64,.62)); }
+.as-plug__tabs .as-segmented { width: 100%; }
+@media (prefers-reduced-motion: reduce) { .as-plug__led.is-test, .as-plug__led.is-bad { animation: none; } }
