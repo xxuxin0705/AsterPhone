@@ -54,7 +54,10 @@ export function defaults() {
     connections: {
       text: [{ id: 'tavern', name: '酒馆当前连接', type: 'tavern', fixed: true }],
       image: [], tts: [],
-      defaults: { text: 'tavern', image: '', tts: '' },
+      // 每根线（用途）插在哪个接口：聊天、杂活（副 API：动态、评论这类小活）、生图、语音
+      defaults: { text: 'tavern', aux: '', image: '', tts: '' },
+      retry: { on: true, max: 1, fallback: true },     // 断线了怎么办：重试几次；聊天线断了改插杂活接口
+      schemes: [], scheme: '',                          // 接线方案：整套「哪根线插哪」存起来一键换
     },
     apps: {
       chat: {

@@ -14,8 +14,12 @@ export const CHANNELS = {
   tts: [{ v: 'openai-tts', label: 'OpenAI 兼容（语音）', base: 'https://api.openai.com/v1' }],
 };
 
-/** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认 */
+/** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认。kind 可以是 text / aux（杂活，没插就跟聊天线走）/ image / tts */
 export function resolveConn(kind = 'text', app = 'chat', override = 'follow') {
+  if (kind === 'aux') {
+    const a = (state.connections.text || []).find(c => c.id === state.connections.defaults.aux);
+    return a || resolveConn('text', app);
+  }
   const list = state.connections[kind] || [];
   const pick = id => list.find(c => c.id === id);
   if (override && override !== 'follow' && pick(override)) return pick(override);
@@ -33,38 +37,84 @@ async function readErr(res) {
 }
 
 /** 生成文字。返回字符串。 */
-export async function generate({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天' }) {
+/** 这个接口的所有密钥（第一把 + 后来加的） */
+export const keysOf = c => [c.key, ...(c.keys || [])].map(k => String(k || '').trim()).filter(Boolean);
+const THINK = { low: 1024, medium: 4096, high: 12000 };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+/** 能不能换一把密钥 / 再试一次：密钥不对、被限流 → 换密钥；网络或服务器出错 → 重试 */
+const isKeyErr = m => /^(401|403|429)\b/.test(m);
+const isRetryErr = m => /^(408|409|425|429|5\d\d)\b/.test(m) || /连不上|Failed to fetch|network|timeout/i.test(m);
+
+/**
+ * 生成文字。返回字符串。
+ * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用「杂活」接口。
+ */
+export async function generate(opts) {
+  const { conn, app = '聊天' } = opts;
   if (!conn) throw new Error('还没有设置可用的连接');
-  const temp = temperature ?? conn.temperature ?? 0.9;
+  const R = state.connections.retry || {}, tries = 1 + (R.on ? Math.max(0, R.max | 0) : 0);
+  let last = null;
+  for (let t = 0; t < tries; t++) {
+    try { return await generateOnce(opts); }
+    catch (e) { last = e; if (!isRetryErr(e.message) || t === tries - 1) break; log('warn', app, `第 ${t + 1} 次失败，${t + 1 < tries ? '再试一次' : ''}：${e.message}`); await sleep(800 * (t + 1)); }
+  }
+  // 聊天线断了 → 改插杂活接口（只换一次，不来回换）
+  const aux = (state.connections.text || []).find(c => c.id === state.connections.defaults.aux);
+  if (R.fallback && !opts.noFallback && aux && aux.id !== conn.id && conn.id === state.connections.defaults.text) {
+    log('warn', app, `「${conn.name}」连不上，改用杂活接口「${aux.name}」`);
+    return generateOnce({ ...opts, conn: aux, noFallback: true });
+  }
+  throw last;
+}
+async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天' }) {
+  const P = conn.params || {};
+  const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
+  const think = THINK[P.thinking] || 0;
+  const keys = keysOf(conn);
+  let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   const t0 = performance.now();
   try {
     let out;
+    // 换密钥：当前这把被拒了就换下一把，直到都试过
+    const withKey = async fn => {
+      for (let n = 0; n < Math.max(1, keys.length); n++) {
+        const k = keys[(ki + n) % Math.max(1, keys.length)] || '';
+        try { const r = await fn(k); if (n) { conn.keyIdx = (ki + n) % keys.length; } return r; }
+        catch (e) { if (!isKeyErr(e.message) || n >= keys.length - 1) throw e; log('warn', app, `密钥 ${(ki + n) % keys.length + 1} 被拒（${e.message.slice(0, 3)}），换下一把`); }
+      }
+    };
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
       else out = await generateTavern({ system, prompt, maxTokens });
     } else if (conn.type === 'openai') {
-      const res = await fetch(trim(conn.base) + '/chat/completions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
-        body: JSON.stringify({ model: conn.model, temperature: temp, max_tokens: maxTokens, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) }),
+      out = await withKey(async key => {
+        const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
+        if (think) { body.reasoning_effort = P.thinking; delete body.temperature; body.max_completion_tokens = maxTokens + think; delete body.max_tokens; }
+        const res = await fetch(trim(conn.base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(await readErr(res));
+        const j = await res.json(); return j.choices?.[0]?.message?.content ?? '';
       });
-      if (!res.ok) throw new Error(await readErr(res));
-      const j = await res.json(); out = j.choices?.[0]?.message?.content ?? '';
     } else if (conn.type === 'claude') {
-      const res = await fetch(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: conn.model, max_tokens: maxTokens, temperature: Math.min(1, temp), system: system || undefined, messages: [{ role: 'user', content: prompt }] }),
+      out = await withKey(async key => {
+        // 提示词缓存：人设 / 设定这类每次都一样的东西走缓存，便宜又快
+        const sys = !system ? undefined : (conn.adv && conn.adv.cache) ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system;
+        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, messages: [{ role: 'user', content: prompt }] };
+        if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
+        const res = await fetch(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(await readErr(res));
+        const j = await res.json(); return (j.content || []).filter(p => p.type === 'text').map(p => p.text).join('');
       });
-      if (!res.ok) throw new Error(await readErr(res));
-      const j = await res.json(); out = (j.content || []).filter(p => p.type === 'text').map(p => p.text).join('');
     } else if (conn.type === 'gemini') {
-      const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:generateContent?key=${encodeURIComponent(conn.key || '')}`;
-      const res = await fetch(url, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: temp, maxOutputTokens: maxTokens } }),
+      out = await withKey(async key => {
+        const gc = { temperature: temp, maxOutputTokens: maxTokens + think };
+        if (think) gc.thinkingConfig = { thinkingBudget: think };
+        const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:generateContent?key=${encodeURIComponent(key)}`;
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
+        if (!res.ok) throw new Error(await readErr(res));
+        const j = await res.json(); return (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
       });
-      if (!res.ok) throw new Error(await readErr(res));
-      const j = await res.json(); out = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
     } else throw new Error('这个渠道还不能用来生成文字：' + conn.type);
     log('info', app, `生成完成（${conn.name}，${Math.round(performance.now() - t0)} 毫秒）`);
     return String(out || '').trim();
@@ -97,7 +147,8 @@ export async function listModels(conn) {
 
 /** 测试连接：发一句很短的话 */
 export async function testConn(conn) {
-  const out = await generate({ conn, system: '', prompt: '只回复两个字：在的', maxTokens: 12, app: '设置' });
+  // 测的就是这一个接口：不重试、不改插别的
+  const out = await generateOnce({ conn, system: '', prompt: '只回复两个字：在的', maxTokens: 24, app: '设置' });
   if (!out) throw new Error('连上了，但没有返回内容');
   return out;
 }
@@ -137,7 +188,7 @@ export async function generateImage(prompt, app = '聊天') {
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里加一个');
   const res = await fetch(trim(conn.base) + '/images/generations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
-    body: JSON.stringify({ model: conn.model || undefined, prompt, n: 1, size: conn.size || '1024x1024', response_format: 'b64_json' }),
+    body: JSON.stringify({ model: conn.model || undefined, prompt: [conn.img && conn.img.tags, prompt].filter(Boolean).join(', ') + (conn.img && conn.img.neg ? `\n\nAvoid: ${conn.img.neg}` : ''), n: 1, size: (conn.img && conn.img.size) || conn.size || '1024x1024', response_format: 'b64_json' }),
   });
   if (!res.ok) { const msg = await readErr(res); log('error', app, '生图失败：' + msg); throw new Error(msg); }
   const j = await res.json(), d = (j.data || [])[0] || {};
@@ -155,10 +206,10 @@ export async function speak(text, { voice } = {}) {
     try {
       const res = await fetch(trim(conn.base) + '/audio/speech', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
-        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: voice || conn.voice || 'alloy' }),
+        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: voice || (conn.tts && conn.tts.voice) || conn.voice || 'alloy', speed: (conn.tts && conn.tts.speed) || 1 }),
       });
       if (!res.ok) throw new Error(await readErr(res));
-      const a = new Audio(URL.createObjectURL(await res.blob())); playing = a; await a.play();
+      const a = new Audio(URL.createObjectURL(await res.blob())); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
       return new Promise(r => { a.onended = r; a.onerror = r; });
     } catch (e) { log('warn', '语音', '语音连接朗读失败，改用浏览器朗读：' + e.message); }
   }

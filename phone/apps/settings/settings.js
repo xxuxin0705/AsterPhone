@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.5.5';
+export const VERSION = '0.6.0';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -61,8 +61,13 @@ export function open() {
 
 /* ================= 连接 ================= */
 let connKind = 'text';
-function openConnections() {
-  sub('connections', '连接', (body, re) => {
+/** 连接首页：插线板（拎线插接口）；右上角菜单里可以切到老的列表模式 */
+async function openConnections() {
+  const { openBoard } = await import('./board.js');
+  openBoard({ list: openConnList });
+}
+function openConnList() {
+  sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => editConn(null)))); return; }
