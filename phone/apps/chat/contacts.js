@@ -28,7 +28,7 @@ export function renderContacts(ctx) {
     const all = sorted().filter(c => !query || [c.name, c.nick, c.remark].some(x => x && x.includes(query)));
     if (!query) listBox.appendChild(group('', [
       item({ icon: 'user', color: 'orange', title: '新的朋友', chevron: true, onClick: () => simplePage('chat-contacts-new', '新的朋友', '还没有好友申请。以后 TA 在聊天里发名片给你，就会出现在这里。') }),
-      item({ icon: 'users', color: 'green', title: '群聊', chevron: true, onClick: () => simplePage('chat-contacts-groups', '群聊', '群聊下一轮就来') }),
+      item({ icon: 'users', color: 'green', title: '群聊', value: String(state.chats.filter(c => c.type === 'group').length), chevron: true, onClick: () => Promise.all([import('./group.js'), import('./room.js')]).then(([G, R]) => G.openGroupList(R.openRoom)) }),
       item({ icon: 'list', color: 'blue', title: '分组', value: String(state.groups.length), chevron: true, onClick: openGroups }),
     ]));
     if (!state.contacts.length) {

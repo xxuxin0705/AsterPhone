@@ -3,7 +3,8 @@ import { h, onLongPress } from '../../core/util.js';
 import { state, commit, contact, chatForContact, clearMsgs, subscribe } from '../../core/store.js';
 import { avatar, icon, badge, segmented, navBtn, actionSheet, dialog, toast, empty, btn } from '../../core/ui.js';
 import * as time from '../../core/time.js';
-import { nameOf, avatarOf } from './engine.js';
+import { nameOf, avatarOf, groupTitle } from './engine.js';
+import { groupAvatar, createGroupFlow } from './group.js';
 import { openRoom } from './room.js';
 import { pickContact, openContactForm, importFromTavern } from './people.js';
 
@@ -21,16 +22,18 @@ export function renderMessages(ctx) {
       { value: 'add', label: '添加好友', icon: 'user' }, { value: 'card', label: '从酒馆角色卡添加', icon: 'box' },
     ]);
     if (v === 'dm') { const c = await pickContact('发起单聊'); if (c) openRoom(chatForContact(c.id, true)); }
-    if (v === 'group') toast('群聊下一轮做');
+    if (v === 'group') newGroup();
     if (v === 'add') openContactForm();
     if (v === 'card') { await importFromTavern(); draw(); }
   }
+  async function newGroup() { const g = await createGroupFlow(); if (g) openRoom(g); }
   function draw() {
     listBox.innerHTML = '';
-    if (filter === 'group') { listBox.appendChild(empty('群聊下一轮就来')); return; }
-    const list = state.chats.filter(c => c.type === 'dm' && contact(c.contactId))
-      .filter(c => !query || nameOf(contact(c.contactId)).includes(query) || (c.lastText || '').includes(query))
+    const titleOf = c => c.type === 'group' ? c.name : nameOf(contact(c.contactId));
+    const list = state.chats.filter(c => (c.type === 'group' || contact(c.contactId)) && (filter === 'all' || (filter === 'dm' ? c.type === 'dm' : c.type === 'group')))
+      .filter(c => !query || titleOf(c).includes(query) || (c.lastText || '').includes(query))
       .sort((a, b) => (b.pinned - a.pinned) || (b.lastAt - a.lastAt));
+    if (!list.length && filter === 'group') { listBox.appendChild(empty('还没有群聊', btn('发起群聊', 'primary', newGroup))); return; }
     if (!list.length) {
       listBox.appendChild(query ? empty('没有找到相关的聊天') : empty('还没有聊天', h('div', { style: { display: 'grid', gap: '10px' } },
         btn('去添加联系人', 'primary', () => ctx.switchTab('contacts')),
@@ -44,8 +47,9 @@ export function renderMessages(ctx) {
     const pinned = list.filter(c => c.pinned);
     if (pinned.length) sections.push(['__pin', '置顶', pinned]);
     const rest = list.filter(c => !c.pinned);
-    state.groups.forEach(g => { const xs = rest.filter(c => contact(c.contactId).group === g); if (xs.length) sections.push([g, g, xs]); });
-    const others = rest.filter(c => !state.groups.includes(contact(c.contactId).group));
+    const grp = c => c.type === 'group' ? '__groupchat' : contact(c.contactId).group;
+    state.groups.forEach(g => { const xs = rest.filter(c => grp(c) === g); if (xs.length) sections.push([g, g, xs]); });
+    const others = rest.filter(c => !state.groups.includes(grp(c)));
     if (others.length) sections.push(['__rest', sections.length ? '其他' : '', others]);
     sections.forEach(([key, label, xs]) => {
       const sec = h('section.as-chat-sec' + (fold[key] ? '.is-folded' : ''));
@@ -56,8 +60,9 @@ export function renderMessages(ctx) {
     });
   }
   function row(chat) {
-    const c = contact(chat.contactId), name = nameOf(c);
-    const ava = h('span.as-chat-conv__ava', (() => { const a = avatar(avatarOf(c, chat), name, 48); a.style.borderRadius = (chat.cfg.avatarRadius ?? (chat.cfg.avatarShape === 'square' ? 24 : 50)) + '%'; return a; })(),
+    const isG = chat.type === 'group';
+    const c = isG ? { name: chat.name } : contact(chat.contactId), name = isG ? groupTitle(chat) : nameOf(c);
+    const ava = h('span.as-chat-conv__ava', isG ? groupAvatar(chat, 48) : (() => { const a = avatar(avatarOf(c, chat), name, 48); a.style.borderRadius = (chat.cfg.avatarRadius ?? (chat.cfg.avatarShape === 'square' ? 24 : 50)) + '%'; return a; })(),
       chat.muted ? (chat.unread ? h('span.as-chat-dot') : null) : badge(chat.unread || 0));
     const icons = h('span.as-chat-conv__icons',
       chat.cfg.streak && chat.streak && chat.streak.days >= 2 ? h('span.is-flame', icon('flame', 13, 2), chat.streak.days) : null,
@@ -71,7 +76,7 @@ export function renderMessages(ctx) {
     return el;
   }
   async function menu(chat) {
-    const v = await actionSheet(nameOf(contact(chat.contactId)), [
+    const v = await actionSheet(chat.type === 'group' ? chat.name : nameOf(contact(chat.contactId)), [
       { value: 'pin', label: chat.pinned ? '取消置顶' : '置顶', icon: 'bookmark' },
       { value: 'unread', label: chat.unread ? '标为已读' : '标为未读', icon: 'chat' },
       { value: 'mute', label: chat.muted ? '取消免打扰' : '消息免打扰', icon: 'bell' },

@@ -60,7 +60,7 @@ export async function sendSpecial(chat, fields) {
   const msgs = await getMsgs(chat.id);
   const m = { id: uid('m'), from: 'me', ...fields, ...time.stamp() };
   if ((m.type === 'transfer' || m.type === 'packet') && !m.status) m.status = 'pending';
-  if (m.type === 'transfer' || m.type === 'packet') ledger(-m.amount, `给 ${nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
+  if (m.type === 'transfer' || m.type === 'packet') ledger(-m.amount, `给 ${isGroup(chat) ? chat.name : nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
   msgs.push(m); touch(chat, m);
   saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
   return m;
@@ -73,10 +73,11 @@ export function ledger(amount, note) {
 }
 /** 我点开 TA 的转账 / 红包：收下或退还 */
 export async function settle(chat, m, accept) {
+  const who = nameOf(contact(m.who || chat.contactId));
   m.status = accept ? 'accepted' : 'returned';
-  if (accept) ledger(m.amount, `收到 ${nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
+  if (accept) ledger(m.amount, `收到 ${who} 的${m.type === 'packet' ? '红包' : '转账'}`);
   saveMsgs(chat.id);
-  await addSystem(chat, `你${accept ? '收下了' : '退还了'}「${nameOf(contact(chat.contactId))}」的${m.type === 'packet' ? '红包' : '转账'} ${money(m.amount)}`);
+  await addSystem(chat, `你${accept ? '收下了' : '退还了'}「${who}」的${m.type === 'packet' ? '红包' : '转账'} ${money(m.amount)}`);
   emit('reload', chat.id);
 }
 export { emit };
@@ -123,6 +124,7 @@ export function parseReply(raw, c) {
   return { lines, inner };
 }
 export async function requestReply(chat) {
+  if (isGroup(chat)) return requestGroupReply(chat);
   if (busy.has(chat.id)) return;
   const c = contact(chat.contactId);
   const conn = resolveConn('text', 'chat', chat.cfg.conn);
@@ -170,6 +172,77 @@ export async function requestReply(chat) {
     busy.delete(chat.id); emit('typing', chat.id, false);
   }
 }
+/* ---------- 群聊 ---------- */
+export const isGroup = chat => chat && chat.type === 'group';
+export const memberName = id => id === 'me' ? (state.me.nick || myName()) : nameOf(contact(id));
+export function groupTitle(chat) { return `${chat.name || '群聊'}(${(chat.members || []).length + 1})`; }
+export function createGroup(memberIds, name) {
+  const d = state.apps.chat.defaults;
+  const g = { id: uid('g_'), type: 'group', name: name || memberIds.slice(0, 3).map(id => nameOf(contact(id))).join('、'), avatar: '', members: memberIds.slice(), owner: 'me', admins: [], titles: {}, intro: '', notice: '',
+    pinned: false, muted: false, unread: 0, lastAt: Date.now(), lastText: '',
+    cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: false, showThink: false, conn: 'follow', temperature: null, maxSpeakers: 3, minLines: 1, maxLines: 3,
+      bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline' } };
+  state.chats.push(g); commit('chats');
+  return g;
+}
+function groupHistory(msgs, n = 30) {
+  return msgs.filter(m => !m.recalled).slice(-n).map(m => {
+    if (m.from === 'sys') return `（${m.text}）`;
+    const who = m.from === 'me' ? myName() : memberName(m.who);
+    const q = m.quote ? `（引用「${m.quote.text}」）` : '';
+    return `${who}：${q}${forAI(m)}`;
+  }).join('\n') || '（群里还没人说话）';
+}
+export async function requestGroupReply(chat) {
+  if (busy.has(chat.id)) return;
+  busy.add(chat.id); emit('typing', chat.id, true);
+  try {
+    const msgs = await getMsgs(chat.id);
+    const members = chat.members.map(contact).filter(Boolean);
+    if (!members.length) throw new Error('群里没有其他人');
+    const lastMine = [...msgs].reverse().find(m => m.from === 'me');
+    const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
+    const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${(personaOf(p) || '（没有更多资料）').slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
+    const prompt = render('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story: chat.cfg.linkMode === 'follow' ? (recentStory(6) || '（暂无）') : '（这个群只在手机上，和正文无关）',
+      time: time.forPrompt(), history: groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : ''), max: chat.cfg.maxSpeakers || 3 });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: [globalSystem(), specialsGuide()].join('\n\n'), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: '群聊' });
+    const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
+    msgs.forEach(m => { if (m.from === 'me') m.read = true; });
+    const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
+    const batch = uid('b'); let shown = 0;
+    for (const raw of clean.split('\n').map(l => l.trim()).filter(Boolean)) {
+      const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
+      if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
+      const mm = /^([^:：]{1,16})[:：]\s*(.+)$/.exec(raw); if (!mm) continue;
+      const p = find(mm[1]); if (!p) continue;
+      const parsed = parseLine(mm[2].trim());
+      if (['accept', 'return', 'poke-them'].includes(parsed.type)) {
+        if (parsed.type === 'poke-them') await addSystem(chat, `「${nameOf(p)}」拍了拍你${state.me.pokeSuffix || ''}`);
+        continue;
+      }
+      if (shown) { emit('typing', chat.id, true); await sleep(Math.min(2200, 380 + String(parsed.text || '').length * 60)); }
+      const m = { id: uid('m'), from: 'them', who: p.id, ...parsed, batch, ...time.stamp() };
+      msgs.push(m); touch(chat, m); chat.lastText = `${nameOf(p)}：${preview(m)}`; shown++;
+      if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
+      saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
+      shell.notify({ chatId: chat.id, title: chat.name, text: `${nameOf(p)}：${preview(m)}`, avatarUrl: chat.avatar || p.avatar });
+      if (shown >= (chat.cfg.maxSpeakers || 3) * 3) break;
+    }
+    if (!shown) await addSystem(chat, '大家好像都在忙，没人回');
+  } catch (e) { emit('error', chat.id, e.message || String(e)); }
+  finally { busy.delete(chat.id); emit('typing', chat.id, false); }
+}
+/** 群里有人转去私聊你 */
+async function deliverDM(p, text) {
+  const dmc = chatForContact(p.id, true), msgs = await getMsgs(dmc.id);
+  const m = { id: uid('m'), from: 'them', ...parseLine(text.trim()), fromGroup: true, ...time.stamp() };
+  if (['accept', 'return', 'poke-them'].includes(m.type)) return;
+  msgs.push(m); touch(dmc, m);
+  if (shell.activeChat !== dmc.id || !shell.visible) dmc.unread = (dmc.unread || 0) + 1;
+  saveMsgs(dmc.id); commit('chats'); emit('msg', dmc.id, m);
+  shell.notify({ chatId: dmc.id, title: nameOf(p), text: preview(m), avatarUrl: avatarOf(p, dmc) });
+}
+
 /** 通话中：TA 接着说几句（不写进聊天记录，挂断时整段变成一条通话记录） */
 export async function callReply(chat, lines, mode) {
   const c = contact(chat.contactId), msgs = await getMsgs(chat.id);

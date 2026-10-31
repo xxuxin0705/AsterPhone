@@ -114,6 +114,11 @@ let demoIdx = 0;
 function demoReply(prompt) {
   if (/谁点赞/.test(prompt)) { const names = [...prompt.matchAll(/^- ([^：\n]+)/gm)].map(m => m[1].trim()); const a = names[0] || '某人', b = names[1] || a; return `赞|${a}\n评论|${b}|拍得不错\n回复|${a}|${b}|你也在线啊`; }
   if (/发一条朋友圈动态/.test(prompt)) return ['今天的晚霞好看到不想回家', '路过的猫比我还会生活 🐈', '下雨天，适合发呆'][demoIdx++ % 3];
+  if (/手机群聊/.test(prompt)) {
+    const ns = [...prompt.matchAll(/^- ([^（：\n]+)/gm)].map(m => m[1].trim());
+    const [a = '某人', b = a, c2 = b] = ns;
+    return `${b}：去啊 我早就想去了\n${b}：[表情包]开心\n${a}：几点集合\n私聊|${c2}：你俩去吧 我这周加班 别跟他们说我有点失落`;
+  }
   if (/正在(语音|视频)通话/.test(prompt)) return ['喂？听得到吗', '（那边有点风声）我刚到楼下'][demoIdx++ % 2];
   if (/只回复两个字/.test(prompt)) return '在的';
   const lines = DEMO[demoIdx++ % DEMO.length];

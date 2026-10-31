@@ -113,7 +113,7 @@ export function renderNotices() {
   const list = state.chats.filter(c => c.unread > 0 && !c.muted).sort((a, b) => b.lastAt - a.lastAt);
   noticeBox.innerHTML = '';
   list.slice(0, 3).forEach(c => {
-    const p = contact(c.contactId) || {};
+    const p = c.type === 'group' ? { name: c.name, avatar: c.avatar } : (contact(c.contactId) || {});
     const name = p.remark || p.nick || p.name || '联系人';
     const text = c.unread > 1 ? `[${c.unread}条] ${c.lastText}` : c.lastText;
     noticeBox.appendChild(h('div.as-lock-notice__item', { role: 'button', tabindex: 0, dataset: { chat: c.id } },

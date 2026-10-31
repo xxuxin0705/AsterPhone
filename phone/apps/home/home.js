@@ -37,7 +37,7 @@ export function renderBadges() {
   const latest = state.chats.filter(c => c.unread > 0 && !c.muted).sort((a, b) => b.lastAt - a.lastAt)[0];
   wMsg.hidden = !latest; wMsg.innerHTML = '';
   if (latest) {
-    const p = contact(latest.contactId) || {};
+    const p = latest.type === 'group' ? { name: latest.name } : (contact(latest.contactId) || {});
     wMsg.append(icon('chat', 16, 1.8), h('span', h('b', (p.remark || p.nick || p.name || '联系人') + '：'), latest.lastText));
     wMsg.onclick = () => shell.openApp('chat', { from: wMsg, chat: latest.id });
   }

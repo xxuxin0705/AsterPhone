@@ -82,6 +82,10 @@ export function lineOf({ chat, m }) {
   const c = contact(chat.contactId), other = c ? (c.name || c.nick || c.remark) : 'TA', me = myName();
   const when = time.isStory() && m.st ? `第${m.st.d}天 ${String(Math.floor(m.st.m / 60)).padStart(2, '0')}:${String(m.st.m % 60).padStart(2, '0')}` : new Date(m.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   if (m.from === 'sys') return `（${when}）${m.text}`;
+  if (chat.type === 'group') {
+    const w = m.from === 'me' ? me : (() => { const p = contact(m.who); return p ? (p.name || p.nick || p.remark) : '某人'; })();
+    return `（${when}）[群聊「${chat.name}」] ${w}：${m.quote ? `（引用「${m.quote.text}」）` : ''}${forAI(m)}`;
+  }
   const q = m.quote ? `（引用「${m.quote.text}」）` : '';
   const body = forAI(m);
   return m.from === 'me' ? `（${when}）${me} 发给 ${other}：${q}${body}` : `（${when}）${other} 发给 ${me}：${q}${body}`;

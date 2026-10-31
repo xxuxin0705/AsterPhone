@@ -10,6 +10,7 @@ import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
+import { groupAvatar, openGroupSettings } from './group.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
 
@@ -37,17 +38,21 @@ const solo = m => m.from === 'sys' || m.recalled;
 const PAGE_SIZE = 80;
 
 export async function openRoom(chat) {
-  const c = contact(chat.contactId);
+  const g = E.isGroup(chat);
+  const c = g ? { id: null, name: chat.name, nick: '', remark: '', avatar: chat.avatar, sign: chat.intro, pokeSuffix: '' } : contact(chat.contactId);
   if (!c) { toast('这个联系人不在了'); return; }
+  const title = () => g ? E.groupTitle(chat) : E.nameOf(c);
+  const sender = m => g ? (contact(m.who) || { name: '已退群的人' }) : c;   // 这条 TA 的消息是谁发的
+  const headAvatar = () => g ? groupAvatar(chat, 32) : chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...chat.cfg, avatarSize: 32 });
   const msgs = await getMsgs(chat.id);
   let shown = Math.min(msgs.length, PAGE_SIZE), quote = null, selecting = false;
   const selected = new Set();
 
   /* ---------- 骨架 ---------- */
-  const nameEl = h('div.as-chat-room__name', E.nameOf(c)), statusEl = h('div.as-chat-room__status');
-  const p = page({ app: 'chat', id: 'chat-room', back: true, cls: 'as-chat-room', right: navBtn('more', '聊天设置', () => openSettings(chat, redraw)) });
-  const headAva = h('span.as-chat-room__ava', chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...chat.cfg, avatarSize: 32 }));
-  headAva.addEventListener('click', () => openProfile(c.id, { onMessage: () => nav.pop() }));
+  const nameEl = h('div.as-chat-room__name', title()), statusEl = h('div.as-chat-room__status');
+  const p = page({ app: 'chat', id: 'chat-room', back: true, cls: 'as-chat-room', right: navBtn('more', '聊天设置', () => g ? openGroupSettings(chat, redraw) : openSettings(chat, redraw)) });
+  const headAva = h('span.as-chat-room__ava', headAvatar());
+  headAva.addEventListener('click', () => g ? openGroupSettings(chat, redraw) : openProfile(c.id, { onMessage: () => nav.pop() }));
   p.nav.querySelector('.as-navbar__title').replaceChildren(headAva, h('div.as-chat-room__names', nameEl, statusEl));
   p.nav.classList.add('is-inline');
   const list = h('div.as-chat-msgs', { role: 'log', 'aria-live': 'polite' });
@@ -87,15 +92,19 @@ export async function openRoom(chat) {
       return frag;
     }
     const me = m.from === 'me', A = avatarCfg(chat.cfg);
-    const cont = prev && !sep && prev.from === m.from && !solo(prev);
-    const lastOfRun = !next || next.from !== m.from || solo(next) || !!sepFor(next, m);
+    const same = (a, b) => a.from === b.from && (a.who || '') === (b.who || '');
+    const cont = prev && !sep && same(prev, m) && !solo(prev);
+    const lastOfRun = !next || !same(next, m) || solo(next) || !!sepFor(next, m);
+    const who = me ? null : sender(m);
     const showAva = me ? A.me : A.them;
     let ava = null;
     if (showAva) {
-      ava = chatAvatar(me ? E.myAvatarIn(chat) : E.avatarOf(c, chat), me ? (state.me.nick || '我') : E.nameOf(c), chat.cfg);
-      ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me);
+      ava = chatAvatar(me ? E.myAvatarIn(chat) : (g ? who.avatar : E.avatarOf(c, chat)), me ? (state.me.nick || '我') : E.nameOf(who), chat.cfg);
+      ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me, who);
     }
-    const bubble = buildBubble(m, { chat, c, redraw });
+    const bubble = buildBubble(m, { chat, c: me ? c : who, redraw });
+    const nameTag = g && !me && !cont ? h('div.as-chat-msg__name', E.nameOf(who),
+      chat.owner === m.who ? h('em.is-owner', '群主') : (chat.admins || []).includes(m.who) ? h('em', '管理员') : chat.titles[m.who] ? h('em', chat.titles[m.who]) : null) : null;
     onLongPress(bubble, () => { if (!selecting) openMenu(m, bubble); });
     bubble.addEventListener('pointerdown', () => bubble.classList.add('is-pressed'));
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bubble.addEventListener(ev, () => bubble.classList.remove('is-pressed')));
@@ -111,7 +120,7 @@ export async function openRoom(chat) {
       if (me && chat.cfg.showRead !== false) bits.unshift(m.read ? '已读' : '送达');
       if (bits.length) meta.push(h('span', bits.join(' · ')));
     }
-    const col = h('div.as-chat-msg__col',
+    const col = h('div.as-chat-msg__col', nameTag,
       !me && m.inner && chat.cfg.showThink ? h('button.as-chat-inner', { onclick: e => e.currentTarget.classList.toggle('is-open') }, '💭', h('span', `${E.nameOf(c)} 心里在想：${m.inner}`)) : null,
       bubble, rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,
       tags.length ? h('div.as-chat-msg__tags', tags) : null,
@@ -132,29 +141,31 @@ export async function openRoom(chat) {
     list.classList.toggle('is-compact', chat.cfg.density === 'compact');
     const start = Math.max(0, msgs.length - shown);
     if (start > 0) list.appendChild(h('button.as-chat-more', { onclick: () => { shown += PAGE_SIZE; redraw(true); } }, '查看更早的消息'));
-    else if (!msgs.length) list.appendChild(h('div.as-chat-sys', `和 ${E.nameOf(c)} 的聊天。发几句话，再点「让 TA 回复」`));
+    else if (!msgs.length) list.appendChild(h('div.as-chat-sys', g ? '群里还很安静。说几句话，再点「让大家回复」' : `和 ${E.nameOf(c)} 的聊天。发几句话，再点「让 TA 回复」`));
     for (let i = start; i < msgs.length; i++) list.append(...msgNode(msgs[i], msgs[i - 1], msgs[i + 1], msgs[i].id === animId));
     if (E.busy.has(chat.id)) list.appendChild(typingNode());
     if (animId || !keepScroll || atBottom) list.scrollTo({ top: list.scrollHeight, behavior: animId ? 'smooth' : 'auto' });
     else list.scrollTop = oldTop + (list.scrollHeight - oldH);
   }
   function append(m) { shown++; redraw(false, m.id); }
-  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
+  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them && !g ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
   function applyBg() { list.style.backgroundImage = chat.cfg.bg ? `url(${chat.cfg.bg})` : ''; }
 
   /* ---------- 头像：单击看资料，双击拍一拍 ---------- */
-  function bindAvatar(el, me) {
+  function bindAvatar(el, me, who) {
     let t = null;
     el.addEventListener('click', e => {
       e.stopPropagation(); if (selecting) return;
-      if (t) { clearTimeout(t); t = null; poke(el, me); return; }
-      t = setTimeout(() => { t = null; me ? toast('你的资料在「我」里改') : openProfile(c.id, { onMessage: () => nav.pop() }); }, 280);
+      if (t) { clearTimeout(t); t = null; poke(el, me, who); return; }
+      t = setTimeout(() => { t = null; me ? toast('你的资料在「我」里改') : (who && who.id ? openProfile(who.id, { onMessage: () => nav.pop() }) : null); }, 280);
     });
+    if (g && !me && who) onLongPress(el, () => { inputEl.value += `@${E.nameOf(who)} `; syncBtn(); inputEl.focus(); });
   }
-  async function poke(el, me) {
+  async function poke(el, me, who) {
     el.classList.remove('is-poked'); void el.offsetWidth; el.classList.add('is-poked');
     if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) { /* 忽略 */ }
-    const text = me ? `你拍了拍自己${state.me.pokeSuffix || ''}` : `你拍了拍「${E.nameOf(c)}」${c.pokeSuffix || ''}`;
+    const p = who || c;
+    const text = me ? `你拍了拍自己${state.me.pokeSuffix || ''}` : `你拍了拍「${E.nameOf(p)}」${p.pokeSuffix || ''}`;
     await E.addSystem(chat, text);
   }
 
@@ -162,7 +173,7 @@ export async function openRoom(chat) {
   function syncBtn() {
     const has = inputEl.value.trim().length > 0, busy = E.busy.has(chat.id), pend = E.pending(msgs);
     sendBtn.className = 'as-chat-sendbtn' + (busy ? '.is-loading' : has ? '' : pend ? '.is-reply' : '.is-idle').replace('.', ' ');
-    sendBtn.replaceChildren(busy ? h('i.as-spin') : icon(has ? 'send' : 'sparkle', 18, 2), h('span', `让 ${E.nameOf(c).slice(0, 4)} 回复`));
+    sendBtn.replaceChildren(busy ? h('i.as-spin') : icon(has ? 'send' : 'sparkle', 18, 2), h('span', g ? '让大家回复' : `让 ${E.nameOf(c).slice(0, 4)} 回复`));
     sendBtn.setAttribute('aria-label', busy ? '正在回复' : has ? '发送' : '让 TA 回复');
     inputEl.style.height = 'auto'; inputEl.style.height = Math.min(130, Math.max(40, inputEl.scrollHeight)) + 'px';
   }
@@ -170,11 +181,11 @@ export async function openRoom(chat) {
     const text = inputEl.value.trim();
     if (!text) {
       if (E.busy.has(chat.id)) return;
-      if (!E.pending(msgs)) toast(`${E.nameOf(c)} 会接着说`);
+      if (!E.pending(msgs)) toast(g ? '大家会接着聊' : `${E.nameOf(c)} 会接着说`);
       E.requestReply(chat); return;
     }
     inputEl.value = ''; chat.draft = '';
-    const extra = quote ? { quote: { id: quote.id, text: quote.text.slice(0, 60), who: quote.from === 'me' ? '我' : E.nameOf(c) } } : {};
+    const extra = quote ? { quote: { id: quote.id, text: (quote.text || E.preview(quote)).slice(0, 60), who: quote.from === 'me' ? '我' : E.nameOf(sender(quote)) } } : {};
     setQuote(null);
     await E.send(chat, text, extra);
     syncBtn();
@@ -185,7 +196,7 @@ export async function openRoom(chat) {
   inputEl.addEventListener('focus', () => { closePanels(); setTimeout(() => list.scrollTo({ top: list.scrollHeight }), 300); });
   function setQuote(m) {
     quote = m; quoteBar.hidden = !m;
-    if (m) quoteBar.replaceChildren(h('span', `引用 ${m.from === 'me' ? '我' : E.nameOf(c)}：${m.text}`), h('button', { 'aria-label': '取消引用', onclick: () => setQuote(null) }, icon('close', 16, 2)));
+    if (m) quoteBar.replaceChildren(h('span', `引用 ${m.from === 'me' ? '我' : E.nameOf(sender(m))}：${m.text || E.preview(m)}`), h('button', { 'aria-label': '取消引用', onclick: () => setQuote(null) }, icon('close', 16, 2)));
   }
   function plusAction(k) {
     return doPlus(k, chat, c, { poke: () => { const all = list.querySelectorAll('.as-chat-msg.is-them .as-chat-msg__avatar'); poke(all[all.length - 1] || h('span'), false); } });
@@ -266,7 +277,7 @@ export async function openRoom(chat) {
     E.on('msg', (id, m) => { if (id !== chat.id) return; append(m); if (m.from !== 'me' && shell.visible) chat.unread = 0; syncBtn(); }),
     E.on('typing', (id, on) => {
       if (id !== chat.id) return;
-      statusEl.textContent = on ? '对方正在输入…' : ''; statusEl.classList.toggle('is-typing', on);
+      statusEl.textContent = on ? (g ? '有人正在输入…' : '对方正在输入…') : ''; statusEl.classList.toggle('is-typing', on);
       list.querySelector('.as-chat-typing-row')?.remove();
       if (on) { list.appendChild(typingNode()); list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' }); }
       syncBtn();
@@ -286,7 +297,7 @@ export async function openRoom(chat) {
   markRead();
   const prevOnShow = shell.onShow;
   shell.onShow = () => { if (shell.activeChat === chat.id) markRead(); };
-  p.el._onShow = () => { shell.activeChat = chat.id; markRead(); nameEl.textContent = E.nameOf(c); headAva.replaceChildren(chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...chat.cfg, avatarSize: 32 })); applyBg(); redraw(true); };
+  p.el._onShow = () => { shell.activeChat = chat.id; markRead(); nameEl.textContent = title(); headAva.replaceChildren(headAvatar()); applyBg(); redraw(true); };
   p.el._onLeave = () => { offs.forEach(f => f()); if (shell.activeChat === chat.id) shell.activeChat = null; shell.onShow = prevOnShow; commit('chats'); };
 
   redraw(); syncBtn();

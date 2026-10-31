@@ -6,6 +6,8 @@ let host = null, homeBack = null, iconRect = null, onChange = null;
 
 export function initNav(stackEl, { onHomeBack, onStackChange }) {
   host = stackEl; homeBack = onHomeBack; onChange = onStackChange;
+  // 外层也不许被浏览器「顺手」滚动（输入框获得焦点、弹出通知时会发生）
+  for (const el of [host, host.parentElement]) el.addEventListener('scroll', () => { if (el.scrollTop) el.scrollTop = 0; if (el.scrollLeft) el.scrollLeft = 0; });
   enableSwipe();
 }
 export const depth = () => stack.length;
@@ -15,7 +17,7 @@ const notify = () => onChange && onChange(stack.length);
 function prepare(el) {
   el.classList.add('as-stack__page'); host.appendChild(el);
   // 输入框获得焦点时，浏览器会把整页往上推，顶栏就被推出去了；整页本身永远不许滚
-  el.addEventListener('scroll', () => { if (el.scrollTop) el.scrollTop = 0; });
+  el.addEventListener('scroll', () => { if (el.scrollTop) el.scrollTop = 0; if (el.scrollLeft) el.scrollLeft = 0; });
 }
 
 /** 打开 App：从图标的位置长出来 */
