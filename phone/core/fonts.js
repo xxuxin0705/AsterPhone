@@ -1,5 +1,5 @@
-// 锁屏时钟字体：用户自己导入的字体文件（比如苹果的 SF Pro Rounded）。
-// 文件只存在这台设备的浏览器里（IndexedDB 键 font:clock），不会放进插件仓库——苹果字体不允许公开分发。
+// 锁屏时钟字体：默认用内置的 SF Pro Rounded（base.css 里的 AsterClockBuiltin）；
+// 用户也可以导入别的字体文件，存在这台设备的浏览器里（IndexedDB 键 font:clock），优先用导入的。
 import { kvGet, kvSet, kvDel } from './store.js';
 
 export const FAMILY = 'AsterClock';
