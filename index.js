@@ -64,7 +64,7 @@ function build() {
     load();
     whenReady('#extensionsMenu', addWand);
     whenReady('#extensions_settings2, #extensions_settings', addSettings);
-    setTimeout(() => checkUpdate(false), 6000);
+    checkUpdate(false);
     // 手机上切回酒馆时页面不一定会重新加载，所以切回来也看一眼（十分钟最多一次）
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastCheck > 600000) checkUpdate(false); });
 }
@@ -75,30 +75,30 @@ const SKIP_KEY = 'asterphone-skip-version';
 const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
 const extName = () => decodeURIComponent((/\/extensions\/third-party\/([^/]+)\//.exec(new URL(BASE).pathname) || [])[1] || 'AsterPhone');
 const stHeaders = () => { const c = stCtx(); return (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' }; };
-/** 问酒馆自己（和「管理扩展」里的更新提示是同一个检查）。不知道装在「当前用户」还是「所有用户」，两种都试 */
+/** 问酒馆自己（和「管理扩展」里的更新提示是同一个检查）。不知道装在「当前用户」还是「所有用户」，两种同时问 */
 async function tavernStatus() {
-    for (const global of [false, true]) {
-        try {
-            const res = await fetch('/api/extensions/version', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) });
-            if (res.ok) { const d = await res.json(); if (typeof d.isUpToDate === 'boolean') return d; }
-        } catch (e) { /* 试下一种 */ }
-    }
-    return null;
+    const ask = global => fetch('/api/extensions/version', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) })
+        .then(res => res.ok ? res.json() : null).then(d => d && typeof d.isUpToDate === 'boolean' ? d : null).catch(() => null);
+    const [mine, all] = await Promise.all([ask(false), ask(true)]);
+    return mine || all;
 }
 let lastCheck = 0;
 /** 返回 { local, remote, newer }；force = 手机里点「检查更新」，这时就算点过「知道了」也照样提示。
- *  GitHub 在有的网络、Tauri 酒馆里读不到，所以以酒馆的检查为准，GitHub 只用来显示新版本号 */
+ *  GitHub 读得到就先按它马上弹；酒馆自己的检查要先 git fetch，慢几秒，但 GitHub 读不到（国内网络、Tauri 酒馆）时靠它 */
 async function checkUpdate(force) {
     lastCheck = Date.now();
-    const [l, r, g] = await Promise.all([
+    const show = (v, skip) => { if (force || localStorage.getItem(SKIP_KEY) !== skip) showUpdateCard(v, skip); };
+    const git = tavernStatus();
+    const [l, r] = await Promise.all([
         fetch(BASE + 'manifest.json', { cache: 'no-cache' }).then(x => x.json()).catch(() => ({})),
         fetch(REMOTE, { cache: 'no-cache' }).then(x => x.json()).catch(() => null),
-        tavernStatus(),
     ]);
+    const ghNewer = !!r && vcmp(r.version, l.version) > 0;
+    if (ghNewer) show(r.version, r.version);
+    const g = await git;
     if (!g && !r) return { error: true };
-    const newer = g ? !g.isUpToDate : vcmp(r.version, l.version) > 0;
-    const skip = r ? r.version : 'git:' + g.currentCommitHash;
-    if (newer && (force || localStorage.getItem(SKIP_KEY) !== skip)) showUpdateCard(r && r.version, skip);
+    const newer = g ? !g.isUpToDate : ghNewer;
+    if (newer && !ghNewer) show(r && r.version, r ? r.version : 'git:' + g.currentCommitHash);
     return { local: l.version, remote: r && r.version, newer };
 }
 function showUpdateCard(v, skip) {
