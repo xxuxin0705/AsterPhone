@@ -292,8 +292,7 @@ export function openBoard({ list }) {
     for (let i = plugs.length - 1; i >= 0; i--) {
       const pl = plugs[i]; if (pl.mode === 'snap' || !isOn(pl)) continue;
       const dx = x - pl.x, dy = y - pl.y;
-      if (pl.mode === 'plugged' && pl.route > .5) { if (Math.abs(dx) < 26 && dy > -18 && dy < 22) return pl; }
-      else if (Math.abs(dx) < 32 && dy > -20 && dy < PL + 14) return pl;
+      if (Math.abs(dx) < 32 && dy > -20 && dy < PL + 14) return pl;
       // 插着的时候，也可以按在格子的接口口子上拎起来
       if (pl.mode === 'plugged' && !sorting) { const t = tileOf(pl.target); if (t) { const r = t.port.getBoundingClientRect(), b = B(); if (x > r.left - b.left - 18 && x < r.right - b.left + 18 && y > r.top - b.top - 18 && y < r.bottom - b.top + 26) return pl; } }
     }
@@ -451,15 +450,12 @@ export function openBoard({ list }) {
       pl.tilt = Math.max(-.6, Math.min(.6, pl.tilt)); pl.sway = Math.max(-80, Math.min(80, pl.sway));
       pl.shake = Math.max(0, pl.shake - dt * 3.5);
       pl.vis = Math.min(1, pl.vis + dt * 3);
-      // 插好了：线慢慢「理」进格子之间的缝里；拔出来 / 格子滚出去了：线又变回自由垂着
-      const rT = pl.mode === 'plugged' && isOn(pl) && routeOf(pl) ? 1 : 0, rv = dt / (reduce ? .05 : .42);
-      pl.route = rT > (pl.route || 0) ? Math.min(rT, (pl.route || 0) + rv) : Math.max(rT, (pl.route || 0) - rv * 1.6);
     }
     faces(now);
     // 线全部画在最上面一层（之前藏在玻璃板后面会看起来断掉）；经过别的格子时变淡，不挡字。
     // 省电：东西没在动的时候，只在字符闪一下的节拍上重画（一秒六次左右），不是每帧都画。
     const tickNow = reduce ? 0 : Math.floor(now / 170);
-    const moving = plugs.some(pl => isOn(pl) && pl.vis < 1 || (isOn(pl) && pl.route > 0 && pl.route < 1) || pl.mode === 'drag' || pl.mode === 'snap' || pl.shake > 0 || Math.abs(pl.vx) + Math.abs(pl.vy) > 1.5 || Math.abs(pl.swayV) > .5)
+    const moving = plugs.some(pl => isOn(pl) && pl.vis < 1 || pl.mode === 'drag' || pl.mode === 'snap' || pl.shake > 0 || Math.abs(pl.vx) + Math.abs(pl.vy) > 1.5 || Math.abs(pl.swayV) > .5)
       || (flowing && now < flowing.until) || parts.length > 0;
     if (moving || tickNow !== lastTick || forceDraw) {
       lastTick = tickNow; forceDraw = false;
@@ -475,36 +471,6 @@ export function openBoard({ list }) {
     }
   }
 
-  /** 插好的线怎么「理」：从插头往下到格子之间的横缝，横着走到旁边的竖缝，顺着竖缝下到板子底，再出去。
-   *  返回一个按长度取点的函数 at(0..1)（0 是底下线的根，1 是插头），格子看不见时返回 null */
-  function routeOf(pl) {
-    if (pl.mode !== 'plugged' || !pl.target) return null;
-    const t = tileOf(pl.target); if (!t || t.el.hidden) return null;
-    const q = portOf(t, pl); if (q.hidden) return null;
-    const b = B(), tr = t.el.getBoundingClientRect(), gr = grid.getBoundingClientRect(), pr = panel.getBoundingClientRect();
-    const gap = parseFloat(getComputedStyle(grid).columnGap) || 10, colW = (gr.width - 2 * gap) / 3;
-    const c = Math.max(0, Math.min(2, Math.round((tr.left - gr.left) / (colW + gap))));
-    const side = c === 2 ? -1 : 1;                              // 左边、中间的格子走右边的缝，最右边的走左边的缝
-    const gx = (side > 0 ? tr.right + gap / 2 : tr.left - gap / 2) - b.left;
-    const bottom = pr.bottom - b.top - 3, gy = Math.min(bottom, tr.bottom + gap / 2 - b.top), capB = q.y + 9;
-    const A = anchorOf(pl), pts = [];
-    for (let i = 0; i <= 30; i++) {                           // 板子外面：从底下自然弯上来，竖着进缝
-      const u = i / 30, v = 1 - u, P1 = { x: A.x, y: A.y - 70 }, P2 = { x: gx, y: bottom + 80 };
-      pts.push({ x: v * v * v * A.x + 3 * v * v * u * P1.x + 3 * v * u * u * P2.x + u * u * u * gx, y: v * v * v * A.y + 3 * v * v * u * P1.y + 3 * v * u * u * P2.y + u * u * u * bottom, out: true });
-    }
-    pts.push({ x: gx, y: gy }, { x: q.x, y: gy }, { x: q.x, y: capB });
-    const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
-    const total = L[L.length - 1] || 1;
-    return {
-      total,
-      at(t) {
-        const d = t * total; let i = 1; while (i < L.length - 1 && L[i] < d) i++;
-        const a = pts[i - 1], z = pts[i], f = (d - L[i - 1]) / ((L[i] - L[i - 1]) || 1);
-        return { x: a.x + (z.x - a.x) * f, y: a.y + (z.y - a.y) * f, inside: !z.out, vert: Math.abs(z.y - a.y) > Math.abs(z.x - a.x) };
-      },
-    };
-  }
-
   /** 把一层画成字符：cable(pl) 要不要画这根线，head(pl) 要不要画这个插头 */
   function drawLayer(ctx, now, cable, head) {
     dens.fill(0); own.fill(0); typ.fill(0);
@@ -517,32 +483,18 @@ export function openBoard({ list }) {
       const Bp = { x: pl.x - s * PL, y: pl.y + c * PL };
       const dist = Math.hypot(Bp.x - A.x, Bp.y - A.y), k = Math.min(220, dist * .42 + 30);
       const P1 = { x: A.x, y: A.y - k * .8 }, P2 = { x: Bp.x - s * k + pl.sway, y: Bp.y + c * k };
-      const rt = pl.route > 0 ? routeOf(pl) : null, e = rt ? pl.route * pl.route * (3 - 2 * pl.route) : 0;
-      const n = Math.min(600, Math.max(24, Math.ceil(Math.max(dist, rt ? rt.total : 0) / 3)));
+      const n = Math.min(500, Math.max(24, Math.ceil(dist / 3)));
       const flow = flowing && flowing.pl === pl && now < flowing.until;
       let px = A.x, py = A.y;
       if (doCable) for (let i = 0; i <= n; i++) {
         const t = i / n, u = 1 - t;
-        let x = u * u * u * A.x + 3 * u * u * t * P1.x + 3 * u * t * t * P2.x + t * t * t * Bp.x, y = u * u * u * A.y + 3 * u * u * t * P1.y + 3 * u * t * t * P2.y + t * t * t * Bp.y;
-        let thin = 0;
-        if (rt) { const r = rt.at(t); x += (r.x - x) * e; y += (r.y - y) * e; if (e > .55 && r.inside) thin = r.vert ? 4 : 5; }
+        const x = u * u * u * A.x + 3 * u * u * t * P1.x + 3 * u * t * t * P2.x + t * t * t * Bp.x, y = u * u * u * A.y + 3 * u * u * t * P1.y + 3 * u * t * t * P2.y + t * t * t * Bp.y;
         const ang = Math.atan2(y - py, x - px); px = x; py = y;
         const pulse = flow ? Math.max(0, 1 - Math.abs(((t * 2.4 - now / 600) % 1 + 1) % 1 - .5) * 8) : 0;
-        if (thin) { stamp(x, y, Math.min(1, .9 + pulse * .1), pl.i + 1, pulse > .3 ? 2 : thin); continue; }   // 缝里只走一根细线
         for (const [o, a] of [[0, .82], [-4, .5], [4, .42], [-7, .14]]) stamp(x - Math.sin(ang) * o, y + Math.cos(ang) * o, Math.min(1, a + pulse * .5), pl.i + 1, pulse > .3 ? 2 : 0);
       }
       if (!doHead) continue;
       const sx = pl.shake ? (Math.random() - .5) * 5 * pl.shake : 0, X0 = pl.x + sx, Y0 = pl.y;
-      if (pl.mode === 'plugged' && pl.route > .5) {
-        for (let cy = Math.floor((Y0 - 9) / CH); cy <= Math.floor((Y0 + 9) / CH); cy++) for (let cx = Math.floor((X0 - 18) / CW); cx <= Math.floor((X0 + 18) / CW); cx++) {
-          if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) continue;
-          const X = cx * CW + CW / 2 - X0, Y = cy * CH + CH / 2 - Y0; if (Math.abs(X) > 18 || Y < -9 || Y > 9) continue;
-          const kk = cy * cols + cx; dens[kk] = Math.abs(X) > 14 ? .6 : .95; own[kk] = pl.i + 1; typ[kk] = Y < -2 ? 1 : 0;
-        }
-        const mx = Math.floor(X0 / CW), my = Math.floor((Y0 + 3) / CH);
-        if (mx >= 0 && my >= 0 && mx < cols && my < rows) { const kk = my * cols + mx; dens[kk] = 1; own[kk] = pl.i + 1; typ[kk] = 3; }
-        continue;
-      }
       const cs = Math.cos(-pl.tilt), sn = Math.sin(-pl.tilt);
       const x0 = Math.max(0, Math.floor((X0 - 40) / CW)), x1 = Math.min(cols - 1, Math.ceil((X0 + 40) / CW));
       const y0 = Math.max(0, Math.floor((Y0 - 20) / CH)), y1 = Math.min(rows - 1, Math.ceil((Y0 + PL + 20) / CH));
@@ -561,21 +513,25 @@ export function openBoard({ list }) {
     ctx.globalAlpha = 1;
     ctx.font = `700 ${CH}px ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const tick = reduce ? 0 : Math.floor(now / 170);
+    const bb = B(), pr = panel.getBoundingClientRect(), pt = pr.top - bb.top, pbm = pr.bottom - bb.bottom + H(), pl0 = pr.left - bb.left, pr0 = pr.right - bb.left;
     for (let k = 0; k < dens.length; k++) {
       const d = dens[k]; if (d < .05) continue;
       const cd = plugs[own[k] - 1]; if (!cd) continue;
       const x = (k % cols) * CW + CW / 2, y = ((k / cols) | 0) * CH + CH / 2;
       const base = night ? cd.glow : cd.ink;
-      if (d > .5) { ctx.fillStyle = `rgba(${base},${night ? .14 + (d - .5) * .4 : .12 + (d - .5) * .3})`; ctx.fillRect(x - CW / 2 + .5, y - CH / 2 + .5, CW - 1, CH - 1); }
+      if (d > .5 && !(y > pt && y < pbm - 8 && x > pl0 && x < pr0 && Math.hypot(x - cd.x, y - cd.y) > 34)) { ctx.fillStyle = `rgba(${base},${night ? .14 + (d - .5) * .4 : .12 + (d - .5) * .3})`; ctx.fillRect(x - CW / 2 + .5, y - CH / 2 + .5, CW - 1, CH - 1); }
       let ch, col = base, a = .35 + .65 * d;
       if (typ[k] === 3) { ch = cd.sym; col = night ? [255, 255, 255] : [255, 255, 255]; ctx.fillStyle = `rgba(${base},.95)`; ctx.fillRect(x - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2); a = 1; }
       else if (typ[k] === 2) { ch = hash(k, tick) < .5 ? '0' : '1'; col = night ? [230, 255, 255] : [20, 60, 120]; a = 1; }
-      else if (typ[k] === 4) { ch = hash(k, tick + ((hash(k, 3) * 7) | 0)) < .18 ? ':' : '|'; a = .95; }
-      else if (typ[k] === 5) { ch = hash(k, tick + ((hash(k, 5) * 7) | 0)) < .18 ? '=' : '-'; a = .95; }
       else {
         const jit = hash(k, tick + ((hash(k, 7) * 9) | 0)) < .1 ? (hash(k, tick) < .5 ? -1 : 1) : 0;
         ch = RAMP[Math.max(0, Math.min(RAMP.length - 1, Math.round(d * (RAMP.length - 1)) + jit))];
         if (typ[k] === 1) col = night ? [235, 245, 255] : [120, 132, 156];
+      }
+      // 线在玻璃板里面、离插头远的地方淡一点，免得盖住格子上的字
+      if (y > pt && y < pbm - 8 && x > pl0 && x < pr0 && typ[k] !== 3) {
+        const pq = plugs[own[k] - 1], headLen = pq.mode === 'plugged' ? PL * .3 : PL + 6;   // 插好的插头只留尖尖清楚，身子淡下去，别挡住下面格子的脸
+        if (Math.hypot(x - pq.x, y - pq.y) > 30 && !(y > pq.y - 4 && y < pq.y + headLen && Math.abs(x - pq.x) < 22)) a *= pq.mode === 'plugged' ? .3 : .42;
       }
       a *= cd.vis;
       ctx.fillStyle = `rgba(${col},${a})`; ctx.fillText(ch, x, y + .5);
