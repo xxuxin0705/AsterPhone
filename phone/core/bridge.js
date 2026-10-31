@@ -109,7 +109,7 @@ export async function worldEntries(name) {
     if (!res.ok) throw new Error('读不到世界书：' + res.status);
     data = await res.json();
   }
-  return Object.values((data && data.entries) || {}).map(e => ({ uid: e.uid, title: e.comment || (e.key || []).join('、') || ('条目 ' + e.uid), keys: e.key || [], content: e.content || '' }));
+  return Object.values((data && data.entries) || {}).map(e => ({ uid: e.uid, title: e.comment || (e.key || []).join('、') || ('条目 ' + e.uid), keys: e.key || [], content: e.content || '', constant: !!e.constant, disable: !!e.disable, order: e.order || 0 }));
 }
 
 /* ---------- 酒馆的「连接配置」（Connection Manager 里存的那一个个配置：九十、好梦、tori……） ---------- */

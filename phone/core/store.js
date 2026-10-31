@@ -48,6 +48,8 @@ export function defaults() {
       lock: { enabled: false, method: 'none', pin: '', digits: 4 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
       notify: { banner: true, sound: false, volume: .6, dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
       device: { fab: 'iphone', fabSize: 52, tripleTap: false },
+      // 发给手机 AI 的上下文：读几条正文、带不带你的发言、标签要 / 不要、人设、世界书（见 core/context.js）
+      ctx: { count: 6, withUser: true, keep: ['content'], drop: ['think', 'thinking'], inner: ['!--'], userPersona: true, charPersona: true, followTavern: true, books: {}, entries: {} },
       autoLimit: 30, autoUsed: { date: '', count: 0 },
       storyTime: { day: 3, minutes: 21 * 60 + 20, at: Date.now() },
     },

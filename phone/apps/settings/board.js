@@ -566,14 +566,15 @@ export function openBoard({ list }) {
     d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, d.img); d.tts = Object.assign({ voice: '', speed: 1, volume: 1 }, d.tts);
     const tavern = isTv(d);
     let dirty = !!isNew;
-    const savedTag = h('span.as-pbd__saved', isNew ? '还没保存' : '已保存');
-    const touch = () => { dirty = true; savedTag.textContent = '有改动，记得保存'; savedTag.classList.add('is-dirty'); paintSt(); };
+    // 置顶 · 复制一份 · 删除 放在同一排
+    const pinBtn = () => { const pinned = () => (C().pinned || []).includes(orig.id), b = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); b.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶'); return b; };
+    const touch = () => { dirty = true; paintSt(); };
     const st = () => { const s = status[orig.id] || (orig.ok === true ? 'ok' : orig.ok === false ? 'bad' : ''); return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
     const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE.idle));
     const stText = h('span.as-pbd__st');
     const paintSt = () => {
       const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none');
-      stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置（没填密钥）' : '还没测过';
+      stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置' : '还没测过';
       faceEl.firstChild.textContent = faceText(s || 'idle', orig.id) + (s === 'need' ? '?' : '');
       faceEl.dataset.face = s || 'idle';
     };
@@ -646,7 +647,7 @@ export function openBoard({ list }) {
             const inp = input({ value: k, placeholder: i ? '再一把密钥' : 'sk-…', type: 'password', onInput: v => { if (i === 0) d.key = v; else d.keys[i - 1] = v; touch(); re(); } });
             keyBox.appendChild(h('div.as-pbd__key', inp,
               i === (orig.keyIdx || 0) && k ? h('span.as-pbd__tag', '正在用') : null,
-              h('button.as-pbd__ibtn', { 'aria-label': '显示密钥', onclick: () => { inp.type = inp.type === 'password' ? 'text' : 'password'; } }, icon('info', 16, 1.8)),
+              h('button.as-pbd__ibtn', { 'aria-label': '显示密钥', onclick: e => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.replaceChildren(icon(inp.type === 'password' ? 'eye' : 'eyeOff', 17, 1.8)); } }, icon('eye', 17, 1.8)),
               i ? h('button.as-pbd__ibtn', { 'aria-label': '删掉这把密钥', onclick: () => { d.keys.splice(i - 1, 1); touch(); drawKeys(); re(); } }, icon('close', 16, 2)) : null));
           });
           keyBox.appendChild(h('button.as-pbd__dash', { onclick: () => { d.keys.push(''); touch(); drawKeys(); } }, icon('plus', 15, 2), '再加一把密钥'));
@@ -706,19 +707,14 @@ export function openBoard({ list }) {
           row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: d.tts.speed, onInput: v => { d.tts.speed = +v.toFixed(2); sp.textContent = d.tts.speed + 'x'; touch(); re(); } }), sp)),
           row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: d.tts.volume, onInput: v => { d.tts.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)));
       }));
-      if (!isNew) groups.push(h('div.as-pbd__danger',
+      if (!isNew) groups.push(h('div.as-pbd__danger', pinBtn(),
         h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),
         h('button.is-danger', { onclick: async () => {
           if (!(await dialog({ title: `删掉「${orig.name}」？`, text: '插在它上面的线会被拔下来。', confirm: '删除', danger: true }))) return;
           const list = C()[kind]; list.splice(list.indexOf(orig), 1);
           for (const k of Object.keys(C().defaults)) if (C().defaults[k] === orig.id) C().defaults[k] = '';
           commit('connections'); s.close(); refresh();
-        } }, '删除这个接口')));
-    }
-    if (!isNew) {
-      const pinned = () => (C().pinned || []).includes(orig.id);
-      const pinBtn = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); pinBtn.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶');
-      groups.push(h('div.as-pbd__danger', pinBtn, h('span.as-pbd__hint', { style: { flex: 2, alignSelf: 'center' } }, '在板子上长按格子，可以拖动排序。')));
+        } }, '删除')));
     }
     const save = h('button.as-pbd__save', { onclick: () => {
       if (tavern) { s.close(); return; }
@@ -726,10 +722,10 @@ export function openBoard({ list }) {
       d.keys = d.keys.filter(k => String(k).trim());
       if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
       else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
-      commit('connections'); dirty = false; savedTag.textContent = '已保存'; savedTag.classList.remove('is-dirty');
+      commit('connections'); dirty = false;
       toast('保存好了'); s.close(); refresh();
     } }, tavern ? '好的' : '保存');
-    const s = sheet({ title: '接口详情', cls: 'as-pbd', content: h('div.as-pbd__wrap', card, ...groups, h('div.as-pbd__bar', savedTag, save)), onClose: () => { if (dirty && !isNew) toast('改动没保存'); } });
+    const s = sheet({ title: '接口详情', cls: 'as-pbd', content: h('div.as-pbd__wrap', card, ...groups, h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => { dirty = false; s.close(); } }, '取消'), save)), onClose: () => { if (dirty && !isNew) toast('改动没保存'); } });
   }
 
   /* ================= 右上角菜单 ================= */

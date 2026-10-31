@@ -3,7 +3,8 @@
 import { uid, sleep } from '../../core/util.js';
 import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
-import { characters, recentStory, stripTags } from '../../core/bridge.js';
+import { characters, stripTags } from '../../core/bridge.js';
+import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -182,15 +183,20 @@ function historyText(msgs, c, n = 24) {
     return `${who(m)}：${q}${forAI(m)}`;
   }).join('\n') || '（还没有聊过）';
 }
-export function buildReplyPrompt(chat, msgs) {
+/** 人设、世界书、正文：按「设置 → 上下文与世界书」里的开关来 */
+const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
+const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
+const followStory = (linkMode, n) => linkMode === 'follow' ? (storyText(n) || '（暂无）') : null;
+async function worldBlock(scan) { const w = await worldText(scan).catch(() => ''); return w ? `\n【世界书】\n${w}\n` : ''; }
+export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const min = Math.max(1, cfg.minLines || 1), max = Math.max(min, cfg.maxLines || 4);
+  const story = followStory(cfg.linkMode) ?? '（这是一段只在手机上的聊天，和正文无关）', history = historyText(msgs, c);
   return {
     system: [globalSystem(), specialsGuide()].filter(Boolean).join('\n\n'),
     prompt: render('reply', {
-      char: c ? (c.name || nameOf(c)) : 'TA', persona: personaOf(c) || '（没有更多资料）', user_persona: myPersona() || '（没有更多资料）',
-      story: cfg.linkMode === 'follow' ? (recentStory(6) || '（暂无）') : '（这是一段只在手机上的聊天，和正文无关）',
-      time: time.forPrompt(), history: historyText(msgs, c), min, max,
+      char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
+      story, world: await worldBlock(story + '\n' + history), time: time.forPrompt(), history, min, max,
     }),
   };
 }
@@ -216,7 +222,7 @@ export async function requestReply(chat, opts = {}) {
   try {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
-    const built = buildReplyPrompt(chat, msgs);
+    const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
     const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
     const { lines, inner } = parseReply(raw, c);
@@ -289,9 +295,10 @@ export async function requestGroupReply(chat) {
     if (!members.length) throw new Error('群里没有其他人');
     const lastMine = [...msgs].reverse().find(m => m.from === 'me');
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
-    const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${(personaOf(p) || '（没有更多资料）').slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
-    const prompt = render('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story: chat.cfg.linkMode === 'follow' ? (recentStory(6) || '（暂无）') : '（这个群只在手机上，和正文无关）',
-      time: time.forPrompt(), history: groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : ''), max: chat.cfg.maxSpeakers || 3 });
+    const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
+    const story = followStory(chat.cfg.linkMode) ?? '（这个群只在手机上，和正文无关）', history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '');
+    const prompt = render('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
+      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 });
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: [globalSystem(), specialsGuide()].join('\n\n'), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
@@ -334,7 +341,7 @@ async function deliverDM(p, text) {
 /** 通话中：TA 接着说几句（不写进聊天记录，挂断时整段变成一条通话记录） */
 export async function callReply(chat, lines, mode) {
   const c = contact(chat.contactId), msgs = await getMsgs(chat.id);
-  const { prompt } = buildReplyPrompt(chat, msgs);
+  const { prompt } = await buildReplyPrompt(chat, msgs);
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
   const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
   const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: globalSystem(), prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话' });
@@ -382,7 +389,7 @@ export async function deliverFromStory(name, text) {
 export async function genMoment(c) {
   const conn = resolveConn('text', 'chat');
   const raw = await generate({ conn, system: globalSystem(), app: '动态', maxTokens: 400,
-    prompt: render('moment', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: recentStory(4) || '（暂无）', time: time.forPrompt() }) });
+    prompt: render('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count))), time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
   let hiddenFromMe = false;

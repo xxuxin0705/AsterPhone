@@ -1,7 +1,7 @@
 // 默认提示词。用户在「设置」里改过的版本存在 state 里，没改过就用这里的。
 // 可用变量：{{char}} 角色名  {{user}} 你的名字  {{time}} 剧情时间
 //           {{persona}} 角色人设  {{user_persona}} 你的人设  {{story}} 正文里最近发生的事
-//           {{history}} 手机里最近的聊天  {{min}} {{max}} 回复条数
+//           {{history}} 手机里最近的聊天  {{min}} {{max}} 回复条数  {{world}} 世界书（没有就是空的）
 
 export const DEFAULT_PROMPTS = {
   // ---------- 通用（全局）----------
@@ -27,7 +27,7 @@ export const DEFAULT_PROMPTS = {
 
 【{{user}} 的资料】
 {{user_persona}}
-
+{{world}}
 【正文里最近发生的事】
 {{story}}
 
@@ -45,7 +45,7 @@ export const DEFAULT_PROMPTS = {
 {{members}}
 
 【群介绍】{{intro}}
-
+{{world}}
 【正文里最近发生的事】
 {{story}}
 
@@ -93,7 +93,7 @@ export const DEFAULT_PROMPTS = {
 
 【人设】
 {{persona}}
-
+{{world}}
 【最近的事】
 {{story}}
 

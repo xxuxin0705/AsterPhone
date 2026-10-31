@@ -4,7 +4,8 @@ import { state, commit, contact } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, slider, textarea, input, field, avatar, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
-import { characters, currentCharacter, recentStory, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
+import { characters, currentCharacter, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
+import { storyText } from '../../core/context.js';
 import { render, globalSystem, myPersona } from '../../core/promptstore.js';
 import { log } from '../../core/log.js';
 import { blankContact, pickMany } from './people.js';
@@ -46,7 +47,7 @@ export function openAiLoad(after) {
     const chars = characters(), cur = currentCharacter();
     const cards = (cur ? chars.filter(x => x.key === cur.key) : chars.slice(0, 3)).map(x => `${x.name}：${(x.persona || '').slice(0, 1200)}`).join('\n\n') || '（没有读到角色卡，请根据常识自由发挥一个都市日常的人际圈）';
     const require = o.mode === 'auto' ? '人数自己定，3~8 个，要有亲疏远近，包括角色卡里提到的人。' : `正好 ${o.count} 个人。${o.must.trim() ? '必须包含：\n' + o.must.trim() : ''}`;
-    const prompt = render('aiLoad', { cards, user_persona: myPersona() || '（无）', story: recentStory(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）',
+    const prompt = render('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）',
       require: require + (o.groups ? `\n群聊：${o.groupCount} 个，成员从这些人里选，{{user}} 默认在每个群里，不用写。` : '\n不要生成群聊，groups 留空数组。'), withGroups: o.groups ? '和群聊' : '' });
     goBtn.disabled = true; goBtn.replaceChildren(h('i.as-spin'), ' AI 正在想…');
     try {

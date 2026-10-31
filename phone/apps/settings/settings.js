@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.17';
+export const VERSION = '0.6.18';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -30,7 +30,11 @@ function sub(id, title, draw, opts = {}) {
   const p = page({ app: 'settings', id: 'settings-' + id, title, back: true, ...opts });
   let drawn = '';
   // 先在旁边画好，再一次换上去，不会出现空白的一帧
-  const re = () => { const y = p.body.scrollTop, box = document.createElement('div'); draw(box, re, p); p.body.replaceChildren(...box.childNodes); p.body.scrollTop = y; drawn = sig(); };
+  const re = () => {
+    const y = p.body.scrollTop, box = document.createElement('div'), r = draw(box, re, p);
+    const swap = () => { p.body.replaceChildren(...box.childNodes); p.body.scrollTop = y; drawn = sig(); };
+    if (r && r.then) r.then(swap); else swap();   // 要等数据的页面：等画完再换，旧内容先留着
+  };
   re(); p.el._onShow = () => { if (sig() !== drawn) re(); };
   nav.push(p.el);
   return p;
@@ -49,13 +53,14 @@ export function open() {
         item({ icon: 'note', color: 'teal', title: '通用提示词', chevron: true, onClick: openPrompts }),
       ]),
       group('', [
-        item({ icon: 'palette', color: 'orange', title: '外观', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
+        item({ icon: 'palette', color: 'orange', title: '显示', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
         item({ icon: 'image', color: 'teal', title: '壁纸', value: wallLabel(), chevron: true, onClick: () => openWalls() }),
         item({ icon: 'lock', color: 'gray', title: '锁屏与密码', value: S().lock.enabled ? LOCK_LABEL[S().lock.method] : '关闭', chevron: true, onClick: openLock }),
         item({ icon: 'bell', color: 'red', title: '通知', chevron: true, onClick: openNotify }),
       ]),
       group('', [
-        item({ icon: 'phone', color: 'green', title: '手机本体', value: S().timeSrc === 'story' ? '剧情时间' : '现实时间', chevron: true, onClick: openDevice }),
+        item({ icon: 'link', color: 'green', title: '联动方式与时间', value: (state.apps.chat.defaults.linkMode === 'online' ? '仅线上' : '跟随正文') + ' · ' + (S().timeSrc === 'story' ? '剧情时间' : '现实时间'), chevron: true, onClick: openLinkTime }),
+        item({ icon: 'list', color: 'purple', title: '上下文与世界书', chevron: true, onClick: () => import('./context.js').then(m => m.openContext({ sub, sliderRow })) }),
         item({ icon: 'db', color: 'gold', title: '数据', chevron: true, onClick: openData }),
         item({ icon: 'info', color: 'pink', title: '关于', value: 'v' + VERSION, chevron: true, onClick: openAbout }),
       ]));
@@ -181,7 +186,6 @@ function openChatApp() {
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
       group('功能提示词', promptsIn('chat').map(pr => promptRow(pr, re)), '群聊、AI 智能加载联系人、世界书拆人的提示词随功能一起上线。'),
       group('聊天默认设置（每个聊天还能单独改）', [
-        field('新聊天默认联动方式', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); re(); })),
         toggleItem({ title: '先加好友才能聊', sub: '下一轮配合「新的朋友」一起生效' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
         toggleItem({ title: '角色配图真的生图', sub: '关着时显示图片描述卡' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
         toggleItem({ title: '新聊天默认允许 TA 主动发消息', sub: '每个聊天还能在「聊天设置 → 行为」里单独开关' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
@@ -275,7 +279,8 @@ function paintClock() {
   clockBox.style.color = col;
 }
 function openLook() {
-  sub('appearance', '外观', (body, re) => {
+  sub('appearance', '显示', (body, re) => {
+    const d = S().device;
     const prev = h('div.as-settings-preview', '今晚的月亮很圆。你那边能看到吗？');
     const night = shell.phone.dataset.mode === 'night';
     body.append(
@@ -302,6 +307,16 @@ function openLook() {
         segField('小时制', segmented([['24', '24 小时'], ['12', '12 小时']], S().clock.h12 ? '12' : '24', v => { S().clock.h12 = v === '12'; commit('look'); shell.applyLook(); paintClock(); })),
       ].filter(Boolean)),
       group('字号', [prev, sliderRow('大小', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
+      group('悬浮按钮', [
+        h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: () => { d.fab = k; commit('settings'); shell.applyLook(); re(); } },
+          h('img', { src: `assets/fab/${k}.png`, alt: '' }), name))),
+        sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
+      ], '按住可以拖动换位置'),
+      group('', [toggleItem({ title: '连点三下开关手机', sub: '在酒馆页面空白处连点三下打开，在手机空白处连点三下关闭' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
+      group('窗口大小（电脑上生效，手机上总是铺满）', [
+        h('div.as-field', segmented([['auto', '自动'], ['manual', '手动']], d.winScale ? 'manual' : 'auto', v => { d.winScale = v === 'auto' ? 0 : 1; commit('settings'); shell.applyLook(); re(); })),
+        d.winScale ? sliderRow('大小', { min: .7, max: 1.4, step: .05, value: d.winScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { d.winScale = v; commit('settings'); shell.applyLook(); } }) : null,
+      ].filter(Boolean)),
       group('', [item({ title: '顶部时间栏', value: S().statusbar.global ? '显示' : '隐藏', chevron: true, onClick: openStatusbar }),
         // 整个手机的字：从资源库的字体库里挑，也可以当场导入（导入的会放进资源库）
         item({ title: '字体', value: fontName(S().uiFont) || '系统默认', chevron: true, onClick: async () => {
@@ -452,32 +467,23 @@ function openNotify() {
   });
 }
 
-/* ================= 手机本体 ================= */
-function openDevice() {
-  sub('device', '手机本体', (body, re) => {
-    const d = S().device, st = time.story();
+/* ================= 联动方式与时间 ================= */
+function openLinkTime() {
+  sub('linktime', '联动方式与时间', (body, re) => {
+    const st = time.story(), a = state.apps.chat;
     const day = input({ value: String(st.day), type: 'number' }), hm = input({ value: `${String(st.hh).padStart(2, '0')}:${String(st.mm).padStart(2, '0')}`, type: 'time' });
     const p2 = n => String(n).padStart(2, '0');
     const dateIn = input({ value: st.date ? `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}` : '', type: 'date' });
     body.append(
+      group('联动方式', [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))], '新聊天默认用这个，每个聊天还能单独改'),
       group('时间', [
-        h('div.as-field', h('span.as-field__label', '时间来源'), segmented([['real', '现实时间'], ['story', '剧情时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); re(); })),
+        h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); re(); })),
         S().timeSrc === 'story' ? item({ title: '现在', value: `${st.date ? time.fmtDate(st.date) + ' · ' : ''}第 ${st.day} 天 ${hm.value}`, sub: S().storyTime.src === 'story' ? '刚从正文里读到' : '手动设定，跟着现实时间往前走' }) : null,
         S().timeSrc === 'story' ? h('div.as-field', h('span.as-field__label', '读不到剧情时间时：手动设定'), h('div.as-settings-time', { style: { padding: 0 } }, day, hm),
           h('div.as-settings-time', { style: { padding: '8px 0 0' } }, dateIn),
           h('span.as-field__hint', '日期可以不填；填了锁屏就显示剧情里的年月日，不填就显示今天的日期。'),
           btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStory(+day.value || 1, hh || 0, mm || 0, 'manual', dateIn.value || null); toast('剧情时间已更新'); re(); })) : null,
-      ].filter(Boolean), '剧情时间靠正文里的时间标签更新（设置 → 通用提示词 → 暗号）。'),
-      group('悬浮按钮（酒馆页面上）', [
-        h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: () => { d.fab = k; commit('settings'); shell.applyLook(); re(); } },
-          h('img', { src: `assets/fab/${k}.png`, alt: '' }), name))),
-        sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
-      ], '悬浮按钮可以直接拖动换位置。不想要它的话，到酒馆的「扩展」面板里关掉「显示悬浮按钮」，用魔法棒菜单打开手机。'),
-      group('', [toggleItem({ title: '连点三下开关手机', sub: '在酒馆页面空白处连点三下打开，在手机空白处连点三下关闭' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
-      group('窗口大小（电脑上生效，手机上总是铺满）', [
-        h('div.as-field', segmented([['auto', '自动'], ['manual', '手动']], d.winScale ? 'manual' : 'auto', v => { d.winScale = v === 'auto' ? 0 : 1; commit('settings'); shell.applyLook(); re(); })),
-        d.winScale ? sliderRow('大小', { min: .7, max: 1.4, step: .05, value: d.winScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { d.winScale = v; commit('settings'); shell.applyLook(); } }) : null,
-      ].filter(Boolean)));
+      ].filter(Boolean), '剧情时间靠正文里的时间标签更新（设置 → 通用提示词 → 暗号）。'));
   });
 }
 
