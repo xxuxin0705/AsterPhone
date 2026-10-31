@@ -1,22 +1,22 @@
 // AsterPhone 启动入口：读数据 → 铺壁纸 → 锁屏 / 桌面 → 页面导航 → 和酒馆接上线。
-import { $, h } from './core/util.js';
-import { state, load, subscribe, commit } from './core/store.js';
-import { loadLogs, log } from './core/log.js';
-import { mountUI, toast, banner, avatar } from './core/ui.js';
-import * as nav from './core/nav.js';
-import { Wallpaper } from './core/wallpaper.js';
-import { shell } from './core/shell.js';
-import { postToParent, inTavern } from './core/bridge.js';
-import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from './apps/lock.js';
-import { initHome, showHome, renderBadges, renderWidget } from './apps/home.js';
+import { $, h } from './util.js';
+import { state, load, subscribe, commit } from './store.js';
+import { loadLogs, log } from './log.js';
+import { mountUI, toast, banner, avatar } from './ui.js';
+import * as nav from './nav.js';
+import { Wallpaper } from './wallpaper.js';
+import { shell } from './shell.js';
+import { postToParent, inTavern } from './bridge.js';
+import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
+import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
 
 const phone = $('#phone');
 // 装在酒馆里 = 外层页面有 SillyTavern；别的地方（单独打开、预览页）都按「单独预览」处理
 const embedded = inTavern() || document.documentElement.classList.contains('as-embedded');
 const APP_LOADERS = {
-  chat: () => import('./apps/chat/index.js'),
-  settings: () => import('./apps/settings.js'),
-  log: () => import('./apps/log.js'),
+  chat: () => import('../apps/chat/index.js'),
+  settings: () => import('../apps/settings/settings.js'),
+  log: () => import('../apps/log/log.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
@@ -210,8 +210,8 @@ async function boot() {
     if (what === 'chats' || String(what).startsWith('msgs:') || what === 'all') { renderNotices(); renderBadges(); sendUnread(); }
     if (what === 'time') { renderClock(true); renderWidget(); }
   });
-  try { (await import('./core/sync.js')).startSync(); } catch (e) { log('error', '酒馆联动', '启动失败：' + e.message, e); }
-  try { (await import('./apps/chat/engine.js')).startEngine(); } catch (e) { log('error', '聊天', '启动失败：' + e.message, e); }
+  try { (await import('./sync.js')).startSync(); } catch (e) { log('error', '酒馆联动', '启动失败：' + e.message, e); }
+  try { (await import('../apps/chat/engine.js')).startEngine(); } catch (e) { log('error', '聊天', '启动失败：' + e.message, e); }
   log('info', '系统', 'AsterPhone 已启动' + (embedded ? '（酒馆内）' : '（单独预览）'));
   booted = true;
   if (embedded && !pendingVis) onVisible(false);

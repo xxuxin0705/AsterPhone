@@ -1,14 +1,14 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
-import { h, uid, pickFile } from '../core/util.js';
-import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../core/ui.js';
-import * as nav from '../core/nav.js';
-import { CHANNELS, resolveConn, listModels, testConn } from '../core/api.js';
-import { getPrompt, setPrompt, resetPrompt, promptsIn } from '../core/promptstore.js';
-import * as time from '../core/time.js';
-import { shell } from '../core/shell.js';
-import { inTavern } from '../core/bridge.js';
-import { WALLPAPERS } from '../core/wallpaper.js';
+import { h, uid, pickFile } from '../../core/util.js';
+import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
+import { page, group, item, toggleItem, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
+import * as nav from '../../core/nav.js';
+import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
+import { getPrompt, setPrompt, resetPrompt, promptsIn } from '../../core/promptstore.js';
+import * as time from '../../core/time.js';
+import { shell } from '../../core/shell.js';
+import { inTavern } from '../../core/bridge.js';
+import { WALLPAPERS } from '../../core/wallpaper.js';
 
 export const VERSION = '0.3.1';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],

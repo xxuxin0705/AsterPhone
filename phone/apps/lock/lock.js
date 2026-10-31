@@ -1,10 +1,10 @@
 // 锁屏：大时钟、通知卡片堆、假指纹（按住就开）、数字密码（含备用密码）。
 // 手势密码下一轮做；现在选了手势会先按指纹处理。
-import { h, $ } from '../core/util.js';
-import { state, commit, contact } from '../core/store.js';
-import { avatar, toast } from '../core/ui.js';
-import * as time from '../core/time.js';
-import { shell } from '../core/shell.js';
+import { h, $ } from '../../core/util.js';
+import { state, commit, contact } from '../../core/store.js';
+import { avatar, toast } from '../../core/ui.js';
+import * as time from '../../core/time.js';
+import { shell } from '../../core/shell.js';
 
 let lockEl, pinEl, finger, ring, clockEl, dateEl, subEl, noticeBox, pinBtn, swipeEl;
 let locked = true, onUnlockCb = null, pendingOpen = null;

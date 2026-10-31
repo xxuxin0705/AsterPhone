@@ -1,17 +1,4 @@
-/* AsterPhone · 设置（settings）+ 日志（log） */
-
-.as-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--as-color-glass-line); border-radius: 999px; padding: 6px 11px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 12.5px/1 var(--font-ui); cursor: pointer; transition: transform var(--as-dur-fast), background var(--as-dur-fast); white-space: nowrap; }
-.as-chip:active { transform: scale(.95); }
-.as-chip.is-active { background: color-mix(in srgb, var(--as-color-accent) 18%, transparent); color: var(--as-color-accent); }
-.as-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.as-row { display: flex; gap: 8px; align-items: center; }
-.as-row > .as-input { flex: 1; }
-.as-stack-gap { display: grid; gap: 10px; }
-.as-tag-accent { color: var(--as-color-accent); }
-.as-muted { color: var(--as-color-text-2); font-size: .85em; }
-.as-inline-btn { border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface-2); color: var(--as-color-text); border-radius: 10px; padding: 9px 12px; font: 500 13px/1 var(--font-ui); cursor: pointer; white-space: nowrap; transition: transform var(--as-dur-fast); }
-.as-inline-btn:active { transform: scale(.95); }
-.as-eye { border: 0; background: none; color: var(--as-color-text-2); padding: 6px; cursor: pointer; display: grid; }
+/* AsterPhone · 设置（settings） */
 
 /* 连接 */
 .as-settings-conn-card .as-list-item__icon { font: 600 12px/1 var(--font-ui); }
@@ -21,9 +8,6 @@
 .as-settings-test.is-error { color: var(--as-color-danger); }
 .as-settings-test .as-btn--text { padding: 0 4px; font-size: 13px; }
 .as-settings-models { display: grid; gap: 2px; max-height: 50vh; overflow: auto; }
-.as-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: as-spin 700ms linear infinite; display: inline-block; vertical-align: middle; }
-@keyframes as-spin { to { transform: rotate(360deg); } }
-.as-btn.is-loading .as-spin { width: 14px; height: 14px; }
 
 /* 外观 */
 .as-settings-preview { padding: 14px; font-size: 1em; line-height: 1.5; }
@@ -62,19 +46,3 @@
 /* 提示词编辑 */
 .as-settings-prompt-text { min-height: 260px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, var(--font-ui); font-size: 13px; line-height: 1.6; }
 
-/* ---------- 日志 ---------- */
-.as-log-filter { margin-bottom: 12px; }
-.as-log-list { display: grid; gap: 8px; }
-.as-log-item { padding: 11px 13px; border-radius: 16px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-left: 3px solid var(--as-color-text-2); display: grid; gap: 4px; cursor: pointer; }
-.as-log-item[data-level="error"] { border-left-color: var(--as-color-danger); }
-.as-log-item[data-level="warn"] { border-left-color: #e0a43a; }
-.as-log-item[data-level="info"] { border-left-color: var(--as-color-success); }
-.as-log-item__head { display: flex; gap: 8px; font: 500 12px/1.2 var(--font-ui); color: var(--as-color-text-2); }
-.as-log-item__msg { font: 400 14px/1.45 var(--font-ui); word-break: break-word; }
-.as-log-item[data-level="error"] .as-log-item__msg { color: var(--as-color-danger); }
-.as-log-item__detail { display: none; margin-top: 4px; padding: 8px 10px; border-radius: 10px; background: var(--as-color-surface-2); font: 400 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; user-select: text; -webkit-user-select: text; }
-.as-log-item.is-open .as-log-item__detail { display: block; }
-
-.as-settings-clockpv { height: 120px; margin: 12px 14px 2px; border-radius: 16px; background-size: cover; background-position: center 18%; display: grid; place-content: center; justify-items: center; gap: 4px; box-shadow: inset 0 0 0 1px var(--as-color-glass-line); transition: color var(--as-dur-base); }
-.as-settings-clockpv b { font: 300 46px/1 var(--font-clock); letter-spacing: .02em; }
-.as-settings-clockpv span { font: 400 12px/1 var(--font-cn); letter-spacing: .14em; }

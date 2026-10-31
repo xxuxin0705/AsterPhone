@@ -1,9 +1,9 @@
 // 桌面：上面一张时间小组件（顺便显示最新一条未读），下面一排 App 图标。
-import { h, $ } from '../core/util.js';
-import { state, contact } from '../core/store.js';
-import { icon, badge } from '../core/ui.js';
-import * as time from '../core/time.js';
-import { shell } from '../core/shell.js';
+import { h, $ } from '../../core/util.js';
+import { state, contact } from '../../core/store.js';
+import { icon, badge } from '../../core/ui.js';
+import * as time from '../../core/time.js';
+import { shell } from '../../core/shell.js';
 
 export const APPS = [
   { id: 'chat', name: '聊天', icon: 'chat' },

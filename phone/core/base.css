@@ -225,4 +225,21 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-banner__main b { font: 600 14px/1.3 var(--font-ui); }
 .as-banner__main span { font: 400 13.5px/1.35 var(--font-ui); opacity: .82; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- 小零件（多个 App 共用） ---------- */
+.as-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--as-color-glass-line); border-radius: 999px; padding: 6px 11px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 12.5px/1 var(--font-ui); cursor: pointer; transition: transform var(--as-dur-fast), background var(--as-dur-fast); white-space: nowrap; }
+.as-chip:active { transform: scale(.95); }
+.as-chip.is-active { background: color-mix(in srgb, var(--as-color-accent) 18%, transparent); color: var(--as-color-accent); }
+.as-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-row { display: flex; gap: 8px; align-items: center; }
+.as-row > .as-input { flex: 1; }
+.as-stack-gap { display: grid; gap: 10px; }
+.as-tag-accent { color: var(--as-color-accent); }
+.as-muted { color: var(--as-color-text-2); font-size: .85em; }
+.as-inline-btn { border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface-2); color: var(--as-color-text); border-radius: 10px; padding: 9px 12px; font: 500 13px/1 var(--font-ui); cursor: pointer; white-space: nowrap; transition: transform var(--as-dur-fast); }
+.as-inline-btn:active { transform: scale(.95); }
+.as-eye { border: 0; background: none; color: var(--as-color-text-2); padding: 6px; cursor: pointer; display: grid; }
+.as-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: as-spin 700ms linear infinite; display: inline-block; vertical-align: middle; }
+@keyframes as-spin { to { transform: rotate(360deg); } }
+.as-btn.is-loading .as-spin { width: 14px; height: 14px; }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }

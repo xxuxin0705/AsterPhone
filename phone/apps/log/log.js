@@ -1,7 +1,7 @@
 // 日志 App：报错标红、警告标黄；点一条展开详情；可复制、清空。
-import { h } from '../core/util.js';
-import { logs, onLog, clearLogs } from '../core/log.js';
-import { page, segmented, navBtn, empty, toast, dialog } from '../core/ui.js';
+import { h } from '../../core/util.js';
+import { logs, onLog, clearLogs } from '../../core/log.js';
+import { page, segmented, navBtn, empty, toast, dialog } from '../../core/ui.js';
 
 const LV = { error: '报错', warn: '警告', info: '信息' };
 let filter = 'all';

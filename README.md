@@ -24,7 +24,12 @@ SillyTavern 小手机插件（v0.2 预览版）。
 
 ## 代码结构
 - `index.js` / `style.css` —— 酒馆页面上的入口（悬浮按钮、魔法棒、扩展面板），手机装在一个 iframe 里。
-- `phone/` —— 手机本体。`js/core/` 是公共零件（存储、导航、界面积木、壁纸、和酒馆通信），`js/apps/` 是各个 App。
+- `phone/index.html` —— 手机的外壳。
+- `phone/core/` —— 所有 App 共用的零件：启动（main.js）、存储、页面导航、界面积木、壁纸、时间、AI 调用、和酒馆通信，以及公共样式 base.css。
+- `phone/apps/<App名>/` —— 每个 App 一个文件夹，里面放它自己的代码和样式：
+  - `lock/` 锁屏 · `home/` 桌面 · `settings/` 设置 · `log/` 日志 · `chat/` 聊天
+  - 以后新 App（资源库、音乐……）也照这个样子加一个文件夹。
+- `phone/assets/` —— 图片：壁纸、悬浮按钮图标。
 - 数据存在浏览器的 IndexedDB（库名 `asterphone`）。API 密钥只存本机，导出时默认不带。
 
 ## 文档阅读顺序
