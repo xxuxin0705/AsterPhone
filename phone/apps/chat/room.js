@@ -372,10 +372,10 @@ function openSettings(chat, redrawRoom) {
         sliderRow('最多几句', 1, 10, 1, cfg.maxLines || 4, v => { cfg.maxLines = v; if (cfg.minLines > v) cfg.minLines = v; save(); }),
       ]),
       group('主动消息', [
-        toggleItem({ title: '允许 TA 主动发消息', sub: '很久没聊、早安晚安、正文里刚发生了什么时，TA 会自己来找你' }, !!cfg.proactive, v => { cfg.proactive = v; save(); draw(); }),
-        cfg.proactive ? h('div.as-field', h('span.as-field__label', '频率'), segmented([['low', '少'], ['normal', '正常'], ['high', '多']], cfg.proactiveFreq || 'normal', v => { cfg.proactiveFreq = v; save(); })) : null,
-        cfg.proactive ? sliderRow('每天最多', 1, 20, 1, cfg.proactiveLimit || 5, v => { cfg.proactiveLimit = v; save(); }, v => v + ' 次') : null,
-      ].filter(Boolean), '遵守通知里的免打扰时段；所有自动行为还共用「设置 → 应用管理」里的每日上限。酒馆关着时不会来，回来时会补发你不在时 TA 发的消息。'),
+        toggleItem({ title: '允许 TA 主动发消息', sub: cfg.linkMode === 'online' ? '隔一阵子、早安晚安时，TA 会自己来找你' : '正文里刚发生了和 TA 有关的事时，TA 有时会来说两句' }, !!cfg.proactive, v => { cfg.proactive = v; save(); draw(); }),
+        cfg.proactive && cfg.linkMode === 'online' ? sliderRow('多久来找你一次', 1, 24, 1, cfg.proactiveEvery || ({ low: 6, normal: 2, high: 1 })[cfg.proactiveFreq] || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时') : null,
+        cfg.proactive && cfg.linkMode === 'online' ? sliderRow('每天最多', 1, 20, 1, cfg.proactiveLimit || 5, v => { cfg.proactiveLimit = v; save(); }, v => v + ' 次') : null,
+      ].filter(Boolean), cfg.linkMode === 'online' ? '遵守免打扰时段；还要算进「设置 → 应用管理 → 聊天」里的每日上限。酒馆关着时不会来，回来时会补发。' : '遵守免打扰时段；正文触发的消息不算进每日上限。'),
       trGroup(cfg, save, draw));
     if (lastTab === 'mem') box.append(
       group('剧情关联', [

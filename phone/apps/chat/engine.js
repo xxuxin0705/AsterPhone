@@ -17,8 +17,11 @@ export function on(evt, fn) { if (!subs.has(evt)) subs.set(evt, new Set()); subs
 function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); } catch (e) { console.error(e); } }); }
 
 export const busy = new Set();
-/* ---------- 自动行为：主动消息、离开期间补发、正文触发 ---------- */
-const FREQ = { low: 6 * 60, normal: 2 * 60, high: 40 };   // 安静多少分钟后 TA 可能来找你
+/* ---------- 自动行为 ----------
+ * 仅线上聊天：TA 每隔几小时会主动来找你（加早安晚安），离开期间会补发；这些算进「每日主动消息上限」。
+ * 跟随正文：正文里刚发生了和 TA 有关的事时，TA 有时会来说两句；这个不算进上限。 */
+const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 / 多」换算成小时
+const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || 3;
 const today = () => new Date().toDateString();
 function autoLeft() {
   const s = state.settings;
@@ -31,7 +34,8 @@ function useAuto(chat) {
   chat.autoDay = chat.autoDay && chat.autoDay.date === today() ? { date: today(), n: chat.autoDay.n + 1 } : { date: today(), n: 1 };
   commit('settings');
 }
-const canGo = chat => chat.type === 'dm' && chat.cfg.proactive && !busy.has(chat.id) && autoLeft() > 0 && chatLeft(chat) > 0 && !(shell.inDnd && shell.inDnd());
+const free = chat => chat.type === 'dm' && chat.cfg.proactive && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
+const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && autoLeft() > 0 && chatLeft(chat) > 0;
 export function startEngine() {
   const last = state.lastSeen || 0;
   state.lastSeen = Date.now();
@@ -44,13 +48,14 @@ async function tick() {
   for (const chat of state.chats) {
     if (!canGo(chat)) continue;
     const c = contact(chat.contactId); if (!c) continue;
-    const quiet = (Date.now() - (chat.lastAt || 0)) / 60000;
+    const quiet = (Date.now() - (chat.lastAt || 0)) / 60000, every = everyH(chat) * 60;
+    if ((Date.now() - (chat.lastProactive || 0)) / 60000 < every) continue;   // 离上次主动找你还不到设定的小时数
     let extra = null;
     if (hr >= 7 && hr < 10 && chat.greet !== t + 'am' && quiet > 120) { chat.greet = t + 'am'; extra = `（早上了。${nameOf(c)} 起床后想到 ${myName()}，主动发消息说早安，可以聊聊今天的安排。）`; }
     else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
-    else if (quiet > FREQ[chat.cfg.proactiveFreq || 'normal'] && Math.random() < .2) extra = render('proactive', { char: c.name || nameOf(c) });
+    else if (quiet > every && Math.random() < .2) extra = render('proactive', { char: c.name || nameOf(c) });
     if (!extra) continue;
-    useAuto(chat);
+    useAuto(chat); chat.lastProactive = Date.now();
     log('info', '主动消息', `${nameOf(c)} 主动来找你了`);
     await requestReply(chat, { extra });
     break;   // 一分钟最多一个人来找
@@ -69,12 +74,11 @@ async function catchUp(gapMs) {
 /** 正文里刚发生了事：跟随正文、开了主动消息的角色，有时会来手机上说两句 */
 export function storyNudge(storyText) {
   const cur = String(storyText || '');
-  const cands = state.chats.filter(ch => canGo(ch) && ch.cfg.linkMode === 'follow' && (() => { const c = contact(ch.contactId); return c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name)))); })());
+  const cands = state.chats.filter(ch => free(ch) && ch.cfg.linkMode === 'follow' && (() => { const c = contact(ch.contactId); return c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name)))); })());
   if (!cands.length || Math.random() > .25) return;
   const chat = cands[Math.floor(Math.random() * cands.length)], c = contact(chat.contactId);
   setTimeout(() => {
-    if (!canGo(chat)) return;
-    useAuto(chat);
+    if (!free(chat)) return;   // 正文触发的不算进每日上限
     requestReply(chat, { extra: `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` });
   }, 30000 + Math.random() * 60000);
 }
