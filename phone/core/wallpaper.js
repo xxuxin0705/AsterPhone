@@ -160,7 +160,8 @@ function sparkle(ctx, x, y, r, a, color) {
   ctx.globalAlpha = a * .35; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 6.283); ctx.fill();
 }
 
-function drawFishBody(ctx, x, y, ang, L, phase) {
+/** 一条鱼的身体（水中月壁纸的鱼群、连接页的字符海洋都用这一个形状） */
+export function drawFishBody(ctx, x, y, ang, L, phase) {
   const N = 14, top = [], bot = [];
   const spine = u => {           // u: 0 = 鱼头，1 = 鱼尾
     const yo = L * .085 * Math.sin(phase - u * 5) * Math.pow(u, 1.5);

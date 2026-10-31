@@ -58,6 +58,7 @@ export function defaults() {
       defaults: { text: 'tavern', aux: '', image: '', tts: '' },
       retry: { on: true, max: 1, fallback: true },     // 断线了怎么办：重试几次；聊天线断了改插杂活接口
       schemes: [], scheme: '',                          // 接线方案：整套「哪根线插哪」存起来一键换
+      order: [], pinned: [],                            // 插线板上格子的顺序（拖动排序）和置顶
     },
     apps: {
       chat: {

@@ -1,7 +1,7 @@
 // AI 调用：按「连接」的渠道类型拼请求。
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state } from './store.js';
-import { generateTavern, inTavern } from './bridge.js';
+import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi } from './bridge.js';
 import { log } from './log.js';
 
 export const CHANNELS = {
@@ -86,6 +86,10 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
       else out = await generateTavern({ system, prompt, maxTokens });
+    } else if (conn.type === 'tavern-profile') {
+      const pf = tavernProfiles().list.find(x => x.id === conn.profileId);
+      if (!pf) throw new Error(`酒馆里找不到「${conn.name}」这个连接配置了`);
+      out = await generateWithProfile(pf, { system, prompt, maxTokens });
     } else if (conn.type === 'openai') {
       out = await withKey(async key => {
         const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
@@ -223,4 +227,36 @@ export async function speak(text, { voice } = {}) {
 export function stopSpeak() {
   try { if (playing instanceof Audio) playing.pause(); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* 忽略 */ }
   playing = null;
+}
+
+/**
+ * 把酒馆里的连接配置同步成一个个接口（类型 tavern-profile），这样它们也能插线、能排序。
+ * 酒馆里删掉的配置：没线插着就去掉；有线插着先留着，标成「酒馆里没有了」。
+ * 返回 true = 有变化
+ */
+export function syncTavernProfiles() {
+  const { list, selected } = tavernProfiles(), text = state.connections.text;
+  let changed = false;
+  const seen = new Set();
+  for (const pf of list) {
+    const id = 'tvp_' + pf.id; seen.add(id);
+    let c = text.find(x => x.id === id);
+    const info = { name: pf.name || '未命名配置', model: pf.model || '', api: pf.api || '', preset: pf.preset || '', url: pf['api-url'] || '', mode: pf.mode || '', gone: false };
+    if (!c) { c = { id, type: 'tavern-profile', profileId: pf.id, fixed: true, ...info }; text.push(c); changed = true; }
+    else if (Object.keys(info).some(k => c[k] !== info[k])) { Object.assign(c, info); changed = true; }
+  }
+  for (let i = text.length - 1; i >= 0; i--) {
+    const c = text[i]; if (c.type !== 'tavern-profile' || seen.has(c.id)) continue;
+    if (!inTavern()) continue;                     // 不在酒馆里（单独预览）就别动
+    const used = Object.values(state.connections.defaults).includes(c.id);
+    if (used) { if (!c.gone) { c.gone = true; changed = true; } } else { text.splice(i, 1); changed = true; }
+  }
+  // 「酒馆当前连接」顺便记下现在是哪个配置、什么模型，给人看
+  const tv = text.find(x => x.type === 'tavern');
+  if (tv) {
+    const sel = list.find(x => x.id === selected);
+    const cur = sel ? sel.name : '', model = sel ? sel.model || '' : '', api = sel ? '' : tavernMainApi();
+    if (tv.cur !== cur || tv.model !== model || tv.curApi !== api) { tv.cur = cur; tv.model = model; tv.curApi = api; changed = true; }
+  }
+  return changed;
 }

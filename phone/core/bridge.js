@@ -111,3 +111,22 @@ export async function worldEntries(name) {
   }
   return Object.values((data && data.entries) || {}).map(e => ({ uid: e.uid, title: e.comment || (e.key || []).join('、') || ('条目 ' + e.uid), keys: e.key || [], content: e.content || '' }));
 }
+
+/* ---------- 酒馆的「连接配置」（Connection Manager 里存的那一个个配置：九十、好梦、tori……） ---------- */
+/** { list: [{ id, name, api, model, preset, mode }], selected: 现在选中的配置 id } */
+export function tavernProfiles() {
+  const c = ctx(), cm = c && c.extensionSettings && c.extensionSettings.connectionManager;
+  return { list: (cm && Array.isArray(cm.profiles) ? cm.profiles : []), selected: (cm && cm.selectedProfile) || '' };
+}
+/** 酒馆现在用的是哪个 API（没有连接配置时用来显示） */
+export function tavernMainApi() { const c = ctx(); return (c && (c.mainApi || (c.onlineStatus !== 'no_connection' && c.onlineStatus))) || ''; }
+/** 用某个连接配置生成，不会切换酒馆自己正在用的连接 */
+export async function generateWithProfile(profile, { system, prompt, maxTokens = 600 }) {
+  const c = ctx(), svc = c && c.ConnectionManagerRequestService;
+  if (!svc || typeof svc.sendRequest !== 'function') throw new Error('这个酒馆版本还不能按连接配置生成，更新一下酒馆，或者先插「酒馆当前连接」');
+  const tc = profile.mode === 'tc' || profile.api === 'textgenerationwebui';
+  const input = tc ? [system, prompt].filter(Boolean).join('\n\n')
+    : [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean);
+  const r = await svc.sendRequest(profile.id, input, maxTokens, { stream: false, extractData: true, includePreset: true, includeInstruct: true });
+  return typeof r === 'string' ? r : (r && (r.content ?? r.text ?? '')) || '';
+}

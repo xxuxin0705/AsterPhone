@@ -1,48 +1,30 @@
 /* AsterPhone · 设置 → 连接 · 插线板（森林剪影风，白天 / 夜晚） */
 .as-pb-page {
-  --pb-ink: #183247; --pb-ink-2: rgba(24,50,71,.68); --pb-glass: rgba(255,255,255,.34); --pb-glass-2: rgba(255,255,255,.5); --pb-line: rgba(255,255,255,.75);
+  --pb-paper: #f5f4f0; --pb-grid: rgba(60,60,70,.045); --pb-halo: rgba(255,255,255,.9);
+  --pb-ink: #1d2230; --pb-ink-2: rgba(29,34,48,.6); --pb-glass: rgba(255,255,255,.3); --pb-glass-2: rgba(255,255,255,.62); --pb-line: rgba(255,255,255,.9);
   --pb-shadow: 0 10px 30px rgba(30,70,90,.16); --pb-chrome: linear-gradient(160deg, #ffffff, #c9d4de 40%, #f2f6f9 55%, #9fb0c0);
   --pb-hole: radial-gradient(circle at 50% 40%, #33475e, #142233 70%); --pb-face: #e9f4ff;
-  background: #bcdbe5; color: var(--pb-ink);
+  background: var(--pb-paper); color: var(--pb-ink);
 }
 .as-phone[data-mode="night"] .as-pb-page {
-  --pb-ink: #e8f1ff; --pb-ink-2: rgba(220,232,255,.68); --pb-glass: rgba(18,38,70,.38); --pb-glass-2: rgba(40,70,120,.42); --pb-line: rgba(170,200,255,.26);
+  --pb-paper: #0b1626; --pb-grid: rgba(120,160,230,.05); --pb-halo: rgba(60,110,200,.22);
+  --pb-ink: #e8f1ff; --pb-ink-2: rgba(220,232,255,.68); --pb-glass: rgba(18,38,70,.3); --pb-glass-2: rgba(40,70,120,.42); --pb-line: rgba(170,200,255,.26);
   --pb-shadow: 0 12px 34px rgba(0,0,0,.4); --pb-chrome: linear-gradient(160deg, #cfdaea, #6f819b 45%, #a9b8cc 60%, #4d5d75);
   --pb-hole: radial-gradient(circle at 50% 40%, #1b2e4a, #070e1a 70%); --pb-face: #bfe6ff;
-  background: #07142a;
+  background: var(--pb-paper);
 }
 .as-pb-page .as-navbar { background: none !important; border: 0 !important; box-shadow: none !important; position: absolute; left: 0; right: 0; top: 0; z-index: 6; }
 .as-pb-page .as-navbar::before, .as-pb-page .as-navbar::after { display: none; }
 .as-pb-page .as-navbar__back, .as-pb-page .as-navbar__btn { width: 40px; height: 40px; border-radius: 50%; color: var(--pb-ink); background: var(--pb-glass-2); border: 1px solid var(--pb-line); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: var(--pb-shadow); }
 .as-pb-body { position: relative; padding: 0 !important; overflow: hidden !important; display: flex; flex-direction: column; }
 
-/* ---------- 背景：剪影山谷 ---------- */
-.as-pb__scene { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.as-pb__scene svg { width: 100%; height: 100%; display: block; }
-.as-pb-page {
-  --s1: #e6f4f8; --s2: #c7e3ea; --s3: #9fc9d2; --g1: rgba(255,252,236,.85); --far: #a9cdd4; --mid: #77a6ae; --ledge: #5f8f97; --near: #3b6b63; --water: #8cc4cf;
-  --fall1: rgba(255,255,255,.95); --fall2: rgba(235,248,255,.7); --stripe: rgba(255,255,255,.9); --mist: rgba(255,255,255,.75); --shaft: rgba(255,255,240,.42); --deer: #ffffff; --glint: rgba(255,255,255,.8);
-}
-.as-phone[data-mode="night"] .as-pb-page {
-  --s1: #06101f; --s2: #0c2443; --s3: #0a1a33; --g1: rgba(90,160,255,.4); --far: #0f2a4b; --mid: #0a1a31; --ledge: #08162a; --near: #02070f; --water: #0e2d52;
-  --fall1: rgba(170,215,255,.75); --fall2: rgba(90,150,230,.4); --stripe: rgba(200,230,255,.55); --mist: rgba(120,180,255,.3); --shaft: rgba(140,190,255,.22); --deer: #e3f4ff; --glint: rgba(150,200,255,.6);
-}
-.pbs-s1 { stop-color: var(--s1); } .pbs-s2 { stop-color: var(--s2); } .pbs-s3 { stop-color: var(--s3); }
-.pbs-g1 { stop-color: var(--g1); } .pbs-g0 { stop-color: var(--g1); stop-opacity: 0; }
-.pbs-f1 { stop-color: var(--fall1); } .pbs-f2 { stop-color: var(--fall2); } .pbs-f0 { stop-color: var(--fall2); stop-opacity: 0; }
-.pbs-stripe { fill: var(--stripe); } .pbs-mist { fill: var(--mist); }
-.pbs-sh1 { stop-color: var(--shaft); } .pbs-sh0 { stop-color: var(--shaft); stop-opacity: 0; }
-.pbs-far { fill: var(--far); } .pbs-mid { fill: var(--mid); } .pbs-ledge { fill: var(--ledge); } .pbs-near { fill: var(--near); } .pbs-vine { stroke: var(--near); }
-.pbs-water { fill: var(--water); } .pbs-glint { stroke: var(--glint); animation: pbs-glint 3.2s ease-in-out infinite; }
-.pbs-deer { fill: var(--deer); } .pbs-antler { stroke: var(--deer); }
-.pbs-shafts { animation: pbs-shaft 7s ease-in-out infinite; transform-origin: 60% 0; }
-@keyframes pbs-shaft { 0%, 100% { opacity: .75; transform: rotate(0deg); } 50% { opacity: 1; transform: rotate(1.6deg); } }
-@keyframes pbs-glint { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
-
+/* ---------- 背景：字符海洋（ocean.js 画鱼，这里只铺底色和淡淡的格子线） ---------- */
+.as-pb__ocean { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.as-pb-body { background-color: var(--pb-paper); background-image: linear-gradient(var(--pb-grid) 1px, transparent 1px), linear-gradient(90deg, var(--pb-grid) 1px, transparent 1px); background-size: 9px 12px; }
+.as-pb-body::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 70% 45% at 50% 45%, var(--pb-halo), transparent 70%); }
 /* ---------- 标题 ---------- */
-.as-pb__head { position: relative; z-index: 2; flex: none; padding: 54px 20px 10px; text-align: center; color: var(--pb-ink); text-shadow: 0 1px 14px rgba(255,255,255,.35); }
-.as-phone[data-mode="night"] .as-pb__head { text-shadow: 0 1px 16px rgba(0,0,0,.5); }
-.as-pb__title { margin: 0; font: 600 34px/1.1 "Noto Serif SC", "Songti SC", serif; letter-spacing: .12em; padding-left: .12em; }
+.as-pb__head { position: relative; z-index: 2; flex: none; padding: 54px 20px 10px; text-align: center; color: var(--pb-ink); }
+.as-pb__title { margin: 0; font: 300 32px/1.1 var(--font-ui); letter-spacing: .14em; padding-left: .14em; }
 .as-pb__rule { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 4px; opacity: .85; }
 .as-pb__rule i { width: 54px; height: 1px; background: currentColor; opacity: .5; }
 .as-pb__rule span { font-size: 12px; }
@@ -96,7 +78,6 @@
 .as-pb__cordtag.is-away { opacity: .5; transform: translateX(-50%) scale(.92); }
 .as-pb__cordhint { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font: 500 12px/1.4 var(--font-ui); color: var(--pb-ink-2); }
 .as-pb__canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
-.as-pb__canvas.is-back { z-index: 1; }
 
 /* ---------- 接口详情抽屉 ---------- */
 .as-sheet.as-pbd { max-height: 88%; }
@@ -155,3 +136,19 @@
 .as-pbd__scheme-main b { font: 600 14px/1.2 var(--font-ui); }
 .as-pbd__scheme-main span { font: 400 11.5px/1.4 var(--font-ui); color: var(--as-color-text-2, rgba(27,37,64,.6)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) { .pbs-shafts, .pbs-glint, .as-pb__face b, .as-pb__face::after { animation: none !important; } }
+
+/* 格子上的模型名、置顶、酒馆配置 */
+.as-pb__model { max-width: 100%; margin-top: -2px; font: 400 10.5px/1.2 var(--font-ui); color: var(--pb-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-pb__model:empty { display: none; }
+.as-pb__pin { position: absolute; right: 10px; top: 8px; font-size: 11px; opacity: 0; transform: scale(.6); transition: opacity 200ms, transform 300ms var(--as-ease-spring); }
+.as-pb__tile.is-pinned .as-pb__pin { opacity: 1; transform: none; }
+.as-pb__tile.is-tavern .as-pb__kind { color: #b0722a; }
+.as-phone[data-mode="night"] .as-pb__tile.is-tavern .as-pb__kind { color: #f3c27a; }
+.as-pb__tile.is-gone { opacity: .55; }
+/* 长按拖动排序 */
+.as-pb__tile { will-change: transform; transition: transform 260ms var(--as-ease-spring), opacity 200ms, box-shadow 260ms, filter 200ms; }
+.as-pb__panel.is-sorting { touch-action: none; }
+.as-pb__tile.is-lifted { z-index: 5; transition: none !important; box-shadow: 0 16px 34px rgba(20,30,60,.28), inset 0 1px 0 rgba(255,255,255,.6); opacity: .96; }
+.as-pbd__fbody .as-pbd__row.is-inline:has(.as-pbd__v) { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
+.as-pbd__v { font: 500 13px/1.3 var(--font-ui); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-pbd__pinbtn { flex: 1; padding: 11px; border-radius: 14px; border: 1px solid var(--as-color-glass-line); background: none; color: var(--as-color-accent); font: 600 13px/1 var(--font-ui); cursor: pointer; }
