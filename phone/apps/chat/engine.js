@@ -8,7 +8,7 @@ import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { render, globalSystem, myName, myPersona, getPrompt } from '../../core/promptstore.js';
+import { compose, myName, myPersona } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
 import { translate } from '../../core/translate.js';
 
@@ -54,7 +54,7 @@ async function tick() {
     let extra = null;
     if (hr >= 7 && hr < 10 && chat.greet !== t + 'am' && quiet > 120) { chat.greet = t + 'am'; extra = `（早上了。${nameOf(c)} 起床后想到 ${myName()}，主动发消息说早安，可以聊聊今天的安排。）`; }
     else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
-    else if (quiet > every && Math.random() < .2) extra = render('proactive', { char: c.name || nameOf(c) });
+    else if (quiet > every && Math.random() < .2) extra = compose('proactive', { char: c.name || nameOf(c) });
     if (!extra) continue;
     useAuto(chat); chat.lastProactive = Date.now();
     log('info', '主动消息', `${nameOf(c)} 主动来找你了`);
@@ -69,7 +69,7 @@ async function catchUp(gapMs) {
     const c = contact(chat.contactId); if (!c) continue;
     useAuto(chat);
     log('info', '离开期间补发', `${nameOf(c)} 在你离开的 ${gap} 里发来了消息`);
-    await requestReply(chat, { extra: render('catchup', { char: c.name || nameOf(c), gap }) });
+    await requestReply(chat, { extra: compose('catchup', { char: c.name || nameOf(c), gap }) });
   }
 }
 /** 正文里刚发生了事：跟随正文、开了主动消息的角色，有时会来手机上说两句 */
@@ -193,8 +193,8 @@ export async function buildReplyPrompt(chat, msgs) {
   const min = Math.max(1, cfg.minLines || 1), max = Math.max(min, cfg.maxLines || 4);
   const story = followStory(cfg.linkMode) ?? '（这是一段只在手机上的聊天，和正文无关）', history = historyText(msgs, c);
   return {
-    system: [globalSystem(), specialsGuide()].filter(Boolean).join('\n\n'),
-    prompt: render('reply', {
+    system: specialsGuide(),
+    prompt: compose('dm', {
       char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
       story, world: await worldBlock(story + '\n' + history), time: time.forPrompt(), history, min, max,
     }),
@@ -297,9 +297,9 @@ export async function requestGroupReply(chat) {
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = followStory(chat.cfg.linkMode) ?? '（这个群只在手机上，和正文无关）', history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '');
-    const prompt = render('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
+    const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
       time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 });
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: [globalSystem(), specialsGuide()].join('\n\n'), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: '群聊' });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
@@ -344,7 +344,7 @@ export async function callReply(chat, lines, mode) {
   const { prompt } = await buildReplyPrompt(chat, msgs);
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
   const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
-  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: globalSystem(), prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话' });
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话' });
   return parseReply(raw, c).lines.filter(l => !/^\[/.test(l)).slice(0, 3);
 }
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
@@ -388,8 +388,8 @@ export async function deliverFromStory(name, text) {
 /* ---------- 动态 ---------- */
 export async function genMoment(c) {
   const conn = resolveConn('text', 'chat');
-  const raw = await generate({ conn, system: globalSystem(), app: '动态', maxTokens: 400,
-    prompt: render('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count))), time: time.forPrompt() }) });
+  const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400,
+    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count))), time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
   let hiddenFromMe = false;
@@ -406,7 +406,7 @@ export async function genComments(mo) {
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
     mo.likes.length ? `已点赞：${mo.likes.map(who).join('、')}` : ''].filter(Boolean).join('\n');
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: globalSystem(), app: '动态', maxTokens: 600, prompt: render('comment', { post, people: peopleText, time: time.forPrompt() }) });
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', maxTokens: 600, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
   let added = 0;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {
@@ -430,4 +430,4 @@ export function canSee(mo, id) {
   }
 }
 export function who(id) { return id === 'me' ? (state.me.nick || myName()) : nameOf(contact(id)); }
-export { getPrompt, chatOf };
+export { chatOf };

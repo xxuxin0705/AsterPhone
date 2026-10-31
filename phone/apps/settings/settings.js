@@ -1,10 +1,10 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
-import { getPrompt, setPrompt, resetPrompt, promptsIn } from '../../core/promptstore.js';
+import { PROMPT_CATS, catInfo, blocksIn, setOn, moveBlock, copyBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.18';
+export const VERSION = '0.6.19';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -25,15 +25,23 @@ const sliderRow = (label, { min, max, step, value, onInput, fmt = v => v }) => {
 };
 /** 子页面：draw() 每次回到这页都会重画 */
 // 设置页上显示的东西都来自这几块；从下一层返回时，没变就不重画（重画会让整页闪一下）
-const sig = () => JSON.stringify([state.settings, state.connections, state.apps, state.prompts, state.library]);
+const sig = () => JSON.stringify([state.settings, state.connections, state.apps, state.promptSets, state.customPrompts, state.timeTagName, state.library]);
+function decodeImages(root) {
+  const urls = [...root.querySelectorAll('img')].map(i => i.src)
+    .concat([...root.querySelectorAll('[style*="background-image"]')].map(e => (/url\(["']?(.*?)["']?\)/.exec(e.style.backgroundImage) || [])[1]));
+  return Promise.all([...new Set(urls.filter(Boolean))].map(u => { const i = new Image(); i.src = u; return i.decode().catch(() => {}); }));
+}
 function sub(id, title, draw, opts = {}) {
   const p = page({ app: 'settings', id: 'settings-' + id, title, back: true, ...opts });
-  let drawn = '';
+  let drawn = '', first = true, tok = 0;
   // 先在旁边画好，再一次换上去，不会出现空白的一帧
   const re = () => {
-    const y = p.body.scrollTop, box = document.createElement('div'), r = draw(box, re, p);
-    const swap = () => { p.body.replaceChildren(...box.childNodes); p.body.scrollTop = y; drawn = sig(); };
-    if (r && r.then) r.then(swap); else swap();   // 要等数据的页面：等画完再换，旧内容先留着
+    const y = p.body.scrollTop, box = document.createElement('div'), r = draw(box, re, p), my = ++tok;
+    const swap = () => { if (my !== tok) return; p.body.replaceChildren(...box.childNodes); p.body.scrollTop = y; drawn = sig(); };
+    // 新内容里的图片（壁纸缩略图、悬浮按钮图）先解码好再换上去，不然换的那一下图片是空的，整页像闪了一下
+    const ready = () => Promise.race([decodeImages(box), new Promise(res => setTimeout(res, 400))]).then(swap);
+    if (r && r.then) r.then(first ? swap : ready); else if (first) swap(); else ready();   // 第一次打开直接放上去（页面是滑进来的）
+    first = false;
   };
   re(); p.el._onShow = () => { if (sig() !== drawn) re(); };
   nav.push(p.el);
@@ -50,7 +58,7 @@ export function open() {
       group('', [
         item({ icon: 'link', color: 'blue', title: '连接', value: dc ? dc.name : '未设置', chevron: true, onClick: openConnections }),
         item({ icon: 'grid', color: 'purple', title: '应用管理', chevron: true, onClick: openApps }),
-        item({ icon: 'note', color: 'teal', title: '通用提示词', chevron: true, onClick: openPrompts }),
+        item({ icon: 'note', color: 'teal', title: '提示词', chevron: true, onClick: openPrompts }),
       ]),
       group('', [
         item({ icon: 'palette', color: 'orange', title: '显示', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
@@ -96,7 +104,7 @@ function editConn(existing) {
   const kind = connKind;
   if (existing && existing.type === 'tavern') {
     sub('connection-edit', existing.name, body => {
-      body.append(group('', [item({ title: '渠道', value: '酒馆当前连接' }), item({ title: '说明', sub: '用酒馆此刻选中的 API 和模型生成；切换酒馆的连接，这里就跟着变。不能删除。' })]),
+      body.append(group('', [item({ title: '渠道', value: '酒馆当前连接' }), item({ title: '说明' })]),
         group('', [item({ title: state.connections.defaults.text === 'tavern' ? '已是默认连接' : '设为默认', onClick: () => { state.connections.defaults.text = 'tavern'; commit('connections'); nav.pop(); toast('已设为默认'); } })]),
         testBlock(existing));
     });
@@ -132,7 +140,7 @@ function editConn(existing) {
   p.body.append(
     group('', [field('名称', input({ value: c.name, placeholder: '随便起，方便自己认', onInput: v => { c.name = v; } })), chItem]),
     group('', [field('地址', baseIn), field('密钥', h('div.as-row', keyIn, h('button.as-eye', { 'aria-label': '显示密钥', onclick: () => { keyIn.type = keyIn.type === 'password' ? 'text' : 'password'; } }, icon('info', 18, 1.8)))),
-      field('模型', h('div.as-row', modelIn, pull))], '密钥只保存在本机，导出数据时默认不包含密钥。'),
+      field('模型', h('div.as-row', modelIn, pull))]),
     kind === 'text' ? testBlock(c) : group('', [item({ title: '测试', sub: '生图和语音的测试下一轮做' })]),
     existing ? group('', [
       item({ title: state.connections.defaults[kind] === existing.id ? '已是默认连接' : '设为默认', onClick: () => { state.connections.defaults[kind] = existing.id; commit('connections'); toast('已设为默认'); nav.pop(); } }),
@@ -165,8 +173,8 @@ function openApps() {
     body.append(
       group('应用', [
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
-        item({ icon: 'box', color: 'purple', title: '资源库', sub: '主题、皮肤', chevron: true, onClick: () => shell.openApp('library') }),
-        item({ icon: 'list', color: 'teal', title: '日志', sub: '报错标红、警告标黄', chevron: true, onClick: () => shell.openApp('log') }),
+        item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
+        item({ icon: 'list', color: 'teal', title: '日志', chevron: true, onClick: () => shell.openApp('log') }),
       ]));
   });
 }
@@ -184,20 +192,19 @@ function openChatApp() {
     };
     body.append(
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
-      group('功能提示词', promptsIn('chat').map(pr => promptRow(pr, re)), '群聊、AI 智能加载联系人、世界书拆人的提示词随功能一起上线。'),
       group('聊天默认设置（每个聊天还能单独改）', [
-        toggleItem({ title: '先加好友才能聊', sub: '下一轮配合「新的朋友」一起生效' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
-        toggleItem({ title: '角色配图真的生图', sub: '关着时显示图片描述卡' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
-        toggleItem({ title: '新聊天默认允许 TA 主动发消息', sub: '每个聊天还能在「聊天设置 → 行为」里单独开关' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
+        toggleItem({ title: '先加好友才能聊' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
+        toggleItem({ title: '角色配图真的生图' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
+        toggleItem({ title: '新聊天默认允许 TA 主动发消息' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
         a.defaults.proactive && a.defaults.linkMode === 'online' ? sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } }) : null,
       ].filter(Boolean)),
       a.defaults.linkMode === 'online' ? (() => {
         const used = S().autoUsed && S().autoUsed.date === new Date().toDateString() ? S().autoUsed.count : 0;
         return group('线上聊天', [sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
-          item({ title: '今天已用', value: `${used} 次` })], '只算 TA 主动来找你、离开期间补发的消息；正文触发的不算。');
+          item({ title: '今天已用', value: `${used} 次` })]);
       })() : null,
       group('注入正文', [
-        item({ title: '注入默认表', sub: '哪些消息会写进正文', chevron: true, onClick: openInjectTable }),
+        item({ title: '注入默认表', chevron: true, onClick: openInjectTable }),
         field('注入位置', segmented([['chat', '聊天记录里'], ['prompt', '人设卡和世界书附近']], a.injectPos, v => { a.injectPos = v; commit('inject'); re(); })),
         a.injectPos === 'chat' ? sliderRow('离最新消息几层', { min: 0, max: 10, step: 1, value: a.injectDepth, onInput: v => { a.injectDepth = v; commit('inject'); } }) : null,
         sliderRow('新聊天默认注入条数', { min: 0, max: 40, step: 1, value: a.injectCount, onInput: v => { a.injectCount = v; commit('apps'); } }),
@@ -217,41 +224,74 @@ function openInjectTable() {
       toggleItem({ title: label }, t[k] !== false, v => { t[k] = v; commit('inject'); }))), '转账、名片、通话等类型下一轮上线，开关先放在这里。');
   });
 }
-function promptRow(pr, re) {
-  return item({ title: pr.name, sub: pr.changed ? '已修改' : null, right: h('span', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-    (() => { const s = h('button.as-switch' + (pr.on ? '.is-active' : ''), { role: 'switch', 'aria-checked': String(pr.on), 'aria-label': pr.name }); s.addEventListener('click', e => { e.stopPropagation(); setPrompt(pr.key, { on: !getPrompt(pr.key).on }); s.classList.toggle('is-active'); }); return s; })(),
-    h('span.as-list-item__chevron', icon('chevron', 16, 2))), onClick: () => editPrompt(pr.key, re) });
-}
-const VARS = { global: ['char', 'user'], tag: ['tag', 'user'], chat: ['char', 'user', 'persona', 'user_persona', 'story', 'time', 'history', 'min', 'max'] };
-function editPrompt(key, after) {
-  const pr = getPrompt(key);
-  let text = pr.text, on = pr.on;
-  const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
-  ta.classList.add('as-settings-prompt-text');
-  const vars = key === 'comment' ? ['post', 'people', 'time', 'user'] : key === 'catchup' ? ['char', 'user', 'gap'] : VARS[pr.group] || VARS.chat;
-  const insert = v => { const s = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s; ta.setRangeText(`{{${v}}}`, s, e, 'end'); text = ta.value; ta.focus(); ta.dispatchEvent(new Event('input')); };
-  const p = page({ app: 'settings', id: 'settings-prompt-edit', title: pr.name, back: true, right: navText('保存', () => { setPrompt(key, { text, on }); toast('已保存'); nav.pop(); after && after(); }, true) });
-  p.body.append(
-    group('', [toggleItem({ title: '启用' }, on, v => { on = v; })]),
-    group('', [h('div.as-field', ta, h('span.as-field__label', '可用变量（点一下插入）'), h('div.as-chips', vars.map(v => h('button.as-chip', { onclick: () => insert(v) }, `{{${v}}}`))))]),
-    h('div', { style: { textAlign: 'center' } }, btn('恢复默认', 'text', async () => {
-      if (!(await dialog({ title: '恢复成默认提示词？', confirm: '恢复' }))) return;
-      resetPrompt(key); ta.value = getPrompt(key).text; text = ta.value; ta.dispatchEvent(new Event('input')); toast('已恢复默认');
-    })));
-  nav.push(p.el);
-}
-
-/* ================= 通用提示词 ================= */
+/* ================= 提示词 ================= */
+// 按应用分，应用里再分私聊、群聊…；每一类是一串积木：开关、拖动排顺序。内置的只能看、能复制。
 function openPrompts() {
-  sub('prompts', '通用提示词', (body, re) => {
+  sub('prompts', '提示词', body => {
+    body.append(...PROMPT_CATS.map(a => group(a.app, a.items.map(c => {
+      const bs = blocksIn(c.id);
+      return item({ title: c.name, value: `${bs.filter(b => b.on).length}/${bs.length}`, chevron: true, onClick: () => openCat(c.id) });
+    }))));
+  });
+}
+const tagName = () => state.timeTagName || 'astertime';
+function openCat(cat) {
+  sub('prompt-cat', catInfo(cat).name, (body, re) => {
+    const list = blocksIn(cat);
+    const rows = list.map(b => {
+      const sw = switchEl(b.on, v => setOn(cat, b.id, v), b.name), handle = h('span.as-prompt-handle', { 'aria-label': '拖动排序' }, icon('list', 18, 2));
+      const row = item({ title: b.name, sub: b.builtin ? '内置' : '', right: h('span.as-prompt-end', sw, handle), chevron: true, onClick: () => openBlock(cat, b.id) });
+      row.dataset.id = b.id; bindDrag(row, handle);
+      return row;
+    });
+    const bodyEl = group('', rows);
+    // 按住右边的三条线上下拖动排顺序
+    function bindDrag(row, handle) {
+      handle.addEventListener('click', e => e.stopPropagation());
+      handle.addEventListener('pointerdown', e => {
+        e.preventDefault(); e.stopPropagation(); row.classList.add('is-dragging');
+        const move = ev => {
+          const box = row.parentNode, sibs = [...box.children].filter(x => x !== row);
+          const after = sibs.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+          if (after !== row.nextSibling) box.insertBefore(row, after || null);
+        };
+        // 挪动行会让手指「捕获」失效，所以在整个窗口上听
+        const up = () => {
+          removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
+          moveBlock(cat, row.dataset.id, [...row.parentNode.children].indexOf(row));
+        };
+        addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+      });
+    }
+    if (cat === 'tag') {
+      const sample = n => `正文里会写成 <${n}>2026年11月1日 · 东京 · 21:20</${n}>`, hint = h('span.as-field__hint', sample(tagName()));
+      body.append(group('', [h('div.as-field', h('span.as-field__label', '时间标签名称'),
+        input({ value: tagName(), placeholder: 'astertime', onInput: v => { state.timeTagName = v.replace(/[^\w-]/g, '') || 'astertime'; hint.textContent = sample(tagName()); commit('prompts'); } }), hint)]));
+    }
+    body.append(bodyEl, h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, newBlock(cat)))));
+  });
+}
+function openBlock(cat, id) {
+  const b = blocksIn(cat).find(x => x.id === id);
+  const shown = t => t.replace(/\{\{tag\}\}/g, tagName());
+  sub('prompt-block', b.builtin ? b.name : '编辑提示词', body => {
+    if (b.builtin) {
+      body.append(group('', [h('div.as-field', h('pre.as-prompt-view', shown(b.text)))]),
+        h('div.as-lib-actions', btn('复制一份来改', 'secondary', () => { const nid = copyBlock(cat, id); nav.pop(); openBlock(cat, nid); })));
+      return;
+    }
+    let name = b.name, text = b.text;
+    const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
+    ta.classList.add('as-settings-prompt-text');
+    const insert = v => { const s0 = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s0; ta.setRangeText(`{{${v}}}`, s0, e, 'end'); text = ta.value; ta.focus(); };
     body.append(
-      group('全局（每次请求都会带上）', promptsIn('global').map(pr => promptRow(pr, re))),
-      group('暗号', [
-        promptRow(getPrompt('timeTag'), re),
-        field('时间标签名称', input({ value: state.timeTagName, placeholder: 'astertime', onInput: v => { state.timeTagName = v.replace(/[^\w-]/g, '') || 'astertime'; commit('prompts'); } }),
-          '正文里写成 <astertime>第3天 21:20</astertime>。如果角色卡已经有自己的时间标签，可以改成那个名字。'),
-        promptRow(getPrompt('msgTag'), re),
-      ], '时间标签：让 AI 在正文里输出剧情时间，手机读到就更新。如果你的预设已经在输出时间，可以关掉。\n正文消息标签：正文里 TA 给你发了手机消息，就会同步进手机，并带「来自剧情」标记。'));
+      group('', [field('名字', input({ value: name, onInput: v => { name = v; } })),
+        h('div.as-field', ta, h('div.as-chips', catInfo(cat).vars.map(v => h('button.as-chip', { onclick: () => insert(v) }, `{{${v}}}`))))]),
+      h('div.as-lib-actions', btn('删除', 'secondary', async () => {
+        if (!(await dialog({ title: `删掉「${name}」？`, confirm: '删除', danger: true }))) return;
+        removeBlock(id); nav.pop();
+      })),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { saveBlock(id, { name: name.trim() || '我的提示词', text }); toast('已保存'); nav.pop(); })));
   });
 }
 
@@ -284,7 +324,7 @@ function openLook() {
     const prev = h('div.as-settings-preview', '今晚的月亮很圆。你那边能看到吗？');
     const night = shell.phone.dataset.mode === 'night';
     body.append(
-      group('主题', [item({ title: '主题和皮肤', sub: '换一整套颜色，或者用自己写的 CSS 皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
+      group('主题', [item({ title: '主题和皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))]),
       group('时间', [clockPreview(night),
         segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
@@ -311,8 +351,8 @@ function openLook() {
         h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: () => { d.fab = k; commit('settings'); shell.applyLook(); re(); } },
           h('img', { src: `assets/fab/${k}.png`, alt: '' }), name))),
         sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
-      ], '按住可以拖动换位置'),
-      group('', [toggleItem({ title: '连点三下开关手机', sub: '在酒馆页面空白处连点三下打开，在手机空白处连点三下关闭' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
+      ]),
+      group('', [toggleItem({ title: '连点三下开关手机' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
       group('窗口大小（电脑上生效，手机上总是铺满）', [
         h('div.as-field', segmented([['auto', '自动'], ['manual', '手动']], d.winScale ? 'manual' : 'auto', v => { d.winScale = v === 'auto' ? 0 : 1; commit('settings'); shell.applyLook(); re(); })),
         d.winScale ? sliderRow('大小', { min: .7, max: 1.4, step: .05, value: d.winScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { d.winScale = v; commit('settings'); shell.applyLook(); } }) : null,
@@ -374,46 +414,59 @@ function openWalls() {
       const card = bgOf(h('div.as-walls-pv__screen' + (which === 'home' ? '.is-home' : '')), walls.current(which), night);
       if (which === 'lock') card.append(h('div.as-walls-pv__clock', { dataset: { font: fontKey(S().clock.font) } }, h('span', n.date), withAp(n)));
       else card.append(h('div.as-walls-pv__apps', [0, 1, 2, 3].map(() => h('i'))));
-      if (w[which + 'Random']) card.append(h('span.as-walls-pv__tag', icon('sparkle', 12, 2), '随机'));
+      const tag = h('span.as-walls-pv__tag', { hidden: !w[which + 'Random'] }, icon('sparkle', 12, 2), '随机');
+      card.append(tag); refs[which].card = card; refs[which].tag = tag;
       return h('div.as-walls-pv__item', card, which === 'lock' ? '锁屏' : '桌面');
+    };
+    // 选壁纸、开关随机：只改动到的那几处（勾选框、预览图、开关），不重画整页，不然会闪
+    const refs = { lock: { tiles: new Map() }, home: { tiles: new Map() } };
+    const paint = which => {
+      const r = refs[which], rnd = w[which + 'Random'];
+      r.tiles.forEach((t, id) => { const on = !rnd && w[which] === id; t.classList.toggle('is-active', on); t.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      bgOf(r.card, walls.current(which), night); r.tag.hidden = !rnd;
+      if (r.sw) { r.sw.classList.toggle('is-active', !!rnd); r.sw.setAttribute('aria-checked', String(!!rnd)); }
     };
     const tile = (which, id) => {
       const x = walls.info(id), on = !w[which + 'Random'] && w[which] === id;
-      const t = bgOf(h('button.as-walls-tile' + (on ? '.is-active' : ''), { 'aria-label': x.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => { w[which] = id; w[which + 'Random'] = false; apply(); re(); } },
+      const t = bgOf(h('button.as-walls-tile' + (on ? '.is-active' : ''), { 'aria-label': x.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => { w[which] = id; w[which + 'Random'] = false; apply(); paint(which); } },
         x.type === 'live' ? h('span.as-walls-tile__live', 'LIVE') : null, h('span.as-walls-tile__name', x.name)), id, night);
+      refs[which].tiles.set(id, t);
       return t;
     };
-    const row = which => h('div.as-walls-row', walls.allIds().map(id => tile(which, id)));
-    const add = async () => {
+    // 每一排最后一个「+」：加进来的直接用在这一排（锁屏或桌面）
+    const row = which => h('div.as-walls-row', walls.allIds().map(id => tile(which, id)), h('button.as-walls-tile.as-walls-tile--add', { 'aria-label': '添加图片或 Live 图', onclick: () => add(which) }, icon('plus', 26, 2), h('span.as-walls-tile__name', '添加')));
+    const add = async which => {
       const files = await pickMany('image/*,video/*,.mov,.heic');
       if (!files.length) return;
       try {
         const ids = await walls.addFiles(files);
         if (!ids.length) { toast('没认出能用的图片或视频'); return; }
+        w[which] = ids[ids.length - 1]; w[which + 'Random'] = false; apply();
         toast(ids.length > 1 ? `加好了 ${ids.length} 张` : (walls.info(ids[0]).type === 'live' ? '加好了一张 Live 图' : '加好了'));
         re();
       } catch (e) { toast(e.message || '添加失败'); }
     };
+    const randomRow = (which, title) => {
+      const it = toggleItem({ title }, w[which + 'Random'], v => { w[which + 'Random'] = v; if (v) walls.reroll(which); apply(); paint(which); });
+      refs[which].sw = it.querySelector('.as-switch'); return it;
+    };
     const mine = w.list.map(x => item({
-      icon: bgOf(h('span.as-walls-mine__thumb'), x.id, night), color: 'transparent', title: x.name, sub: x.type === 'live' ? 'Live 图 · 按住壁纸播放' : '图片',
+      icon: bgOf(h('span.as-walls-mine__thumb'), x.id, night), color: 'transparent', title: x.name, sub: x.type === 'live' ? 'Live 图' : '图片',
       onClick: async () => {
-        const v = await actionSheet(x.name, [{ label: '设为锁屏', value: 'lock' }, { label: '设为桌面', value: 'home' }, { label: '两个都用', value: 'both' }, { label: '改名', value: 'rename' }, { label: '删除', value: 'del', danger: true }]);
-        if (v === 'lock' || v === 'both') { w.lock = x.id; w.lockRandom = false; }
-        if (v === 'home' || v === 'both') { w.home = x.id; w.homeRandom = false; }
+        const v = await actionSheet(x.name, [{ label: '改名', value: 'rename' }, { label: '删除', value: 'del', danger: true }]);
         if (v === 'rename') { const name = await dialog({ title: '改名', input: { value: x.name } }); if (name) walls.rename(x.id, name); }
         if (v === 'del') { if (!(await dialog({ title: '删除这张壁纸？', text: '删了就找不回来了。', confirm: '删除', danger: true }))) return; await walls.remove(x.id); }
         if (v) { apply(); re(); }
       } }));
     body.append(
       h('div.as-walls-pv', pv('lock'), pv('home')),
-      group('锁屏', [row('lock'), toggleItem({ title: '随机锁屏', sub: '每次锁屏换一张' }, w.lockRandom, v => { w.lockRandom = v; if (v) walls.reroll('lock'); apply(); re(); })]),
-      group('桌面', [row('home'), toggleItem({ title: '随机桌面', sub: '每次打开手机换一张' }, w.homeRandom, v => { w.homeRandom = v; if (v) walls.reroll('home'); apply(); re(); })], '桌面上是虚化的样子，图标更清楚。'),
-      group('我的壁纸', [item({ icon: 'plus', color: 'blue', title: '添加图片或 Live 图', sub: '可以一次选好几张', onClick: add }), ...mine],
-        'Live 图：选一个视频（mp4 / mov）就行；也可以同时选「一张图 + 一个视频」，图当封面。苹果相册里的实况照片，先在相册里点「存储为视频」再选。\n图片和视频只存在这台设备的浏览器里，导出备份时不会带上。'),
+      group('锁屏', [row('lock'), randomRow('lock', '随机锁屏')]),
+      group('桌面', [row('home'), randomRow('home', '随机桌面')]),
+      ...(mine.length ? [group('我的壁纸', mine)] : []),
       group('Live 图怎么动', [
         h('div.as-field', segmented([['press', '按住播放'], ['loop', '一直循环']], w.live, v => { w.live = v; apply(); re(); })),
-        w.live === 'press' ? toggleItem({ title: '亮屏时播放一次', sub: '打开手机看到锁屏时，自己动一下' }, w.liveWake, v => { w.liveWake = v; commit('walls'); }) : null,
-      ].filter(Boolean), w.live === 'press' ? '在锁屏或桌面空白处按住不动，Live 图就会播放，松手停下。' : '一直循环会更费电。'),
+        w.live === 'press' ? toggleItem({ title: '亮屏时播放一次' }, w.liveWake, v => { w.liveWake = v; commit('walls'); }) : null,
+      ].filter(Boolean)),
     );
   });
 }
@@ -421,7 +474,7 @@ function openStatusbar() {
   sub('statusbar', '顶部时间栏', (body, re) => {
     const sb = S().statusbar;
     const apps = [['lock', '锁屏'], ['home', '桌面'], ['settings', '设置'], ['chat', '聊天'], ['library', '资源库'], ['log', '日志']];
-    body.append(group('', [toggleItem({ title: '显示顶部时间栏' }, sb.global, v => { sb.global = v; commit('look'); shell.applyLook(); re(); })], '时间栏右边的 ⓧ 是关闭手机的按钮。隐藏以后，可以在桌面再返回一次关闭，或开启「连点三下」。'),
+    body.append(group('', [toggleItem({ title: '显示顶部时间栏' }, sb.global, v => { sb.global = v; commit('look'); shell.applyLook(); re(); })]),
       group('按应用', apps.map(([k, label]) => h('div.as-field', h('span.as-field__label', label),
         segmented([['follow', '跟随全局'], ['show', '显示'], ['hide', '隐藏']], sb.apps[k] == null ? 'follow' : sb.apps[k] ? 'show' : 'hide', v => {
           if (v === 'follow') delete sb.apps[k]; else sb.apps[k] = v === 'show'; commit('look'); shell.applyLook();
@@ -457,11 +510,11 @@ function openNotify() {
     const n = S().notify;
     const t = (v, k) => input({ value: v, type: 'time', onInput: x => { n[k] = x; commit('settings'); } });
     body.append(
-      group('', [toggleItem({ title: '新消息横幅', sub: '手机开着、不在那个聊天里时，从顶部滑下来' }, n.banner, v => { n.banner = v; commit('settings'); })]),
+      group('', [toggleItem({ title: '新消息横幅' }, n.banner, v => { n.banner = v; commit('settings'); })]),
       group('提示音', [toggleItem({ title: '提示音' }, n.sound, v => { n.sound = v; commit('settings'); re(); }),
         n.sound ? sliderRow('音量', { min: 0, max: 1, step: .05, value: n.volume, fmt: v => Math.round(v * 100) + '%', onInput: v => { n.volume = v; commit('settings'); } }) : null,
-        n.sound ? item({ title: '选择音效', value: '叮', sub: '更多音效放在资源库（下一轮）' }) : null].filter(Boolean)),
-      group('免打扰', [toggleItem({ title: '免打扰时段', sub: '按现实时间，期间不弹横幅、不响' }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
+        n.sound ? item({ title: '选择音效', value: '叮' }) : null].filter(Boolean)),
+      group('免打扰', [toggleItem({ title: '免打扰时段' }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
         n.dnd ? h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo'))) : null].filter(Boolean)),
       group('', [toggleItem({ title: '桌面图标未读红点' }, n.badge, v => { n.badge = v; commit('chats'); })]));
   });
@@ -475,15 +528,14 @@ function openLinkTime() {
     const p2 = n => String(n).padStart(2, '0');
     const dateIn = input({ value: st.date ? `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}` : '', type: 'date' });
     body.append(
-      group('联动方式', [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))], '新聊天默认用这个，每个聊天还能单独改'),
+      group('联动方式', [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))]),
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); re(); })),
         S().timeSrc === 'story' ? item({ title: '现在', value: `${st.date ? time.fmtDate(st.date) + ' · ' : ''}第 ${st.day} 天 ${hm.value}`, sub: S().storyTime.src === 'story' ? '刚从正文里读到' : '手动设定，跟着现实时间往前走' }) : null,
         S().timeSrc === 'story' ? h('div.as-field', h('span.as-field__label', '读不到剧情时间时：手动设定'), h('div.as-settings-time', { style: { padding: 0 } }, day, hm),
           h('div.as-settings-time', { style: { padding: '8px 0 0' } }, dateIn),
-          h('span.as-field__hint', '日期可以不填；填了锁屏就显示剧情里的年月日，不填就显示今天的日期。'),
           btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStory(+day.value || 1, hh || 0, mm || 0, 'manual', dateIn.value || null); toast('剧情时间已更新'); re(); })) : null,
-      ].filter(Boolean), '剧情时间靠正文里的时间标签更新（设置 → 通用提示词 → 暗号）。'));
+      ].filter(Boolean)));
   });
 }
 

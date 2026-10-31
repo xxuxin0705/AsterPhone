@@ -8,7 +8,7 @@ import { debounce } from './util.js';
 import { inTavern, onTavern, setInjection, hideTagsIn, chatMessage, ctx } from './bridge.js';
 import { log } from './log.js';
 import * as time from './time.js';
-import { getPrompt, render, myName } from './promptstore.js';
+import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
@@ -39,10 +39,8 @@ function hideAll() {
 
 /* ---------- 1. 暗号指令 ---------- */
 export function tagInstruction() {
-  const parts = [];
-  if (getPrompt('timeTag').on) parts.push(render('timeTag', {}));
-  if (getPrompt('msgTag').on) parts.push(render('msgTag', {}));
-  return parts.length ? `[AsterPhone 格式说明]\n${parts.join('\n')}` : '';
+  const text = compose('tag');
+  return text ? `[AsterPhone 格式说明]\n${text}` : '';
 }
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 
@@ -53,7 +51,7 @@ async function readMessage(id) {
   import('../apps/chat/engine.js').then(E => E.storyNudge(text)).catch(() => {});
   const t = time.parseTimeTag(text);
   if (t) { const cur = time.story(), cd = cur.date ? `${cur.date.getFullYear()}-${String(cur.date.getMonth() + 1).padStart(2, '0')}-${String(cur.date.getDate()).padStart(2, '0')}` : null;
-    if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd)) time.setStory(t.day, t.hh, t.mm, 'story', t.date); }
+    if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd) || (t.place && t.place !== cur.place)) time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place || undefined); }
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {

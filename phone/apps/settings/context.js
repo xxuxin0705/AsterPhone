@@ -65,7 +65,7 @@ function bookGroup(s, re, sub) {
   return group('世界书', [
     toggleItem({ title: '跟随酒馆已开启的世界书' }, s.followTavern, v => { s.followTavern = v; save(); re(); }),
     ...(rows.length ? rows : [h('div.as-field', h('span.as-muted', '没有读到世界书（要在酒馆里打开手机）'))]),
-  ], '打勾 = 整本发，点进去单条开关');
+  ]);
 }
 function openBook(name, sub) {
   sub('book', name, async (body, re) => {

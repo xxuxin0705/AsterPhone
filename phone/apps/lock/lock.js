@@ -187,7 +187,7 @@ function buildPin() {
   dots = h('div.as-lock-pin-dots');
   const keypad = h('div.as-lock-keypad');
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''].forEach(k =>
-    keypad.appendChild(k ? h('button.as-key', { 'aria-label': k, onclick: () => key(k) }, h('b', k)) : h('span')));
+    keypad.appendChild(k ? h('button.as-key', { 'aria-label': k, onpointerdown: e => { e.preventDefault(); key(k); } }, h('b', k)) : h('span')));   // 按下就算（不等 click）：刚上滑出来的第一下手机浏览器常常不发 click
   pinForgot = h('button.as-textbtn.as-pin__bar-btn', { onclick: forgot }, '忘记密码');
   // 设置模式下：左边换成「改用 4 / 6 位」
   pinOpt = h('button.as-textbtn.as-pin__bar-btn', { hidden: true, onclick: () => { if (!setup) return; setup.digits = setup.digits === 6 ? 4 : 6; setup.first = null; entry = ''; pinStep(); } });

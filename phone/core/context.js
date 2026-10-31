@@ -18,7 +18,7 @@ export function detectTags(list = rawStory()) {
     for (const [, t] of m.text.matchAll(/<([a-zA-Z][\w:-]*)[\s>]/g)) { const k = t.toLowerCase(); count[k] = (count[k] || 0) + 1; }
     const nc = (m.text.match(/<!--/g) || []).length; if (nc) count['!--'] = (count['!--'] || 0) + nc;
   }
-  delete count.astertime; delete count.asterphone;
+  delete count[(state.timeTagName || 'astertime').toLowerCase()]; delete count.astertime; delete count.asterphone;
   return count;
 }
 
@@ -26,7 +26,8 @@ const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${t}\\b[^>]*>
 /** 按设置清洗一条正文：去掉「不要」的标签；有「要」的标签就只留它们里面的内容，再去掉里面「不要」的 */
 export function cleanText(text) {
   const s = C();
-  let t = String(text).replace(/<(astertime|asterphone)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
+  let t = String(text).replace(new RegExp(`<(astertime|asterphone|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   for (const tag of s.drop) t = t.replace(block(tag), '');
   const kept = s.keep.flatMap(tag => [...t.matchAll(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi'))].map(m => m[1]));
   if (kept.length) t = kept.join('\n');

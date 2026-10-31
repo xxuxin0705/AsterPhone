@@ -18,16 +18,16 @@ export function story() {
   const day = st.day + Math.floor(total / 1440), min = ((total % 1440) + 1440) % 1440;
   const base = parseYmd(st.date);
   const date = base ? new Date(base.getFullYear(), base.getMonth(), base.getDate() + (day - st.day)) : null;
-  return { day, min, hh: Math.floor(min / 60), mm: min % 60, date };
+  return { day, min, hh: Math.floor(min / 60), mm: min % 60, date, place: st.place || '' };
 }
 /** date：'2026-10-31' 这样的字符串，可以不给（只知道第几天） */
-export function setStory(day, hh, mm, src = 'manual', date) {
+export function setStory(day, hh, mm, src = 'manual', date, place) {
   const old = state.settings.storyTime || {};
   const d = Math.max(1, day | 0);
   // 没给日期就沿用以前的：把旧的「基准日期」平移到新的第几天上
   let keep = date || null;
   if (!keep && old.date) { const b = parseYmd(old.date); if (b) keep = ymd(new Date(b.getFullYear(), b.getMonth(), b.getDate() + (d - old.day))); }
-  state.settings.storyTime = { day: d, minutes: (hh | 0) * 60 + (mm | 0), at: Date.now(), src, date: keep };
+  state.settings.storyTime = { day: d, minutes: (hh | 0) * 60 + (mm | 0), at: Date.now(), src, date: keep, place: place ?? old.place ?? '' };
   commit('time');
 }
 export const isStory = () => state.settings.timeSrc === 'story';
@@ -59,7 +59,7 @@ export function now() {
 /** 给 AI 看的时间描述 */
 export function forPrompt() {
   const s = story(), d = new Date();
-  return isStory() ? `剧情第 ${s.day} 天${s.date ? `（${fmtDate(s.date, 'zh')} ${WEEK[s.date.getDay()]}）` : ''} ${pad(s.hh)}:${pad(s.mm)}（${partOfDay(s.hh)}）`
+  return isStory() ? `剧情第 ${s.day} 天${s.date ? `（${fmtDate(s.date, 'zh')} ${WEEK[s.date.getDay()]}）` : ''} ${pad(s.hh)}:${pad(s.mm)}（${partOfDay(s.hh)}）${s.place ? `，在${s.place}` : ''}`
     : `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}（${partOfDay(d.getHours())}）`;
 }
 /** 存到每条消息上的时间戳：现实 + 剧情各一份 */
@@ -106,7 +106,7 @@ export function ago(ts) {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
-/** 从正文里读时间标签：<astertime>第3天 21:20</astertime>；也认 Day 3 / 只有时分 */
+/** 从正文里读时间标签：<astertime>2026年11月1日 · 东京 · 21:20</astertime>；也认旧的「第3天 21:20」/ 只有时分 */
 export function parseTimeTag(text) {
   const tag = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(String(text || ''));
@@ -122,5 +122,7 @@ export function parseTimeTag(text) {
   let day = dm ? parseInt(dm[1] || dm[2], 10) : cur.day;
   // 只给了日期没给「第几天」：按和上一次日期差了几天往前推
   if (!dm && date && cur.date) day = Math.max(1, cur.day + dayDiff(cur.date, parseYmd(date)));
-  return { day, hh: Math.min(23, parseInt(tm[1], 10)), mm: Math.min(59, parseInt(tm[2], 10)), date, raw: body.trim() };
+  // 地点：用「·」隔开的、不是日期也不是时间的那一段
+  const place = body.split(/[·|｜]/).map(x => x.trim()).find(x => x && !/\d{1,2}\s*[:：]\s*\d{2}/.test(x) && !/\d{4}\s*[年\-/.]/.test(x) && !/第\s*\d+\s*天|day\s*\d+/i.test(x)) || '';
+  return { day, hh: Math.min(23, parseInt(tm[1], 10)), mm: Math.min(59, parseInt(tm[2], 10)), date, place, raw: body.trim() };
 }
