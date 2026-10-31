@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.27';
+export const VERSION = '0.6.28';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -505,12 +505,12 @@ function openWalls() {
       selBar.hidden = !sel.size; one.forEach(b => { b.disabled = sel.size !== 1; }); delBtn.textContent = sel.size > 1 ? `删除 ${sel.size} 张` : '删除';
     };
     // 每一排最后一个「+」：加进来的直接用在这一排（锁屏或桌面）
-    const row = which => h('div.as-walls-row', walls.allIds().map(id => tile(which, id)), h('button.as-walls-tile.as-walls-tile--add', { 'aria-label': '添加图片或 Live 图', onclick: () => add(which) }, icon('plus', 26, 2), h('span.as-walls-tile__name', '添加')));
+    const row = which => h('div.as-walls-row', walls.ids(which).map(id => tile(which, id)), h('button.as-walls-tile.as-walls-tile--add', { 'aria-label': '添加图片或 Live 图', onclick: () => add(which) }, icon('plus', 26, 2), h('span.as-walls-tile__name', '添加')));
     const add = async which => {
       const files = await pickMany('image/*,video/*,.mov,.heic');
       if (!files.length) return;
       try {
-        const ids = await walls.addFiles(files);
+        const ids = await walls.addFiles(files, which);
         if (!ids.length) { toast('没认出能用的图片或视频'); return; }
         w[which] = ids[ids.length - 1]; w[which + 'Random'] = false;
         if (ids.length === 1) await cropWall(ids[0]);   // 加一张的时候马上让你调位置

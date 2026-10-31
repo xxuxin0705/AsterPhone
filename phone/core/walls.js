@@ -1,6 +1,6 @@
 // 壁纸库：自带两套（月夜城堡 / 水中月）+ 自己加的图片和 Live 图。
-// 锁屏和桌面各选各的，也可以「随机」：每次锁屏 / 每次打开手机换一张。
-// 图片和视频本体存在 IndexedDB（键 wall:<id>），state 里只记名字和类型。
+// 锁屏和桌面各有各的一排（row），加、删、调整都只管自己那排；也可以「随机」：每次锁屏 / 每次打开手机换一张。
+// 图片和视频本体存在 IndexedDB（键 wall:<blob 或 id>），state 里只记名字和类型。
 import { state, commit, kvGet, kvSet, kvDel } from './store.js';
 import { uid } from './util.js';
 import { WALLPAPERS } from './wallpaper.js';
@@ -8,7 +8,7 @@ import { WALLPAPERS } from './wallpaper.js';
 export const BUILTIN = Object.keys(WALLPAPERS);
 export const W = () => state.settings.walls;
 export const isBuiltin = id => BUILTIN.includes(id);
-export const allIds = () => [...BUILTIN, ...W().list.map(x => x.id)];
+export const ids = which => [...BUILTIN, ...W().list.filter(x => x.row === which).map(x => x.id)];
 export const info = id => isBuiltin(id) ? { id, name: WALLPAPERS[id].name, type: 'builtin' } : W().list.find(x => x.id === id);
 const exists = id => !!info(id);
 
@@ -22,20 +22,22 @@ export function current(which) {
 }
 /** 随机换一张（尽量别和上一张一样） */
 export function reroll(which) {
-  const ids = allIds(), prev = drawn[which];
-  const pool = ids.length > 1 ? ids.filter(i => i !== prev) : ids;
+  const all = ids(which), prev = drawn[which];
+  const pool = all.length > 1 ? all.filter(i => i !== prev) : all;
   drawn[which] = pool[Math.floor(Math.random() * pool.length)] || 'castle';
   return drawn[which];
 }
 
 /* ---------- 读图 ---------- */
-const urls = new Map();     // id → { img, video }（object URL，读一次就缓存）
+const urls = new Map();     // 存储键 → { img, video }（object URL，读一次就缓存）
+const blobKey = id => (info(id) || {}).blob || id;   // 以前锁屏、桌面共用一张图，拆开后两条指向同一份文件
 async function blobs(id) {
-  if (urls.has(id)) return urls.get(id);
-  const rec = await kvGet('wall:' + id).catch(() => null);
+  const k = blobKey(id);
+  if (urls.has(k)) return urls.get(k);
+  const rec = await kvGet('wall:' + k).catch(() => null);
   if (!rec) return null;
   const u = { img: rec.img ? URL.createObjectURL(rec.img) : '', video: rec.video ? URL.createObjectURL(rec.video) : '' };
-  urls.set(id, u); return u;
+  urls.set(k, u); return u;
 }
 /** 缩略图地址（自带的跟着日夜换） */
 export async function thumb(id, night) {
@@ -101,7 +103,7 @@ async function motionVideo(file) {
   }
   return null;
 }
-export async function addFiles(files) {
+export async function addFiles(files, which) {
   files = [...files].filter(f => /^(image|video)\//.test(f.type) || /\.(mov|mp4|webm|m4v|heic|jpe?g|png|webp|gif)$/i.test(f.name));
   const imgs = files.filter(f => !/^video\//.test(f.type) && !/\.(mov|mp4|webm|m4v)$/i.test(f.name));
   const vids = files.filter(f => !imgs.includes(f));
@@ -118,7 +120,7 @@ export async function addFiles(files) {
     if (!img && !p.video) continue;
     const id = uid('w_'), name = ((p.img || p.video).name || '').replace(/\.[^.]+$/, '').slice(0, 20) || (p.video ? 'Live 图' : '图片');
     await kvSet('wall:' + id, { img, video: p.video || null });
-    W().list.push({ id, name, type: p.video ? 'live' : 'image', at: Date.now() });
+    W().list.push({ id, name, type: p.video ? 'live' : 'image', at: Date.now(), row: which });
     added.push(id);
   }
   if (added.length) commit('walls');
@@ -126,13 +128,26 @@ export async function addFiles(files) {
 }
 export async function remove(id) {
   if (isBuiltin(id)) return;
-  const w = W();
+  const w = W(), k = blobKey(id);
   w.list = w.list.filter(x => x.id !== id);
   if (w.lock === id) w.lock = 'castle';
   if (w.home === id) w.home = 'castle';
-  for (const k of ['lock', 'home']) if (drawn[k] === id) drawn[k] = null;
-  const u = urls.get(id); if (u) { u.img && URL.revokeObjectURL(u.img); u.video && URL.revokeObjectURL(u.video); urls.delete(id); }
-  await kvDel('wall:' + id).catch(() => {});
+  for (const r of ['lock', 'home']) if (drawn[r] === id) drawn[r] = null;
+  // 另一排还在用同一份文件就留着
+  if (!w.list.some(x => blobKey(x.id) === k)) {
+    const u = urls.get(k); if (u) { u.img && URL.revokeObjectURL(u.img); u.video && URL.revokeObjectURL(u.video); urls.delete(k); }
+    await kvDel('wall:' + k).catch(() => {});
+  }
+  commit('walls');
+}
+/** 旧版锁屏、桌面共用一个列表：每张拆成锁屏一条、桌面一条（共用文件），以后各管各的 */
+export function splitRows() {
+  const w = W(); if (w.list.every(x => x.row)) return;
+  for (const x of w.list.filter(x => !x.row)) {
+    const copy = { ...x, id: uid('w_'), blob: x.id, row: 'home' };
+    x.row = 'lock'; w.list.push(copy);
+    if (w.home === x.id) w.home = copy.id;
+  }
   commit('walls');
 }
 export function setCrop(id, crop) { const x = info(id); if (x && !isBuiltin(id)) { x.crop = crop; commit('walls'); } }

@@ -192,6 +192,7 @@ function bindTripleTap() {
 async function boot() {
   await Promise.all([load(), loadLogs()]);
   (await import('./promptstore.js')).migratePrompts();
+  walls.splitRows();
   try { const { seedImageChannels } = await import('./api.js'); if (seedImageChannels()) commit('connections'); } catch (e) { console.warn(e); }
   loadClockFonts().then(n => { if (n) { commit('look'); renderClock(true); renderWidget(); } });
   mountUI(phone);
