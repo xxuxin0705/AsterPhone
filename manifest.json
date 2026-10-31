@@ -1,0 +1,12 @@
+{
+    "display_name": "Aster",
+    "loading_order": 1,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "xxuxin0705",
+    "version": "0.1.0",
+    "homePage": "https://github.com/xxuxin0705/Aster",
+    "auto_update": true
+}
