@@ -94,7 +94,7 @@ export function renderClock(force) {
   const n = time.now();
   const sb = $('#sbTime'); if (sb) sb.textContent = n.hm;
   dateEl.textContent = n.date;
-  clockEl.dataset.font = (state.settings.clock || {}).font || 'sf';
+  clockEl.dataset.font = (state.settings.clock || {}).font || 'sf'; clockEl.dataset.weight = (state.settings.clock || {}).weight || 'heavy';
   if (n.hm === shown && !force) return;
   if (force || n.hm.length !== shown.length || clockEl.children.length !== n.hm.length) {
     clockEl.innerHTML = '';

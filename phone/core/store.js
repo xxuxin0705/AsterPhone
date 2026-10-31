@@ -43,7 +43,7 @@ export function defaults() {
       mode: 'auto', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
       // 壁纸：锁屏、桌面各选各的；random = 每次锁屏 / 打开手机随机换；live = Live 图怎么动（press 按住播放 / loop 一直循环）
       walls: { lock: 'castle', home: 'castle', lockRandom: false, homeRandom: false, live: 'press', liveWake: true, list: [] },
-      clock: { lang: 'zh', h12: false, font: 'sf' },   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
+      clock: { lang: 'zh', h12: false, font: 'sf', weight: 'heavy' },   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
       statusbar: { global: true, apps: {} },
       lock: { enabled: false, method: 'none', pin: '', digits: 6 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
       notify: { banner: true, sound: false, volume: .6, dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },

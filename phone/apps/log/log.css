@@ -14,7 +14,9 @@
 .as-log-item.is-open .as-log-item__detail { display: block; }
 
 .as-settings-clockpv { height: 120px; margin: 12px 14px 2px; border-radius: 16px; background-size: cover; background-position: center 18%; display: grid; place-content: center; justify-items: center; gap: 4px; box-shadow: inset 0 0 0 1px var(--as-color-glass-line); transition: color var(--as-dur-base); }
-.as-settings-clockpv b { font: 800 50px/1 var(--font-clock-sf); letter-spacing: -.01em; opacity: .85; }
-.as-settings-clockpv[data-font="serif"] b { font: 300 46px/1 var(--font-clock); letter-spacing: .02em; opacity: 1; }
-.as-settings-clockpv[data-font="thin"] b { font: 200 48px/1 var(--font-clock-thin); opacity: 1; }
+.as-settings-clockpv b { font: 700 50px/1 var(--font-clock-sf); letter-spacing: -.01em; opacity: .85; -webkit-text-stroke: 1.5px currentColor; paint-order: stroke fill; }
+.as-settings-clockpv[data-weight="normal"] b { -webkit-text-stroke: 0; }
+.as-settings-clockpv[data-weight="heavy"] b { -webkit-text-stroke: 2.8px currentColor; }
+.as-settings-clockpv[data-font="serif"] b { font: 300 46px/1 var(--font-clock); letter-spacing: .02em; opacity: 1; -webkit-text-stroke: 0; }
+.as-settings-clockpv[data-font="thin"] b { font: 200 48px/1 var(--font-clock-thin); opacity: 1; -webkit-text-stroke: 0; }
 .as-settings-clockpv span { font: 600 12px/1 var(--font-clock-sf); letter-spacing: .04em; opacity: .9; }
