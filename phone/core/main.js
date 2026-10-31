@@ -136,13 +136,18 @@ function onUnlock(chatId) {
 
 /* ---------- 新消息提醒 ---------- */
 let audioCtx = null;
-function ding() {
+// 提示音用浏览器现场合成，不用音频文件：[起始音高, 结束音高, 第几秒响, 响多久, 波形]
+const TONES = { ding: [[880, 1320, 0, .35]], dong: [[523, 392, 0, .5]], pop: [[600, 1500, 0, .12, 'triangle']], twin: [[988, 988, 0, .2], [1319, 1319, .14, .35]] };
+function ding(kind = state.settings.notify.tone) {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime, vol = state.settings.notify.volume ?? .6;
-    o.type = 'sine'; o.frequency.setValueAtTime(880, t); o.frequency.exponentialRampToValueAtTime(1320, t + .09);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18 * vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .35);
-    o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + .4);
+    const t0 = audioCtx.currentTime, vol = state.settings.notify.volume ?? .6;
+    for (const [f0, f1, at, len, type = 'sine'] of TONES[kind] || TONES.ding) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = t0 + at;
+      o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + .09);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18 * vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+      o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + len + .05);
+    }
   } catch (e) { /* 浏览器不让响就算了 */ }
 }
 function inDnd() {
@@ -199,7 +204,7 @@ async function boot() {
   applySkins();
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });
   Object.assign(shell, {
-    phone, wallpaper, openApp, close: closePhone, applyLook, setNight: (n, el) => setNight(n, el), notify,
+    phone, wallpaper, openApp, close: closePhone, applyLook, ding, setNight: (n, el) => setNight(n, el), notify,
     lockNow: () => onVisible(false), showWall, refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
     wantNight, activeChat: null, inDnd,
   });

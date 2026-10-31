@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.32';
+export const VERSION = '0.6.33';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -68,7 +68,7 @@ export function open() {
       ]),
       group('', [
         item({ icon: 'link', color: 'green', title: '联动方式与时间', value: (state.apps.chat.defaults.linkMode === 'online' ? '仅线上' : '跟随正文') + ' · ' + (S().timeSrc === 'story' ? '剧情时间' : '现实时间'), chevron: true, onClick: openLinkTime }),
-        item({ icon: 'list', color: 'purple', title: '上下文与世界书', chevron: true, onClick: () => import('./context.js').then(m => m.openContext({ sub, sliderRow })) }),
+        item({ icon: 'list', color: 'purple', title: '上下文与世界书', chevron: true, onClick: () => import('./context.js').then(m => m.openContext({ sub, sliderRow, withInfo })) }),
         item({ icon: 'db', color: 'gold', title: '数据', chevron: true, onClick: openData }),
         item({ icon: 'info', color: 'pink', title: '关于', value: 'v' + VERSION, chevron: true, onClick: openAbout }),
       ]));
@@ -87,7 +87,7 @@ async function openConnections() {
   openBoard({ list: () => { S().connView = 'list'; commit('settings'); nav.pop(); openConnList(); } });
 }
 function openConnList() {
-  sub('connections', '连接 · 列表', (body, re) => {
+  const p = sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '向量']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => editConn(null)))); return; }
@@ -99,10 +99,11 @@ function openConnList() {
       return el;
     }), '打勾的是全局默认。各个 App、各个聊天还能单独指定。'));
     body.appendChild(btn('新建连接', 'secondary', () => editConn(null), { style: { width: '100%' } }));
-  }, { right: [navBtn('more', '更多', async () => {
-    if (await actionSheet('连接', [{ value: 'board', label: '插线板模式' }]) !== 'board') return;
-    S().connView = ''; commit('settings'); nav.pop(); openConnections();
-  }), navBtn('plus', '新建连接', () => editConn(null))] });
+  }, { right: navBtn('more', '更多', async () => {
+    const m = await import('./board.js');
+    m.connMenu({ mode: 'list', schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add: () => editConn(null),
+      switchMode: () => { S().connView = ''; commit('settings'); nav.pop(); openConnections(); } });
+  }) });
 }
 function editConn(existing) {
   const kind = connKind;
@@ -202,11 +203,6 @@ function openChatApp() {
         toggleItem({ title: '新聊天默认允许 TA 主动发消息' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
         a.defaults.proactive && a.defaults.linkMode === 'online' ? sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } }) : null,
       ].filter(Boolean)),
-      a.defaults.linkMode === 'online' ? (() => {
-        const used = S().autoUsed && S().autoUsed.date === new Date().toDateString() ? S().autoUsed.count : 0;
-        return group('线上聊天', [sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
-          item({ title: '今天已用', value: `${used} 次` })]);
-      })() : null,
       group('注入正文', [
         item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
         field('注入位置', segmented([['chat', '聊天记录里'], ['prompt', '人设卡和世界书附近']], a.injectPos, v => { a.injectPos = v; commit('inject'); re(); })),
@@ -581,6 +577,7 @@ function openLock() {
 }
 
 /* ================= 通知 ================= */
+const TONE_LABEL = { ding: '叮', dong: '咚', pop: '啵', twin: '叮咚' };
 function openNotify() {
   sub('notify', '通知', (body, re) => {
     const n = S().notify;
@@ -589,7 +586,12 @@ function openNotify() {
       group('', [toggleItem({ title: '新消息横幅' }, n.banner, v => { n.banner = v; commit('settings'); })]),
       group('提示音', [toggleItem({ title: '提示音' }, n.sound, v => { n.sound = v; commit('settings'); re(); }),
         n.sound ? sliderRow('音量', { min: 0, max: 1, step: .05, value: n.volume, fmt: v => Math.round(v * 100) + '%', onInput: v => { n.volume = v; commit('settings'); } }) : null,
-        n.sound ? item({ title: '选择音效', value: '叮' }) : null].filter(Boolean)),
+        n.sound ? item({ title: '选择音效', value: TONE_LABEL[n.tone] || '叮', chevron: true, onClick: async e => {
+          const valEl = e.currentTarget.querySelector('.as-list-item__value');
+          const v = await actionSheet('选择音效', Object.entries(TONE_LABEL).map(([k, l]) => ({ value: k, label: l, active: k === (n.tone || 'ding') })));
+          if (!v) return;
+          n.tone = v; commit('settings'); valEl.textContent = TONE_LABEL[v]; shell.ding(v);
+        } }) : null].filter(Boolean)),
       group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
         n.dnd ? h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo'))) : null].filter(Boolean)),
       group('', [toggleItem({ title: '桌面图标未读红点' }, n.badge, v => { n.badge = v; commit('chats'); })]));
@@ -610,9 +612,15 @@ function openLinkTime() {
     const manual = h('div.as-field', { hidden: S().timeSrc !== 'story' }, h('span.as-field__label', '读不到剧情时间时：手动设定'),
       h('div.as-settings-time', { style: { padding: 0 } }, dateIn, hm),
       btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); }));
+    // 仅线上聊天才有「每天主动发几条」；切换只显示 / 藏起这一块
+    const used = S().autoUsed && S().autoUsed.date === new Date().toDateString() ? S().autoUsed.count : 0;
+    const online = group('线上聊天', [sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
+      item({ title: '今天已用', value: `${used} 次` })]);
+    online.hidden = a.defaults.linkMode !== 'online';
     body.append(
       group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
-        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); }))]),
+        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); online.hidden = v !== 'online'; }))]),
+      online,
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),
         nowItem, manual]));

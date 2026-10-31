@@ -738,68 +738,11 @@ export function openBoard({ list }) {
   }
 
   /* ================= 右上角菜单 ================= */
-  async function menu() {
-    const v = await actionSheet('连接', [
-      { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
-      { value: 'retry', label: '断线了怎么办' },
-      { value: 'add', label: '添加接口' },
-      { value: 'list', label: '列表模式' }]);
-    if (v === 'scheme') schemes();
-    if (v === 'retry') retrySheet();
-    if (v === 'add') addNew();
-    if (v === 'list') list();
-  }
-  function retrySheet() {
-    const R = C().retry;
-    // 聊天线断了改用副 API：默认关；打开时要先选好副 API 是哪个，选了才显示是哪个
-    const bkOf = () => C().text.find(c => c.id === R.backup);
-    const bkName = h('span', (bkOf() || {}).name || '');
-    const bkRow = h('div.as-pbd__row', { hidden: !(R.fallback && bkOf()) }, h('span.as-pbd__label', '副 API'), h('button.as-pbd__select', { onclick: () => pickBk() }, bkName, icon('chevron', 14, 2)));
-    const sw = switchEl(!!(R.fallback && bkOf()), async v => {
-      if (v && !(await pickBk())) { sw.click(); return; }   // 没选副 API：拨回关
-      R.fallback = v; commit('connections'); bkRow.hidden = !v;
-    }, '聊天线断了改用副 API');
-    const pickBk = async () => {
-      const opts = C().text.filter(c => c.id !== C().defaults.text).map(c => ({ value: c.id, label: c.name, active: c.id === R.backup }));
-      if (!opts.length) { toast('先添加一个别的文字接口'); return false; }
-      const v = await actionSheet('副 API', opts); if (!v) return false;
-      R.backup = v; commit('connections'); bkName.textContent = bkOf().name;
-      return true;
-    };
-    const fbRow = h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用副 API'), sw);
-    const box = h('div.as-pbd__wrap',
-      h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '失败了自动重试'), switchEl(R.on, v => { R.on = v; commit('connections'); }, '失败自动重试')),
-      h('div.as-pbd__row', h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(R.max || 1), v => { R.max = +v; commit('connections'); }))),
-      h('p.as-pbd__hint', '付费接口按字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
-      fbRow, bkRow);
-    sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
-  }
-  function schemes() {
-    const list = C().schemes;
-    const draw = () => {
-      box.innerHTML = '';
-      if (!list.length) box.appendChild(h('p.as-pbd__hint', '还没有方案。把现在每根线插在哪存成一个方案，以后点一下就整套换过去。'));
-      list.forEach(sc => box.appendChild(h('div.as-pbd__scheme' + (C().scheme === sc.id ? '.is-on' : ''),
-        h('button.as-pbd__scheme-main', { onclick: () => applyScheme(sc) }, h('b', sc.name), h('span', CORDS.map(cd => { const c = (C()[cd.kind] || []).find(x => x.id === sc.map[cd.use]); return c ? `${cd.label}→${c.name}` : null; }).filter(Boolean).join('　') || '全部没插')),
-        h('button.as-pbd__ibtn', { 'aria-label': '删掉这个方案', onclick: async () => { if (!(await dialog({ title: `删掉方案「${sc.name}」？`, confirm: '删除', danger: true }))) return; list.splice(list.indexOf(sc), 1); if (C().scheme === sc.id) C().scheme = ''; commit('connections'); draw(); syncUses(); } }, icon('trash', 16, 1.8)))));
-      box.appendChild(h('button.as-pbd__dash', { onclick: async () => {
-        const name = await dialog({ title: '存成方案', input: { placeholder: '方案名字' } });
-        if (!name) return;
-        const sc = { id: uid('sch'), name: String(name).slice(0, 16), map: Object.fromEntries(CORDS.map(cd => [cd.use, C().defaults[cd.use] || ''])) };
-        list.push(sc); C().scheme = sc.id; commit('connections'); draw(); syncUses(); toast('存好了');
-      } }, icon('plus', 15, 2), '把现在的接法存成方案'));
-    };
-    const box = h('div.as-pbd__wrap');
-    const s = sheet({ title: '接线方案', cls: 'as-pbd', content: box });
-    function applyScheme(sc) {
-      for (const cd of CORDS) C().defaults[cd.use] = sc.map[cd.use] || '';
-      C().scheme = sc.id; commit('connections'); s.close();
-      // 线一根根换过去：先拔下来，再飞到新接口
-      plugs.forEach((pl, i) => { setTimeout(() => { const id = C().defaults[pl.use]; if (id && tileOf(id)) snapTo(pl, id, true); else { pl.mode = 'rest'; pl.target = null; } layoutLabels(); syncUses(); }, i * 140); });
-      toast(`换成「${sc.name}」`);
-    }
-    draw();
-  }
+  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list });
+  const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
+    // 线一根根换过去：先拔下来，再飞到新接口
+    plugs.forEach((pl, i) => { setTimeout(() => { const id = C().defaults[pl.use]; if (id && tileOf(id)) snapTo(pl, id, true); else { pl.mode = 'rest'; pl.target = null; } layoutLabels(); syncUses(); }, i * 140); });
+  } });
 
   /* ----- 刷新（加 / 删 / 改了接口之后） ----- */
   function refresh() { if (syncTavernProfiles()) commit('connections'); updateTiles(); requestAnimationFrame(() => { placePlugs(false); layoutLabels(); forceDraw = true; }); }
@@ -812,4 +755,68 @@ export function openBoard({ list }) {
   const mo = new MutationObserver(() => { if (!p.el.isConnected && p.el._wasIn) { alive = false; cancelAnimationFrame(raf); ocean.stop(); unsub(); mo.disconnect(); window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); } if (p.el.isConnected) p.el._wasIn = true; });
   setTimeout(() => { p.el._wasIn = p.el.isConnected; if (p.el.parentNode) mo.observe(p.el.parentNode, { childList: true }); }, 0);
   return p;
+}
+
+/** 右上角「…」：插线板模式和列表模式共用，只有最后一项（换成另一个模式）不一样 */
+export async function connMenu({ mode, schemes, add, switchMode }) {
+  const v = await actionSheet('连接', [
+    { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
+    { value: 'retry', label: '断线了怎么办' },
+    { value: 'add', label: '添加接口' },
+    { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);
+  if (v === 'scheme') schemes();
+  if (v === 'retry') retrySheet();
+  if (v === 'add') add();
+  if (v === 'mode') switchMode();
+}
+function retrySheet() {
+  const R = C().retry;
+  // 聊天线断了改用副 API：默认关；打开时要先选好副 API 是哪个，选了才显示是哪个
+  const bkOf = () => C().text.find(c => c.id === R.backup);
+  const bkName = h('span', (bkOf() || {}).name || '');
+  const bkRow = h('div.as-pbd__row', { hidden: !(R.fallback && bkOf()) }, h('span.as-pbd__label', '副 API'), h('button.as-pbd__select', { onclick: () => pickBk() }, bkName, icon('chevron', 14, 2)));
+  const sw = switchEl(!!(R.fallback && bkOf()), async v => {
+    if (v && !(await pickBk())) { sw.click(); return; }   // 没选副 API：拨回关
+    R.fallback = v; commit('connections'); bkRow.hidden = !v;
+  }, '聊天线断了改用副 API');
+  const pickBk = async () => {
+    const opts = C().text.filter(c => c.id !== C().defaults.text).map(c => ({ value: c.id, label: c.name, active: c.id === R.backup }));
+    if (!opts.length) { toast('先添加一个别的文字接口'); return false; }
+    const v = await actionSheet('副 API', opts); if (!v) return false;
+    R.backup = v; commit('connections'); bkName.textContent = bkOf().name;
+    return true;
+  };
+  const fbRow = h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用副 API'), sw);
+  const box = h('div.as-pbd__wrap',
+    h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '失败了自动重试'), switchEl(R.on, v => { R.on = v; commit('connections'); }, '失败自动重试')),
+    h('div.as-pbd__row', h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(R.max || 1), v => { R.max = +v; commit('connections'); }))),
+    h('p.as-pbd__hint', '付费接口按字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
+    fbRow, bkRow);
+  sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
+}
+/** 接线方案：onApply = 换了方案之后（插线板要把线一根根挪过去），onChange = 方案增删之后 */
+export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
+  const list = C().schemes;
+  const draw = () => {
+    box.innerHTML = '';
+    if (!list.length) box.appendChild(h('p.as-pbd__hint', '还没有方案。把现在每根线插在哪存成一个方案，以后点一下就整套换过去。'));
+    list.forEach(sc => box.appendChild(h('div.as-pbd__scheme' + (C().scheme === sc.id ? '.is-on' : ''),
+      h('button.as-pbd__scheme-main', { onclick: () => applyScheme(sc) }, h('b', sc.name), h('span', CORDS.map(cd => { const c = (C()[cd.kind] || []).find(x => x.id === sc.map[cd.use]); return c ? `${cd.label}→${c.name}` : null; }).filter(Boolean).join('　') || '全部没插')),
+      h('button.as-pbd__ibtn', { 'aria-label': '删掉这个方案', onclick: async () => { if (!(await dialog({ title: `删掉方案「${sc.name}」？`, confirm: '删除', danger: true }))) return; list.splice(list.indexOf(sc), 1); if (C().scheme === sc.id) C().scheme = ''; commit('connections'); draw(); onChange(); } }, icon('trash', 16, 1.8)))));
+    box.appendChild(h('button.as-pbd__dash', { onclick: async () => {
+      const name = await dialog({ title: '存成方案', input: { placeholder: '方案名字' } });
+      if (!name) return;
+      const sc = { id: uid('sch'), name: String(name).slice(0, 16), map: Object.fromEntries(CORDS.map(cd => [cd.use, C().defaults[cd.use] || ''])) };
+      list.push(sc); C().scheme = sc.id; commit('connections'); draw(); onChange(); toast('存好了');
+    } }, icon('plus', 15, 2), '把现在的接法存成方案'));
+  };
+  const box = h('div.as-pbd__wrap');
+  const s = sheet({ title: '接线方案', cls: 'as-pbd', content: box });
+  function applyScheme(sc) {
+    for (const cd of CORDS) C().defaults[cd.use] = sc.map[cd.use] || '';
+    C().scheme = sc.id; commit('connections'); s.close();
+    onApply(sc);
+    toast(`换成「${sc.name}」`);
+  }
+  draw();
 }
