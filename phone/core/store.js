@@ -46,7 +46,7 @@ export function defaults() {
       clock: { lang: 'zh', h12: false, font: 'sf' },   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
       statusbar: { global: true, apps: {} },
       lock: { enabled: false, method: 'none', pin: '', digits: 4 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
-      notify: { banner: true, sound: false, volume: .6, tone: 'ding', dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
+      notify: { banner: true, sound: false, volume: .6, tone: 'twin', dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
       device: { fab: 'iphone', fabSize: 52, tripleTap: false },
       // 发给手机 AI 的上下文：读几条正文、带不带你的发言、标签要 / 不要、人设、世界书（见 core/context.js）
       ctx: { count: 6, withUser: true, keep: ['content'], userPersona: true, charPersona: true, followTavern: true, books: {}, entries: {} },

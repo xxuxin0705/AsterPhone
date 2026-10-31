@@ -4,7 +4,7 @@ import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, cl
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
-import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
+import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.37';
+export const VERSION = '0.6.38';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -202,7 +202,6 @@ function openChatApp() {
         toggleItem({ title: '先加好友才能聊' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
         toggleItem({ title: '角色配图真的生图' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
         toggleItem({ title: '新聊天默认允许 TA 主动发消息' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
-        a.defaults.proactive && a.defaults.linkMode === 'online' ? sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } }) : null,
       ].filter(Boolean)),
       group('注入正文', [
         item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
@@ -239,24 +238,35 @@ function openPromptApp(a) {
 }
 const tagName = () => state.timeTagName || 'astertime';
 function openCat(cat) {
-  sub('prompt-cat', catInfo(cat).name, (body, re) => {
-    const S = schemesOf(cat), sid = S.cur;
-    // 方案：点一下换着用
-    const schemes = group('方案', [h('div.as-field', h('div.as-chips', [{ id: '', name: '默认方案' }, ...S.list].map(x =>
-      h('button.as-chip' + (x.id === sid ? '.is-active' : ''), { onclick: () => { if (x.id !== sid) { useScheme(cat, x.id); re(); } } }, x.name))))]);
-    const acts = h('div.as-lib-actions', btn('复制方案', 'secondary', () => { copyScheme(cat, sid); re(); }), ...(sid ? [
-      btn('改名', 'secondary', async () => { const n = await dialog({ title: '改名', input: { value: schemeName(cat) } }); if (n && n.trim()) { renameScheme(cat, sid, n.trim()); re(); } }),
-      btn('删除', 'secondary', async () => { if (!(await dialog({ title: `删除「${schemeName(cat)}」？`, confirm: '删除', danger: true }))) return; removeScheme(cat, sid); re(); }),
-    ] : []));
-    const rows = blocksIn(cat).map(b => {
-      if (!sid) return item({ title: b.name, chevron: true, onClick: () => openBlock(cat, '', b.id) });
-      const row = item({ title: b.name, right: switchEl(b.on, v => setOn(cat, sid, b.id, v), b.name), chevron: true, onClick: () => openBlock(cat, sid, b.id) });
-      row.dataset.id = b.id; bindDrag(row);
-      return row;
-    });
-    const bodyEl = group('', rows);
+  sub('prompt-cat', catInfo(cat).name, body => {
+    const S = schemesOf(cat);
+    // 每套方案那一块（按钮、条目、新建）只画一次，切换方案只是显示 / 藏起来，不重画（重画会闪）
+    const views = new Map(), chipBox = h('div.as-chips'), box = h('div');
+    const chipOf = x => h('button.as-chip', { dataset: { id: x.id }, onclick: () => show(x.id) }, x.name);
+    const show = id => {
+      if (S.cur !== id) useScheme(cat, id);
+      chipBox.querySelectorAll('.as-chip').forEach(c => c.classList.toggle('is-active', c.dataset.id === id));
+      if (!views.has(id)) { const v = view(id); views.set(id, v); box.append(v); }
+      views.forEach((v, k) => { v.hidden = k !== id; });
+    };
+    const view = sid => {
+      const acts = h('div.as-lib-actions', btn('复制方案', 'secondary', () => { const nid = copyScheme(cat, sid); chipBox.append(chipOf(schemeOf(cat, nid))); show(nid); }), ...(sid ? [
+        btn('改名', 'secondary', async () => { const n = await dialog({ title: '改名', input: { value: schemeName(cat, sid) } }); if (n && n.trim()) { renameScheme(cat, sid, n.trim()); chipBox.querySelector(`[data-id="${sid}"]`).textContent = n.trim(); } }),
+        btn('删除', 'secondary', async () => {
+          if (!(await dialog({ title: `删除「${schemeName(cat, sid)}」？`, confirm: '删除', danger: true }))) return;
+          removeScheme(cat, sid); chipBox.querySelector(`[data-id="${sid}"]`).remove(); views.get(sid).remove(); views.delete(sid); show('');
+        }),
+      ] : []));
+      const rows = blocksIn(cat, sid).map(b => {
+        if (!sid) return item({ title: b.name, chevron: true, onClick: () => openBlock(cat, '', b.id) });
+        const row = item({ title: b.name, right: switchEl(b.on, v => setOn(cat, sid, b.id, v), b.name), chevron: true, onClick: () => openBlock(cat, sid, b.id) });
+        row.dataset.id = b.id; bindDrag(row, sid);
+        return row;
+      });
+      return h('div', acts, group('', rows), sid ? h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, sid, newBlock(cat, sid)))) : null);
+    };
     // 长按一行，再上下拖动排顺序
-    function bindDrag(row) {
+    function bindDrag(row, sid) {
       let dragging = false;
       row.addEventListener('touchmove', e => { if (dragging) e.preventDefault(); }, { passive: false });   // 拖的时候别让页面跟着滚
       longPress(row, () => {
@@ -279,20 +289,24 @@ function openCat(cat) {
       body.append(group('', [h('div.as-field', h('span.as-field__label', '时间标签名称'),
         input({ value: tagName(), placeholder: 'astertime', onInput: v => { state.timeTagName = v.replace(/[^\w-]/g, '') || 'astertime'; hint.textContent = sample(tagName()); commit('prompts'); } }), hint)]));
     }
-    body.append(schemes, acts, bodyEl, ...(sid ? [h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, sid, newBlock(cat, sid))))] : []));
+    chipBox.append(...[{ id: '', name: '默认方案' }, ...S.list].map(chipOf));
+    body.append(group('方案', [h('div.as-field', chipBox)]), box);
+    show(S.cur);
   });
 }
 function openBlock(cat, sid, id) {
   const b = blocksIn(cat, sid).find(x => x.id === id);
   const shown = t => t.replace(/\{\{tag\}\}/g, tagName());
-  sub('prompt-block', sid ? '编辑提示词' : b.name, body => {
+  // 从内置那几条复制来的（文风、消息语气…）名字不能改，只改内容；自己新建的才能起名字
+  const fixed = !!sid && blocksIn(cat, '').some(x => x.name === b.name);
+  sub('prompt-block', sid && !fixed ? '编辑提示词' : b.name, body => {
     if (!sid) { body.append(group('', [h('div.as-field', h('pre.as-prompt-view', shown(b.text)))])); return; }
     let name = b.name, text = b.text;
     const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
     ta.classList.add('as-settings-prompt-text');
     const insert = v => { const s0 = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s0; ta.setRangeText(`{{${v}}}`, s0, e, 'end'); text = ta.value; ta.focus(); };
     body.append(
-      group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))]),
+      ...(fixed ? [] : [group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))])]),
       h('div.as-lib-actions', btn('删除', 'secondary', async () => {
         if (!(await dialog({ title: `删掉「${name}」？`, confirm: '删除', danger: true }))) return;
         removeBlock(cat, sid, id); nav.pop();
@@ -582,23 +596,28 @@ const TONE_LABEL = { ding: '叮', dong: '咚', pop: '啵', twin: '叮咚' };
 function openNotify() {
   sub('notify', '通知', (body, re) => {
     const n = S().notify;
-    const t = (v, k) => input({ value: v, type: 'time', onInput: x => { n[k] = x; commit('settings'); } });
     body.append(
       group('', [toggleItem({ title: '新消息横幅' }, n.banner, v => { n.banner = v; commit('settings'); })]),
       group('提示音', [toggleItem({ title: '提示音' }, n.sound, v => { n.sound = v; commit('settings'); re(); }),
         n.sound ? sliderRow('音量', { min: 0, max: 1, step: .05, value: n.volume, fmt: v => Math.round(v * 100) + '%', onInput: v => { n.volume = v; commit('settings'); } }) : null,
-        n.sound ? item({ title: '选择音效', value: TONE_LABEL[n.tone] || '叮', chevron: true, onClick: async e => {
+        n.sound ? item({ title: '选择音效', value: TONE_LABEL[n.tone] || '叮咚', chevron: true, onClick: async e => {
           const valEl = e.currentTarget.querySelector('.as-list-item__value');
-          const v = await actionSheet('选择音效', Object.entries(TONE_LABEL).map(([k, l]) => ({ value: k, label: l, active: k === (n.tone || 'ding') })));
+          const v = await actionSheet('选择音效', Object.entries(TONE_LABEL).map(([k, l]) => ({ value: k, label: l, active: k === (n.tone || 'twin') })));
           if (!v) return;
           n.tone = v; commit('settings'); valEl.textContent = TONE_LABEL[v]; shell.ding(v);
         } }) : null].filter(Boolean)),
-      group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); re(); }),
-        n.dnd ? h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo'))) : null].filter(Boolean)),
+      dndGroup(),
       group('', [toggleItem({ title: '桌面图标未读红点' }, n.badge, v => { n.badge = v; commit('chats'); })]));
   });
 }
 
+/** 免打扰：通知页和「仅线上聊天」里各放一份，改的是同一个设置；开关只显示 / 藏起时间，不重画 */
+function dndGroup() {
+  const n = S().notify, t = (v, k) => input({ value: v, type: 'time', onInput: x => { n[k] = x; commit('settings'); } });
+  const times = h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo')));
+  times.style.display = n.dnd ? '' : 'none';
+  return group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); times.style.display = v ? '' : 'none'; }), times]);
+}
 /* ================= 联动方式与时间 ================= */
 /** 标题旁边的小 i：点一下看简短说明 */
 const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
@@ -615,13 +634,20 @@ function openLinkTime() {
       btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); }));
     // 仅线上聊天才有「每天主动发几条」；切换只显示 / 藏起这一块
     const used = S().autoUsed && S().autoUsed.date === new Date().toDateString() ? S().autoUsed.count : 0;
-    const online = group('线上聊天', [sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
-      item({ title: '今天已用', value: `${used} 次` })]);
-    online.hidden = a.defaults.linkMode !== 'online';
+    const online = group(withInfo('线上聊天', 'TA 会每隔这么久主动来找你一次，免打扰时段里不会来；所有人加起来每天最多主动找你「上限」这么多次。'), [
+      sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } }),
+      sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
+      item({ title: '今天已用', value: `${used} 次` }),
+      item({ title: '让 TA 现在来找我', chevron: true, onClick: async () => {
+        const name = (await import('../chat/engine.js')).pokeNow();
+        toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「仅线上聊天」的私聊');
+      } })]);
+    const dnd = dndGroup();
+    online.hidden = dnd.hidden = a.defaults.linkMode !== 'online';
     body.append(
       group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
-        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); online.hidden = v !== 'online'; }))]),
-      online,
+        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); online.hidden = dnd.hidden = v !== 'online'; }))]),
+      online, dnd,
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),
         nowItem, manual]));

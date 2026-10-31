@@ -72,6 +72,14 @@ async function catchUp(gapMs) {
     await requestReply(chat, { extra: compose('catchup', { char: c.name || nameOf(c), gap }) });
   }
 }
+/** 试一下：让最近聊过的「仅线上聊天」私聊对象马上主动来找你（不算进每日上限，免打扰时段也照样来）。返回名字，没有可用的聊天返回 '' */
+export function pokeNow() {
+  const chat = state.chats.filter(ch => ch.type === 'dm' && ch.cfg.linkMode === 'online' && !busy.has(ch.id)).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0];
+  const c = chat && contact(chat.contactId); if (!c) return '';
+  log('info', '主动消息', `试一下：让 ${nameOf(c)} 现在来找你`);
+  requestReply(chat, { extra: compose('proactive', { char: c.name || nameOf(c) }) });
+  return nameOf(c);
+}
 /** 正文里刚发生了事：跟随正文、开了主动消息的角色，有时会来手机上说两句 */
 export function storyNudge(storyText) {
   const cur = String(storyText || '');

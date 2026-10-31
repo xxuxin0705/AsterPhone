@@ -142,7 +142,7 @@ function ding(kind = state.settings.notify.tone) {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const t0 = audioCtx.currentTime, vol = state.settings.notify.volume ?? .6;
-    for (const [f0, f1, at, len, type = 'sine'] of TONES[kind] || TONES.ding) {
+    for (const [f0, f1, at, len, type = 'sine'] of TONES[kind] || TONES.twin) {
       const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = t0 + at;
       o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + .09);
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18 * vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + len);

@@ -148,6 +148,13 @@ export function actionSheet(title, options) {
 }
 
 /* ---------- 弹窗 ---------- */
+// 点输入框弹出键盘时，浏览器会把它「滚进视野」，连本来不该滚的外框（overflow: hidden 的手机外壳、页面）也滚歪，那一下看着像闪。这种外框滚了就拨回去
+document.addEventListener('focusin', e => {
+  const keep = [];
+  for (let el = e.target.parentElement; el; el = el.parentElement) if (el === document.scrollingElement || /hidden|clip/.test(getComputedStyle(el).overflowY)) keep.push([el, el.scrollTop, el.scrollLeft]);
+  const back = () => keep.forEach(([el, t, l]) => { if (el.scrollTop !== t) el.scrollTop = t; if (el.scrollLeft !== l) el.scrollLeft = l; });
+  addEventListener('scroll', back, true); setTimeout(() => removeEventListener('scroll', back, true), 800);
+});
 /** 聚焦输入框但不让界面跟着跳：手机弹键盘时浏览器会把输入框「滚进视野」，连本来不该滚的手机外框也滚歪，那一下看着像闪。滚了就拨回去 */
 function focusStill(el) {
   const keep = [];
