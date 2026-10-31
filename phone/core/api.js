@@ -10,7 +10,7 @@ export const CHANNELS = {
     { v: 'claude', label: 'Claude 官方', base: 'https://api.anthropic.com', site: 'https://console.anthropic.com/settings/keys' },
     { v: 'gemini', label: 'Gemini 官方', base: 'https://generativelanguage.googleapis.com', site: 'https://aistudio.google.com/apikey' },
     { v: 'deepseek', label: 'DeepSeek 官方', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', site: 'https://platform.deepseek.com/api_keys' },
-    { v: 'openai-compat', label: '第三方（OpenAI 兼容）', base: '', note: '中转站、公益站都选这个，地址填到 /v1。' },
+    { v: 'openai-compat', label: '第三方（OpenAI 兼容）', base: '' },
   ],
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
@@ -19,13 +19,13 @@ export const CHANNELS = {
     { v: 'sd-webui', label: '本地 SD', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
     { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
     { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
-    { v: 'image-compat', label: '第三方（OpenAI 兼容）', base: '', model: '', custom: true, note: '中转站、公益站都选这个，地址填到 /v1。' },
+    { v: 'image-compat', label: '第三方（OpenAI 兼容）', base: '', model: '', custom: true },
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
     { v: 'siliconflow-embed', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
     { v: 'zhipu-embed', label: '智谱', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
-    { v: 'openai-embed', label: '第三方（OpenAI 兼容）', base: '', model: 'text-embedding-3-small', site: '', custom: true, note: '中转站、公益站、本地 Ollama 都选这个：/v1/embeddings 这种 OpenAI 格式，地址填到 /v1。' },
+    { v: 'openai-embed', label: '第三方（OpenAI 兼容）', base: '', model: 'text-embedding-3-small', site: '', custom: true },
   ],
   // 语音渠道：同样先填好地址、默认模型、默认音色、官网。fields = 这个渠道额外要填的东西
   tts: [
@@ -37,7 +37,7 @@ export const CHANNELS = {
     { v: 'indextts', label: 'IndexTTS 本地', base: 'http://127.0.0.1:8000/v1', model: 'indextts', voice: '', site: 'https://github.com/index-tts/index-tts', noKey: true, note: '自己电脑上跑的 IndexTTS，要开 OpenAI 格式的接口（/v1/audio/speech），地址填到 /v1。音色填你在服务里起的名字。' },
     { v: 'mimo', label: '小米 MiMo', base: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-tts', voice: 'mimo_default', site: 'https://mimo.mi.com', note: '内置音色：冰糖、茉莉、苏打、白桦、Mia、Chloe、Milo、Dean，不填就是默认。' },
     { v: 'doubao-tts', label: '豆包 / 火山引擎', base: 'https://openspeech.bytedance.com/api/v1', model: 'volcano_tts', voice: 'BV001_streaming', site: 'https://console.volcengine.com/speech/app', fields: [['appId', 'App ID']], note: '在火山引擎「语音技术」里建应用，拿到 App ID 和 Access Token（填在密钥里）。模型这里填 Cluster，一般是 volcano_tts。' },
-    { v: 'custom-tts', label: '第三方（OpenAI 兼容）', base: '', model: 'tts-1', voice: 'alloy', site: '', note: '中转站、自己的接口：只要是 /v1/audio/speech 这种 OpenAI 格式就行，地址填到 /v1。', custom: true },
+    { v: 'custom-tts', label: '第三方（OpenAI 兼容）', base: '', model: 'tts-1', voice: 'alloy', site: '', custom: true },
   ],
 };
 
@@ -178,8 +178,16 @@ async function readOut(res, pickDelta, pickWhole) {
 /** 拉取模型列表 */
 // 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
 const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed']);
-/** 拉模型列表；这个渠道没有模型列表可拉时返回 null */
+/** 拉模型列表；这个渠道没有模型列表可拉时返回 null。失败了记进日志 */
 export async function listModels(conn) {
+  try { return await pullModels(conn); }
+  catch (e) {
+    const msg = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message;
+    log('error', '连接', `拉取模型失败（${conn.name || conn.type}）：${msg}`);
+    throw new Error(msg);
+  }
+}
+async function pullModels(conn) {
   if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
     const res = await fetch(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));

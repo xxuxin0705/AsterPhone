@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.38';
+export const VERSION = '0.6.39';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -135,11 +135,12 @@ function editConn(existing) {
     chItem.querySelector('.as-list-item__value').textContent = ch.label;
   } });
   const pull = h('button.as-inline-btn', { onclick: async () => {
-    pull.replaceChildren(h('i.as-spin'));
+    pull.replaceChildren(h('i.as-spin')); toast('正在拉取模型…');
     try {
       const models = await listModels(c);
       if (!models) { toast('这个类型拉不了模型列表，手动填就行'); return; }
-      if (!models.length) { toast('没有拉到模型'); return; }
+      if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
+      toast(`拉到 ${models.length} 个模型`);
       const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === c.model ? '.is-active' : ''), { onclick: () => { c.model = m; modelIn.value = m; s.close(); } }, h('span', m)))) });
     } catch (e) { toast('拉取失败：' + e.message); } finally { pull.textContent = '拉取列表'; }
   } }, '拉取列表');
