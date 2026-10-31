@@ -64,24 +64,35 @@
 .as-lock.is-dragging { transition: none; }
 
 /* ---------- 数字密码 ---------- */
-.as-pin { z-index: 31; display: flex; flex-direction: column; align-items: center; padding-top: 18%; color: var(--ink); background: var(--veil); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); opacity: 0; pointer-events: none; transition: opacity 280ms var(--as-ease-standard); }
+.as-pin { z-index: 31; display: flex; flex-direction: column; align-items: center; padding-top: 22%; color: var(--ink); background: var(--veil); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); opacity: 0; pointer-events: none; transition: opacity 280ms var(--as-ease-standard); }
 .as-pin.is-open { opacity: 1; pointer-events: auto; }
-.as-pin__title { font: 400 17px/1.4 var(--font-cn); letter-spacing: .12em; }
-.as-pin__hint { margin-top: 6px; min-height: 18px; font: 400 12px/1.5 var(--font-ui); color: var(--ink-2); letter-spacing: .04em; text-align: center; padding: 0 24px; }
-.as-pin__hint.is-error { color: #e5484d; }
+.as-pin__title { font: 500 20px/1.4 var(--font-cn); letter-spacing: .08em; }
+.as-pin__hint { margin-top: 4px; min-height: 20px; font: 500 14px/1.45 var(--font-ui); color: var(--ink-2); letter-spacing: .3em; text-align: center; padding: 0 24px; }
+.as-pin__hint.is-error { color: #e5484d; letter-spacing: .04em; }
 .as-phone[data-mode="night"] .as-pin__hint.is-error { color: #ff6b70; }
-.as-lock-pin-dots { display: flex; gap: 16px; margin: 22px 0 34px; }
+.as-lock-pin-dots { display: flex; gap: 22px; margin: 22px 0 40px; }
 .as-lock-pin-dots.is-error { animation: as-shake 420ms var(--as-ease-standard); }
 @keyframes as-shake { 20% { transform: translateX(-10px) } 40% { transform: translateX(9px) } 60% { transform: translateX(-6px) } 80% { transform: translateX(3px) } }
-.as-lock-pin-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.4px solid currentColor; transition: background var(--as-dur-fast), transform 260ms var(--as-ease-spring), border-color var(--as-dur-fast); }
-.as-lock-pin-dots i.is-active { background: var(--accent); border-color: var(--accent); transform: scale(1.18); }
+.as-lock-pin-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid currentColor; transition: background var(--as-dur-fast), transform 260ms var(--as-ease-spring), border-color var(--as-dur-fast); }
+.as-lock-pin-dots i.is-active { background: currentColor; transform: scale(1.1); }
 .as-lock-pin-dots.is-error i { background: #e5484d; border-color: #e5484d; }
-.as-lock-keypad { display: grid; grid-template-columns: repeat(3, 74px); gap: 16px 26px; }
-.as-key { width: 74px; height: 74px; border-radius: 50%; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; font: 300 32px/1 var(--font-clock); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), background var(--as-dur-fast); }
-.as-key:active { transform: scale(.94); background: color-mix(in srgb, currentColor 18%, transparent); }
-.as-key--text { border: 0; background: none; font: 400 14px/1 var(--font-ui); letter-spacing: .06em; }
-.as-pin__forgot { margin-top: 22px; }
-@media (max-height: 640px) { .as-lock-keypad { grid-template-columns: repeat(3, 62px); gap: 10px 22px; } .as-key { width: 62px; height: 62px; font-size: 27px; } .as-pin { padding-top: 12%; } }
+/* 数字键：大圆、毛玻璃，跟 iPhone 差不多大 */
+.as-lock-keypad { display: grid; grid-template-columns: repeat(3, var(--key, 80px)); gap: 18px 26px; }
+.as-key { width: var(--key, 80px); height: var(--key, 80px); border-radius: 50%; display: grid; place-content: center; justify-items: center; gap: 1px; padding: 0;
+  border: 1px solid color-mix(in srgb, #fff 55%, transparent); background: color-mix(in srgb, #fff 22%, transparent); -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45); color: inherit; cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), background var(--as-dur-fast); }
+.as-key b { font: 300 36px/1 -apple-system, "SF Pro Display", var(--font-ui); }
+.as-key small { min-height: 10px; font: 700 9.5px/1 var(--font-ui); letter-spacing: .2em; margin-left: .2em; opacity: .9; }
+.as-key:active { transform: scale(.94); background: color-mix(in srgb, #fff 45%, transparent); }
+.as-phone[data-mode="night"] .as-key { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.1); }
+.as-phone[data-mode="night"] .as-key:active { background: rgba(255,255,255,.26); }
+/* 最底下一排：左「忘记密码」，右「取消 / 删除」 */
+.as-pin__bar { position: absolute; left: 0; right: 0; bottom: max(44px, calc(env(safe-area-inset-bottom, 0px) + 34px)); display: flex; justify-content: space-between; align-items: center; padding: 0 calc(50% - 1.5 * var(--key, 80px) - 26px); }
+.as-pin__bar > span { display: contents; }
+.as-pin__bar-btn { min-width: var(--key, 80px); padding: 10px 0; font: 500 17px/1 var(--font-ui); letter-spacing: .04em; color: var(--ink); }
+.as-pin__bar-btn[hidden] { display: none; }
+@media (max-height: 700px) { .as-pin { --key: 70px; padding-top: 16%; } .as-key b { font-size: 31px; } .as-lock-pin-dots { margin: 16px 0 26px; } }
+@media (max-height: 600px) { .as-pin { --key: 60px; padding-top: 10%; } .as-key b { font-size: 26px; } .as-key small { display: none; } }
 
 /* 关闭了状态栏时，内容往上提 */
 .as-phone.no-statusbar .as-navbar { margin-top: 10px; }
@@ -92,8 +103,9 @@
 
 /* ---------- 手势密码 ---------- */
 .as-pattern { padding-top: 22%; }
-.as-lock-pattern-wrap { width: min(78%, 300px); margin-top: 26px; }
-.as-lock-pattern { width: 100%; height: auto; display: block; touch-action: none; overflow: visible; }
+.as-pin__pad { width: 100%; display: flex; justify-content: center; margin-top: 30px; }
+.as-lock-pattern-wrap { width: min(88%, calc(3 * var(--key, 80px) + 2 * 26px + 40px)); }
+.as-lock-pattern { width: 100%; height: auto; aspect-ratio: 1; display: block; touch-action: none; overflow: visible; }
 .as-lock-pattern__ring { fill: color-mix(in srgb, currentColor 6%, transparent); stroke: color-mix(in srgb, currentColor 22%, transparent); stroke-width: 1.5; transition: fill 160ms, stroke 160ms; }
 .as-lock-pattern__dot { fill: currentColor; opacity: .7; transition: transform 260ms var(--as-ease-spring), fill 160ms; transform-box: fill-box; transform-origin: center; }
 .as-lock-pattern g.is-active .as-lock-pattern__dot { fill: var(--accent); opacity: 1; transform: scale(1.35); }

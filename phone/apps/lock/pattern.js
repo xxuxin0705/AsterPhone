@@ -19,12 +19,16 @@ export function patternPad({ onDone, hintZ = false } = {}) {
   const tail = document.createElementNS(NS, 'line'); tail.classList.add('as-lock-pattern__line'); tail.style.display = 'none'; svg.appendChild(tail);
   const dots = pts.map(p => {
     const g = document.createElementNS(NS, 'g');
-    const ring = document.createElementNS(NS, 'circle'); ring.setAttribute('cx', p.x); ring.setAttribute('cy', p.y); ring.setAttribute('r', 26); ring.classList.add('as-lock-pattern__ring');
-    const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.setAttribute('r', 8); dot.classList.add('as-lock-pattern__dot');
+    const ring = document.createElementNS(NS, 'circle'); ring.setAttribute('cx', p.x); ring.setAttribute('cy', p.y); ring.setAttribute('r', 30); ring.classList.add('as-lock-pattern__ring');
+    const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.setAttribute('r', 8.5); dot.classList.add('as-lock-pattern__dot');
     g.append(ring, dot); svg.appendChild(g); return g;
   });
   let seq = [], drawing = false;
-  const toLocal = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 300, y: (e.clientY - r.top) / r.height * 300 }; };
+  const toLocal = e => {
+    const m = svg.getScreenCTM && svg.getScreenCTM();
+    if (m) { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return { x: p.x, y: p.y }; }
+    const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 300, y: (e.clientY - r.top) / r.height * 300 };
+  };
   const hit = q => pts.findIndex(p => Math.hypot(p.x - q.x, p.y - q.y) < 34);
   const paint = () => {
     line.setAttribute('points', seq.map(i => `${pts[i].x},${pts[i].y}`).join(' '));

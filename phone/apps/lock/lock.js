@@ -176,7 +176,7 @@ export function lock() {
 }
 
 /* ---------- 数字密码 ---------- */
-let entry = '', backupMode = false, pinTitle, pinHint, dots, pinForgot, pinOpt;
+let entry = '', backupMode = false, pinTitle, pinHint, dots, pinForgot, pinOpt, pinBack;
 let setup = null;   // 设置模式：{ method, digits, first, done(ok) }
 const digits = () => setup ? setup.digits : (state.settings.lock.pin || '').length || state.settings.lock.digits || 6;
 const backupCode = () => '0'.repeat(digits());
@@ -184,12 +184,14 @@ function buildPin() {
   pinTitle = h('div.as-pin__title', '输入密码'); pinHint = h('div.as-pin__hint');
   dots = h('div.as-lock-pin-dots');
   const keypad = h('div.as-lock-keypad');
-  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '取消', '0', '删除'].forEach(k =>
-    keypad.appendChild(h('button.as-key' + (k.length > 1 ? '.as-key--text' : ''), { 'aria-label': k, onclick: () => key(k) }, k)));
-  pinForgot = h('button.as-textbtn.as-pin__forgot', { onclick: forgot }, '忘记密码？');
-  // 设置模式下：在 4 位和 6 位之间换
-  pinOpt = h('button.as-textbtn.as-pin__forgot', { hidden: true, onclick: () => { if (!setup) return; setup.digits = setup.digits === 6 ? 4 : 6; setup.first = null; entry = ''; pinStep(); } });
-  pinEl.append(pinTitle, pinHint, dots, keypad, pinForgot, pinOpt);
+  const ABC = { 2: 'ABC', 3: 'DEF', 4: 'GHI', 5: 'JKL', 6: 'MNO', 7: 'PQRS', 8: 'TUV', 9: 'WXYZ' };
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''].forEach(k =>
+    keypad.appendChild(k ? h('button.as-key', { 'aria-label': k, onclick: () => key(k) }, h('b', k), h('small', ABC[k] || '')) : h('span')));
+  pinForgot = h('button.as-textbtn.as-pin__bar-btn', { onclick: forgot }, '忘记密码');
+  // 设置模式下：左边换成「改用 4 / 6 位」
+  pinOpt = h('button.as-textbtn.as-pin__bar-btn', { hidden: true, onclick: () => { if (!setup) return; setup.digits = setup.digits === 6 ? 4 : 6; setup.first = null; entry = ''; pinStep(); } });
+  pinBack = h('button.as-textbtn.as-pin__bar-btn', { onclick: () => key(entry ? '删除' : '取消') }, '取消');
+  pinEl.append(pinTitle, pinHint, dots, keypad, h('div.as-pin__bar', h('span', pinForgot, pinOpt), pinBack));
   addEventListener('keydown', e => {
     if (!pinEl.classList.contains('is-open')) return;
     if (/^\d$/.test(e.key)) key(e.key); else if (e.key === 'Backspace') key('删除'); else if (e.key === 'Escape') { e.stopPropagation(); key('取消'); }
@@ -199,6 +201,7 @@ function renderDots() {
   const n = digits();
   if (dots.children.length !== n) { dots.innerHTML = ''; for (let i = 0; i < n; i++) dots.appendChild(h('i')); }
   [...dots.children].forEach((d, i) => d.classList.toggle('is-active', i < entry.length));
+  if (pinBack) pinBack.textContent = entry ? '删除' : '取消';
 }
 function key(k) {
   if (k === '取消') { if (setup) return endSetup(false); return closePin(); }
@@ -213,7 +216,7 @@ function check() {
   dots.classList.add('is-error'); pinHint.textContent = '密码错误'; pinHint.classList.add('is-error');
   setTimeout(() => { dots.classList.remove('is-error'); entry = ''; renderDots(); pinHint.classList.remove('is-error'); pinHint.textContent = hintText(); }, 700);
 }
-const hintText = () => backupMode ? `备用密码是 ${digits()} 个 0` : '';
+const hintText = () => backupMode ? '0'.repeat(digits()) : '';
 /** 设置模式：第一遍记下，第二遍对一下 */
 function pinStep(msg = '') {
   pinTitle.textContent = setup.first ? '再输一次确认' : `设置 ${setup.digits} 位密码`;
@@ -247,30 +250,29 @@ let patBackup = false, patForgot = null;
 function buildPattern() {
   patEl = h('section.as-page.as-pin.as-pattern', { dataset: { asApp: 'lock', asPage: 'lock-pattern' }, 'aria-hidden': 'true' });
   patTitle = h('div.as-pin__title', '绘制解锁图案'); patHint = h('div.as-pin__hint');
-  patBox = h('div');
-  patForgot = h('button.as-textbtn', { onclick: () => { patBackup = true; drawPad(); } }, '忘记密码？');
+  patBox = h('div.as-pin__pad');
+  patForgot = h('button.as-textbtn.as-pin__bar-btn', { onclick: () => { patBackup = true; drawPad(); } }, '忘记密码');
   patEl.append(patTitle, patHint, patBox,
-    h('div.as-row', { style: { gap: '28px', marginTop: '18px' } },
-      h('button.as-textbtn', { onclick: () => { if (setup) endSetup(false); else closePin(); } }, '取消'), patForgot));
+    h('div.as-pin__bar', h('span', patForgot), h('button.as-textbtn.as-pin__bar-btn', { onclick: () => { if (setup) endSetup(false); else closePin(); } }, '取消')));
   pinEl.parentNode.appendChild(patEl);
 }
 function drawPad() {
   if (setup) return drawSetupPad();
   patForgot.hidden = false;
   patTitle.textContent = patBackup ? '绘制备用图案' : '绘制解锁图案';
-  patHint.textContent = patBackup ? '备用图案是 Z 字形：左上 → 右上 → 中心 → 左下 → 右下' : '';
+  patHint.textContent = '';
   patHint.classList.remove('is-error');
   const pad = patternPad({ hintZ: patBackup, onDone: seq => {
     if (seq === state.settings.lock.pattern || seq === BACKUP_Z) { setTimeout(() => unlock(null), 250); return true; }
     patHint.textContent = '图案错误'; patHint.classList.add('is-error');
-    setTimeout(() => { patHint.classList.remove('is-error'); patHint.textContent = patBackup ? '备用图案是 Z 字形：左上 → 右上 → 中心 → 左下 → 右下' : ''; }, 800);
+    setTimeout(() => { patHint.classList.remove('is-error'); patHint.textContent = ''; }, 800);
     return false;
   } });
   patBox.replaceChildren(pad.el);
 }
 function drawSetupPad() {
   patForgot.hidden = true;
-  const step = () => { patTitle.textContent = setup.first ? '再画一次确认' : '绘制新图案'; patHint.textContent = setup.first ? '' : '至少连 4 个点'; patHint.classList.remove('is-error'); };
+  const step = () => { patTitle.textContent = setup.first ? '再画一次确认' : '绘制新图案'; patHint.textContent = ''; patHint.classList.remove('is-error'); };
   const err = msg => { patHint.textContent = msg; patHint.classList.add('is-error'); setTimeout(() => setup && step(), 900); return false; };
   step();
   const pad = patternPad({ onDone: seq => {
