@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.10';
+export const VERSION = '0.6.11';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -363,52 +363,22 @@ function openStatusbar() {
 function openLock() {
   sub('lock', '锁屏与密码', (body, re) => {
     const L = S().lock;
+    // 点数字密码 / 手势密码：打开跟锁屏一模一样的全屏界面设置（已经选着的再点一次就是修改）
     const choose = async m => {
-      if (m === 'pattern' && !/^\d{4,9}$/.test(L.pattern || '')) { if (!(await setPattern())) return; }
-      if (m === 'pin' && !/^\d{4,6}$/.test(L.pin || '')) { if (!(await setPin(L.digits || 6))) return; }
+      if (m === 'pin' || m === 'pattern') {
+        const { setupSecret } = await import('../lock/lock.js');
+        if (!(await setupSecret(m))) return;
+      } else if (L.method === m) return;
       L.method = m; commit('lock'); shell.applyLook(); re();
     };
-    body.append(group('', [toggleItem({ title: '锁屏', sub: '关着时打开手机直接进桌面；开了也可以不设密码' }, L.enabled, v => { L.enabled = v; commit('lock'); shell.applyLook(); re(); })]));
+    body.append(group('', [toggleItem({ title: '锁屏' }, L.enabled, v => { L.enabled = v; commit('lock'); shell.applyLook(); re(); })]));
     if (!L.enabled) return;
-    body.append(group('解锁方式', ['none', 'finger', 'pin', 'pattern'].map(m => item({ title: LOCK_LABEL[m], sub: m === 'none' ? '不要密码，往上一滑就开' : m === 'finger' ? '按住就能开（假指纹）' : m === 'pattern' ? '画一个图案；备用图案是 Z 字形' : null,
+    const has = m => m === 'pin' ? /^\d{4,6}$/.test(L.pin || '') : m === 'pattern' ? /^\d{4,9}$/.test(L.pattern || '') : true;
+    body.append(group('解锁方式', ['none', 'finger', 'pin', 'pattern'].map(m => item({
+      title: LOCK_LABEL[m],
+      value: m === 'pin' && has('pin') ? `${(L.pin || '').length} 位` : '',
       right: L.method === m ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null, onClick: () => choose(m) }))));
-    if (L.method === 'pin') body.append(group('数字密码', [
-      field('位数', segmented([['4', '4 位'], ['6', '6 位']], String((L.pin || '').length || L.digits), async v => { if (await setPin(+v)) re(); else re(); })),
-      item({ title: '修改密码', chevron: true, onClick: async () => { if (await setPin((L.pin || '').length || 6)) re(); } }),
-    ]));
-    if (L.method === 'pattern') body.append(group('手势密码', [item({ title: '修改图案', chevron: true, onClick: async () => { if (await setPattern()) re(); } })]));
-    if (L.method === 'pattern') body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记图案时，在解锁界面点「忘记密码？」画 Z 字形（左上 → 右上 → 中心 → 左下 → 右下）。酒馆扩展面板里还有「重置锁屏」兜底。'));
-    if (L.method === 'pin') body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记密码时，可以在解锁界面点「忘记密码？」用备用密码：4 位是 0000，6 位是 000000。酒馆扩展面板里还有「重置锁屏」兜底。'));
   });
-}
-/** 设置手势密码：画两次一样的 */
-function setPattern() {
-  return new Promise(async res => {
-    const { patternPad, BACKUP_Z } = await import('../lock/pattern.js');
-    let first = null, done = false;
-    const tip = h('div.as-muted', { style: { textAlign: 'center', margin: '0 0 6px' } }, '画一个图案，至少连 4 个点');
-    const box = h('div', { style: { display: 'grid', justifyItems: 'center', color: 'var(--as-color-text)', '--accent': 'var(--as-color-accent)' } });
-    const pad = patternPad({ onDone: seq => {
-      if (seq.length < 4) { tip.textContent = '至少连 4 个点，再画一次'; return false; }
-      if (seq === BACKUP_Z) { tip.textContent = 'Z 字形是备用图案，换一个吧'; return false; }
-      if (!first) { first = seq; tip.textContent = '再画一次确认'; return true; }
-      if (seq !== first) { first = null; tip.textContent = '两次不一样，从头再画'; return false; }
-      Object.assign(S().lock, { pattern: seq, method: 'pattern' }); commit('lock'); shell.applyLook();
-      done = true; setTimeout(() => s.close(), 300); toast('手势密码已设置'); return true;
-    } });
-    box.appendChild(pad.el);
-    const s = sheet({ title: '设置手势密码', content: h('div', tip, box), onClose: () => res(done) });
-  });
-}
-async function setPin(digits) {
-  const a = await dialog({ title: `设置 ${digits} 位密码`, input: { placeholder: `输入 ${digits} 位数字` }, confirm: '下一步' });
-  if (a == null) return false;
-  if (!new RegExp(`^\\d{${digits}}$`).test(a)) { toast(`要正好 ${digits} 位数字`); return false; }
-  if (a === '0'.repeat(digits)) { toast('这个是备用密码，换一个吧'); return false; }
-  const b = await dialog({ title: '再输一次', input: { placeholder: '确认密码' }, confirm: '完成' });
-  if (b !== a) { toast('两次不一样，没有保存'); return false; }
-  Object.assign(S().lock, { pin: a, digits, method: 'pin' }); commit('lock'); shell.applyLook(); toast('密码已设置');
-  return true;
 }
 
 /* ================= 通知 ================= */

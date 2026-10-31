@@ -1,5 +1,5 @@
 // 锁屏：大时钟、通知卡片堆、假指纹（按住就开）、数字密码（含备用密码）。
-// 手势密码下一轮做；现在选了手势会先按指纹处理。
+// 设置里改密码 / 改图案也用这两个全屏界面（setupSecret），跟真的解锁一模一样，输两遍确认。
 import { h, $ } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
 import { avatar, toast } from '../../core/ui.js';
@@ -176,8 +176,9 @@ export function lock() {
 }
 
 /* ---------- 数字密码 ---------- */
-let entry = '', backupMode = false, pinTitle, pinHint, dots;
-const digits = () => (state.settings.lock.pin || '').length || state.settings.lock.digits || 6;
+let entry = '', backupMode = false, pinTitle, pinHint, dots, pinForgot, pinOpt;
+let setup = null;   // 设置模式：{ method, digits, first, done(ok) }
+const digits = () => setup ? setup.digits : (state.settings.lock.pin || '').length || state.settings.lock.digits || 6;
 const backupCode = () => '0'.repeat(digits());
 function buildPin() {
   pinTitle = h('div.as-pin__title', '输入密码'); pinHint = h('div.as-pin__hint');
@@ -185,7 +186,10 @@ function buildPin() {
   const keypad = h('div.as-lock-keypad');
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '取消', '0', '删除'].forEach(k =>
     keypad.appendChild(h('button.as-key' + (k.length > 1 ? '.as-key--text' : ''), { 'aria-label': k, onclick: () => key(k) }, k)));
-  pinEl.append(pinTitle, pinHint, dots, keypad, h('button.as-textbtn.as-pin__forgot', { onclick: forgot }, '忘记密码？'));
+  pinForgot = h('button.as-textbtn.as-pin__forgot', { onclick: forgot }, '忘记密码？');
+  // 设置模式下：在 4 位和 6 位之间换
+  pinOpt = h('button.as-textbtn.as-pin__forgot', { hidden: true, onclick: () => { if (!setup) return; setup.digits = setup.digits === 6 ? 4 : 6; setup.first = null; entry = ''; pinStep(); } });
+  pinEl.append(pinTitle, pinHint, dots, keypad, pinForgot, pinOpt);
   addEventListener('keydown', e => {
     if (!pinEl.classList.contains('is-open')) return;
     if (/^\d$/.test(e.key)) key(e.key); else if (e.key === 'Backspace') key('删除'); else if (e.key === 'Escape') { e.stopPropagation(); key('取消'); }
@@ -197,20 +201,39 @@ function renderDots() {
   [...dots.children].forEach((d, i) => d.classList.toggle('is-active', i < entry.length));
 }
 function key(k) {
-  if (k === '取消') return closePin();
+  if (k === '取消') { if (setup) return endSetup(false); return closePin(); }
   if (k === '删除') { entry = entry.slice(0, -1); return renderDots(); }
   if (entry.length >= digits()) return;
   entry += k; renderDots();
   if (entry.length === digits()) setTimeout(check, 140);
 }
 function check() {
+  if (setup) return setupPin();
   if (entry === state.settings.lock.pin || entry === backupCode()) { entry = ''; renderDots(); unlock(null); return; }
   dots.classList.add('is-error'); pinHint.textContent = '密码错误'; pinHint.classList.add('is-error');
   setTimeout(() => { dots.classList.remove('is-error'); entry = ''; renderDots(); pinHint.classList.remove('is-error'); pinHint.textContent = hintText(); }, 700);
 }
 const hintText = () => backupMode ? `备用密码是 ${digits()} 个 0` : '';
+/** 设置模式：第一遍记下，第二遍对一下 */
+function pinStep(msg = '') {
+  pinTitle.textContent = setup.first ? '再输一次确认' : `设置 ${setup.digits} 位密码`;
+  pinHint.classList.toggle('is-error', !!msg); pinHint.textContent = msg;
+  pinOpt.hidden = !!setup.first; pinOpt.textContent = setup.digits === 6 ? '改用 4 位密码' : '改用 6 位密码';
+  renderDots();
+}
+function setupPin() {
+  const fail = msg => { dots.classList.add('is-error'); pinHint.textContent = msg; pinHint.classList.add('is-error'); setTimeout(() => { dots.classList.remove('is-error'); entry = ''; renderDots(); pinHint.classList.remove('is-error'); }, 700); };
+  if (!setup.first) {
+    if (entry === '0'.repeat(setup.digits)) return fail('这是备用密码，换一个吧');
+    setup.first = entry; entry = ''; pinStep(); return;
+  }
+  if (entry !== setup.first) { setup.first = null; fail('两次不一样，重新设置'); setTimeout(() => setup && pinStep('两次不一样，重新设置'), 720); return; }
+  Object.assign(state.settings.lock, { pin: entry, digits: setup.digits, method: 'pin' }); commit('lock');
+  entry = ''; renderDots(); endSetup(true);
+}
 function openPin() {
   backupMode = false; pinTitle.textContent = '输入密码'; pinHint.textContent = hintText(); entry = ''; renderDots();
+  pinForgot.hidden = false; pinOpt.hidden = true;
   pinEl.classList.add('is-open'); pinEl.setAttribute('aria-hidden', 'false'); lockEl.classList.add('is-hidden');
 }
 function closePin() {
@@ -220,18 +243,20 @@ function closePin() {
 }
 
 /* ---------- 手势密码 ---------- */
-let patBackup = false;
+let patBackup = false, patForgot = null;
 function buildPattern() {
   patEl = h('section.as-page.as-pin.as-pattern', { dataset: { asApp: 'lock', asPage: 'lock-pattern' }, 'aria-hidden': 'true' });
   patTitle = h('div.as-pin__title', '绘制解锁图案'); patHint = h('div.as-pin__hint');
   patBox = h('div');
+  patForgot = h('button.as-textbtn', { onclick: () => { patBackup = true; drawPad(); } }, '忘记密码？');
   patEl.append(patTitle, patHint, patBox,
     h('div.as-row', { style: { gap: '28px', marginTop: '18px' } },
-      h('button.as-textbtn', { onclick: closePin }, '取消'),
-      h('button.as-textbtn', { onclick: () => { patBackup = true; drawPad(); } }, '忘记密码？')));
+      h('button.as-textbtn', { onclick: () => { if (setup) endSetup(false); else closePin(); } }, '取消'), patForgot));
   pinEl.parentNode.appendChild(patEl);
 }
 function drawPad() {
+  if (setup) return drawSetupPad();
+  patForgot.hidden = false;
   patTitle.textContent = patBackup ? '绘制备用图案' : '绘制解锁图案';
   patHint.textContent = patBackup ? '备用图案是 Z 字形：左上 → 右上 → 中心 → 左下 → 右下' : '';
   patHint.classList.remove('is-error');
@@ -243,11 +268,50 @@ function drawPad() {
   } });
   patBox.replaceChildren(pad.el);
 }
+function drawSetupPad() {
+  patForgot.hidden = true;
+  const step = () => { patTitle.textContent = setup.first ? '再画一次确认' : '绘制新图案'; patHint.textContent = setup.first ? '' : '至少连 4 个点'; patHint.classList.remove('is-error'); };
+  const err = msg => { patHint.textContent = msg; patHint.classList.add('is-error'); setTimeout(() => setup && step(), 900); return false; };
+  step();
+  const pad = patternPad({ onDone: seq => {
+    if (!setup) return;
+    if (seq.length < 4) return err('至少连 4 个点');
+    if (seq === BACKUP_Z) return err('Z 字形是备用图案，换一个吧');
+    if (!setup.first) { setup.first = seq; step(); return true; }
+    if (seq !== setup.first) { setup.first = null; return err('两次不一样，重新画'); }
+    Object.assign(state.settings.lock, { pattern: seq, method: 'pattern' }); commit('lock');
+    setTimeout(() => endSetup(true), 380); return true;
+  } });
+  patBox.replaceChildren(pad.el);
+}
 function openPattern() {
   patBackup = false; drawPad();
   patEl.classList.add('is-open'); patEl.setAttribute('aria-hidden', 'false'); lockEl.classList.add('is-hidden');
 }
 function forgot() { backupMode = true; entry = ''; renderDots(); pinTitle.textContent = '输入备用密码'; pinHint.textContent = hintText(); }
+
+/** 设置里设密码 / 画图案：打开跟锁屏一样的全屏界面，输两遍。返回是否设好了 */
+export function setupSecret(method) {
+  if (setup) endSetup(false);
+  return new Promise(done => {
+    setup = { method, digits: state.settings.lock.digits === 4 ? 4 : 6, first: null, done };
+    if (method === 'pin') {
+      entry = ''; backupMode = false; pinForgot.hidden = true; pinStep();
+      pinEl.classList.add('is-open'); pinEl.setAttribute('aria-hidden', 'false');
+    } else {
+      drawSetupPad();
+      patEl.classList.add('is-open'); patEl.setAttribute('aria-hidden', 'false');
+    }
+  });
+}
+function endSetup(ok) {
+  const s0 = setup; setup = null; if (!s0) return;
+  pinEl.classList.remove('is-open'); pinEl.setAttribute('aria-hidden', 'true');
+  patEl.classList.remove('is-open'); patEl.setAttribute('aria-hidden', 'true');
+  entry = ''; syncFoot();
+  if (ok) toast(s0.method === 'pin' ? '密码已设置' : '手势密码已设置');
+  s0.done(ok);
+}
 
 /** 酒馆扩展面板里的「重置锁屏」 */
 export function resetLock() {

@@ -16,7 +16,7 @@ export function patternPad({ onDone, hintZ = false } = {}) {
     z.setAttribute('points', '50,50 250,50 150,150 50,250 250,250'); z.classList.add('as-lock-pattern__hint'); svg.appendChild(z);
   }
   const line = document.createElementNS(NS, 'polyline'); line.classList.add('as-lock-pattern__line'); svg.appendChild(line);
-  const tail = document.createElementNS(NS, 'line'); tail.classList.add('as-lock-pattern__line'); svg.appendChild(tail);
+  const tail = document.createElementNS(NS, 'line'); tail.classList.add('as-lock-pattern__line'); tail.style.display = 'none'; svg.appendChild(tail);
   const dots = pts.map(p => {
     const g = document.createElementNS(NS, 'g');
     const ring = document.createElementNS(NS, 'circle'); ring.setAttribute('cx', p.x); ring.setAttribute('cy', p.y); ring.setAttribute('r', 26); ring.classList.add('as-lock-pattern__ring');
@@ -37,16 +37,16 @@ export function patternPad({ onDone, hintZ = false } = {}) {
     if (last != null) { const mid = (last + i) / 2; if (Number.isInteger(mid) && Math.abs((last % 3) - (i % 3)) !== 1 && Math.abs(Math.floor(last / 3) - Math.floor(i / 3)) !== 1 && !seq.includes(mid)) seq.push(mid); }
     seq.push(i); paint(); if (navigator.vibrate) try { navigator.vibrate(8); } catch (e) { /* 忽略 */ }
   };
-  const reset = () => { seq = []; tail.removeAttribute('x1'); paint(); svg.classList.remove('is-error', 'is-ok'); };
+  const reset = () => { seq = []; tail.style.display = 'none'; paint(); svg.classList.remove('is-error', 'is-ok'); };
   svg.addEventListener('pointerdown', e => { e.preventDefault(); reset(); drawing = true; try { svg.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ } add(hit(toLocal(e))); });
   svg.addEventListener('pointermove', e => {
     if (!drawing) return; const q = toLocal(e); add(hit(q));
     const l = seq[seq.length - 1]; if (l == null) return;
-    tail.setAttribute('x1', pts[l].x); tail.setAttribute('y1', pts[l].y); tail.setAttribute('x2', q.x); tail.setAttribute('y2', q.y);
+    tail.setAttribute('x1', pts[l].x); tail.setAttribute('y1', pts[l].y); tail.setAttribute('x2', q.x); tail.setAttribute('y2', q.y); tail.style.display = '';
   });
   const end = () => {
     if (!drawing) return; drawing = false;
-    tail.setAttribute('x2', tail.getAttribute('x1') || 0); tail.setAttribute('y2', tail.getAttribute('y1') || 0);
+    tail.style.display = 'none';
     if (!seq.length) return;
     const ok = onDone ? onDone(seq.join('')) : true;
     if (ok === false) { svg.classList.add('is-error'); setTimeout(reset, 800); }
