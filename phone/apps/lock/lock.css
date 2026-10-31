@@ -81,3 +81,18 @@
 
 /* 锁着的时候，下面打开着的 App 和桌面都藏起来，只露出壁纸 */
 .as-phone.is-locked .as-stack, .as-phone.is-locked .as-home { visibility: hidden; }
+
+/* ---------- 手势密码 ---------- */
+.as-pattern { padding-top: 22%; }
+.as-lock-pattern-wrap { width: min(78%, 300px); margin-top: 26px; }
+.as-lock-pattern { width: 100%; height: auto; display: block; touch-action: none; overflow: visible; }
+.as-lock-pattern__ring { fill: color-mix(in srgb, currentColor 6%, transparent); stroke: color-mix(in srgb, currentColor 22%, transparent); stroke-width: 1.5; transition: fill 160ms, stroke 160ms; }
+.as-lock-pattern__dot { fill: currentColor; opacity: .7; transition: transform 260ms var(--as-ease-spring), fill 160ms; transform-box: fill-box; transform-origin: center; }
+.as-lock-pattern g.is-active .as-lock-pattern__dot { fill: var(--accent); opacity: 1; transform: scale(1.35); }
+.as-lock-pattern g.is-active .as-lock-pattern__ring { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+.as-lock-pattern__line { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: .75; }
+.as-lock-pattern__hint { fill: none; stroke: currentColor; stroke-width: 3; stroke-dasharray: 6 8; opacity: .25; }
+.as-lock-pattern.is-error .as-lock-pattern__line, .as-lock-pattern.is-error g.is-active .as-lock-pattern__dot { stroke: #e5484d; fill: #e5484d; }
+.as-lock-pattern.is-error .as-lock-pattern__line { fill: none; }
+.as-lock-pattern.is-error { animation: as-shake 420ms var(--as-ease-standard); }
+.as-lock-pattern.is-ok .as-lock-pattern__line { stroke: var(--as-color-success, #30a46c); }

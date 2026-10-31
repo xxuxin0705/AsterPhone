@@ -59,8 +59,8 @@
 
 /* ---------- 动态 ---------- */
 .as-chat-moments .as-page__body { padding: 0 0 30px; }
-.as-chat-moments-cover { position: relative; height: 230px; background: linear-gradient(160deg, #bfe9ff, #6fc3ef 55%, #3d9bd6); background-size: cover; background-position: center; margin-bottom: 44px; cursor: pointer; }
-.as-phone[data-mode="night"] .as-chat-moments-cover { background-image: linear-gradient(160deg, #2a5f8f, #163d66 60%, #0d2745); }
+.as-chat-moments-cover { position: relative; height: 230px; background: linear-gradient(160deg, color-mix(in srgb, var(--as-color-accent-2) 45%, #fff), var(--as-color-accent-2) 55%, var(--as-color-accent)); background-size: cover; background-position: center; margin-bottom: 44px; cursor: pointer; }
+.as-phone[data-mode="night"] .as-chat-moments-cover { background-image: linear-gradient(160deg, color-mix(in srgb, var(--as-color-accent) 45%, #000), color-mix(in srgb, var(--as-color-accent) 22%, #000)); }
 .as-chat-moments-cover__me { position: absolute; right: 16px; bottom: -30px; display: flex; align-items: flex-end; gap: 12px; }
 .as-chat-moments-cover__name { color: #fff; font: 600 17px/1 var(--font-ui); text-shadow: 0 1px 6px rgba(0,0,0,.35); margin-bottom: 40px; }
 .as-chat-moments-cover__me .as-avatar { border: 3px solid var(--as-color-bg); box-sizing: content-box; }
@@ -239,12 +239,12 @@
   -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5);
 }
 .as-chat-msg.is-me .as-chat-bubble {
-  background: linear-gradient(180deg, rgba(186,232,255,.72), rgba(140,212,250,.58)); color: #0b3556;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--as-color-accent-2) 45%, rgba(255,255,255,.62)), color-mix(in srgb, var(--as-color-accent-2) 62%, rgba(255,255,255,.3))); color: var(--as-color-text);
   border-color: rgba(255,255,255,.7);
   box-shadow: 0 6px 18px rgba(18,137,214,.16), inset 0 1px 0 rgba(255,255,255,.85), inset 0 -6px 12px rgba(255,255,255,.15);
 }
 .as-phone[data-mode="night"] .as-chat-bubble { background: rgba(255,255,255,.1); color: var(--as-color-text); border-color: rgba(255,255,255,.18); box-shadow: 0 6px 18px rgba(0,10,25,.25), inset 0 1px 0 rgba(255,255,255,.18); }
-.as-phone[data-mode="night"] .as-chat-msg.is-me .as-chat-bubble { background: linear-gradient(180deg, rgba(92,205,252,.34), rgba(42,166,232,.26)); color: #eaf6ff; border-color: rgba(159,227,255,.3); }
+.as-phone[data-mode="night"] .as-chat-msg.is-me .as-chat-bubble { background: linear-gradient(180deg, color-mix(in srgb, var(--as-color-accent) 34%, transparent), color-mix(in srgb, var(--as-color-accent) 24%, transparent)); color: var(--as-color-text); border-color: color-mix(in srgb, var(--as-color-accent-2) 30%, transparent); }
 /* 一组里的头尾气泡：只有第一条有「小尖角」 */
 .as-chat-msg.is-them .as-chat-bubble { border-top-left-radius: 20px; border-bottom-left-radius: 8px; }
 .as-chat-msg.is-them:not(.is-cont) .as-chat-bubble { border-top-left-radius: 8px; }

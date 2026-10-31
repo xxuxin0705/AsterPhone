@@ -41,7 +41,7 @@
 }
 #aster-overlay.open { visibility: visible; opacity: 1; pointer-events: auto; transition: opacity 260ms; }
 #aster-overlay .aster-frame {
-    width: min(100vw, calc((100dvh - 40px) * 390 / 844), 420px);
+    width: min(100vw, calc((100dvh - 40px) * 390 / 844), calc(420px * var(--aster-scale, 1)));
     aspect-ratio: 390 / 844;
     max-height: calc(100dvh - 40px);
     border-radius: 46px;

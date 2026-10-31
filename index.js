@@ -10,7 +10,7 @@ const CFG_KEY = 'asterphone-cfg';
 const EXT = 'asterphone';
 
 let overlay, iframe, fab, fabImg, fabDot, opened = false, ready = false;
-let cfg = { fab: 'iphone', fabSize: 52, tripleTap: false };
+let cfg = { fab: 'iphone', fabSize: 52, tripleTap: false, winScale: 0 };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch (e) { /* 用默认 */ }
 
 /* ---------- 扩展设置（显示悬浮按钮） ---------- */
@@ -85,7 +85,7 @@ function onMessage(e) {
     if (d.aster === 'close') close();
     if (d.aster === 'ready') { ready = true; post({ aster: 'visible', v: opened }); }
     if (d.aster === 'cfg') {
-        cfg = { fab: d.fab || 'iphone', fabSize: d.fabSize || 52, tripleTap: !!d.tripleTap };
+        cfg = { fab: d.fab || 'iphone', fabSize: d.fabSize || 52, tripleTap: !!d.tripleTap, winScale: d.winScale || 0 };
         try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (err) { /* 忽略 */ }
         applyFab();
     }
@@ -113,6 +113,7 @@ function applyFab() {
     if (!fab) return;
     fabImg.src = `${PHONE}assets/fab/${cfg.fab || 'iphone'}.png`;
     fab.style.setProperty('--aster-fab-size', (cfg.fabSize || 52) + 'px');
+    if (overlay) overlay.style.setProperty('--aster-scale', cfg.winScale || 1);
     const show = extSettings().showFab !== false;
     fab.classList.toggle('is-off', !show);
     fab.classList.toggle('is-hidden', opened);
@@ -224,7 +225,7 @@ function addSettings(host) {
         fab.style.left = ''; fab.style.top = ''; fab.style.right = ''; fab.style.bottom = '';
         if (window.toastr) window.toastr.success('悬浮按钮已回到右侧');
     });
-    box.querySelector('#aster-reset-lock').addEventListener('click', () => { post({ aster: 'reset', what: 'lock' }); if (window.toastr) window.toastr.success('锁屏已重置为指纹解锁，密码已清除'); });
+    box.querySelector('#aster-reset-lock').addEventListener('click', () => { post({ aster: 'reset', what: 'lock' }); if (window.toastr) window.toastr.success('锁屏已关闭，密码和手势都清除了'); });
     box.querySelector('#aster-reset-look').addEventListener('click', () => { post({ aster: 'reset', what: 'look' }); if (window.toastr) window.toastr.success('外观已重置'); });
 }
 

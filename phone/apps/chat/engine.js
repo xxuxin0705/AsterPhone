@@ -381,13 +381,15 @@ export async function genMoment(c) {
     prompt: render('moment', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: recentStory(4) || '（暂无）', time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
-  const mo = { id: uid('mo'), author: c.id, text, imageDesc: desc, images: [], ...time.stamp(), likes: [], comments: [], vis: 'public' };
+  let hiddenFromMe = false;
+  text = text.replace(/\[屏蔽[^\]]*\]/g, () => { hiddenFromMe = true; return ''; }).trim();
+  const mo = { id: uid('mo'), author: c.id, text, imageDesc: desc, images: [], ...time.stamp(), likes: [], comments: [], vis: 'public', hiddenFromMe };
   state.moments.unshift(mo); commit('moments');
   return mo;
 }
 export async function genComments(mo) {
   const author = mo.author === 'me' ? myName() : nameOf(contact(mo.author));
-  const people = state.contacts.filter(p => p.id !== mo.author).slice(0, 12);
+  const people = state.contacts.filter(p => p.id !== mo.author && canSee(mo, p.id)).slice(0, 12);
   if (!people.length) throw new Error('还没有其他联系人可以来评论');
   const post = [`${author}：${mo.text}${mo.imageDesc ? `（配图：${mo.imageDesc}）` : ''}`,
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
@@ -404,6 +406,17 @@ export async function genComments(mo) {
   });
   commit('moments');
   return added;
+}
+/** 这条动态 TA 看不看得到（我设的可见范围管住 AI：看不到的人不会来评论） */
+export function canSee(mo, id) {
+  if (mo.author === id) return true;
+  switch (mo.vis) {
+    case 'private': return false;
+    case 'include': return (mo.visIds || []).includes(id);
+    case 'exclude': return !(mo.visIds || []).includes(id);
+    case 'group': { const p = contact(id); return !!p && p.group === mo.visGroup; }
+    default: return true;
+  }
 }
 export function who(id) { return id === 'me' ? (state.me.nick || myName()) : nameOf(contact(id)); }
 export { getPrompt, chatOf };

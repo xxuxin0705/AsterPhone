@@ -7,6 +7,7 @@ import { renderContacts } from './contacts.js';
 import { renderMoments } from './moments.js';
 import { renderMe } from './me.js';
 import { openRoom } from './room.js';
+import { textOf, applyTexts } from '../../core/skin.js';
 
 const TABS = [
   { id: 'messages', label: '消息', icon: 'chat', text: 'chat.tab.messages', render: renderMessages },
@@ -19,7 +20,8 @@ let P = null, bar = null, cur = null, cleanup = null, unsub = null;
 export function open(opts = {}) {
   P = page({ app: 'chat', id: 'chat-messages', title: '消息', back: true, cls: 'as-chat-root' });
   bar = h('nav.as-chat-tabbar', { role: 'tablist' }, TABS.map(t => h('button.as-chat-tab', { role: 'tab', dataset: { tab: t.id, asText: t.text }, onclick: () => switchTab(t.id) },
-    icon(t.icon, 23, 1.7), h('span', t.label))));
+    icon(t.icon, 23, 1.7), h('span', { dataset: { asLabel: '' } }, t.label))));
+  applyTexts();
   P.el.appendChild(bar);
   switchTab(opts.tab || 'messages');
   unsub && unsub();
@@ -43,7 +45,7 @@ export function switchTab(id, force) {
   P.el.classList.toggle('as-chat-moments', id === 'moments');
   P.body.innerHTML = '';
   const right = P.nav.querySelector('.as-navbar__right'); right.innerHTML = '';
-  P.setTitle(t.label);
+  P.setTitle(textOf(t.text, t.label));
   cleanup = t.render({ body: P.body, el: P.el, setTitle: P.setTitle, setRight: (...n) => { right.innerHTML = ''; right.append(...n.filter(Boolean)); }, switchTab });
   if (keepScroll) P.body.scrollTop = keepScroll;
 }

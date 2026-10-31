@@ -6,6 +6,7 @@ import { mountUI, toast, banner, avatar } from './ui.js';
 import * as nav from './nav.js';
 import { Wallpaper } from './wallpaper.js';
 import { shell } from './shell.js';
+import { applySkins } from './skin.js';
 import { postToParent, inTavern } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
@@ -17,6 +18,7 @@ const APP_LOADERS = {
   chat: () => import('../apps/chat/index.js'),
   settings: () => import('../apps/settings/settings.js'),
   log: () => import('../apps/log/log.js'),
+  library: () => import('../apps/library/library.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
@@ -57,7 +59,7 @@ function setCurrent(app) { currentApp = app; phone.dataset.asApp = app; syncStat
 
 /* ---------- 打开 / 关闭 App ---------- */
 async function openApp(id, opts = {}) {
-  if (!APP_LOADERS[id]) { toast(id === 'library' ? '资源库下一轮做，先去设置里换换外观吧' : '这个 App 还没做好'); return; }
+  if (!APP_LOADERS[id]) { toast('这个 App 还没做好'); return; }
   try {
     const mod = await APP_LOADERS[id]();
     const top = nav.top();
@@ -143,7 +145,7 @@ function notify({ chatId, title, text, avatarUrl }) {
 /* ---------- 和酒馆页面互通 ---------- */
 function sendCfg() {
   const d = state.settings.device;
-  postToParent({ aster: 'cfg', fab: d.fab, fabSize: d.fabSize, tripleTap: !!d.tripleTap });
+  postToParent({ aster: 'cfg', fab: d.fab, fabSize: d.fabSize, tripleTap: !!d.tripleTap, winScale: d.winScale || 0 });
 }
 function sendUnread() { postToParent({ aster: 'unread', n: state.chats.reduce((s, c) => s + (c.muted ? 0 : c.unread || 0), 0) }); }
 addEventListener('message', e => {
@@ -170,6 +172,7 @@ function bindTripleTap() {
 async function boot() {
   await Promise.all([load(), loadLogs()]);
   mountUI(phone);
+  applySkins();
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });
   Object.assign(shell, {
     phone, wallpaper, openApp, close: closePhone, applyLook, setNight: (n, el) => setNight(n, el), notify,
@@ -217,6 +220,7 @@ async function boot() {
   subscribe(what => {
     if (what === 'chats' || String(what).startsWith('msgs:') || what === 'all') { renderNotices(); renderBadges(); sendUnread(); }
     if (what === 'time') { renderClock(true); renderWidget(); }
+    if (what === 'all') applySkins();
   });
   try { (await import('./sync.js')).startSync(); } catch (e) { log('error', '酒馆联动', '启动失败：' + e.message, e); }
   try { (await import('../apps/chat/engine.js')).startEngine(); } catch (e) { log('error', '聊天', '启动失败：' + e.message, e); }

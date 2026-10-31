@@ -9,8 +9,9 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern } from '../../core/bridge.js';
 import { WALLPAPERS } from '../../core/wallpaper.js';
+import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -150,7 +151,7 @@ function openApps() {
         item({ title: '今天已用', value: `${used} 次` })], '主动消息、离开期间补发、正文触发的消息共用这一个总闸，用完今天就不会再自动发了。'),
       group('应用', [
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
-        item({ icon: 'box', color: 'purple', title: '资源库', sub: '下一轮做', chevron: true, onClick: () => toast('资源库下一轮做') }),
+        item({ icon: 'box', color: 'purple', title: '资源库', sub: '主题、皮肤', chevron: true, onClick: () => shell.openApp('library') }),
         item({ icon: 'list', color: 'teal', title: '日志', sub: '报错标红、警告标黄', chevron: true, onClick: () => shell.openApp('log') }),
       ]));
   });
@@ -256,7 +257,7 @@ function openLook() {
     const wall = k => h('button.as-settings-wall' + (S().wallpaper === k ? '.is-active' : ''), { onclick: () => { S().wallpaper = k; commit('look'); shell.applyLook(); re(); } },
       h('span.as-settings-wall__img', { style: { backgroundImage: `url(assets/wallpapers/${night ? WALLPAPERS[k].night : WALLPAPERS[k].day})` } }), WALLPAPERS[k].name);
     body.append(
-      group('主题', [item({ title: '默认主题', sub: '更多主题和 App 皮肤放在资源库（下一轮）', value: '星夜', chevron: true, onClick: () => toast('资源库下一轮做') })]),
+      group('主题', [item({ title: '主题和皮肤', sub: '换一整套颜色，或者用自己写的 CSS 皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))],
         '切换时整个手机会从你点的地方扩散着变色。'),
       group('锁屏时间颜色（只改锁屏上那个大时间）', [clockPreview(night), h('div.as-field', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['accent', '强调色']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); }))]),
@@ -282,19 +283,40 @@ function openLock() {
   sub('lock', '锁屏与密码', (body, re) => {
     const L = S().lock;
     const choose = async m => {
-      if (m === 'pattern') { toast('手势密码下一轮做'); return; }
+      if (m === 'pattern' && !/^\d{4,9}$/.test(L.pattern || '')) { if (!(await setPattern())) return; }
       if (m === 'pin' && !/^\d{4,6}$/.test(L.pin || '')) { if (!(await setPin(L.digits || 6))) return; }
       L.method = m; commit('lock'); shell.applyLook(); re();
     };
     body.append(group('', [toggleItem({ title: '锁屏', sub: '关着时打开手机直接进桌面；开了也可以不设密码' }, L.enabled, v => { L.enabled = v; commit('lock'); shell.applyLook(); re(); })]));
     if (!L.enabled) return;
-    body.append(group('解锁方式', ['none', 'finger', 'pin', 'pattern'].map(m => item({ title: LOCK_LABEL[m], sub: m === 'none' ? '不要密码，往上一滑就开' : m === 'finger' ? '按住就能开（假指纹）' : m === 'pattern' ? '下一轮做' : null,
+    body.append(group('解锁方式', ['none', 'finger', 'pin', 'pattern'].map(m => item({ title: LOCK_LABEL[m], sub: m === 'none' ? '不要密码，往上一滑就开' : m === 'finger' ? '按住就能开（假指纹）' : m === 'pattern' ? '画一个图案；备用图案是 Z 字形' : null,
       right: L.method === m ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null, onClick: () => choose(m) }))));
     if (L.method === 'pin') body.append(group('数字密码', [
       field('位数', segmented([['4', '4 位'], ['6', '6 位']], String((L.pin || '').length || L.digits), async v => { if (await setPin(+v)) re(); else re(); })),
       item({ title: '修改密码', chevron: true, onClick: async () => { if (await setPin((L.pin || '').length || 6)) re(); } }),
     ]));
+    if (L.method === 'pattern') body.append(group('手势密码', [item({ title: '修改图案', chevron: true, onClick: async () => { if (await setPattern()) re(); } })]));
+    if (L.method === 'pattern') body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记图案时，在解锁界面点「忘记密码？」画 Z 字形（左上 → 右上 → 中心 → 左下 → 右下）。酒馆扩展面板里还有「重置锁屏」兜底。'));
     if (L.method === 'pin') body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记密码时，可以在解锁界面点「忘记密码？」用备用密码：4 位是 0000，6 位是 000000。酒馆扩展面板里还有「重置锁屏」兜底。'));
+  });
+}
+/** 设置手势密码：画两次一样的 */
+function setPattern() {
+  return new Promise(async res => {
+    const { patternPad, BACKUP_Z } = await import('../lock/pattern.js');
+    let first = null, done = false;
+    const tip = h('div.as-muted', { style: { textAlign: 'center', margin: '0 0 6px' } }, '画一个图案，至少连 4 个点');
+    const box = h('div', { style: { display: 'grid', justifyItems: 'center', color: 'var(--as-color-text)', '--accent': 'var(--as-color-accent)' } });
+    const pad = patternPad({ onDone: seq => {
+      if (seq.length < 4) { tip.textContent = '至少连 4 个点，再画一次'; return false; }
+      if (seq === BACKUP_Z) { tip.textContent = 'Z 字形是备用图案，换一个吧'; return false; }
+      if (!first) { first = seq; tip.textContent = '再画一次确认'; return true; }
+      if (seq !== first) { first = null; tip.textContent = '两次不一样，从头再画'; return false; }
+      Object.assign(S().lock, { pattern: seq, method: 'pattern' }); commit('lock'); shell.applyLook();
+      done = true; setTimeout(() => s.close(), 300); toast('手势密码已设置'); return true;
+    } });
+    box.appendChild(pad.el);
+    const s = sheet({ title: '设置手势密码', content: h('div', tip, box), onClose: () => res(done) });
   });
 }
 async function setPin(digits) {
@@ -342,7 +364,10 @@ function openDevice() {
         sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
       ], '悬浮按钮可以直接拖动换位置。不想要它的话，到酒馆的「扩展」面板里关掉「显示悬浮按钮」，用魔法棒菜单打开手机。'),
       group('', [toggleItem({ title: '连点三下开关手机', sub: '在酒馆页面空白处连点三下打开，在手机空白处连点三下关闭' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
-      group('', [item({ title: '窗口大小（电脑上）', value: '自动', sub: '手动调节下一轮做' })]));
+      group('窗口大小（电脑上生效，手机上总是铺满）', [
+        h('div.as-field', segmented([['auto', '自动'], ['manual', '手动']], d.winScale ? 'manual' : 'auto', v => { d.winScale = v === 'auto' ? 0 : 1; commit('settings'); shell.applyLook(); re(); })),
+        d.winScale ? sliderRow('大小', { min: .7, max: 1.4, step: .05, value: d.winScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { d.winScale = v; commit('settings'); shell.applyLook(); } }) : null,
+      ].filter(Boolean)));
   });
 }
 

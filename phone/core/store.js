@@ -65,7 +65,7 @@ export function defaults() {
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',
     me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520, ledger: [], pokeSuffix: '' },
-    stickers: [], friendRequests: [],
+    stickers: [], friendRequests: [], library: { theme: 'aero', skins: [] },
     contacts: [], chats: [], moments: [], favorites: [], groups: ['家人', '朋友'],
   };
 }

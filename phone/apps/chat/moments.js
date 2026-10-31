@@ -1,7 +1,7 @@
 // 动态页：封面 + 动态流；发动态；生成角色动态；点赞 / 评论 / 生成评论；某个人的动态空间。
 import { h, uid, onLongPress, fileToDataURL, pickFile, $ } from '../../core/util.js';
 import { state, commit, contact, subscribe } from '../../core/store.js';
-import { page, group, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet } from '../../core/ui.js';
+import { page, group, item, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { nameOf, who, genMoment, genComments } from './engine.js';
@@ -56,7 +56,7 @@ function card(m, redraw) {
   return h('article.as-chat-moment', avatar(authorAvatar(m.author), authorName(m.author), 42, 'square'),
     h('div', h('div.as-chat-moment__name', { onclick: () => m.author === 'me' ? null : openProfile(m.author) }, authorName(m.author)),
       m.text && h('div.as-chat-moment__text', m.text), imgs, desc,
-      h('div.as-chat-moment__meta', h('span', time.shortLabel(m)), m.location && h('span', '· ' + m.location), m.author === 'me' && m.vis === 'private' ? h('span.as-chat-moment__vis', icon('lock', 12, 2)) : null, h('span.as-spacer'), ops),
+      h('div.as-chat-moment__meta', h('span', time.shortLabel(m)), m.location && h('span', '· ' + m.location), m.author === 'me' && m.vis && m.vis !== 'public' ? h('span.as-chat-moment__vis', { title: '不是所有人都能看' }, icon(m.vis === 'private' ? 'lock' : 'users', 12, 2)) : null, h('span.as-spacer'), ops),
       box));
 }
 function opbar(anchor, m, redraw) {
@@ -83,7 +83,7 @@ async function commentOn(m, to, redraw) {
 
 /* ---------- 发动态 ---------- */
 function openPost() {
-  const d = { text: '', images: [], location: '', vis: 'public' };
+  const d = { text: '', images: [], location: '', vis: 'public', visIds: [], visGroup: '' };
   const photos = h('div.as-chat-photos');
   const drawPhotos = () => {
     photos.innerHTML = '';
@@ -91,15 +91,30 @@ function openPost() {
     if (d.images.length < 9) photos.appendChild(h('button', { 'aria-label': '加照片', onclick: async () => { const f = await pickFile(); if (f) { d.images.push(await fileToDataURL(f, 900)); drawPhotos(); } } }, icon('plus', 26, 1.6)));
   };
   drawPhotos();
+  const VIS = { public: '公开', private: '仅自己', include: '部分可见', exclude: '不给谁看', group: '分组可见' };
+  const visItem = item({ title: '谁可以看', value: '公开', chevron: true, onClick: async () => {
+    const v = await actionSheet('谁可以看', Object.entries(VIS).map(([k, l]) => ({ value: k, label: l, active: d.vis === k })));
+    if (!v) return;
+    if (v === 'include' || v === 'exclude') {
+      const ids = await pickMany(v === 'include' ? '只给谁看' : '不给谁看', sorted().map(c => ({ key: c.id, name: nameOf(c), avatar: c.avatar })), { preselect: d.visIds });
+      if (!ids || !ids.length) return; d.visIds = ids;
+    }
+    if (v === 'group') {
+      if (!state.groups.length) { toast('先在「联系人 → 分组」建个分组'); return; }
+      const g = await actionSheet('给哪个分组看', state.groups.map(x => ({ value: x, label: x }))); if (!g) return; d.visGroup = g;
+    }
+    d.vis = v;
+    visItem.querySelector('.as-list-item__value').textContent = VIS[v] + (v === 'include' || v === 'exclude' ? `（${d.visIds.length} 人）` : v === 'group' ? `（${d.visGroup}）` : '');
+  } });
   const p = page({ app: 'chat', id: 'chat-moments-post', title: '发动态', back: true, right: navText('发表', () => {
     if (!d.text.trim() && !d.images.length) { toast('写点什么或者配张图'); return; }
-    state.moments.unshift({ id: uid('mo'), author: 'me', text: d.text.trim(), images: d.images, imageDesc: '', location: d.location.trim(), vis: d.vis, ...time.stamp(), likes: [], comments: [] });
+    state.moments.unshift({ id: uid('mo'), author: 'me', text: d.text.trim(), images: d.images, imageDesc: '', location: d.location.trim(), vis: d.vis, visIds: d.visIds, visGroup: d.visGroup, ...time.stamp(), likes: [], comments: [] });
     commit('moments'); nav.pop(); toast('已发表');
   }, true) });
   p.body.append(
     group('', [h('div.as-field', textarea({ placeholder: '这一刻的想法…', rows: 5, onInput: v => { d.text = v; } })), photos]),
     group('', [field('所在位置', input({ placeholder: '不填就不显示', onInput: v => { d.location = v; } })),
-      field('谁可以看', segmented([['public', '公开'], ['private', '仅自己']], 'public', v => { d.vis = v; }), '部分可见、分组可见、不给谁看：下一轮做')]));
+      visItem]));
   nav.push(p.el);
 }
 

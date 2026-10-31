@@ -5,6 +5,7 @@ import { state, commit, contact } from '../../core/store.js';
 import { avatar, toast } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
+import { patternPad, BACKUP_Z } from './pattern.js';
 
 let lockEl, pinEl, finger, ring, clockEl, dateEl, subEl, noticeBox, pinBtn, swipeEl;
 let locked = true, onUnlockCb = null, pendingOpen = null;
@@ -22,6 +23,8 @@ const FINGER_SVG = `<svg class="as-lock-finger__ring" viewBox="0 0 78 78" aria-h
 export const isLocked = () => locked;
 const lockOn = () => !!state.settings.lock.enabled;
 const usePin = () => state.settings.lock.method === 'pin' && /^\d{4,6}$/.test(state.settings.lock.pin || '');
+const usePattern = () => state.settings.lock.method === 'pattern' && /^\d{4,9}$/.test(state.settings.lock.pattern || '');
+let patEl = null, patTitle = null, patHint = null, patBox = null;
 
 export function initLock({ onUnlock }) {
   onUnlockCb = onUnlock;
@@ -32,17 +35,17 @@ export function initLock({ onUnlock }) {
   finger = h('button.as-lock-finger', { 'aria-label': '按住指纹解锁', html: FINGER_SVG });
   ring = finger.querySelector('.as-lock-finger__progress');
   pinBtn = h('button.as-textbtn', { onclick: openPin }, '使用密码');
-  swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (state.settings.lock.method === 'none') unlock(swipeEl); } },
+  swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (usePattern()) openPattern(); else if (!usePin()) unlock(swipeEl); } },
     h('span', { html: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>' }), '上滑解锁');
   lockEl.append(h('div.as-lock__head', clockEl, dateEl, subEl), noticeBox,
     h('div.as-lock__foot', h('span'), finger, pinBtn), swipeEl);
-  bindFinger(); bindSwipe(); buildPin();
+  bindFinger(); bindSwipe(); buildPin(); buildPattern();
   noticeBox.addEventListener('click', e => {
     const it = e.target.closest('.as-lock-notice__item'); if (!it) return;
     e.stopPropagation();
     if (noticeBox.classList.contains('is-stacked') && noticeBox.children.length > 2) { noticeBox.classList.remove('is-stacked'); return; }
     pendingOpen = it.dataset.chat;
-    toast(usePin() ? '输入密码后查看消息' : '按住指纹，解锁后直接打开');
+    toast(usePin() ? '输入密码后查看消息' : usePattern() ? '画完图案后直接打开' : state.settings.lock.method === 'finger' ? '按住指纹，解锁后直接打开' : '往上滑，解锁后直接打开');
   });
   lockEl.addEventListener('click', e => { if (!e.target.closest('.as-lock-notice')) noticeBox.classList.add('is-stacked'); });
   setInterval(() => renderClock(false), 1000);
@@ -54,6 +57,7 @@ export function initLock({ onUnlock }) {
 export function syncFoot() {
   const m = state.settings.lock.method;
   const swipe = m === 'none' || (m === 'pin' && !usePin()) || m === 'pattern';
+  swipeEl.lastChild.textContent = usePattern() ? '上滑画图案' : '上滑解锁';
   pinBtn.hidden = !usePin();
   finger.hidden = swipe; swipeEl.hidden = !swipe;
   finger.querySelector('.as-lock-finger__hint').textContent = usePin() ? '点一下输入密码' : '按住指纹解锁';
@@ -76,9 +80,10 @@ function bindSwipe() {
     if (y0 == null || e.pointerId !== id) return;
     const dy = y0 - e.clientY; y0 = null; id = null;
     lockEl.classList.remove('is-dragging'); lockEl.style.transform = ''; lockEl.style.opacity = '';
-    const canSwipe = state.settings.lock.method === 'none' || (state.settings.lock.method === 'pin' && !usePin()) || state.settings.lock.method === 'pattern';
-    if (dy > 90 && canSwipe) unlock(null);
-    else if (dy > 90 && usePin()) openPin();
+    if (dy <= 90) return;
+    if (usePattern()) openPattern();
+    else if (usePin()) openPin();
+    else if (state.settings.lock.method !== 'finger') unlock(null);
   };
   lockEl.addEventListener('pointerup', end); lockEl.addEventListener('pointercancel', end);
 }
@@ -209,12 +214,42 @@ function openPin() {
 }
 function closePin() {
   pinEl.classList.remove('is-open'); pinEl.setAttribute('aria-hidden', 'true');
+  if (patEl) { patEl.classList.remove('is-open'); patEl.setAttribute('aria-hidden', 'true'); }
   if (locked) lockEl.classList.remove('is-hidden');
+}
+
+/* ---------- 手势密码 ---------- */
+let patBackup = false;
+function buildPattern() {
+  patEl = h('section.as-page.as-pin.as-pattern', { dataset: { asApp: 'lock', asPage: 'lock-pattern' }, 'aria-hidden': 'true' });
+  patTitle = h('div.as-pin__title', '绘制解锁图案'); patHint = h('div.as-pin__hint');
+  patBox = h('div');
+  patEl.append(patTitle, patHint, patBox,
+    h('div.as-row', { style: { gap: '28px', marginTop: '18px' } },
+      h('button.as-textbtn', { onclick: closePin }, '取消'),
+      h('button.as-textbtn', { onclick: () => { patBackup = true; drawPad(); } }, '忘记密码？')));
+  pinEl.parentNode.appendChild(patEl);
+}
+function drawPad() {
+  patTitle.textContent = patBackup ? '绘制备用图案' : '绘制解锁图案';
+  patHint.textContent = patBackup ? '备用图案是 Z 字形：左上 → 右上 → 中心 → 左下 → 右下' : '';
+  patHint.classList.remove('is-error');
+  const pad = patternPad({ hintZ: patBackup, onDone: seq => {
+    if (seq === state.settings.lock.pattern || seq === BACKUP_Z) { setTimeout(() => unlock(null), 250); return true; }
+    patHint.textContent = '图案错误'; patHint.classList.add('is-error');
+    setTimeout(() => { patHint.classList.remove('is-error'); patHint.textContent = patBackup ? '备用图案是 Z 字形：左上 → 右上 → 中心 → 左下 → 右下' : ''; }, 800);
+    return false;
+  } });
+  patBox.replaceChildren(pad.el);
+}
+function openPattern() {
+  patBackup = false; drawPad();
+  patEl.classList.add('is-open'); patEl.setAttribute('aria-hidden', 'false'); lockEl.classList.add('is-hidden');
 }
 function forgot() { backupMode = true; entry = ''; renderDots(); pinTitle.textContent = '输入备用密码'; pinHint.textContent = hintText(); }
 
 /** 酒馆扩展面板里的「重置锁屏」 */
 export function resetLock() {
-  state.settings.lock = { enabled: false, method: 'none', pin: '', digits: 6 }; commit('lock');
+  state.settings.lock = { enabled: false, method: 'none', pin: '', digits: 6, pattern: '' }; commit('lock');
   syncFoot(); if (locked) unlock(null);
 }
