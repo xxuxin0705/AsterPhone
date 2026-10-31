@@ -12,18 +12,24 @@ export const CHANNELS = {
   ],
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
-    { v: 'openai-image', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys', note: '官方 OpenAI，或者任何 OpenAI 格式的中转站（地址填到 /v1）。' },
-    { v: 'novelai', label: 'NovelAI', base: 'https://image.novelai.net', model: 'nai-diffusion-4-5-full', site: 'https://novelai.net', note: '二次元最好用。尺寸不超过 1024×1024、步数不超过 28，订阅用户不额外扣点。密钥在官网 账户设置 → Get Persistent API Token。' },
-    { v: 'pollinations', label: 'Pollinations（免费）', base: 'https://image.pollinations.ai', model: 'flux', site: 'https://pollinations.ai', noKey: true, note: '免费、不用密钥，打开就能用；高峰期会慢一点。' },
-    { v: 'gemini-image', label: 'Gemini 生图', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.1-flash-image', site: 'https://aistudio.google.com/apikey', note: 'Google 官方（Nano Banana）。密钥在 AI Studio 免费申请。' },
-    { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
-    { v: 'seedream', label: '豆包 / 火山引擎', base: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-seedream-4-0-250828', site: 'https://console.volcengine.com/ark', note: '豆包 Seedream。模型名要和火山方舟控制台里开通的一致。' },
-    { v: 'minimax-image', label: 'MiniMax 生图', base: 'https://api.minimax.cn/v1', model: 'image-01', site: 'https://platform.minimaxi.com', note: '国内版。国际版把地址换成 https://api.minimax.io/v1。' },
-    { v: 'grok-image', label: 'Grok 生图', base: 'https://api.x.ai/v1', model: 'grok-imagine-image', site: 'https://console.x.ai', note: 'xAI 官方。' },
-    { v: 'sd-webui', label: '本地 SD（WebUI）', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
+    { v: 'novelai', label: 'NovelAI / NAI', base: 'https://image.novelai.net', model: 'nai-diffusion-4-5-full', site: 'https://novelai.net', note: '二次元最好用。尺寸不超过 1024×1024、步数不超过 28，订阅用户不额外扣点。密钥在官网 账户设置 → Get Persistent API Token。' },
+    { v: 'openai-image', label: 'GPT / OpenAI 兼容', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys', note: '官方 OpenAI，或者任何 OpenAI 格式的中转站、第三方（地址填到 /v1）。' },
+    { v: 'sd-webui', label: '本地 SD', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
     { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
+    { v: 'siliconflow', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', site: 'https://cloud.siliconflow.cn/account/ak', note: '国内直连。模型可选 Kwai-Kolors/Kolors、Qwen/Qwen-Image。' },
   ],
-  tts: [{ v: 'openai-tts', label: 'OpenAI 兼容（语音）', base: 'https://api.openai.com/v1' }],
+  // 语音渠道：同样先填好地址、默认模型、默认音色、官网。fields = 这个渠道额外要填的东西
+  tts: [
+    { v: 'minimax-cn', label: 'MiniMax 国内', base: 'https://api.minimaxi.com', model: 'speech-2.8-hd', voice: 'female-shaonv', site: 'https://platform.minimaxi.com', fields: [['groupId', 'Group ID（可不填）']], note: '国内版。音色 ID 在官网「音色库」里看，比如 female-shaonv、male-qn-qingse，也可以填自己克隆的音色。' },
+    { v: 'minimax-intl', label: 'MiniMax 国际', base: 'https://api.minimax.io', model: 'speech-2.8-hd', voice: 'female-shaonv', site: 'https://www.minimax.io/platform', fields: [['groupId', 'Group ID（可不填）']], note: '国际版，密钥和国内版不通用。' },
+    { v: 'openai-tts', label: 'OpenAI', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini-tts', voice: 'alloy', site: 'https://platform.openai.com/api-keys', note: '音色：alloy、nova、shimmer、echo、onyx、fable 等。' },
+    { v: 'fish', label: 'Fish Audio', base: 'https://api.fish.audio', model: 's2.1-pro', voice: '', site: 'https://fish.audio/app/api-keys', note: '音色填声音模型的 ID（在 Fish Audio 网站上点开一个声音，地址里那串）。免费开发者额度用模型 s2.1-pro-free。' },
+    { v: 'elevenlabs', label: 'ElevenLabs', base: 'https://api.elevenlabs.io', model: 'eleven_multilingual_v2', voice: 'JBFqnCBsd6RMkjVDRZzb', site: 'https://elevenlabs.io/app/settings/api-keys', note: '音色填 Voice ID（在 ElevenLabs 的 Voices 里复制）。' },
+    { v: 'indextts', label: 'IndexTTS 本地', base: 'http://127.0.0.1:8000/v1', model: 'indextts', voice: '', site: 'https://github.com/index-tts/index-tts', noKey: true, note: '自己电脑上跑的 IndexTTS，要开 OpenAI 格式的接口（/v1/audio/speech），地址填到 /v1。音色填你在服务里起的名字。' },
+    { v: 'mimo', label: '小米 MiMo', base: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-tts', voice: 'mimo_default', site: 'https://mimo.mi.com', note: '内置音色：冰糖、茉莉、苏打、白桦、Mia、Chloe、Milo、Dean，不填就是默认。' },
+    { v: 'doubao-tts', label: '豆包 / 火山引擎', base: 'https://openspeech.bytedance.com/api/v1', model: 'volcano_tts', voice: 'BV001_streaming', site: 'https://console.volcengine.com/speech/app', fields: [['appId', 'App ID']], note: '在火山引擎「语音技术」里建应用，拿到 App ID 和 Access Token（填在密钥里）。模型这里填 Cluster，一般是 volcano_tts。' },
+    { v: 'custom-tts', label: '第三方（OpenAI 格式）', base: '', model: 'tts-1', voice: 'alloy', site: '', note: '自己的接口、中转站：只要是 /v1/audio/speech 这种 OpenAI 格式就行，地址填到 /v1。', custom: true },
+  ],
 };
 
 /** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认。kind 可以是 text / aux（杂活，没插就跟聊天线走）/ image / tts */
@@ -231,30 +237,11 @@ export async function generateImage(prompt, app = '聊天', connIn) {
         if (!res.ok) await fail(res);
         return URL.createObjectURL(await firstFileInZip(await res.arrayBuffer()));
       }
-      case 'pollinations': {
-        const u = `${base}/prompt/${encodeURIComponent(full)}?width=${W}&height=${H}&model=${encodeURIComponent(conn.model || 'flux')}&nologo=true&seed=${Math.floor(Math.random() * 1e6)}` + (neg ? `&negative=${encodeURIComponent(neg)}` : '') + (key ? `&token=${encodeURIComponent(key)}` : '');
-        const res = await fetch(u); if (!res.ok) await fail(res); return blobUrl(res);
-      }
-      case 'gemini-image': {
-        const res = await fetch(`${base}/v1beta/models/${encodeURIComponent(conn.model)}:generateContent?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: full + (neg ? `\nAvoid: ${neg}` : '') }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'], imageConfig: { aspectRatio: ratioOf(size) } } }) });
-        if (!res.ok) await fail(res);
-        const j = await res.json(), part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData || p.inline_data);
-        if (!part) throw new Error('Gemini 没有返回图片（可能被安全过滤了）');
-        const d = part.inlineData || part.inline_data; return `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}`;
-      }
       case 'siliconflow': {
         const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: size, batch_size: 1 }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return u;
-      }
-      case 'minimax-image': {
-        const res = await fetch(base + '/image_generation', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ model: conn.model || 'image-01', prompt: full, aspect_ratio: ratioOf(size), response_format: 'base64', n: 1 }) });
-        if (!res.ok) await fail(res);
-        const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
-        const b = j.data?.image_base64?.[0]; if (!b) throw new Error('MiniMax 没有返回图片'); return 'data:image/jpeg;base64,' + b;
       }
       case 'sd-webui': {
         const res = await fetch(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -276,11 +263,8 @@ export async function generateImage(prompt, app = '聊天', connIn) {
         }
         throw new Error('ComfyUI 等了 3 分钟还没出图');
       }
-      default: {     // GPT / OpenAI 兼容、豆包、Grok：都是 /images/generations
-        const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1 };
-        if (conn.type === 'seedream') Object.assign(body, { size, response_format: 'b64_json', watermark: false });
-        else if (conn.type === 'grok-image') body.response_format = 'b64_json';
-        else body.size = size;
+      default: {     // GPT / OpenAI 兼容（含中转站、第三方）：/images/generations
+        const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size };
         const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) await fail(res);
         const j = await res.json(), d = (j.data || [])[0] || {};
@@ -300,19 +284,70 @@ export async function testImage(conn) { return generateImage('a small cute star,
 
 /* ---------- 朗读：有语音连接就用它，没有就用浏览器自带的（免费） ---------- */
 let playing = null;
+const hexToBytes = hex => { const h0 = String(hex).replace(/^0x/, '').replace(/\s/g, ''); const out = new Uint8Array(h0.length >> 1); for (let i = 0; i < out.length; i++) out[i] = parseInt(h0.substr(i * 2, 2), 16); return out; };
+const b64ToBlob = (b64, type = 'audio/mpeg') => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
+/** 用某个语音接口把一段文字变成声音，返回可以播放的地址 */
+export async function synthesize(conn, text, { voice } = {}) {
+  const T = conn.tts || {}, v = voice || T.voice || conn.voice || (CHANNELS.tts.find(x => x.v === conn.type) || {}).voice || '';
+  const key = keysOf(conn)[0] || '', base = trim(conn.base), speed = T.speed || 1;
+  const bad = async res => { throw new Error(await readErr(res)); };
+  switch (conn.type) {
+    case 'minimax-cn': case 'minimax-intl': {
+      const res = await fetch(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0 }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
+      if (!res.ok) await bad(res);
+      const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
+      if (!j.data || !j.data.audio) throw new Error('MiniMax 没有返回声音');
+      return URL.createObjectURL(new Blob([hexToBytes(j.data.audio)], { type: 'audio/mpeg' }));
+    }
+    case 'fish': {
+      const res = await fetch(base + '/v1/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, model: conn.model || 's2.1-pro' },
+        body: JSON.stringify({ text, reference_id: v || undefined, format: 'mp3', prosody: { speed } }) });
+      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+    }
+    case 'elevenlabs': {
+      const res = await fetch(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+        body: JSON.stringify({ text, model_id: conn.model || 'eleven_multilingual_v2', voice_settings: { speed } }) });
+      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+    }
+    case 'mimo': {
+      const res = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model: conn.model || 'mimo-v2.5-tts', messages: [{ role: 'assistant', content: text }], audio: { format: 'mp3', voice: v || 'mimo_default' } }) });
+      if (!res.ok) await bad(res);
+      const j = await res.json(), d = j.choices?.[0]?.message?.audio?.data; if (!d) throw new Error('MiMo 没有返回声音');
+      return URL.createObjectURL(b64ToBlob(d));
+    }
+    case 'doubao-tts': {
+      if (!conn.appId) throw new Error('豆包要填 App ID');
+      const res = await fetch(base + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer;' + key },
+        body: JSON.stringify({ app: { appid: conn.appId, token: key, cluster: conn.model || 'volcano_tts' }, user: { uid: 'asterphone' },
+          audio: { voice_type: v || 'BV001_streaming', encoding: 'mp3', speed_ratio: speed }, request: { reqid: Math.random().toString(36).slice(2) + Date.now(), text, operation: 'query' } }) });
+      if (!res.ok) await bad(res);
+      const j = await res.json(); if (j.code !== 3000 || !j.data) throw new Error(`${j.code} ${j.message || '豆包没有返回声音'}`);
+      return URL.createObjectURL(b64ToBlob(j.data));
+    }
+    default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
+      const res = await fetch(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
+        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed }) });
+      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+    }
+  }
+}
+/** 测语音接口：说一句「你好呀」并播出来 */
+export async function testVoice(conn) {
+  const url = await synthesize(conn, '你好呀，能听到我说话吗？');
+  stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play().catch(() => {});
+  return url;
+}
+/** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费） */
 export async function speak(text, { voice } = {}) {
   stopSpeak();
   const conn = resolveConn('tts', 'chat');
-  if (conn && conn.type === 'openai-tts') {
+  if (conn) {
     try {
-      const res = await fetch(trim(conn.base) + '/audio/speech', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (conn.key || '') },
-        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: voice || (conn.tts && conn.tts.voice) || conn.voice || 'alloy', speed: (conn.tts && conn.tts.speed) || 1 }),
-      });
-      if (!res.ok) throw new Error(await readErr(res));
-      const a = new Audio(URL.createObjectURL(await res.blob())); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
+      const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
       return new Promise(r => { a.onended = r; a.onerror = r; });
-    } catch (e) { log('warn', '语音', '语音连接朗读失败，改用浏览器朗读：' + e.message); }
+    } catch (e) { log('warn', '语音', `「${conn.name}」朗读失败，改用浏览器朗读：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message)); }
   }
   if (!('speechSynthesis' in window)) throw new Error('这个浏览器不能朗读');
   return new Promise(r => {
@@ -358,15 +393,27 @@ export function syncTavernProfiles() {
   return changed;
 }
 
-/** 第一次用：把常见的生图渠道都先建好（没密钥的灰着，填了就能用）。只做一次，之后删了就不会再加回来 */
-export function seedImageChannels() {
-  const C = state.connections;
-  if (C.imageSeeded) return false;
-  for (const ch of CHANNELS.image) {
-    if (C.image.some(c => c.type === ch.v)) continue;
-    C.image.push({ id: 'img_' + ch.v, name: ch.label.replace(/（.*）/, ''), type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', preset: true });
+/**
+ * 把常用的生图、语音渠道都先建好（没密钥的写着「还没填密钥」，填了就能用）。
+ * 每个渠道只加一次，删了就不会再加回来；以前版本多建的（现在不在名单里、也没填密钥的）顺手拿掉。
+ */
+export function seedChannels() {
+  const C = state.connections; let changed = false;
+  C.seeded = C.seeded || {};
+  for (const kind of ['image', 'tts']) {
+    const pre = kind === 'image' ? 'img_' : 'tts_';
+    for (let i = C[kind].length - 1; i >= 0; i--) {
+      const c = C[kind][i];
+      if (c.preset && !CHANNELS[kind].some(ch => ch.v === c.type) && !keysOf(c).length) {
+        C[kind].splice(i, 1); for (const k of Object.keys(C.defaults)) if (C.defaults[k] === c.id) C.defaults[k] = ''; changed = true;
+      }
+    }
+    for (const ch of CHANNELS[kind]) {
+      if (ch.custom || C.seeded[pre + ch.v] || C[kind].some(c => c.type === ch.v)) { C.seeded[pre + ch.v] = true; continue; }
+      C[kind].push({ id: pre + ch.v, name: ch.label, type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', preset: true, ...(kind === 'tts' ? { tts: { voice: ch.voice || '', speed: 1, volume: 1 } } : {}) });
+      C.seeded[pre + ch.v] = true; changed = true;
+    }
   }
-  if (!C.defaults.image) C.defaults.image = 'img_pollinations';     // 默认插在免费的 Pollinations 上，打开就能画
-  C.imageSeeded = true;
-  return true;
+  return changed;
 }
+export const seedImageChannels = seedChannels;

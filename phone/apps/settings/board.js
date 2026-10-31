@@ -7,7 +7,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, testConn, testImage, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, testConn, testImage, testVoice, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 
@@ -325,7 +325,13 @@ export function openBoard({ list }) {
         if (!ch.noKey && !real) { delete status[c.id]; flowing = null; toast(`插好了「${c.name}」。想确认能不能画，点它里面的「测试」`); return; }
         if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) { delete status[c.id]; flowing = null; return; }
         else { const url = await testImage(c); ok = true; lastTestImg = url; }
-      } else { ok = !!(c.base && (keysOf(c).length || /localhost|127\.0\.0\.1/.test(c.base))); msg = ok ? '' : '还没填密钥'; }
+      } else {
+        // 语音：插线时只看有没有密钥；点「测试」真说一句话
+        const ch = CHANNELS.tts.find(x => x.v === c.type) || {};
+        if (!ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
+        if (!real && !ch.noKey) { delete status[c.id]; flowing = null; toast(`插好了「${c.name}」。想听听效果，点它里面的「测试」`); return; }
+        await testVoice(c); ok = true;
+      }
     } catch (e) { msg = e.message || '连不上'; }
     status[c.id] = ok ? 'ok' : 'bad'; c.ok = ok; c.okAt = Date.now(); commit('connections');
     flowing = ok ? { pl: flowing && flowing.pl, until: performance.now() + 1200 } : null;
@@ -546,8 +552,10 @@ export function openBoard({ list }) {
       const sum = h('span.as-pbd__sum', summary());
       const body = h('div.as-pbd__fbody'); let built = false;
       const box = h('div.as-pbd__fold' + (open ? '.is-open' : ''));
-      const toggle = () => { if (!built) { build(body, () => { sum.textContent = summary(); }); built = true; } box.classList.toggle('is-open'); };
-      if (open) { build(body, () => { sum.textContent = summary(); }); built = true; }
+      const re = () => { sum.textContent = summary(); };
+      const rebuild = () => { body.replaceChildren(); build(body, re, rebuild); re(); };   // 只重画这一组（比如换了渠道，要多填的东西不一样）
+      const toggle = () => { if (!built) { build(body, re, rebuild); built = true; } box.classList.toggle('is-open'); };
+      if (open) { build(body, re, rebuild); built = true; }
       box.append(h('button.as-pbd__fhead', { onclick: toggle, 'aria-expanded': String(open) }, icon(ic, 18, 1.8), h('span.as-pbd__ftitle', title), sum, h('span.as-pbd__chev', icon('chevron', 16, 2))), body);
       return box;
     };
@@ -564,14 +572,17 @@ export function openBoard({ list }) {
             h('p.as-pbd__hint', d.gone ? '酒馆里已经没有这个配置了。把插在它上面的线换到别的接口，它就会自己消失。' : '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。')]
       )));
     } else {
-      groups.push(fold('连接', 'link', () => `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type} · ${keysOf(d).length} 把密钥`, (b, re) => {
+      groups.push(fold('连接', 'link', () => `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type} · ${keysOf(d).length} 把密钥`, (b, re, rebuild) => {
         const nameIn = input({ value: d.name, placeholder: '随便起，方便自己认', onInput: v => { d.name = v; nameEl.textContent = v || '新接口'; touch(); } });
         const typeBtn = h('button.as-pbd__select', { onclick: async () => {
           const v = await actionSheet('类型', CHANNELS[kind].map(x => ({ value: x.v, label: x.label, active: x.v === d.type })));
           if (!v) return; const ch = CHANNELS[kind].find(x => x.v === v);
           if (!d.base || CHANNELS[kind].some(x => x.base === d.base)) { d.base = ch.base; baseIn.value = ch.base; }
           if (ch.model && (!d.model || CHANNELS[kind].some(x => x.model === d.model))) { d.model = ch.model; modelIn.value = ch.model; paintSub(); }
-          d.type = v; typeBtn.firstChild.textContent = ch.label; paintSite(); touch(); re();
+          if (kind === 'tts' && (!d.tts.voice || CHANNELS.tts.some(x => x.voice === d.tts.voice))) d.tts.voice = ch.voice || '';
+          // 名字还是原来渠道的名字（没自己改过）就跟着换
+          if (!d.name || CHANNELS[kind].some(x => x.label === d.name)) { d.name = ch.label; nameEl.textContent = ch.label; }
+          d.type = v; touch(); rebuild();
         } }, h('span', (CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type), icon('chevron', 14, 2));
         const baseIn = input({ value: d.base, placeholder: 'https://…', onInput: v => { d.base = v; touch(); } });
         // 密钥：可以存好几把，被拒了自动换下一把
@@ -605,7 +616,10 @@ export function openBoard({ list }) {
           siteBox.replaceChildren(...[ch.note && h('p.as-pbd__hint', ch.note), ch.site && h('a.as-pbd__sitelink', { href: ch.site, target: '_blank', rel: 'noopener' }, icon('link', 13, 2), '官网：' + ch.site.replace(/^https?:\/\//, '').replace(/\/$/, ''))].filter(Boolean));
         };
         paintSite();
-        b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
+        // 有的渠道要多填一两样（MiniMax 的 Group ID、豆包的 App ID）
+        const extra = (CHANNELS[kind].find(x => x.v === d.type) || {}).fields || [];
+        const extraRows = extra.map(([k, label]) => row(label, input({ value: d[k] || '', onInput: v => { d[k] = v.trim(); touch(); } })));
+        b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
           row('模型', h('div.as-pbd__line', modelIn, pull), '拉不到的话，直接在框里手动填。'));
       }, true));
       if (kind === 'text') {
@@ -635,7 +649,8 @@ export function openBoard({ list }) {
       }));
       if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
         const sp = h('output.as-pbd__val', d.tts.speed + 'x'), vo = h('output.as-pbd__val', Math.round(d.tts.volume * 100) + '%');
-        b.append(row('音色', input({ value: d.tts.voice, placeholder: '例如 alloy、nova', onInput: v => { d.tts.voice = v; touch(); re(); } })),
+        const chv = CHANNELS.tts.find(x => x.v === d.type) || {};
+        b.append(row('音色', input({ value: d.tts.voice, placeholder: chv.voice ? '默认 ' + chv.voice : '音色 ID', onInput: v => { d.tts.voice = v; touch(); re(); } }), chv.note || ''),
           row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: d.tts.speed, onInput: v => { d.tts.speed = +v.toFixed(2); sp.textContent = d.tts.speed + 'x'; touch(); re(); } }), sp)),
           row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: d.tts.volume, onInput: v => { d.tts.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)));
       }));
