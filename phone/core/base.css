@@ -122,7 +122,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-navbar.is-inline { grid-template-columns: auto 1fr auto; gap: 2px; }
 .as-navbar.is-inline .as-navbar__title { text-align: left; font: 700 calc(22px * var(--as-font-scale))/1.2 var(--font-ui); letter-spacing: .02em; }
 .as-navbar__title { text-align: center; font: 600 17px/1.2 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-navbar__back, .as-navbar__btn { width: 38px; height: 38px; border: 0; background: none; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--as-color-text); transition: transform var(--as-dur-fast), background var(--as-dur-fast); }
+.as-navbar__back, .as-navbar__btn { flex: none; width: 38px; height: 38px; border: 0; background: none; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--as-color-text); transition: transform var(--as-dur-fast), background var(--as-dur-fast); }
 .as-navbar__back:active, .as-navbar__btn:active { transform: scale(.9); background: var(--as-color-surface); }
 .as-navbar__right { display: flex; justify-content: flex-end; align-items: center; gap: 2px; }
 .as-navbar__text { border: 0; background: none; padding: 8px 10px; font: 500 15px/1 var(--font-ui); color: var(--as-color-text); cursor: pointer; white-space: nowrap; }

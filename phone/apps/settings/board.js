@@ -541,12 +541,12 @@ export function openBoard({ list }) {
       const P1 = { x: A.x, y: A.y - k * .8 }, P2 = { x: Bp.x - s * k + pl.sway, y: Bp.y + c * k };
       const n = Math.min(500, Math.max(24, Math.ceil(dist / 3)));
       const flow = flowing && flowing.pl === pl && now < flowing.until;
-      let px = A.x, py = A.y;
+      let px = A.x, py = A.y, swAt = pl.use === 'tts', swY = swAt && tabs.getBoundingClientRect().top - B().top - 22;
       if (doCable) for (let i = 0; i <= n; i++) {
         const t = i / n, u = 1 - t;
         const x = u * u * u * A.x + 3 * u * u * t * P1.x + 3 * u * t * t * P2.x + t * t * t * Bp.x, y = u * u * u * A.y + 3 * u * u * t * P1.y + 3 * u * t * t * P2.y + t * t * t * Bp.y;
         const ang = Math.atan2(y - py, x - px); px = x; py = y;
-        if (pl.use === 'tts' && i === Math.round(n * .22)) { modeSw.style.left = x + 'px'; modeSw.style.top = y + 'px'; }
+        if (swAt && (y <= swY || i === n)) { swAt = false; modeSw.style.left = x + 'px'; modeSw.style.top = y + 'px'; }   // 拨片挂在线上、刚好高过底下的分类栏，不压着「语音」
         const pulse = flow ? Math.max(0, 1 - Math.abs(((t * 2.4 - now / 600) % 1 + 1) % 1 - .5) * 8) : 0;
         for (const [o, a] of [[0, .82], [-4, .5], [4, .42], [-7, .14]]) stamp(x - Math.sin(ang) * o, y + Math.cos(ang) * o, Math.min(1, a + pulse * .5), pl.i + 1, pulse > .3 ? 2 : 0);
       }
