@@ -1,4 +1,4 @@
-// 锁屏时钟字体：默认用内置的 SF Pro Rounded（base.css 里的 AsterClockBuiltin）；
+// 锁屏时钟字体：默认用内置的 SF Pro Display Bold（base.css 里的 AsterClockBuiltin）；
 // 用户也可以导入别的字体文件，存在这台设备的浏览器里（IndexedDB 键 font:clock），优先用导入的。
 import { kvGet, kvSet, kvDel } from './store.js';
 

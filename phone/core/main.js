@@ -169,7 +169,7 @@ addEventListener('message', e => {
   const d = e.data; if (!d || typeof d !== 'object') return;
   if (d.aster === 'visible') { if (!booted) pendingVis = !!d.v; else onVisible(!!d.v); }
   if (d.aster === 'reset' && d.what === 'lock') { resetLock(); toast('锁屏已关闭，密码已清除'); }
-  if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} }, clock: { lang: 'zh', h12: false, font: 'sf', weight: 'heavy' } });
+  if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} }, clock: { lang: 'zh', h12: false, font: 'sf' } });
     Object.assign(state.settings.walls, { lock: 'castle', home: 'castle', lockRandom: false, homeRandom: false, live: 'press', liveWake: true }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
 });
 

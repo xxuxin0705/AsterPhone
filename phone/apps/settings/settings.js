@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.5.4';
+export const VERSION = '0.5.5';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -248,7 +248,7 @@ function clockPreview(night) {
 function paintClock() {
   if (!clockBox) return;
   const n = time.now();
-  clockBox.dataset.font = (S().clock || {}).font || 'sf'; clockBox.dataset.weight = S().clock.weight || 'heavy';
+  clockBox.dataset.font = (S().clock || {}).font || 'sf';
   clockBox.replaceChildren(h('span', n.date), h('b', n.hm));
   const night = shell.phone.dataset.mode === 'night', c = S().clockColor;
   const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
@@ -263,10 +263,9 @@ function openLook() {
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))],
         '切换时整个手机会从你点的地方扩散着变色。'),
       group('时间', [clockPreview(night),
-        segField('锁屏字体', segmented([['sf', '苹果圆体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
-        S().clock.font === 'sf' ? segField('粗细', segmented([['normal', '标准'], ['bold', '粗'], ['heavy', '特粗']], S().clock.weight || 'heavy', v => { S().clock.weight = v; commit('look'); shell.applyLook(); paintClock(); })) : null,
-        item({ title: '字体文件', sub: '默认内置苹果圆体（SF Pro Rounded）；想换别的字体可以导入 .otf / .ttf', value: clockFontName() || '内置苹果圆体', chevron: true, onClick: async () => {
-          const v = await actionSheet('锁屏字体文件', [{ label: clockFontName() ? '换一个字体文件' : '导入字体文件', value: 'add' }, ...(clockFontName() ? [{ label: '删掉，换回内置苹果圆体', value: 'del', danger: true }] : [])]);
+        segField('锁屏字体', segmented([['sf', '苹果粗体'], ['thin', '纤细'], ['serif', '优雅衬线']], S().clock.font, v => { S().clock.font = v; commit('look'); shell.applyLook(); paintClock(); re(); })),
+        item({ title: '字体文件', sub: '默认内置苹果粗体（SF Pro Display Bold）；想换别的字体可以导入 .otf / .ttf', value: clockFontName() || '内置苹果粗体', chevron: true, onClick: async () => {
+          const v = await actionSheet('锁屏字体文件', [{ label: clockFontName() ? '换一个字体文件' : '导入字体文件', value: 'add' }, ...(clockFontName() ? [{ label: '删掉，换回内置苹果粗体', value: 'del', danger: true }] : [])]);
           if (v === 'add') { const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return; try { const n = await importClockFont(f); S().clock.font = 'sf'; commit('look'); shell.applyLook(); toast('已换成「' + n + '」'); re(); } catch (e) { toast(e.message); } }
           if (v === 'del') { await removeClockFont(); shell.applyLook(); toast('已删掉'); re(); }
         } }),

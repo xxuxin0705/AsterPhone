@@ -1,5 +1,5 @@
-/* 锁屏时钟内置字体：SF Pro Rounded Semibold（只留了数字和英文字母，48KB） */
-@font-face { font-family: "AsterClockBuiltin"; src: url("../assets/fonts/SFProRounded-Semibold.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
+/* 锁屏时钟内置字体：SF Pro Display Bold（只留了数字和英文字母，33KB） */
+@font-face { font-family: "AsterClockBuiltin"; src: url("../assets/fonts/SFProDisplay-Bold.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 /* AsterPhone · 基础：变量（调色盘）、手机外壳、状态栏、页面栈、公共积木。
    风格：Frutiger Aero —— 天蓝渐变底、白色毛玻璃面板、顶部一道高光、大圆角、按下去有「果冻」感。
    门牌号规则见 docs/design-system.md 第 2 节。所有颜色、圆角、间距都用变量，皮肤改变量即可。 */
@@ -7,7 +7,7 @@
 :root {
   --stage: #dfeefb; --stage-ink: #4b6b86;
   --font-clock: "Cormorant Garamond", "Noto Serif SC", "Songti SC", Georgia, serif;
-  --font-clock-sf: "AsterClock", "AsterClockBuiltin", ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Nunito", "PingFang SC", "HarmonyOS Sans SC", "MiSans", system-ui, sans-serif;
+  --font-clock-sf: "AsterClock", "AsterClockBuiltin", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Nunito", "PingFang SC", "HarmonyOS Sans SC", "MiSans", system-ui, sans-serif;
   --font-clock-thin: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", "PingFang SC", system-ui, sans-serif;
   --font-cn: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-ui: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;

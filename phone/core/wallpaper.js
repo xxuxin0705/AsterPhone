@@ -4,7 +4,8 @@
 export const WALLPAPERS = {
   castle: { name: '月夜城堡', day: 'castle-day.jpg', night: 'castle-night.jpg', aspect: 852 / 1846,
             moonDay: [0.434, 0.236], moonNight: [0.44, 0.238], noticeTop: '38%',
-            starsDay: 'castle-day-stars.png', starsNight: 'castle-night-stars.png' },
+            starsDay: 'castle-day-stars.png', starsNight: 'castle-night-stars.png',
+            plateDay: 'castle-day-plate.jpg', plateNight: 'castle-night-plate.jpg', flowersDay: 'castle-day-flowers.webp', flowersNight: 'castle-night-flowers.webp' },
   water:  { name: '水中月', day: 'water-day.jpg', night: 'water-night.jpg', aspect: 574 / 1242,
             moonDay: [0.50, 0.523], moonNight: [0.50, 0.523], noticeTop: '29.5%' },
 };
@@ -15,10 +16,12 @@ const PEND = {
   day:   [{ax:0,aw:105,ah:280,px:479,py:0,sx:427,sy:0,len:228},{ax:107,aw:59,ah:142,px:639,py:0,sx:610,sy:0,len:113},{ax:168,aw:91,ah:502,px:713,py:0,sx:668,sy:0,len:457},{ax:261,aw:84,ah:513,px:813,py:0,sx:768,sy:0,len:468},{ax:347,aw:63,ah:245,px:774,py:476,sx:743,sy:476,len:214},{ax:412,aw:59,ah:196,px:612,py:596,sx:583,sy:596,len:167}]
 };
 for (const k in PEND) PEND[k].forEach((p, i) => { p.ph = i * 1.7 + .4; p.w = Math.sqrt(9.8 / Math.max(.12, p.len / 420)) * .55; });
-// 城堡的花：每朵花 = 花头圆心 (cx,cy)、半径 r、花茎根部 (px,py)（原图像素）。花头绕根部整朵摆，像被风吹弯
+// 城堡的花：每朵花头单独抠成一张小图（castle-*-flowers.webp），底图里花头的位置补成了背景（castle-*-plate.jpg）。
+// 画的时候只有花头绕「花头和花茎相接的地方」转，周围的叶子、城堡、天空一动不动。
+// 每朵：[接点 x, 接点 y, 外接圆半径 R, 花心 x, 花心 y, 图集偏移 x, 图集偏移 y, 花头半径 r]（原图像素）
 const FLOWERS = {
-  day:   [[655,1470,88,712,1640],[150,1440,85,95,1590],[165,1640,108,120,1846],[390,1750,95,370,1900],[190,1205,55,165,1320],[140,1055,45,105,1140],[348,1550,42,330,1640],[270,1562,30,280,1640],[296,1612,28,290,1690],[415,1640,34,400,1720],[345,1476,26,330,1540],[30,1355,62,10,1470],[790,1740,115,800,1900],[718,1292,34,735,1380]],
-  night: [[660,1465,85,712,1640],[155,1425,80,100,1580],[165,1640,108,120,1846],[410,1760,92,390,1900],[200,1235,45,175,1330],[140,1070,62,105,1170],[345,1560,36,330,1640],[275,1565,30,280,1640],[310,1625,30,300,1700],[420,1635,30,405,1720],[30,1365,62,10,1470],[790,1740,115,800,1900],[805,1515,48,790,1620],[600,1680,40,590,1760],[125,1170,40,100,1260],[35,1045,45,20,1130]],
+  day:   { size: [1024, 676], list: [[131.4,1075.8,52.2,140,1055,797,-656,45],[184.2,1231.9,53,190,1205,636,-805,55],[721.2,1308.7,51,718,1292,-664,-670,34],[24.7,1385.5,95.1,30,1355,512,-913,62],[135.4,1479.9,109,150,1440,-38,-984,85],[669,1511.7,107.6,655,1470,-321,-1016,88],[342,1488.7,27.5,345,1476,37,-878,26],[343.9,1570.6,62.1,348,1550,357,-1141,42],[271.9,1576.9,34.8,270,1562,45,-957,30],[294.9,1626,36.7,296,1612,-57,-1005,28],[153.5,1692.8,149.7,165,1640,331,-1488,108],[411.9,1656.7,43.9,415,1640,-261,-1026,34],[793.6,1797.4,169.5,790,1740,-618,-1568,115],[383.7,1797.1,146.6,390,1750,407,-1601,95]] },
+  night: { size: [1024, 720], list: [[31.1,1067.2,72.5,35,1045,40,-400,45],[129.8,1099.3,98.3,140,1070,179,-617,62],[119.6,1189.3,48.9,125,1170,520,-549,40],[194.3,1256.8,56,200,1235,9,-606,45],[24.2,1395.5,98,30,1365,490,-913,62],[141.6,1462.7,96.1,155,1425,564,-974,80],[672.1,1505.7,106.3,660,1465,-551,-1004,85],[801.6,1538.8,78,805,1515,93,-1083,48],[341.7,1577.7,54.6,345,1560,-20,-933,36],[276,1580,39.6,275,1565,463,-953,30],[308,1639.9,50.1,310,1625,125,-1002,30],[417.4,1649.8,33.3,420,1635,396,-1029,30],[153.5,1692.8,167.2,165,1640,357,-1470,108],[597.5,1699.8,50.1,600,1680,-59,-1057,40],[793.6,1797.4,173.8,790,1740,-614,-1564,115],[403.5,1805.5,140.2,410,1760,425,-1617,92]] },
 };
 // 水中月：鱼群绕月亮转圈（圆心、横纵比、每条鱼的起始角度和半径）
 const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
@@ -27,7 +30,7 @@ const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
 const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
 const FS = `
 precision highp float;
-uniform sampler2D uDay, uNight, uFish;
+uniform sampler2D uDay, uNight, uFish, uFlD, uFlN; uniform vec2 uFlSzD, uFlSzN;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
 uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
@@ -41,19 +44,20 @@ vec3 tap(sampler2D t, vec2 uv, float b){
   c += texture2D(t, uv+vec2(0.,b)).rgb*.18; c += texture2D(t, uv-vec2(0.,b)).rgb*.18;
   return c;
 }
-// 一朵花的位移（像素）。A = 花头圆心 xy + 花茎根部 zw；B = 半径、摆角、花头自转、0
-vec2 flower(vec2 P, vec4 A, vec4 B){
-  if (B.x <= 0.) return vec2(0.);
-  vec2 q = P - A.zw, sd = A.xy - A.zw;
-  float wH = 1. - smoothstep(B.x * .78, B.x * 1.32, length(P - A.xy));
-  float s = clamp(dot(q, sd) / dot(sd, sd), 0., 1.);
-  float wS = s * s * (1. - smoothstep(B.x * .1, B.x * .3, length(q - sd * s)));
-  float w = max(wH, wS);
-  if (w < .002) return vec2(0.);
-  float a = -B.y * w, ca = cos(a), sn = sin(a);
-  vec2 o = vec2(ca*q.x - sn*q.y, sn*q.x + ca*q.y) - q;
-  vec2 hc = P - A.xy; float t = -B.z * wH; ca = cos(t); sn = sin(t);
-  return o + (vec2(ca*hc.x - sn*hc.y, sn*hc.x + ca*hc.y) - hc);
+// 一朵花头：把屏幕上这一点反着转回去，看它落不落在这朵花的小图里。A = 接点 xy、角度、外接圆半径；B = 花心 xy、图集偏移
+vec4 petal(sampler2D atl, vec2 sz, vec2 P, vec4 A, vec4 B){
+  if (A.w <= 0.) return vec4(0.);
+  vec2 d = P - A.xy; float c = cos(A.z), s = sin(A.z);
+  vec2 q = vec2(c*d.x + s*d.y, -s*d.x + c*d.y) + A.xy;
+  if (length(q - B.xy) > A.w) return vec4(0.);
+  return texture2D(atl, (q + B.zw) / sz);
+}
+vec4 petalB(sampler2D atl, vec2 sz, vec2 P, vec4 A, vec4 B, vec2 b){
+  if (b.x < .3) return petal(atl, sz, P, A, B);
+  vec4 c = petal(atl, sz, P, A, B)*.28;
+  c += petal(atl, sz, P + vec2(b.x, 0.), A, B)*.18; c += petal(atl, sz, P - vec2(b.x, 0.), A, B)*.18;
+  c += petal(atl, sz, P + vec2(0., b.y), A, B)*.18; c += petal(atl, sz, P - vec2(0., b.y), A, B)*.18;
+  return c;
 }
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes; uv.y = 1. - uv.y;
@@ -71,10 +75,7 @@ void main(){
   if (uKind > 1.5) {
     // 自己的图片 / Live 图：不加特效，原样铺满
   } else if (uKind < .5) {
-    // 花随风摆：每朵花整朵绕花茎根部转一个小角度（花头是硬的，不会像水一样扭），花茎跟着弯
-    vec2 P = iuv * vec2(852., 1846.);
-    for (int i = 0; i < 16; i++) { off += flower(P, uFD[i*2], uFD[i*2+1]); offN += flower(P, uFN[i*2], uFN[i*2+1]); }
-    off /= vec2(852., 1846.); offN /= vec2(852., 1846.);
+    // 城堡：底图不扭，花头另外贴上去（见下面）
   } else {
     off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
                cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
@@ -95,6 +96,14 @@ void main(){
   vec2 tuv = clamp(iuv + off, .001, .999), tuvN = clamp(iuv + offN, .001, .999);
   float b = uUnlock * .007;
   vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuvN, b);
+  if (uKind < .5) {
+    // 花头一朵一朵贴上去（远的先贴，近的盖在上面）；桌面虚化时花也跟着虚
+    vec2 P = tuv * vec2(852., 1846.), bp = vec2(b * 852., b * 1846.);
+    if (P.y > 960.) for (int i = 0; i < 16; i++) {
+      vec4 fd = petalB(uFlD, uFlSzD, P, uFD[i*2], uFD[i*2+1], bp); cD = mix(cD, fd.rgb, fd.a);
+      vec4 fn = petalB(uFlN, uFlSzN, P, uFN[i*2], uFN[i*2+1], bp); cN = mix(cN, fn.rgb, fn.a);
+    }
+  }
   if (uGlitch > .001) {   // 色散
     vec2 ca = vec2(.007 * uGlitch, 0.);
     cD.r = texture2D(uDay, clamp(tuv + ca, .001, .999)).r; cD.b = texture2D(uDay, clamp(tuv - ca, .001, .999)).b;
@@ -216,6 +225,10 @@ export class Wallpaper {
     for (const k of Object.keys(WALLPAPERS)) for (const f of ['day', 'night']) all.push(load(WALLPAPERS[k][f]).then(i => { this.images[k + f] = i; }));
     load(WALLPAPERS.castle.starsDay).then(i => { this.atlas.day = i; }).catch(() => {});
     load(WALLPAPERS.castle.starsNight).then(i => { this.atlas.night = i; }).catch(() => {});
+    // 城堡的花：底图（花头抠掉）+ 花头图集，四张都到了才让花动，不然就用原图静止
+    const C = WALLPAPERS.castle;
+    all.push(Promise.all([C.plateDay, C.plateNight, C.flowersDay, C.flowersNight].map(load))
+      .then(([pd, pn, fd, fn]) => { this.plate = { day: pd, night: pn }; this.flImg = { day: fd, night: fn }; }).catch(() => {}));
     await Promise.allSettled(all);
     this.bind();
     this.resume();
@@ -230,13 +243,13 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
+    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
-    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2);
+    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; };
-    this.tex = { day: mk(), night: mk(), fish: mk() };
+    this.tex = { day: mk(), night: mk(), fish: mk(), flD: mk(), flN: mk() };
     this.fishCanvas = document.createElement('canvas'); this.fishCanvas.width = 512; this.fishCanvas.height = Math.round(512 / WALLPAPERS.water.aspect);
     this.fishCtx = this.fishCanvas.getContext('2d');
     gl.bindTexture(gl.TEXTURE_2D, this.tex.fish); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.fishCanvas);
@@ -273,10 +286,17 @@ export class Wallpaper {
     }
     this.glc.style.background = '';
     if (gl && this.images[k + 'day'] && this.images[k + 'night']) {
+      const fl = k === 'castle' && this.plate && this.flImg;
+      this.flowersOn = !!fl;
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.images[k + 'day']);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fl ? this.plate.day : this.images[k + 'day']);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.tex.night);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.images[k + 'night']);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fl ? this.plate.night : this.images[k + 'night']);
+      if (fl && !this.flUploaded) {
+        gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.tex.flD); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.flImg.day);
+        gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, this.tex.flN); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.flImg.night);
+        this.flUploaded = true;
+      }
     } else {
       this.glc.style.background = `center / cover url("${this.base + (this.mix.to > .5 ? this.w.night : this.w.day)}")`;
     }
@@ -360,9 +380,9 @@ export class Wallpaper {
   initFlowers() {
     this.flowers = {}; this.flowerBuf = {};
     for (const mode of ['day', 'night']) {
-      this.flowers[mode] = FLOWERS[mode].map(([cx, cy, r, px, py], i) => {
-        const len = Math.hypot(cx - px, cy - py), f0 = .95 - Math.min(.5, (len + r) / 700);   // 越大、茎越长，摆得越慢
-        return { cx, cy, r, px, py, th: 0, om: 0, k: (6.283 * f0) ** 2, ph: i * 2.39 + (mode === 'night' ? .7 : 0), tw: 0 };
+      this.flowers[mode] = FLOWERS[mode].list.map(([jx, jy, R, cx, cy, ox, oy, r], i) => {
+        const f0 = 1.25 - Math.min(.7, r / 160);   // 花越大摆得越慢、越沉
+        return { jx, jy, R, cx, cy, ox, oy, r, th: 0, om: 0, k: (6.283 * f0) ** 2, ph: i * 2.39 + (mode === 'night' ? .7 : 0) };
       });
       this.flowerBuf[mode] = new Float32Array(32 * 4);
     }
@@ -375,16 +395,16 @@ export class Wallpaper {
       this.flowers[mode].forEach((f, i) => {
         const tl = t - f.cx / IMG_W * 1.1;
         const gust = Math.pow(.5 + .5 * Math.sin(tl * .23) * Math.sin(tl * .37 + 1), 2);
-        const target = (.018 + .05 * gust + .03 * kick) * rm
-          + .012 * rm * (Math.sin(t * 1.3 + f.ph) + .6 * Math.sin(t * 2.1 + f.ph * 1.7)) * (.4 + gust);
+        const big = 40 / (20 + f.r);   // 小花被同样的风吹得更歪
+        const target = ((.03 + .07 * gust + .04 * kick) * big
+          + .03 * big * (Math.sin(t * 1.3 + f.ph) + .6 * Math.sin(t * 2.1 + f.ph * 1.7)) * (.4 + gust)) * rm;
         const sub = 3, h = dt / sub;
         for (let s = 0; s < sub; s++) {
           const acc = -f.k * (f.th - target) - 2 * .16 * Math.sqrt(f.k) * f.om;
           f.om += acc * h; f.th += f.om * h;
         }
-        if (f.th > .16) { f.th = .16; f.om *= -.3; } else if (f.th < -.16) { f.th = -.16; f.om *= -.3; }
-        f.tw += ((-f.om * .05) - f.tw) * Math.min(1, dt * 6);
-        buf.set([f.cx, f.cy, f.px, f.py, f.r, f.th, f.tw, 0], i * 8);
+        if (f.th > .26) { f.th = .26; f.om *= -.3; } else if (f.th < -.26) { f.th = -.26; f.om *= -.3; }
+        buf.set([f.jx, f.jy, f.th, this.flowersOn ? f.R : 0, f.cx, f.cy, f.ox, f.oy], i * 8);
       });
     }
   }
@@ -401,10 +421,10 @@ export class Wallpaper {
     const fx = u * IMG_W, fy = v * IMG_H, vx = pf ? (u - pf[0]) * IMG_W : 0;
     for (const mode of ['day', 'night']) for (const f of this.flowers[mode]) {
       const d = Math.hypot(fx - f.cx, fy - f.cy);
-      if (d > f.r * 1.6) continue;
-      const near = 1 - d / (f.r * 1.6);
-      const dir = pf ? Math.max(-1, Math.min(1, vx / 18)) : (fx < f.cx ? 1 : -1) * .8;
-      f.om += dir * near * 1.4 * (60 / (40 + f.r));
+      if (d > f.r * 1.5) continue;
+      const near = 1 - d / (f.r * 1.5);
+      const dir = pf ? Math.max(-1, Math.min(1, vx / 14)) : (fx < f.cx ? 1 : -1);
+      f.om += dir * near * 2.2 * (60 / (30 + f.r));
     }
   }
   burst(x, y) {
@@ -451,6 +471,9 @@ export class Wallpaper {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, custom ? this.tex.day : this.tex.night);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.tex.fish);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.tex.flD);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, this.tex.flN);
+      gl.uniform2f(U.uFlSzD, ...FLOWERS.day.size); gl.uniform2f(U.uFlSzN, ...FLOWERS.night.size);
       gl.uniform2f(U.uRes, this.glc.width, this.glc.height);
       gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : this.kind === 'water' ? 1 : 0);
       const s = this.mix, p = Math.min(1, Math.max(0, (t - s.start) / s.dur));

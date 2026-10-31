@@ -5,15 +5,12 @@
 .as-lock { z-index: 30; color: var(--ink); touch-action: none; transition: opacity 320ms var(--as-ease-standard), transform 420ms var(--as-ease-standard), color var(--as-dur-base); }
 .as-lock.is-hidden { opacity: 0; transform: translateY(-18px) scale(.98); pointer-events: none; }
 .as-lock__head { position: absolute; top: 8.5%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; text-align: center; pointer-events: none; }
-/* 默认：苹果锁屏那种圆润粗体，半透明；也可以换回优雅衬线 / 纤细 */
-.as-lock-clock { --dw: .6em; --clk: rgb(82, 90, 112); --clk-a: .72; --stroke: .03em; font: 700 clamp(92px, 28vw, 120px)/0.9 var(--font-clock-sf); letter-spacing: -.01em; display: flex; align-items: flex-end; font-variant-numeric: tabular-nums; color: var(--clk); opacity: var(--clk-a); -webkit-text-stroke: var(--stroke) var(--clk); paint-order: stroke fill; text-shadow: 0 1px 0 rgba(255,255,255,.22), 0 2px 20px rgba(255,255,255,.18); }
-/* 粗细：字体文件本身是半粗体，再用描边往外加粗（颜色是实色 + 整体半透明，描边和字身不会叠出深边） */
-.as-lock-clock[data-weight="normal"] { --stroke: 0px; }
-.as-lock-clock[data-weight="heavy"] { --stroke: .056em; --dw: .63em; }
+/* 默认：苹果锁屏的 SF Pro 粗体，半透明；也可以换回优雅衬线 / 纤细 */
+.as-lock-clock { --dw: .6em; --clk: rgb(82, 90, 112); --clk-a: .72; font: 700 clamp(92px, 28vw, 120px)/0.9 var(--font-clock-sf); letter-spacing: -.01em; display: flex; align-items: flex-end; font-variant-numeric: tabular-nums; color: var(--clk); opacity: var(--clk-a); text-shadow: 0 1px 0 rgba(255,255,255,.22), 0 2px 20px rgba(255,255,255,.18); }
 /* 自动配色像苹果锁屏：白天是半透明的灰，晚上是半透明的白；手动选了颜色就用选的 */
 .as-phone[data-mode="night"] .as-lock-clock { --clk: rgb(236, 239, 248); --clk-a: .8; }
 .as-phone:not([data-clock="auto"]) .as-lock-clock { --clk: var(--ink); --clk-a: .86; }
-.as-phone .as-lock-clock[data-font="serif"], .as-phone .as-lock-clock[data-font="thin"] { --stroke: 0px; --clk-a: 1; }
+.as-phone .as-lock-clock[data-font="serif"], .as-phone .as-lock-clock[data-font="thin"] { --clk-a: 1; }
 .as-lock-clock[data-font="serif"] { --dw: .52em; font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
 .as-lock-clock[data-font="thin"] { --dw: .56em; font: 200 clamp(84px, 26vw, 110px)/0.9 var(--font-clock-thin); letter-spacing: 0; color: var(--ink); }
 .as-phone[data-mode="night"] .as-lock-clock { text-shadow: 0 1px 0 rgba(255,255,255,.08), 0 2px 26px rgba(0,0,0,.3); }
