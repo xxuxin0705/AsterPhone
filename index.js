@@ -64,6 +64,46 @@ function build() {
     load();
     whenReady('#extensionsMenu', addWand);
     whenReady('#extensions_settings2, #extensions_settings', addSettings);
+    setTimeout(() => checkUpdate(false), 6000);
+}
+
+/* ---------- 更新：打开酒馆就看一眼有没有新版本；有就弹一张小卡片（现在更新 / 知道了） ---------- */
+const REMOTE = 'https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json';
+const SKIP_KEY = 'asterphone-skip-version';
+const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+/** 返回 { local, remote, newer }；force = 手机里点「检查更新」，这时就算点过「知道了」也照样提示 */
+async function checkUpdate(force) {
+    try {
+        const [l, r] = await Promise.all([fetch(BASE + 'manifest.json', { cache: 'no-cache' }).then(x => x.json()), fetch(REMOTE, { cache: 'no-cache' }).then(x => x.json())]);
+        const newer = vcmp(r.version, l.version) > 0;
+        if (newer && (force || localStorage.getItem(SKIP_KEY) !== r.version)) showUpdateCard(r.version);
+        return { local: l.version, remote: r.version, newer };
+    } catch (e) { return { error: true }; }
+}
+function showUpdateCard(v) {
+    document.getElementById('aster-update')?.remove();
+    const card = document.createElement('div');
+    card.id = 'aster-update';
+    card.innerHTML = `<b>AsterPhone 有新版本 v${v}</b><div><button type="button" data-k="later">知道了</button><button type="button" data-k="now" class="is-primary">现在更新</button></div>`;
+    card.addEventListener('click', e => {
+        const k = e.target.dataset && e.target.dataset.k; if (!k) return;
+        if (k === 'later') { try { localStorage.setItem(SKIP_KEY, v); } catch (err) { /* 忽略 */ } card.remove(); }
+        if (k === 'now') { e.target.disabled = true; e.target.textContent = '正在更新…'; updateNow().then(ok => { if (!ok) { e.target.disabled = false; e.target.textContent = '现在更新'; } }); }
+    });
+    document.body.appendChild(card);
+}
+/** 让酒馆替我们 git pull 一下，好了就刷新页面。插件装在「所有用户」还是「当前用户」不知道，两种都试 */
+async function updateNow() {
+    const c = stCtx(), name = decodeURIComponent((/\/extensions\/third-party\/([^/]+)\//.exec(new URL(BASE).pathname) || [])[1] || 'AsterPhone');
+    const headers = (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' };
+    for (const global of [false, true]) {
+        try {
+            const res = await fetch('/api/extensions/update', { method: 'POST', headers, body: JSON.stringify({ extensionName: name, global }) });
+            if (res.ok) { if (window.toastr) window.toastr.success('AsterPhone 更新好了，马上刷新'); setTimeout(() => location.reload(), 1200); return true; }
+        } catch (e) { /* 试下一种 */ }
+    }
+    if (window.toastr) window.toastr.error('自动更新没成功：到「扩展」→「管理扩展」里点 AsterPhone 的更新按钮');
+    return false;
 }
 
 async function load() {
@@ -90,6 +130,8 @@ function onMessage(e) {
         applyFab();
     }
     if (d.aster === 'unread') fabDot.classList.toggle('is-on', d.n > 0);
+    if (d.aster === 'update-check') checkUpdate(true).then(r => post({ aster: 'update-result', ...r }));
+    if (d.aster === 'update-now') updateNow();
 }
 
 function open() {

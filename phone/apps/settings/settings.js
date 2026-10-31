@@ -7,12 +7,12 @@ import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, blocksIn, setOn, moveBlock, copyBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { inTavern } from '../../core/bridge.js';
+import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.20';
+export const VERSION = '0.6.21';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -645,18 +645,22 @@ function openAbout() {
     const st = h('span.as-muted', '');
     body.append(h('div.as-settings-about', h('div.as-settings-about__logo', '✦'), h('div.as-settings-about__name', 'AsterPhone'), h('div.as-settings-about__ver', `版本 ${VERSION}`)),
       group('', [
+        // 在酒馆里：让外面那层去查，有新版本就能直接点「现在更新」；单独预览时只能自己查
         item({ title: '检查更新', right: st, chevron: true, onClick: async () => {
           st.replaceChildren(h('i.as-spin'));
-          try {
-            const r = await fetch('https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json', { cache: 'no-cache' });
-            const v = (await r.json()).version;
-            if (cmp(v, VERSION) > 0) { st.textContent = `发现新版本 v${v}`; dialog({ title: `发现新版本 v${v}`, text: '在酒馆的「扩展」→「管理扩展」里点 AsterPhone 的更新按钮，然后刷新页面。', cancel: null, confirm: '知道了' }); }
-            else st.textContent = '已是最新版本';
-          } catch (e) { st.textContent = '检查失败'; }
+          let r;
+          if (inTavern()) r = await new Promise(res => {
+            const on = e => { if (e.data && e.data.aster === 'update-result') { removeEventListener('message', on); res(e.data); } };
+            addEventListener('message', on); postToParent({ aster: 'update-check' }); setTimeout(() => res({ error: true }), 15000);
+          });
+          else r = await fetch('https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json', { cache: 'no-cache' }).then(x => x.json()).then(m => ({ remote: m.version, newer: cmp(m.version, VERSION) > 0 })).catch(() => ({ error: true }));
+          if (r.error) { st.textContent = '检查失败'; return; }
+          if (!r.newer) { st.textContent = '已是最新版本'; return; }
+          st.textContent = `新版本 v${r.remote}`;
+          if (inTavern() && await dialog({ title: `发现新版本 v${r.remote}`, confirm: '现在更新', cancel: '知道了' })) { toast('正在更新…'); postToParent({ aster: 'update-now' }); }
         } }),
         item({ title: '打开日志', chevron: true, onClick: () => shell.openApp('log') }),
         item({ title: '运行环境', value: inTavern() ? '酒馆内' : '单独预览' }),
-        item({ title: '项目主页', value: 'GitHub', chevron: true, onClick: () => window.open('https://github.com/xxuxin0705/AsterPhone', '_blank') }),
       ]));
   });
 }

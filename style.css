@@ -62,3 +62,10 @@
     #aster-overlay, #aster-overlay .aster-frame { transition: none; }
 }
 #aster-settings small { display: block; opacity: .75; margin: 4px 0; }
+
+/* 有新版本的小卡片（右下角） */
+#aster-update { position: fixed; z-index: 100000; right: 16px; bottom: 16px; max-width: calc(100vw - 32px); padding: 14px 16px; border-radius: 16px; background: rgba(24, 30, 44, .94); color: #f2f5fb; font: 14px/1.4 -apple-system, "PingFang SC", sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+#aster-update b { display: block; margin-bottom: 10px; font-weight: 600; }
+#aster-update div { display: flex; gap: 8px; justify-content: flex-end; }
+#aster-update button { padding: 8px 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.12); color: inherit; font: inherit; cursor: pointer; }
+#aster-update button.is-primary { background: #2f8be0; color: #fff; }
