@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.23';
+export const VERSION = '0.6.24';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -672,8 +672,9 @@ function openAbout() {
           else r = await fetch('https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json', { cache: 'no-cache' }).then(x => x.json()).then(m => ({ remote: m.version, newer: cmp(m.version, VERSION) > 0 })).catch(() => ({ error: true }));
           if (r.error) { st.textContent = '检查失败'; return; }
           if (!r.newer) { st.textContent = '已是最新版本'; return; }
-          st.textContent = `新版本 v${r.remote}`;
-          if (inTavern() && await dialog({ title: `发现新版本 v${r.remote}`, confirm: '现在更新', cancel: '知道了' })) { toast('正在更新…'); postToParent({ aster: 'update-now' }); }
+          const v = r.remote ? ` v${r.remote}` : '';
+          st.textContent = `有新版本${v}`;
+          if (inTavern() && await dialog({ title: `发现新版本${v}`, confirm: '现在更新', cancel: '知道了' })) { toast('正在更新…'); postToParent({ aster: 'update-now' }); }
         } }),
         item({ title: '打开日志', chevron: true, onClick: () => shell.openApp('log') }),
         item({ title: '运行环境', value: inTavern() ? '酒馆内' : '单独预览' }),
