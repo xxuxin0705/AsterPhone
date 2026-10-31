@@ -629,9 +629,9 @@ export function openBoard({ list }) {
         const nameIn = input({ value: d.name, placeholder: '随便起，方便自己认', onInput: v => { d.name = v; nameEl.textContent = v || '新接口'; touch(); } });
         const typeBtn = h('button.as-pbd__select', { onclick: async () => {
           const v = await actionSheet('类型', CHANNELS[kind].map(x => ({ value: x.v, label: x.label, active: x.v === d.type })));
-          if (!v) return; const ch = CHANNELS[kind].find(x => x.v === v);
-          if (!d.base || CHANNELS[kind].some(x => x.base === d.base)) { d.base = ch.base; baseIn.value = ch.base; }
-          if (ch.model && (!d.model || CHANNELS[kind].some(x => x.model === d.model))) { d.model = ch.model; modelIn.value = ch.model; paintSub(); }
+          if (!v || v === d.type) return; const ch = CHANNELS[kind].find(x => x.v === v);
+          // 换了渠道就按那家直连的来：地址换成它的（第三方留空自己填），密钥清空，模型换成它的默认
+          d.base = ch.base || ''; d.key = ''; d.keys = []; d.model = ch.model || ''; d.models = d.model ? [d.model] : []; paintSub();
           if (kind === 'tts' && (!d.tts.voice || CHANNELS.tts.some(x => x.voice === d.tts.voice))) d.tts.voice = ch.voice || '';
           // 名字还是原来渠道的名字（没自己改过）就跟着换
           if (!d.name || CHANNELS[kind].some(x => x.label === d.name)) { d.name = ch.label; nameEl.textContent = ch.label; }
@@ -661,10 +661,11 @@ export function openBoard({ list }) {
         const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
         paintModels();
         const pull = h('button.as-pbd__mini', { onclick: async () => {
-          pull.disabled = true;
+          pull.disabled = true; toast('正在拉取模型…');
           try {
             const models = await listModels(d);
             if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
+            toast(`拉到 ${models.length} 个模型`);
             const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
           } catch (e) { toast('拉取失败：' + e.message); } finally { pull.disabled = false; }
         } }, icon('link', 13, 2), '拉取');
@@ -692,7 +693,7 @@ export function openBoard({ list }) {
           b.append(row('温度', h('div.as-pbd__line', sl, out), '越低越稳，越高越放飞。单个聊天里还能另外设。'), chipBox,
             row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'),
             h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
-        }));
+        }, true));
         if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
           b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '提示词缓存'), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')),
             h('p.as-pbd__hint', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。'));
