@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.39';
+export const VERSION = '0.6.40';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -306,9 +306,16 @@ function openBlock(cat, sid, id) {
     const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
     ta.classList.add('as-settings-prompt-text');
     const insert = v => { const s0 = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s0; ta.setRangeText(`{{${v}}}`, s0, e, 'end'); text = ta.value; ta.focus(); };
+    // 搭配：别的方案（含默认）里有同名的这一条，就能把内容换成那边的；点保存才算数
+    const others = [{ id: '', name: '默认方案' }, ...schemesOf(cat).list.filter(x => x.id !== sid)]
+      .map(x => ({ name: x.name, blk: blocksIn(cat, x.id).find(y => y.name === b.name) })).filter(o => o.blk);
     body.append(
       ...(fixed ? [] : [group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))])]),
-      h('div.as-lib-actions', btn('删除', 'secondary', async () => {
+      h('div.as-lib-actions', ...(others.length ? [btn('换成其他方案的', 'secondary', async () => {
+        const i = await actionSheet(`换成哪个方案里的「${b.name}」`, others.map((o, k) => ({ value: String(k), label: o.name })));
+        if (i == null) return;
+        ta.value = text = others[+i].blk.text; toast(`换成「${others[+i].name}」的了，保存后生效`);
+      })] : []), btn('删除', 'secondary', async () => {
         if (!(await dialog({ title: `删掉「${name}」？`, confirm: '删除', danger: true }))) return;
         removeBlock(cat, sid, id); nav.pop();
       })),
