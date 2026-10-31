@@ -58,6 +58,8 @@ function build() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && opened) close(); });
     window.addEventListener('message', onMessage);
 
+    iframe.addEventListener('load', () => iframe.contentDocument.addEventListener('focusin', lift));
+    window.addEventListener('resize', holdSize);
     restorePos();
     makeDraggable();
     bindTripleTap();
@@ -176,6 +178,7 @@ function open() {
     aimAtFab();
     overlay.classList.add('open');
     fab.classList.add('is-hidden');
+    if (!size) holdSize();
     post({ aster: 'visible', v: true });
 }
 function close() {
@@ -187,6 +190,33 @@ function close() {
     post({ aster: 'visible', v: false });
 }
 const toggle = () => (opened ? close() : open());
+
+/* ---------- 键盘 ----------
+ * 酒馆把网页设成「弹键盘时整页变矮」。小手机要是跟着变矮，里面所有东西都得重排、毛玻璃和壁纸都得重画，
+ * 中间几帧是空的——这就是「一点输入框就闪」。所以键盘弹出时小手机的大小一点不动，键盘只是盖住下面一截，
+ * 输入框被盖住时把整台手机往上推到露出来（安卓自带的「推上去」也是这样） */
+let size = null;
+const typing = () => { const a = opened && iframe.contentDocument && iframe.contentDocument.activeElement; return !!a && (/^(INPUT|TEXTAREA)$/.test(a.tagName) || a.isContentEditable); };
+function holdSize() {
+    const f = overlay.firstChild;
+    if (size && innerWidth === size.vw && innerHeight < size.vh && typing()) {
+        if (!overlay.classList.contains('is-kb')) {
+            overlay.classList.add('is-kb');
+            Object.assign(f.style, { width: size.w + 'px', height: size.h + 'px', marginTop: size.top + 'px' });
+        }
+        lift();
+        return;
+    }
+    overlay.classList.remove('is-kb');
+    Object.assign(f.style, { width: '', height: '', marginTop: '', transform: '' });
+    size = { vw: innerWidth, vh: innerHeight, w: f.offsetWidth, h: f.offsetHeight, top: f.offsetTop };
+}
+function lift() {
+    if (!overlay.classList.contains('is-kb')) return;
+    const a = iframe.contentDocument.activeElement, f = overlay.firstChild;
+    const under = size.top + a.getBoundingClientRect().bottom + 16 - innerHeight;
+    f.style.transform = `translateY(${-Math.max(0, Math.min(under, size.top + size.h - innerHeight))}px)`;
+}
 
 /* ---------- 悬浮按钮 ---------- */
 function applyFab() {

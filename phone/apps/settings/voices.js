@@ -98,7 +98,7 @@ export function openPerson(id, onDone = () => {}) {
   const p = people().find(x => x.id === id) || { name: '这个人' };
   const connOf = () => (V().mode === 'each' && P.conn && ttsList().find(c => c.id === P.conn)) || defaultConn();
   if (!connOf()) { toast('先添加一个语音接口'); return; }
-  const box = h('div'), connBtn = h('button.as-pbd__select');
+  const box = h('div.as-vl__box'), connBtn = h('button.as-pbd__select');
   const paintConn = () => { const c = connOf(); connBtn.replaceChildren(h('span', P.conn ? c.name : `跟随（${c.name}）`), icon('chevron', 14, 2)); };
   connBtn.onclick = async () => {
     const v = await actionSheet('声音渠道', [{ value: '-', label: '跟随「语音」线', active: !P.conn }, ...ttsList().map(c => ({ value: c.id, label: c.name, active: P.conn === c.id }))]);
@@ -114,7 +114,7 @@ export function openPerson(id, onDone = () => {}) {
         h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async e => { e.stopPropagation(); toast('正在合成…'); try { await tryVoice(c, x.voice); } catch (err) { toast('试听失败：' + err.message); } } }, icon('play', 16, 2)),
         h('button.as-pbd__ibtn', { 'aria-label': '删掉这个音色', onclick: e => { e.stopPropagation(); S.list = S.list.filter(y => y !== x); if (S.cur === x.id) S.cur = S.list[0] ? S.list[0].id : ''; paint(); } }, icon('close', 14, 2)))),
       ...(S.list.length ? [] : [h('p.as-pbd__hint', `还没配，会用${(() => { const v = voiceOf(id, c); return v.voice ? FROM[v.from] : '接口默认的声音'; })()}`)]),
-      row('新增音色', h('div', nameIn, voiceInput(() => c, '', v => { voice = v; }))),
+      row('新增音色', h('div.as-vl__box', nameIn, voiceInput(() => c, '', v => { voice = v; }))),
       h('button.as-pbd__dash', { onclick: () => {
         if (!voice) { toast('先填或选一个音色'); return; }
         const nv = { id: uid('v'), name: name || voice, voice }; S.list.push(nv); S.cur = nv.id; paint();
