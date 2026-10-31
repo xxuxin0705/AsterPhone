@@ -193,11 +193,19 @@ async function boot() {
     if (nav.depth() > 0) nav.back();
   });
   $('#closeBtn').addEventListener('click', closePhone);
+  // 摸壁纸：按下冒一圈水波；按住拖动，波纹一路跟着手指走
+  let touching = null;
   phone.addEventListener('pointerdown', e => {
     if (nav.depth() > 0 && !isLocked()) return;
     if (e.target.closest('button, .as-lock-notice, .as-pin, .as-home-widget, .as-home-app, .as-sheet, .as-dialog-mask')) return;
-    const p = phone.getBoundingClientRect(); wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
+    const p = phone.getBoundingClientRect(); touching = e.pointerId; wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
   });
+  addEventListener('pointermove', e => {
+    if (touching !== e.pointerId) return;
+    const p = phone.getBoundingClientRect(); wallpaper.drag(e.clientX - p.left, e.clientY - p.top);
+  });
+  const lift = e => { if (touching === e.pointerId) { touching = null; wallpaper.release(); } };
+  addEventListener('pointerup', lift); addEventListener('pointercancel', lift);
   const follow = () => { if (state.settings.mode === 'auto' && (phone.dataset.mode === 'night') !== wantNight()) setNight(wantNight()); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow);
   try { window.parent.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow); } catch (e) { /* 忽略 */ }

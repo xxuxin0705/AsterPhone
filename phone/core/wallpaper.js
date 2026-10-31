@@ -26,7 +26,7 @@ const FS = `
 precision highp float;
 uniform sampler2D uDay, uNight, uFish;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
-uniform vec3 uReveal; uniform vec4 uRipple; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
+uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec3 uTouch; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
@@ -52,18 +52,33 @@ void main(){
   }
   vec2 off = vec2(0.);
   if (uKind < .5) {
-    // 花丛随风摆：左侧花丛 + 最下面一排，避开城堡
-    float w = max(smoothstep(.42, .56, iuv.y) * (1. - smoothstep(.2, .34, iuv.x)), smoothstep(.72, .9, iuv.y));
-    off.x += (sin(uTime*1.25 + iuv.y*16. + iuv.x*5.)*.0026 + sin(uTime*.62 + iuv.x*9. + iuv.y*3.)*.0014) * w;
-    off.y += sin(uTime*.9 + iuv.x*11.) * .0009 * w;
+    // 花丛随风摆：最下面一大片 + 左边花丛；越靠下（越近）摆得越多；风一阵一阵的
+    float wB = smoothstep(.70, .90, iuv.y);
+    float wL = smoothstep(.44, .60, iuv.y) * (1. - smoothstep(.24, .40, iuv.x));
+    float w = max(wB, wL) * (.45 + iuv.y * .75);
+    float gust = .55 + .45 * sin(uTime * .33 + iuv.x * 2.2) * sin(uTime * .21 + 1.7);
+    off.x += (sin(uTime*1.55 + iuv.y*15. + iuv.x*6.) * .0060 + sin(uTime*.72 + iuv.x*9. + iuv.y*4.) * .0038) * w * gust;
+    off.y += (sin(uTime*1.2 + iuv.x*12. + iuv.y*5.) * .0024) * w * gust;
+    // 手指划过：附近的花被拨开，松手后慢慢回弹
+    if (uTouch.z > .001) {
+      vec2 d = (iuv - uTouch.xy) * vec2(uImgAspect, 1.);
+      float r = length(d);
+      off += (r > .0001 ? d / r : vec2(0.)) * exp(-r*r/.0045) * .016 * uTouch.z * max(w, .25 * wB) / max(.45, w);
+    }
   } else {
     off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
                cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
-    if (uRipple.w > 0.) {
-      vec2 pr = (iuv - uRipple.xy) * vec2(uImgAspect, 1.);
-      float r = length(pr), age = uTime - uRipple.z, front = age*.3;
-      float ring = sin((r-front)*95.) * exp(-abs(r-front)*24.) * exp(-age*1.2) * uRipple.w;
-      off += (r > .0001 ? pr/r : vec2(0.)) * ring * .007;
+    // 水波纹：最多 16 圈同时在扩散，按住拖动时会沿着手指一路冒出来
+    for (int i = 0; i < 16; i++) {
+      vec4 rp = uRipples[i];
+      if (rp.w > 0.) {
+        vec2 pr = (iuv - rp.xy) * vec2(uImgAspect, 1.);
+        float r = length(pr), age = uTime - rp.z, front = age*.3;
+        if (age > 0. && age < 3.5) {
+          float ring = sin((r-front)*95.) * exp(-abs(r-front)*24.) * exp(-age*1.2) * rp.w;
+          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .007;
+        }
+      }
     }
   }
   vec2 tuv = clamp(iuv + off, .001, .999);
@@ -159,7 +174,7 @@ export class Wallpaper {
     this.kind = 'castle'; this.images = {}; this.atlas = {};
     this.mix = { from: 0, to: 0, start: -10, dur: 1.1, cx: .5, cy: .2 };
     this.unlock = { from: 0, to: 0, start: -10, dur: .55 };
-    this.glitchT = -10; this.ripple = [0, 0, -100, 0]; this.swingKick = 0; this.startle = 0;
+    this.glitchT = -10; this.ripples = new Float32Array(64); this.rIdx = 0; this.lastDrop = { t: -1, x: 0, y: 0 }; this.touch = [.5, .5, 0]; this.finger = null; this.swingKick = 0; this.startle = 0;
     this.zoom = 1.04; this.drift = [0, 0]; this.running = false; this.t0 = performance.now(); this.last = 0;
     this.stars = []; this.motes = []; this.glints = []; this.meteors = []; this.bursts = []; this.nextMeteor = 2;
     this.fish = RING.fish.map(([a, r]) => ({ a, r, sp: rand(.9, 1.15), ph: rand(0, 6.28), len: rand(.15, .21), wob: rand(0, 6.28) }));
@@ -195,7 +210,7 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipple', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
+    ['uDay', 'uNight', 'uFish', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uTouch', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
     gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -247,10 +262,21 @@ export class Wallpaper {
   glitchNow(t) { const k = (t - this.glitchT) / .55; return k < 0 || k > 1 ? 0 : Math.sin(k * Math.PI) * (1 - k * .4); }
 
   /** 点画面：水面起涟漪、鱼被惊动；城堡的挂星被风吹 */
-  tap(x, y) {
-    if (this.kind === 'water') { const [u, v] = this.screenToImg(x, y); this.ripple = [u, v, this.tt(), 1]; this.startle = 1; }
-    else this.swingKick = 1;
+  /** 手指按下 / 拖动 / 抬起：水面一路冒波纹、鱼躲开；城堡的花被拨开、挂星被风吹 */
+  tap(x, y) { this.drop(x, y, 1); this.pointer(x, y, true); this.swingKick = 1; }
+  drag(x, y) {
+    const t = this.tt(), L = this.lastDrop;
+    if (t - L.t > .06 && Math.hypot(x - L.x, y - L.y) > 14) this.drop(x, y, .6);
+    this.pointer(x, y, true); this.swingKick = Math.max(this.swingKick, .45);
   }
+  release() { this.finger = null; }
+  drop(x, y, w) {
+    const [u, v] = this.screenToImg(x, y), i = this.rIdx++ % 16;
+    this.ripples.set([u, v, this.tt(), w], i * 4);
+    this.lastDrop = { t: this.tt(), x, y };
+    if (this.kind === 'water') this.startle = Math.max(this.startle, w);
+  }
+  pointer(x, y) { const [u, v] = this.screenToImg(x, y); this.finger = [u, v]; this.touch = [u, v, 1]; }
   burst(x, y) {
     const t = this.tt(), m = this.currentMix(this.now());
     const cols = m > .5 ? ['rgb(255,190,140)', 'rgb(255,240,220)', 'rgb(200,215,255)'] : ['rgb(242,150,90)', 'rgb(255,236,200)', 'rgb(255,255,255)'];
@@ -298,7 +324,9 @@ export class Wallpaper {
       gl.uniform1f(U.uMixFrom, p >= 1 ? s.to : s.from); gl.uniform1f(U.uMixTo, s.to);
       gl.uniform3f(U.uReveal, s.cx, s.cy, p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6);
       gl.uniform1f(U.uUnlock, u);
-      gl.uniform4f(U.uRipple, ...this.ripple);
+      gl.uniform4fv(U.uRipples, this.ripples);
+      if (!this.finger) this.touch[2] *= Math.pow(.08, dd);
+      gl.uniform3f(U.uTouch, ...this.touch);
       gl.uniform2f(U.uMoonDay, ...w.moonDay); gl.uniform2f(U.uMoonNight, ...w.moonNight);
       gl.uniform2f(U.uDrift, ...this.drift); gl.uniform1f(U.uZoom, this.zoom);
       gl.uniform1f(U.uGlitch, this.glitchNow(t));
@@ -316,7 +344,15 @@ export class Wallpaper {
     for (const f of this.fish) {
       const sp = base * f.sp * (1 + this.startle * 3.5);
       f.a += sp * dt; f.ph += dt * (5 + this.startle * 14) * f.sp;
-      const r = f.r * (1 + .05 * Math.sin(t * .3 + f.wob));
+      // 手指靠近时鱼往外躲，离开后慢慢游回原来的圈
+      f.rp = f.rp || 0;
+      if (this.finger) {
+        const x0 = RING.cx + f.r * Math.cos(f.a), y0 = RING.cy + f.r * (fw / fh) * Math.sin(f.a) / RING.k;
+        const dd = Math.hypot((x0 - this.finger[0]) * WALLPAPERS.water.aspect, y0 - this.finger[1]);
+        if (dd < .16) f.rp = Math.min(.12, f.rp + (.16 - dd) * dt * 2.2);
+      }
+      f.rp *= Math.pow(.45, dt);
+      const r = f.r * (1 + .05 * Math.sin(t * .3 + f.wob)) + f.rp;
       const X = (RING.cx + r * Math.cos(f.a)) * fw, Y = RING.cy * fh + r * fw * Math.sin(f.a) / RING.k;
       const ang = Math.atan2(r * fw * Math.cos(f.a) / RING.k, -r * fw * Math.sin(f.a)) + Math.sin(f.ph * .5) * .06;
       fc.globalAlpha = .9; drawFishBody(fc, X, Y, ang, f.len * fw, f.ph);
