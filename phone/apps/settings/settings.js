@@ -4,7 +4,7 @@ import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, cl
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
-import { PROMPT_CATS, catInfo, blocksIn, setOn, moveBlock, copyBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
+import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.22';
+export const VERSION = '0.6.23';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -25,7 +25,7 @@ const sliderRow = (label, { min, max, step, value, onInput, fmt = v => v }) => {
 };
 /** 子页面：draw() 每次回到这页都会重画 */
 // 设置页上显示的东西都来自这几块；从下一层返回时，没变就不重画（重画会让整页闪一下）
-const sig = () => JSON.stringify([state.settings, state.connections, state.apps, state.promptSets, state.customPrompts, state.timeTagName, state.library]);
+const sig = () => JSON.stringify([state.settings, state.connections, state.apps, state.promptSchemes, state.timeTagName, state.library]);
 function decodeImages(root) {
   const urls = [...root.querySelectorAll('img')].map(i => i.src)
     .concat([...root.querySelectorAll('[style*="background-image"]')].map(e => (/url\(["']?(.*?)["']?\)/.exec(e.style.backgroundImage) || [])[1]));
@@ -225,22 +225,32 @@ function openInjectTable() {
   });
 }
 /* ================= 提示词 ================= */
-// 按应用分，应用里再分私聊、群聊…；每一类是一串积木：开关、拖动排顺序。内置的只能看、能复制。
+// 外面只放应用，点进去是私聊、群聊…，再点进去是方案和一条条提示词。默认方案只能看，复制成自己的方案才能改。
 function openPrompts() {
   sub('prompts', '提示词', body => {
-    body.append(...PROMPT_CATS.map(a => group(a.app, a.items.map(c => {
-      const bs = blocksIn(c.id);
-      return item({ title: c.name, value: `${bs.filter(b => b.on).length}/${bs.length}`, chevron: true, onClick: () => openCat(c.id) });
-    }))));
+    body.append(group('', PROMPT_CATS.map(a => item({ title: a.app, value: `${a.items.length} 项`, chevron: true, onClick: () => openPromptApp(a) }))));
+  });
+}
+function openPromptApp(a) {
+  sub('prompt-app', a.app, body => {
+    body.append(group('', a.items.map(c => item({ title: c.name, value: schemeName(c.id), chevron: true, onClick: () => openCat(c.id) }))));
   });
 }
 const tagName = () => state.timeTagName || 'astertime';
 function openCat(cat) {
   sub('prompt-cat', catInfo(cat).name, (body, re) => {
-    const list = blocksIn(cat);
-    const rows = list.map(b => {
-      const sw = switchEl(b.on, v => setOn(cat, b.id, v), b.name), handle = h('span.as-prompt-handle', { 'aria-label': '拖动排序' }, icon('list', 18, 2));
-      const row = item({ title: b.name, sub: b.builtin ? '内置' : '', right: h('span.as-prompt-end', sw, handle), chevron: true, onClick: () => openBlock(cat, b.id) });
+    const S = schemesOf(cat), sid = S.cur;
+    // 方案：点一下换着用
+    const schemes = group('方案', [h('div.as-field', h('div.as-chips', [{ id: '', name: '默认方案' }, ...S.list].map(x =>
+      h('button.as-chip' + (x.id === sid ? '.is-active' : ''), { onclick: () => { if (x.id !== sid) { useScheme(cat, x.id); re(); } } }, x.name))))]);
+    const acts = h('div.as-lib-actions', btn('复制方案', 'secondary', () => { copyScheme(cat, sid); re(); }), ...(sid ? [
+      btn('改名', 'secondary', async () => { const n = await dialog({ title: '改名', input: { value: schemeName(cat) } }); if (n && n.trim()) { renameScheme(cat, sid, n.trim()); re(); } }),
+      btn('删除', 'secondary', async () => { if (!(await dialog({ title: `删除「${schemeName(cat)}」？`, confirm: '删除', danger: true }))) return; removeScheme(cat, sid); re(); }),
+    ] : []));
+    const rows = blocksIn(cat).map(b => {
+      if (!sid) return item({ title: b.name, chevron: true, onClick: () => openBlock(cat, '', b.id) });
+      const sw = switchEl(b.on, v => setOn(cat, sid, b.id, v), b.name), handle = h('span.as-prompt-handle', { 'aria-label': '拖动排序' }, icon('list', 18, 2));
+      const row = item({ title: b.name, right: h('span.as-prompt-end', sw, handle), chevron: true, onClick: () => openBlock(cat, sid, b.id) });
       row.dataset.id = b.id; bindDrag(row, handle);
       return row;
     });
@@ -258,7 +268,7 @@ function openCat(cat) {
         // 挪动行会让手指「捕获」失效，所以在整个窗口上听
         const up = () => {
           removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
-          moveBlock(cat, row.dataset.id, [...row.parentNode.children].indexOf(row));
+          moveBlock(cat, sid, row.dataset.id, [...row.parentNode.children].indexOf(row));
         };
         addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
       });
@@ -268,30 +278,26 @@ function openCat(cat) {
       body.append(group('', [h('div.as-field', h('span.as-field__label', '时间标签名称'),
         input({ value: tagName(), placeholder: 'astertime', onInput: v => { state.timeTagName = v.replace(/[^\w-]/g, '') || 'astertime'; hint.textContent = sample(tagName()); commit('prompts'); } }), hint)]));
     }
-    body.append(bodyEl, h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, newBlock(cat)))));
+    body.append(schemes, acts, bodyEl, ...(sid ? [h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, sid, newBlock(cat, sid))))] : []));
   });
 }
-function openBlock(cat, id) {
-  const b = blocksIn(cat).find(x => x.id === id);
+function openBlock(cat, sid, id) {
+  const b = blocksIn(cat, sid).find(x => x.id === id);
   const shown = t => t.replace(/\{\{tag\}\}/g, tagName());
-  sub('prompt-block', b.builtin ? b.name : '编辑提示词', body => {
-    if (b.builtin) {
-      body.append(group('', [h('div.as-field', h('pre.as-prompt-view', shown(b.text)))]),
-        h('div.as-lib-actions', btn('复制一份来改', 'secondary', () => { const nid = copyBlock(cat, id); nav.pop(); openBlock(cat, nid); })));
-      return;
-    }
+  sub('prompt-block', sid ? '编辑提示词' : b.name, body => {
+    if (!sid) { body.append(group('', [h('div.as-field', h('pre.as-prompt-view', shown(b.text)))])); return; }
     let name = b.name, text = b.text;
     const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
     ta.classList.add('as-settings-prompt-text');
     const insert = v => { const s0 = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s0; ta.setRangeText(`{{${v}}}`, s0, e, 'end'); text = ta.value; ta.focus(); };
     body.append(
-      group('', [field('名字', input({ value: name, onInput: v => { name = v; } })),
-        h('div.as-field', ta, h('div.as-chips', catInfo(cat).vars.map(v => h('button.as-chip', { onclick: () => insert(v) }, `{{${v}}}`))))]),
+      group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))]),
       h('div.as-lib-actions', btn('删除', 'secondary', async () => {
         if (!(await dialog({ title: `删掉「${name}」？`, confirm: '删除', danger: true }))) return;
-        removeBlock(id); nav.pop();
+        removeBlock(cat, sid, id); nav.pop();
       })),
-      h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { saveBlock(id, { name: name.trim() || '我的提示词', text }); toast('已保存'); nav.pop(); })));
+      group('', [h('div.as-field', ta, h('div.as-chips', catInfo(cat).vars.map(v => h('button.as-chip', { onclick: () => insert(v) }, `{{${v}}}`))))]),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { saveBlock(cat, sid, id, { name: name.trim() || '我的提示词', text }); toast('已保存'); nav.pop(); })));
   });
 }
 

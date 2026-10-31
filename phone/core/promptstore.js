@@ -1,6 +1,6 @@
-// 提示词：内置的只能看、能复制；自己新建 / 复制出来的才能改。
-// 每个分类（私聊、群聊、发动态…）是一串「积木」，可以开关、排顺序；打开的从上到下拼起来发出去。
-// 存在 state.promptSets：{ [分类]: { order: [块 id], off: { id: true } } }；自己的块在 state.customPrompts。
+// 提示词：每一类（私聊、群聊、发动态…）有一套内置的「默认方案」，只能看；
+// 复制方案 = 把整套复制成自己的，里面每一条都能改、删、新建、开关、排顺序；用哪套就发哪套。
+// 存在 state.promptSchemes：{ [分类]: { cur: 方案 id（'' = 默认方案）, list: [{ id, name, blocks: [{ id, name, text, on }] }] } }
 import { state, commit } from './store.js';
 import { DEFAULT_PROMPTS, PROMPT_CATS, fill } from './prompts.js';
 import { uid } from './util.js';
@@ -8,61 +8,55 @@ import { userName as tavernUser, userPersona as tavernPersona } from './bridge.j
 
 export { PROMPT_CATS, fill };
 export const catInfo = id => PROMPT_CATS.flatMap(a => a.items).find(c => c.id === id);
-const sets = () => state.promptSets || (state.promptSets = {});
-const customs = () => state.customPrompts || (state.customPrompts = []);
-const builtinIds = cat => Object.keys(DEFAULT_PROMPTS).filter(k => DEFAULT_PROMPTS[k].cats.includes(cat))
-  .sort((a, b) => (DEFAULT_PROMPTS[b].main ? 1 : 0) - (DEFAULT_PROMPTS[a].main ? 1 : 0));
-function setOf(cat) {
-  const s = sets()[cat] || (sets()[cat] = { order: [], off: {} });
-  const all = [...builtinIds(cat), ...customs().filter(c => c.cat === cat).map(c => c.id)];
-  s.order = [...s.order.filter(id => all.includes(id)), ...all.filter(id => !s.order.includes(id))];
-  return s;
-}
+const builtin = cat => Object.keys(DEFAULT_PROMPTS).filter(k => DEFAULT_PROMPTS[k].cats.includes(cat))
+  .sort((a, b) => (DEFAULT_PROMPTS[b].main ? 1 : 0) - (DEFAULT_PROMPTS[a].main ? 1 : 0))
+  .map(id => ({ id, name: DEFAULT_PROMPTS[id].name, text: DEFAULT_PROMPTS[id].text, on: true }));
+const all = () => state.promptSchemes || (state.promptSchemes = {});
+export const schemesOf = cat => all()[cat] || (all()[cat] = { cur: '', list: [] });
+export const schemeOf = (cat, sid) => schemesOf(cat).list.find(s => s.id === sid) || null;
+export const schemeName = (cat, sid = schemesOf(cat).cur) => sid ? schemeOf(cat, sid).name : '默认方案';
 
-/** 这一类的所有块，按顺序：{ id, name, text, on, builtin } */
-export function blocksIn(cat) {
-  const s = setOf(cat);
-  return s.order.map(id => {
-    const d = DEFAULT_PROMPTS[id], c = !d && customs().find(x => x.id === id);
-    return { id, name: d ? d.name : c.name, text: d ? d.text : c.text, builtin: !!d, on: !s.off[id] };
-  });
-}
-export const blockOn = (cat, id) => !setOf(cat).off[id];
-export function setOn(cat, id, on) { const s = setOf(cat); if (on) delete s.off[id]; else s.off[id] = true; commit('prompts'); }
-export function moveBlock(cat, id, to) { const s = setOf(cat); s.order.splice(s.order.indexOf(id), 1); s.order.splice(to, 0, id); commit('prompts'); }
+/** 这套方案的所有条，按顺序；默认方案给内置的 */
+export const blocksIn = (cat, sid = schemesOf(cat).cur) => sid ? schemeOf(cat, sid).blocks : builtin(cat);
 
-/** 复制一块：新块放在原块下面并打开，原来那块关掉（等于用自己的版本替换它） */
-export function copyBlock(cat, id) {
-  const src = blocksIn(cat).find(b => b.id === id), nb = { id: uid('p_'), cat, name: src.name + ' 副本', text: src.text };
-  customs().push(nb);
-  const s = setOf(cat); s.order.splice(s.order.indexOf(nb.id), 1); s.order.splice(s.order.indexOf(id) + 1, 0, nb.id);
-  s.off[id] = true; commit('prompts');
-  return nb.id;
+export function useScheme(cat, sid) { schemesOf(cat).cur = sid; commit('prompts'); }
+/** 复制一套方案（默认的也行），复制出来的马上用上 */
+export function copyScheme(cat, sid) {
+  const S = schemesOf(cat), n = S.list.length + 1;
+  const sc = { id: uid('ps_'), name: `我的方案 ${n}`, blocks: blocksIn(cat, sid).map(b => ({ id: uid('p_'), name: b.name, text: b.text, on: b.on })) };
+  S.list.push(sc); S.cur = sc.id; commit('prompts');
+  return sc.id;
 }
-export function newBlock(cat) { const nb = { id: uid('p_'), cat, name: '新提示词', text: '' }; customs().push(nb); setOf(cat); commit('prompts'); return nb.id; }
-export function saveBlock(id, patch) { Object.assign(customs().find(c => c.id === id), patch); commit('prompts'); }
-export function removeBlock(id) { state.customPrompts = customs().filter(c => c.id !== id); commit('prompts'); }
+export function renameScheme(cat, sid, name) { schemeOf(cat, sid).name = name; commit('prompts'); }
+export function removeScheme(cat, sid) { const S = schemesOf(cat); S.list = S.list.filter(s => s.id !== sid); if (S.cur === sid) S.cur = ''; commit('prompts'); }
+
+const bl = (cat, sid) => schemeOf(cat, sid).blocks;
+export function setOn(cat, sid, id, on) { bl(cat, sid).find(b => b.id === id).on = on; commit('prompts'); }
+export function moveBlock(cat, sid, id, to) { const l = bl(cat, sid), i = l.findIndex(b => b.id === id); l.splice(to, 0, ...l.splice(i, 1)); commit('prompts'); }
+export function newBlock(cat, sid) { const b = { id: uid('p_'), name: '新提示词', text: '', on: true }; bl(cat, sid).push(b); commit('prompts'); return b.id; }
+export function saveBlock(cat, sid, id, patch) { Object.assign(bl(cat, sid).find(b => b.id === id), patch); commit('prompts'); }
+export function removeBlock(cat, sid, id) { schemeOf(cat, sid).blocks = bl(cat, sid).filter(b => b.id !== id); commit('prompts'); }
 
 const baseVars = () => ({ user: myName(), tag: state.timeTagName || 'astertime' });
-/** 把这一类打开的块拼起来 */
+/** 把正在用的方案里打开的条拼起来 */
 export function compose(cat, vars = {}) {
   return blocksIn(cat).filter(b => b.on).map(b => fill(b.text, { ...baseVars(), ...vars }).trim()).filter(Boolean).join('\n\n');
 }
-/** 单独一块（填好变量），给界面预览用 */
-export const fillBlock = (text, vars = {}) => fill(text, { ...baseVars(), ...vars });
 
-/** 旧版：改过的内置提示词变成自己的副本，关掉的照旧关着 */
+/** 旧版（改过的内置条、自己新建的条、关掉的、排过的顺序）：和默认不一样的分类，变成「我的方案 1」并用上 */
 export function migratePrompts() {
-  if (state.promptsV === 2) return;
-  const old = { ...(state.prompts || {}), ...((state.apps && state.apps.chat && state.apps.chat.prompts) || {}) };
-  for (const [key, o] of Object.entries(old)) {
-    const d = DEFAULT_PROMPTS[key]; if (!d || !o) continue;
-    for (const cat of d.cats) {
-      if (o.text != null && o.text !== d.text) { const id = copyBlock(cat, key); saveBlock(id, { name: d.name + '（我改过的）', text: o.text }); if (o.on === false) setOn(cat, id, false); }
-      else if (o.on === false) setOn(cat, key, false);
-    }
+  if (state.promptsV === 3) return;
+  const sets = state.promptSets || {}, customs = state.customPrompts || [];
+  const old = state.promptsV === 2 ? {} : { ...(state.prompts || {}), ...((state.apps && state.apps.chat && state.apps.chat.prompts) || {}) };
+  for (const { id: cat } of PROMPT_CATS.flatMap(a => a.items)) {
+    const base = builtin(cat), s = sets[cat] || { order: [], off: {} };
+    const have = [...base, ...customs.filter(c => c.cat === cat)];
+    const order = [...s.order.filter(id => have.some(b => b.id === id)), ...have.map(b => b.id).filter(id => !s.order.includes(id))];
+    const blocks = order.map(id => { const b = have.find(x => x.id === id), o = old[id] || {}; return { id: uid('p_'), name: b.name, text: o.text != null ? o.text : b.text, on: !s.off[id] && o.on !== false }; });
+    if (blocks.length === base.length && blocks.every((b, i) => b.name === base[i].name && b.text === base[i].text && b.on)) continue;
+    const id = uid('ps_'); schemesOf(cat).list.push({ id, name: '我的方案 1', blocks }); schemesOf(cat).cur = id;
   }
-  state.promptsV = 2; commit('prompts');
+  state.promptsV = 3; commit('prompts');
 }
 
 /** 我在手机里的名字和人设：没改过就跟随酒馆 */
