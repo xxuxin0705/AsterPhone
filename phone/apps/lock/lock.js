@@ -95,6 +95,7 @@ export function renderClock(force) {
   const sb = $('#sbTime'); if (sb) sb.textContent = n.hm;
   dateEl.textContent = n.date;
   clockEl.dataset.font = (state.settings.clock || {}).font || 'sf';
+  clockEl.dataset.ap = n.ap; clockEl.dataset.apSide = (state.settings.clock || {}).lang === 'en' ? 'after' : 'before';
   if (n.hm === shown && !force) return;
   if (force || n.hm.length !== shown.length || clockEl.children.length !== n.hm.length) {
     clockEl.innerHTML = '';

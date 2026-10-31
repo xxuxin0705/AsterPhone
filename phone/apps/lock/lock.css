@@ -9,6 +9,10 @@
 .as-lock-clock { --dw: .6em; --clk: rgb(82, 90, 112); --clk-a: .72; font: 700 clamp(92px, 28vw, 120px)/0.9 var(--font-clock-sf); letter-spacing: -.01em; display: flex; align-items: flex-end; font-variant-numeric: tabular-nums; color: var(--clk); opacity: var(--clk-a); text-shadow: 0 1px 0 rgba(255,255,255,.22), 0 2px 20px rgba(255,255,255,.18); }
 /* 自动配色像苹果锁屏：白天是半透明的灰，晚上是半透明的白；手动选了颜色就用选的 */
 .as-phone[data-mode="night"] .as-lock-clock { --clk: rgb(236, 239, 248); --clk-a: .8; }
+/* 12 小时制：英文「3:00 PM」小字在后，中文「下午 3:00」小字在前 */
+.as-lock-clock[data-ap-side="after"]::after, .as-lock-clock[data-ap-side="before"]::before { content: attr(data-ap); font: 600 .2em/1 var(--font-ui); letter-spacing: .04em; margin-bottom: .62em; }
+.as-lock-clock[data-ap-side="after"]::after { margin-left: .4em; }
+.as-lock-clock[data-ap-side="before"]::before { margin-right: .4em; }
 .as-phone:not([data-clock="auto"]) .as-lock-clock { --clk: var(--ink); --clk-a: .86; }
 .as-phone .as-lock-clock[data-font="serif"], .as-phone .as-lock-clock[data-font="thin"] { --clk-a: 1; }
 .as-lock-clock[data-font="serif"] { --dw: .52em; font: 300 clamp(76px, 24vw, 100px)/0.92 var(--font-clock); letter-spacing: .01em; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }

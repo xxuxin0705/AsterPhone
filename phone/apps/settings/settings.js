@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, clockFontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.14';
+export const VERSION = '0.6.15';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -24,10 +24,14 @@ const sliderRow = (label, { min, max, step, value, onInput, fmt = v => v }) => {
   return h('div.as-settings-slider-row', h('span', label), slider({ min, max, step, value, onInput: v => { out.textContent = fmt(v); onInput(v); } }), out);
 };
 /** 子页面：draw() 每次回到这页都会重画 */
+// 设置页上显示的东西都来自这几块；从下一层返回时，没变就不重画（重画会让整页闪一下）
+const sig = () => JSON.stringify([state.settings, state.connections, state.apps, state.prompts, state.library]);
 function sub(id, title, draw, opts = {}) {
   const p = page({ app: 'settings', id: 'settings-' + id, title, back: true, ...opts });
-  const re = () => { const y = p.body.scrollTop; p.body.innerHTML = ''; draw(p.body, re, p); p.body.scrollTop = y; };
-  re(); p.el._onShow = re;
+  let drawn = '';
+  // 先在旁边画好，再一次换上去，不会出现空白的一帧
+  const re = () => { const y = p.body.scrollTop, box = document.createElement('div'); draw(box, re, p); p.body.replaceChildren(...box.childNodes); p.body.scrollTop = y; drawn = sig(); };
+  re(); p.el._onShow = () => { if (sig() !== drawn) re(); };
   nav.push(p.el);
   return p;
 }
@@ -55,7 +59,8 @@ export function open() {
         item({ icon: 'info', color: 'pink', title: '关于', value: 'v' + VERSION, chevron: true, onClick: openAbout }),
       ]));
   };
-  draw(); p.el._onShow = draw;
+  let drawn = '';
+  draw(); drawn = sig(); p.el._onShow = () => { if (sig() !== drawn) { draw(); drawn = sig(); } };
   return p.el;
 }
 
@@ -247,7 +252,14 @@ function openPrompts() {
 
 /* ================= 外观 ================= */
 let clockBox = null;
-const bgOf = (el, id, night) => { walls.thumb(id, night).then(u => { if (u) el.style.backgroundImage = `url("${u}")`; }); return el; };
+const thumbSeen = new Map();
+const bgOf = (el, id, night) => {
+  const k = id + (night ? ':n' : ':d'), set = u => { if (u) { thumbSeen.set(k, u); el.style.backgroundImage = `url("${u}")`; } };
+  if (thumbSeen.has(k)) set(thumbSeen.get(k)); else walls.thumb(id, night).then(set);
+  return el;
+};
+/** 12 小时制把「AM / PM」「上午 / 下午」小字放在时间旁边 */
+const withAp = n => !n.ap ? h('b', n.hm) : S().clock.lang === 'en' ? h('b', n.hm, h('small', n.ap)) : h('b', h('small', n.ap), n.hm);
 function clockPreview(night) {
   clockBox = bgOf(h('div.as-settings-clockpv'), walls.current('lock'), night);
   paintClock(); return clockBox;
@@ -256,7 +268,7 @@ function paintClock() {
   if (!clockBox) return;
   const n = time.now();
   clockBox.dataset.font = (S().clock || {}).font || 'sf';
-  clockBox.replaceChildren(h('span', n.date), h('b', n.hm));
+  clockBox.replaceChildren(h('span', n.date), withAp(n));
   const night = shell.phone.dataset.mode === 'night', c = S().clockColor;
   const col = c === 'light' ? '#f6f3ee' : c === 'dark' ? '#1b2540' : c === 'accent' ? getComputedStyle(shell.phone).getPropertyValue('--as-color-accent') : (night ? '#f6f3ee' : '#1b2540');
   clockBox.style.color = col;
@@ -304,7 +316,7 @@ function openWalls() {
     const pv = which => {
       const n = time.now();
       const card = bgOf(h('div.as-walls-pv__screen' + (which === 'home' ? '.is-home' : '')), walls.current(which), night);
-      if (which === 'lock') card.append(h('div.as-walls-pv__clock', { dataset: { font: S().clock.font } }, h('span', n.date), h('b', n.hm)));
+      if (which === 'lock') card.append(h('div.as-walls-pv__clock', { dataset: { font: S().clock.font } }, h('span', n.date), withAp(n)));
       else card.append(h('div.as-walls-pv__apps', [0, 1, 2, 3].map(() => h('i'))));
       if (w[which + 'Random']) card.append(h('span.as-walls-pv__tag', icon('sparkle', 12, 2), '随机'));
       return h('div.as-walls-pv__item', card, which === 'lock' ? '锁屏' : '桌面');
