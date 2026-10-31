@@ -38,11 +38,11 @@ export const CHAT_MSG_TYPES = [
 ];
 export function defaults() {
   return {
-    v: 1,
+    v: 2,
     settings: {
       mode: 'auto', wallpaper: 'castle', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
       statusbar: { global: true, apps: {} },
-      lock: { enabled: true, method: 'finger', pin: '', digits: 6 },
+      lock: { enabled: false, method: 'none', pin: '', digits: 6 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
       notify: { banner: true, sound: false, volume: .6, dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
       device: { fab: 'iphone', fabSize: 52, tripleTap: false },
       autoLimit: 30, autoUsed: { date: '', count: 0 },
@@ -86,7 +86,13 @@ function merge(base, saved) {
 export async function load() {
   try {
     const saved = await kvGet('state');
-    if (saved) Object.assign(state, merge(defaults(), saved));
+    if (saved) {
+      // v1 → v2：以前默认是「指纹锁屏」，现在默认不锁屏。只有没动过锁屏设置的人才会被改过来
+      const L = saved.settings && saved.settings.lock;
+      if ((saved.v || 1) < 2 && L && L.enabled === true && L.method === 'finger' && !L.pin) { L.enabled = false; L.method = 'none'; }
+      saved.v = 2;
+      Object.assign(state, merge(defaults(), saved));
+    }
   } catch (e) { console.warn('[AsterPhone] 读取数据失败，使用默认值', e); }
   return state;
 }

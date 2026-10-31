@@ -6,7 +6,7 @@ import { avatar, toast } from '../core/ui.js';
 import * as time from '../core/time.js';
 import { shell } from '../core/shell.js';
 
-let lockEl, pinEl, finger, ring, clockEl, dateEl, subEl, noticeBox, pinBtn;
+let lockEl, pinEl, finger, ring, clockEl, dateEl, subEl, noticeBox, pinBtn, swipeEl;
 let locked = true, onUnlockCb = null, pendingOpen = null;
 const CIRC = 213.6;
 
@@ -20,7 +20,7 @@ const FINGER_SVG = `<svg class="as-lock-finger__ring" viewBox="0 0 78 78" aria-h
 <span class="as-lock-finger__hint">按住指纹解锁</span>`;
 
 export const isLocked = () => locked;
-const lockOn = () => state.settings.lock.enabled && state.settings.lock.method !== 'none';
+const lockOn = () => !!state.settings.lock.enabled;
 const usePin = () => state.settings.lock.method === 'pin' && /^\d{4,6}$/.test(state.settings.lock.pin || '');
 
 export function initLock({ onUnlock }) {
@@ -32,9 +32,11 @@ export function initLock({ onUnlock }) {
   finger = h('button.as-lock-finger', { 'aria-label': '按住指纹解锁', html: FINGER_SVG });
   ring = finger.querySelector('.as-lock-finger__progress');
   pinBtn = h('button.as-textbtn', { onclick: openPin }, '使用密码');
+  swipeEl = h('button.as-lock-swipe', { 'aria-label': '上滑解锁', onclick: () => { if (state.settings.lock.method === 'none') unlock(swipeEl); } },
+    h('span', { html: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>' }), '上滑解锁');
   lockEl.append(h('div.as-lock__head', clockEl, dateEl, subEl), noticeBox,
-    h('div.as-lock__foot', h('span'), finger, pinBtn));
-  bindFinger(); buildPin();
+    h('div.as-lock__foot', h('span'), finger, pinBtn), swipeEl);
+  bindFinger(); bindSwipe(); buildPin();
   noticeBox.addEventListener('click', e => {
     const it = e.target.closest('.as-lock-notice__item'); if (!it) return;
     e.stopPropagation();
@@ -50,9 +52,35 @@ export function initLock({ onUnlock }) {
 }
 
 export function syncFoot() {
+  const m = state.settings.lock.method;
+  const swipe = m === 'none' || (m === 'pin' && !usePin()) || m === 'pattern';
   pinBtn.hidden = !usePin();
+  finger.hidden = swipe; swipeEl.hidden = !swipe;
   finger.querySelector('.as-lock-finger__hint').textContent = usePin() ? '点一下输入密码' : '按住指纹解锁';
   finger.setAttribute('aria-label', usePin() ? '输入密码' : '按住指纹解锁');
+}
+
+/* ---------- 上滑解锁（没设密码时） ---------- */
+function bindSwipe() {
+  let y0 = null, id = null;
+  lockEl.addEventListener('pointerdown', e => {
+    if (!locked || e.button > 0 || e.target.closest('.as-lock-notice, .as-lock-finger, .as-textbtn')) return;
+    y0 = e.clientY; id = e.pointerId; lockEl.classList.add('is-dragging');
+  });
+  lockEl.addEventListener('pointermove', e => {
+    if (y0 == null || e.pointerId !== id) return;
+    const dy = Math.min(0, e.clientY - y0);
+    lockEl.style.transform = `translateY(${dy * .35}px)`; lockEl.style.opacity = String(Math.max(.35, 1 + dy / 420));
+  });
+  const end = e => {
+    if (y0 == null || e.pointerId !== id) return;
+    const dy = y0 - e.clientY; y0 = null; id = null;
+    lockEl.classList.remove('is-dragging'); lockEl.style.transform = ''; lockEl.style.opacity = '';
+    const canSwipe = state.settings.lock.method === 'none' || (state.settings.lock.method === 'pin' && !usePin()) || state.settings.lock.method === 'pattern';
+    if (dy > 90 && canSwipe) unlock(null);
+    else if (dy > 90 && usePin()) openPin();
+  };
+  lockEl.addEventListener('pointerup', end); lockEl.addEventListener('pointercancel', end);
 }
 
 /* ---------- 时钟 ---------- */
@@ -126,7 +154,7 @@ function unlock(fromEl) {
   if (fromEl) { const r = fromEl.getBoundingClientRect(); shell.wallpaper.burst(r.left - p.left + r.width / 2, r.top - p.top + r.height / 2); }
   else shell.wallpaper.burst(p.width / 2, p.height * .2);
   setTimeout(() => {
-    shell.wallpaper.glitch(); lockEl.classList.add('is-hidden'); closePin();
+    lockEl.classList.add('is-hidden'); closePin();
     const go = pendingOpen; pendingOpen = null;
     onUnlockCb && onUnlockCb(go);
   }, fromEl ? 360 : 60);
@@ -187,6 +215,6 @@ function forgot() { backupMode = true; entry = ''; renderDots(); pinTitle.textCo
 
 /** 酒馆扩展面板里的「重置锁屏」 */
 export function resetLock() {
-  state.settings.lock = { enabled: true, method: 'finger', pin: '', digits: 6 }; commit('lock');
-  syncFoot();
+  state.settings.lock = { enabled: false, method: 'none', pin: '', digits: 6 }; commit('lock');
+  syncFoot(); if (locked) unlock(null);
 }

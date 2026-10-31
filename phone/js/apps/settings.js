@@ -14,7 +14,7 @@ export const VERSION = '0.2.0';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
-const LOCK_LABEL = { finger: '指纹', pin: '数字密码', pattern: '手势密码', none: '无' };
+const LOCK_LABEL = { none: '无（上滑解锁）', finger: '指纹', pin: '数字密码', pattern: '手势密码' };
 const KIND_LABEL = { text: '文字', image: '生图', tts: '语音' };
 const S = () => state.settings;
 const sliderRow = (label, { min, max, step, value, onInput, fmt = v => v }) => {
@@ -273,15 +273,15 @@ function openLock() {
       if (m === 'pin' && !/^\d{4,6}$/.test(L.pin || '')) { if (!(await setPin(L.digits || 6))) return; }
       L.method = m; commit('lock'); shell.applyLook(); re();
     };
-    body.append(group('', [toggleItem({ title: '锁屏', sub: '关掉后打开手机直接进桌面' }, L.enabled, v => { L.enabled = v; commit('lock'); shell.applyLook(); re(); })]));
+    body.append(group('', [toggleItem({ title: '锁屏', sub: '关着时打开手机直接进桌面；开了也可以不设密码' }, L.enabled, v => { L.enabled = v; commit('lock'); shell.applyLook(); re(); })]));
     if (!L.enabled) return;
-    body.append(group('解锁方式', ['finger', 'pin', 'pattern', 'none'].map(m => item({ title: LOCK_LABEL[m], sub: m === 'finger' ? '按住就能开（假指纹）' : m === 'pattern' ? '下一轮做' : null,
+    body.append(group('解锁方式', ['none', 'finger', 'pin', 'pattern'].map(m => item({ title: LOCK_LABEL[m], sub: m === 'none' ? '不要密码，往上一滑就开' : m === 'finger' ? '按住就能开（假指纹）' : m === 'pattern' ? '下一轮做' : null,
       right: L.method === m ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null, onClick: () => choose(m) }))));
     if (L.method === 'pin') body.append(group('数字密码', [
       field('位数', segmented([['4', '4 位'], ['6', '6 位']], String((L.pin || '').length || L.digits), async v => { if (await setPin(+v)) re(); else re(); })),
       item({ title: '修改密码', chevron: true, onClick: async () => { if (await setPin((L.pin || '').length || 6)) re(); } }),
     ]));
-    body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记密码时，可以在解锁界面点「忘记密码？」用备用密码：4 位是 0000，6 位是 000000。酒馆扩展面板里还有「重置锁屏」兜底。'));
+    if (L.method === 'pin') body.append(h('p.as-muted', { style: { margin: '0 14px' } }, '忘记密码时，可以在解锁界面点「忘记密码？」用备用密码：4 位是 0000，6 位是 000000。酒馆扩展面板里还有「重置锁屏」兜底。'));
   });
 }
 async function setPin(digits) {

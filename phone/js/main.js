@@ -93,7 +93,7 @@ function onVisible(v) {
   shell.visible = v;
   if (!v) {
     wallpaper.pause();
-    if (lock()) { setCurrent('lock'); showHome(false); wallpaper.setBlur(0); phone.classList.add('is-locked'); }
+    if (lock()) { setCurrent('lock'); showHome(false); phone.classList.add('is-locked'); }
   } else {
     if (isLocked() || nav.depth() === 0) wallpaper.resume();
     shell.onShow && shell.onShow();
@@ -103,7 +103,7 @@ function onUnlock(chatId) {
   phone.classList.remove('is-locked');
   if (nav.depth() > 0) { setCurrent(nav.top().app); pauseT = setTimeout(() => wallpaper.pause(), 520); }
   else { setCurrent('home'); }
-  showHome(true); wallpaper.setBlur(1);
+  showHome(true);
   if (chatId) openApp('chat', { chat: chatId });
   shell.onShow && shell.onShow();
 }
@@ -144,7 +144,7 @@ function sendUnread() { postToParent({ aster: 'unread', n: state.chats.reduce((s
 addEventListener('message', e => {
   const d = e.data; if (!d || typeof d !== 'object') return;
   if (d.aster === 'visible') { if (!booted) pendingVis = !!d.v; else onVisible(!!d.v); }
-  if (d.aster === 'reset' && d.what === 'lock') { resetLock(); toast('锁屏已重置为指纹解锁'); }
+  if (d.aster === 'reset' && d.what === 'lock') { resetLock(); toast('锁屏已关闭，密码已清除'); }
   if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} } }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
 });
 
@@ -180,7 +180,6 @@ async function boot() {
   else { showHome(true); setCurrent('home'); }
   await wallpaper.init(state.settings.wallpaper);
   wallpaper.setNight(wantNight(), null, true);
-  if (!isLocked()) wallpaper.setBlur(1);
   renderNotices(); renderBadges(); sendUnread();
 
   phone.addEventListener('as-back', () => nav.back());

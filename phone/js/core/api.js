@@ -112,7 +112,7 @@ const DEMO = [
 ];
 let demoIdx = 0;
 function demoReply(prompt) {
-  if (/谁点赞/.test(prompt)) return '赞|阿铭\n评论|周叙白|拍得不错\n回复|阿铭|周叙白|你也在线啊';
+  if (/谁点赞/.test(prompt)) { const names = [...prompt.matchAll(/^- ([^：\n]+)/gm)].map(m => m[1].trim()); const a = names[0] || '某人', b = names[1] || a; return `赞|${a}\n评论|${b}|拍得不错\n回复|${a}|${b}|你也在线啊`; }
   if (/发一条朋友圈动态/.test(prompt)) return ['今天的晚霞好看到不想回家', '路过的猫比我还会生活 🐈', '下雨天，适合发呆'][demoIdx++ % 3];
   if (/只回复两个字/.test(prompt)) return '在的';
   const lines = DEMO[demoIdx++ % DEMO.length];

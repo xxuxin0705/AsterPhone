@@ -94,17 +94,18 @@ function enableSwipe() {
   host.addEventListener('pointerdown', e => {
     if (!stack.length || e.button > 0) return;
     const r = host.getBoundingClientRect(), x = e.clientX - r.left;
-    const fromLeft = x > 4 && x < 34, fromRight = x > r.width - 34 && x < r.width - 4;
-    if (!fromLeft && !fromRight) return;
-    if (e.target.closest('input, textarea, .as-slider')) return;
-    s = { x0: e.clientX, y0: e.clientY, dir: fromLeft ? 1 : -1, t0: performance.now(), active: false, id: e.pointerId };
+    if (e.target.closest('input, textarea, .as-slider, .as-sheet, .as-dialog-mask, .as-chat-menu, .as-chat-indexbar')) return;
+    // 贴着左右边缘（44px 内）起手最灵敏；在页面中间起手也行，但要滑得更明显、更水平
+    const edge = x < 44 ? 1 : x > r.width - 44 ? -1 : 0;
+    s = { x0: e.clientX, y0: e.clientY, dir: edge || 1, edge: !!edge, t0: performance.now(), active: false, id: e.pointerId };
   });
   host.addEventListener('pointermove', e => {
     if (!s || e.pointerId !== s.id) return;
     const dx = (e.clientX - s.x0) * s.dir, dy = Math.abs(e.clientY - s.y0);
     if (!s.active) {
-      if (dx > 10 && dx > dy * 1.4) { s.active = true; host.setPointerCapture(e.pointerId); start(); }
-      else if (dy > 14) { s = null; return; } else return;
+      const ok = s.edge ? (dx > 10 && dx > dy * 1.4) : (dx > 26 && dx > dy * 2.2);
+      if (ok) { s.active = true; try { host.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ } start(); }
+      else if (dy > 14 || (!s.edge && dx < -20)) { s = null; return; } else return;
     }
     move(Math.max(0, dx));
   });
