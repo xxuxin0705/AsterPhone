@@ -85,12 +85,6 @@ export function openBoard({ list }) {
   let tiles = [];      // 按显示顺序：{ c, kind, el, face, eyes, port, nameEl, subEl, usesEl }
   const tileMap = new Map();
   let quietUntil = 0;  // 刚拖完线 / 刚排完序，别把松手当成点格子
-  const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
-  const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
-  const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : KIND_NAME[kind];
-  const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
-    : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
-    : (!keysOf(c).length && !((CHANNELS.image.find(x => x.v === c.type) || CHANNELS.tts.find(x => x.v === c.type) || {}).noKey) && c.type !== 'tavern' ? '还没填密钥' : c.model || '');
   /** 显示顺序：置顶的在最前（按置顶先后），其余按拖动排好的顺序，没排过的接在后面 */
   function ordered() {
     const all = ['text', 'image', 'tts', 'embed'].flatMap(k => (C()[k] || []).map(c => ({ c, kind: k })));
@@ -111,7 +105,7 @@ export function openBoard({ list }) {
     const voicesEl = kind === 'tts' ? h('span.as-pb__voices', { onclick: e => { e.stopPropagation(); if (!avDrag && performance.now() >= quietUntil) openLibrary(t.c, paintVoices); } }) : null;
     const el = h('div.as-pb__tile', { role: 'button', tabindex: 0, dataset: { kind, id: c.id } }, kindEl, pinEl, face, nameEl, subEl, usesEl, voicesEl, port);
     const t = { c, kind, el, face, eyes, qm, qSide: 1, port, nameEl, subEl, kindEl, usesEl, pinEl, voicesEl, blinkAt: performance.now() + 1500 + Math.random() * 4000, blinkUntil: 0, joyUntil: 0 };
-    el.addEventListener('click', () => { if (dragging() || sorting || performance.now() < quietUntil) return; openDetail(t.c, t.kind); });
+    el.addEventListener('click', () => { if (dragging() || sorting || performance.now() < quietUntil) return; detail(t.c, t.kind); });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.click(); });
     bindSort(t);
     return t;
@@ -278,13 +272,7 @@ export function openBoard({ list }) {
   window.addEventListener('pointerup', winUp, true); window.addEventListener('pointercancel', winUp, true);
   // 手机上：拿起格子后手指再动，不能让列表跟着滚走（否则浏览器会把拖动当成滚动，直接打断）
   panel.addEventListener('touchmove', e => { if (sorting) e.preventDefault(); }, { passive: false });
-  function togglePin(id) {
-    const pin = C().pinned || (C().pinned = []), i = pin.indexOf(id);
-    if (i >= 0) pin.splice(i, 1); else pin.push(id);
-    commit('connections');
-    flip(() => updateTiles());
-    return i < 0;
-  }
+  function togglePin(id) { const on = togglePinData(id); flip(() => updateTiles()); return on; }
   const status = {};   // id → 'test' | 'ok' | 'bad'（这次打开页面里测出来的）
   const stOf = c => status[c.id] || '';   // 只认这次点「测试」的结果；插上就算好，以前测失败的不再一直挂着哭脸
 
@@ -400,15 +388,6 @@ export function openBoard({ list }) {
     flowing = { pl, until: performance.now() + 900 };
   }
   /** 真的去测一下（只在详情里点「测试」时才会发请求）。c 可以是还没保存的草稿 */
-  async function doTest(c, kind) {
-    const chs = CHANNELS[kind] || [], ch = chs.find(x => x.v === c.type) || {};
-    if (kind !== 'text' && !ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
-    if (kind === 'text') { await testConn(c); return {}; }
-    if (kind === 'embed') { const n = await testEmbed(c); return { note: `返回了 ${n} 维向量` }; }
-    if (kind === 'tts') { await testVoice(c); return {}; }
-    if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) return { cancel: true };
-    return { img: await testImage(c) };
-  }
 
   /* ----- 火花 ----- */
   let parts = [], flowing = null;
@@ -602,223 +581,9 @@ export function openBoard({ list }) {
   }
 
   /* ================= 接口详情 ================= */
-  function addNew(kind) {
-    const k = kind || cur().kind, ch = CHANNELS[k][0];
-    openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '' }, k, true);
-  }
-  function openDetail(orig, kind, isNew) {
-    const d = JSON.parse(JSON.stringify(orig));
-    d.keys = d.keys || []; d.params = Object.assign({ temperature: .9, thinking: 'off' }, d.params); d.adv = Object.assign({ cache: false }, d.adv);
-    d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, d.img); d.tts = Object.assign({ voice: '', speed: 1, volume: 1 }, d.tts);
-    const tavern = isTv(d);
-    let dirty = !!isNew;
-    // 置顶 · 复制一份 · 删除 放在同一排
-    const pinBtn = () => { const pinned = () => (C().pinned || []).includes(orig.id), b = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); b.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶'); return b; };
-    const touch = () => { dirty = true; paintSt(); };
-    const st = () => { const s = status[orig.id] || ''; return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
-    const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE.idle));
-    const stText = h('span.as-pbd__st');
-    const paintSt = () => {
-      const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none');
-      stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置' : '还没测过';
-      faceEl.firstChild.textContent = faceText(s || 'idle', orig.id) + (s === 'need' ? '?' : '');
-      faceEl.dataset.face = s || 'idle';
-    };
-    paintSt();
-    const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆当前连接' : d.name || (isNew ? '新接口' : ''));
-    const subEl = h('span.as-pbd__subline');
-    const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
-    paintSub();
-    // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
-    const testBtn = h('button.as-pbd__test', { onclick: async () => {
-      testBtn.disabled = true; status[orig.id] = 'test'; paintSt();
-      let r = {}, err = '';
-      try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; }
-      testBtn.disabled = false;
-      if (r.cancel) { delete status[orig.id]; paintSt(); return; }
-      status[orig.id] = err ? 'bad' : 'ok';
-      if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
-      paintSt();
-      const t = tileOf(orig.id); if (t && !err) { t.joyUntil = performance.now() + 1100; t.mood = (t.mood || 0) + 1; }
-      if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log') });
-      else toast(r.note ? `连上了，${r.note}` : dirty || isNew ? '连上了，记得保存' : '连上了');
-      if (r.img) { card.parentNode.querySelector('.as-pbd__testimg')?.remove(); card.after(h('img.as-pbd__testimg', { src: r.img, alt: '测试画出来的图' })); }
-    } }, icon('sparkle', 14, 2), '测试');
-    const card = h('div.as-pbd__card', faceEl, h('div.as-pbd__info', nameEl, subEl, stText), testBtn);
-
-    // 可以折起来的一组：标题右边写着现在的值
-    const fold = (title, ic, summary, build, open = false) => {
-      const sum = h('span.as-pbd__sum', summary());
-      const body = h('div.as-pbd__fbody'); let built = false;
-      const box = h('div.as-pbd__fold' + (open ? '.is-open' : ''));
-      const re = () => { sum.textContent = summary(); };
-      const rebuild = () => { body.replaceChildren(); build(body, re, rebuild); re(); };   // 只重画这一组（比如换了渠道，要多填的东西不一样）
-      const toggle = () => { if (!built) { build(body, re, rebuild); built = true; } box.classList.toggle('is-open'); };
-      if (open) { build(body, re, rebuild); built = true; }
-      box.append(h('button.as-pbd__fhead', { onclick: toggle, 'aria-expanded': String(open) }, icon(ic, 18, 1.8), h('span.as-pbd__ftitle', title), sum, h('span.as-pbd__chev', icon('chevron', 16, 2))), body);
-      return box;
-    };
-    const row = (label, ctrl, hint) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl), hint && h('p.as-pbd__hint', hint));
-
-    const groups = [];
-    if (tavern) {
-      const info = (k, v) => v ? h('div.as-pbd__row.is-inline', h('span.as-pbd__label', k), h('span.as-pbd__v', v)) : null;
-      groups.push(h('div.as-pbd__fold.is-open', h('div.as-pbd__fbody',
-        d.type === 'tavern'
-          ? [info('现在用的配置', d.cur || '（没用连接配置）'), info('模型', d.model), info('API', d.curApi),
-            h('p.as-pbd__hint', '酒馆此刻选中的连接是什么，这里就用什么；你在酒馆里一换，这里跟着变。温度这些也跟着酒馆的预设走。')]
-          : [info('API', d.api), info('模型', d.model), info('预设', d.preset), info('地址', d.url),
-            h('p.as-pbd__hint', d.gone ? '酒馆里已经没有这个配置了。把插在它上面的线换到别的接口，它就会自己消失。' : '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。')]
-      )));
-    } else {
-      groups.push(fold('连接', 'link', () => `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type} · ${keysOf(d).length} 把密钥`, (b, re, rebuild) => {
-        const nameIn = input({ value: d.name, placeholder: '随便起，方便自己认', onInput: v => { d.name = v; nameEl.textContent = v || '新接口'; touch(); } });
-        const typeBtn = h('button.as-pbd__select', { onclick: async () => {
-          const v = await actionSheet('类型', CHANNELS[kind].map(x => ({ value: x.v, label: x.label, active: x.v === d.type })));
-          if (!v || v === d.type) return; const ch = CHANNELS[kind].find(x => x.v === v);
-          // 换了渠道就按那家直连的来：地址换成它的（第三方留空自己填），密钥清空，模型换成它的默认
-          d.base = ch.base || ''; d.key = ''; d.keys = []; d.model = ch.model || ''; d.models = d.model ? [d.model] : []; paintSub();
-          if (kind === 'tts' && (!d.tts.voice || CHANNELS.tts.some(x => x.voice === d.tts.voice))) d.tts.voice = ch.voice || '';
-          // 名字还是原来渠道的名字（没自己改过）就跟着换
-          if (!d.name || CHANNELS[kind].some(x => x.label === d.name)) { d.name = ch.label; nameEl.textContent = ch.label; }
-          d.type = v; touch(); rebuild();
-        } }, h('span', (CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type), icon('chevron', 14, 2));
-        const baseIn = input({ value: d.base, placeholder: 'https://…', onInput: v => { d.base = v; touch(); } });
-        // 密钥：可以存好几把，被拒了自动换下一把
-        const keyBox = h('div.as-pbd__keys');
-        const drawKeys = () => {
-          keyBox.innerHTML = '';
-          const all = [d.key, ...d.keys];
-          all.forEach((k, i) => {
-            const inp = input({ value: k, placeholder: i ? '再一把密钥' : 'sk-…', type: 'password', onInput: v => { if (i === 0) d.key = v; else d.keys[i - 1] = v; touch(); re(); } });
-            keyBox.appendChild(h('div.as-pbd__key', inp,
-              i === (orig.keyIdx || 0) && k ? h('span.as-pbd__tag', '正在用') : null,
-              h('button.as-pbd__ibtn', { 'aria-label': '显示密钥', onclick: e => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.replaceChildren(icon(inp.type === 'password' ? 'eye' : 'eyeOff', 17, 1.8)); } }, icon('eye', 17, 1.8)),
-              i ? h('button.as-pbd__ibtn', { 'aria-label': '删掉这把密钥', onclick: () => { d.keys.splice(i - 1, 1); touch(); drawKeys(); re(); } }, icon('close', 16, 2)) : null));
-          });
-          keyBox.appendChild(h('button.as-pbd__dash', { onclick: () => { d.keys.push(''); touch(); drawKeys(); } }, icon('plus', 15, 2), '再加一把密钥'));
-        };
-        drawKeys();
-        const modelIn = input({ value: d.model, placeholder: kind === 'text' ? '例如 claude-opus' : kind === 'image' ? '例如 gpt-image-2' : '例如 tts-1', onInput: v => { d.model = v; paintSub(); touch(); paintModels(); } });
-        d.models = d.models || (d.model ? [d.model] : []);
-        const modelBox = h('div.as-chips.as-pbd__models');
-        const paintModels = () => modelBox.replaceChildren(...d.models.map(m => h('span.as-chip' + (m === d.model ? '.is-active' : ''), { onclick: () => useModel(m) }, m,
-          h('button.as-pbd__chipx', { 'aria-label': '删掉这个模型', onclick: e => { e.stopPropagation(); d.models = d.models.filter(x => x !== m); touch(); paintModels(); } }, icon('close', 11, 2.4)))));
-        const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
-        paintModels();
-        const pull = h('button.as-pbd__mini', { onclick: async () => {
-          pull.disabled = true; toast('正在拉取模型…');
-          try {
-            const models = await listModels(d);
-            if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
-            toast(`拉到 ${models.length} 个模型`);
-            const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
-          } catch (e) { toast('拉取失败：' + e.message); } finally { pull.disabled = false; }
-        } }, icon('link', 13, 2), '拉取');
-        // 官网：去哪拿密钥
-        const siteBox = h('div.as-pbd__site');
-        const paintSite = () => {
-          const ch = CHANNELS[kind].find(x => x.v === d.type) || {};
-          siteBox.replaceChildren(...[ch.note && h('p.as-pbd__hint', ch.note), ch.site && h('a.as-pbd__sitelink', { href: ch.site, target: '_blank', rel: 'noopener' }, icon('link', 13, 2), '官网：' + ch.site.replace(/^https?:\/\//, '').replace(/\/$/, ''))].filter(Boolean));
-        };
-        paintSite();
-        // 有的渠道要多填一两样（MiniMax 的 Group ID、豆包的 App ID）
-        const extra = (CHANNELS[kind].find(x => x.v === d.type) || {}).fields || [];
-        const extraRows = extra.map(([k, label]) => row(label, input({ value: d[k] || '', onInput: v => { d[k] = v.trim(); touch(); } })));
-        // 豆包分 V3（2.0 音色，要资源 ID）和 V1（1.0 音色）；第三方语音可以选中转站转发的是哪家的格式
-        if (d.type === 'doubao-tts') {
-          const res = row('资源 ID', input({ value: d.resId || '', placeholder: 'seed-tts-2.0', onInput: v => { d.resId = v.trim(); touch(); } }));
-          res.style.display = d.ver === 'v1' ? 'none' : '';
-          extraRows.push(row('接口版本', segmented([['v3', 'V3（2.0 音色）'], ['v1', 'V1（1.0 音色）']], d.ver || 'v3', v => { d.ver = v; res.style.display = v === 'v1' ? 'none' : ''; touch(); })), res);
-        }
-        if (d.type === 'custom-tts') {
-          const FMT = [['', 'OpenAI 格式'], ['minimax-cn', 'MiniMax 格式'], ['fish', 'Fish 格式'], ['elevenlabs', 'ElevenLabs 格式']];
-          const fb = h('button.as-pbd__select', { onclick: async () => {
-            const v = await actionSheet('接口格式', FMT.map(([k, l]) => ({ value: k || '-', label: l, active: (d.fmt || '') === k })));
-            if (v == null) return; d.fmt = v === '-' ? '' : v; fb.firstChild.textContent = FMT.find(x => x[0] === d.fmt)[1]; touch(); rebuild();
-          } }, h('span', (FMT.find(x => x[0] === (d.fmt || '')) || FMT[0])[1]), icon('chevron', 14, 2));
-          extraRows.push(row('接口格式', fb));
-        }
-        b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
-          row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
-      }, true));
-      if (kind === 'text') {
-        const T = [['off', '关'], ['low', '低'], ['medium', '中'], ['high', '高']];
-        groups.push(fold('生成参数', 'gear', () => `${(+d.params.temperature).toFixed(2)} · 推理${(T.find(x => x[0] === d.params.thinking) || T[0])[1]}${d.stream === false ? ' · 不流式' : ''}`, (b, re) => {
-          const out = h('output.as-pbd__val', (+d.params.temperature).toFixed(2));
-          const sl = slider({ min: 0, max: 2, step: .05, value: d.params.temperature, onInput: v => { d.params.temperature = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } });
-          const chipBox = h('div.as-pbd__chips');
-          const chips = () => { chipBox.innerHTML = ''; [0, .3, .7, 1, 1.3].forEach(v => chipBox.appendChild(h('button' + (Math.abs(d.params.temperature - v) < .001 ? '.is-on' : ''), { onclick: () => { d.params.temperature = v; sl.value = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } }, v.toFixed(1)))); };
-          chips();
-          b.append(row('温度', h('div.as-pbd__line', sl, out), '越低越稳，越高越放飞。单个聊天里还能另外设。'), chipBox,
-            row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'),
-            h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
-        }, true));
-        if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
-          b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '提示词缓存'), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')),
-            h('p.as-pbd__hint', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。'));
-        }));
-      }
-      if (kind === 'image') groups.push(fold('画风', 'image', () => `${(d.imgSets || []).find(x => x.id === (d.imgSet || ''))?.name || '默认方案'} · ${d.img.size}`, (b, re, rebuild) => {
-        const t = d.type, I = d.img, oai = t === 'openai-image' || t === 'image-compat';
-        // 生图方案：一整套参数存起来，点一下换（换之前把现在这套存回它自己那格）
-        const sets = d.imgSets || (d.imgSets = [{ id: '', name: '默认方案' }]), cur = d.imgSet || '';
-        const stash = () => { sets.find(x => x.id === cur).img = JSON.parse(JSON.stringify(d.img)); };
-        const go = id => { stash(); d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, JSON.parse(JSON.stringify(sets.find(x => x.id === id).img || {}))); d.imgSet = id; touch(); rebuild(); };
-        const chips = h('div.as-chips', sets.map(x => h('button.as-chip' + (x.id === cur ? '.is-active' : ''), { onclick: () => x.id !== cur && go(x.id) }, x.name)));
-        const acts = h('div.as-pbd__danger',
-          h('button', { onclick: async () => { const n = await dialog({ title: '新建方案', input: { value: `方案 ${sets.length + 1}` } }); if (!n || !n.trim()) return; stash(); const id = uid('is'); sets.push({ id, name: n.trim().slice(0, 12), img: JSON.parse(JSON.stringify(d.img)) }); d.imgSet = id; touch(); rebuild(); } }, '新建方案'),
-          ...(cur ? [h('button', { onclick: async () => { const x = sets.find(y => y.id === cur), n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 12); touch(); rebuild(); } } }, '改名'),
-            h('button.is-danger', { onclick: async () => { if (!(await dialog({ title: '删掉这个方案？', confirm: '删除', danger: true }))) return; d.imgSets = sets.filter(x => x.id !== cur); d.imgSet = ''; d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, sets[0].img || {}); touch(); rebuild(); } }, '删除')] : []));
-        // 尺寸：随便填，下面几个常用的点一下就填好（每家常用的不一样）
-        const SIZES = oai ? ['1024x1024', '1024x1536', '1536x1024'] : t === 'novelai' ? ['832x1216', '1216x832', '1024x1024'] : t === 'siliconflow' ? ['1024x1024', '768x1024', '1024x768'] : ['512x768', '768x512', '1024x1024'];
-        const sizeIn = input({ value: I.size, placeholder: '宽x高', onInput: v => { I.size = v.replace(/[×*X ]/g, 'x'); touch(); re(); paintSz(); } });
-        const szBox = h('div.as-pbd__chips'), paintSz = () => szBox.replaceChildren(...SIZES.map(v => h('button' + (I.size === v ? '.is-on' : ''), { onclick: () => { I.size = sizeIn.value = v; touch(); re(); paintSz(); } }, v.replace('x', '×'))));
-        paintSz();
-        const num = (k, ph) => input({ value: I[k] ?? '', type: 'number', placeholder: ph, onInput: v => { I[k] = v === '' ? undefined : +v; touch(); } });
-        const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
-        const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' }, SAMPLER = { novelai: 'k_euler_ancestral', 'sd-webui': 'Euler a', comfyui: 'euler_ancestral' };
-        b.append(row('方案', h('div', chips)), acts,
-          ...(oai ? [row('请求方式', segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
-          row('尺寸（宽×高）', h('div', sizeIn, szBox)),
-          ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])))] : []),
-          ...(SAMPLER[t] ? [row('采样器', input({ value: I.sampler || '', placeholder: SAMPLER[t], onInput: v => { I.sampler = v.trim(); touch(); } }))] : []),
-          ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '如：artist:xxx, artist:yyy')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
-          row('负面提示词', txt('neg', '例：lowres, bad anatomy')),
-          ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
-      }));
-      if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
-        const sp = h('output.as-pbd__val', d.tts.speed + 'x'), vo = h('output.as-pbd__val', Math.round(d.tts.volume * 100) + '%');
-        const chv = CHANNELS.tts.find(x => x.v === d.type) || {}, T = d.tts;
-        const set = k => v => { T[k] = v; touch(); re(); };
-        b.append(row('当前音色', voiceInput(() => d, T.voice, set('voice'), chv.voice ? '默认 ' + chv.voice : '音色 ID'), chv.note || ''),
-          row('男声默认', voiceInput(() => d, T.male, set('male'))), row('女声默认', voiceInput(() => d, T.female, set('female'))),
-          row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: T.speed, onInput: v => { T.speed = +v.toFixed(2); sp.textContent = T.speed + 'x'; touch(); re(); } }), sp)),
-          row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: T.volume, onInput: v => { T.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)),
-          ...(isNew ? [] : [h('button.as-pbd__dash', { onclick: () => openLibrary(orig, paintVoices) }, icon('users', 15, 2), '音色库（每个人的声音）')]));
-      }));
-      if (!isNew) groups.push(h('div.as-pbd__danger', pinBtn(),
-        h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),
-        h('button.is-danger', { onclick: async () => {
-          if (!(await dialog({ title: `删掉「${orig.name}」？`, text: '插在它上面的线会被拔下来。', confirm: '删除', danger: true }))) return;
-          const list = C()[kind]; list.splice(list.indexOf(orig), 1);
-          for (const k of Object.keys(C().defaults)) if (C().defaults[k] === orig.id) C().defaults[k] = '';
-          commit('connections'); s.close(); refresh();
-        } }, '删除')));
-    }
-    const save = h('button.as-pbd__save', { onclick: () => {
-      if (tavern) { s.close(); return; }
-      d.name = (d.name || '').trim() || `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label} ${d.model || ''}`.trim();
-      d.keys = d.keys.filter(k => String(k).trim());
-      if (d.model && d.models && !d.models.includes(d.model)) d.models.push(d.model);
-      if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
-      else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
-      commit('connections'); dirty = false;
-      toast('保存好了'); s.close(); refresh();
-    } }, tavern ? '好的' : '保存');
-    const s = sheet({ title: '接口详情', cls: 'as-pbd', content: h('div.as-pbd__wrap', card, ...groups, h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => { dirty = false; s.close(); } }, '取消'), save)), onClose: () => { if (dirty && !isNew) toast('改动没保存'); } });
-  }
-
+  const hooks = () => ({ status, tileOf, refresh, togglePin, paintVoices });
+  const detail = (c, k, isNew) => openDetail(c, k, isNew, hooks());
+  const addNew = kind => newConn(kind || cur().kind, hooks());
   /* ================= 右上角菜单 ================= */
   const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list, voiceChanged: paintVoices });
   const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
@@ -906,3 +671,250 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
   }
   draw();
 }
+
+/* ================= 接口详情 ================= */
+const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
+const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
+const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : KIND_NAME[kind];
+const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
+  : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
+  : (!keysOf(c).length && !((CHANNELS.image.find(x => x.v === c.type) || CHANNELS.tts.find(x => x.v === c.type) || {}).noKey) && c.type !== 'tavern' ? '还没填密钥' : c.model || '');
+
+async function doTest(c, kind) {
+  const chs = CHANNELS[kind] || [], ch = chs.find(x => x.v === c.type) || {};
+  if (kind !== 'text' && !ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
+  if (kind === 'text') { await testConn(c); return {}; }
+  if (kind === 'embed') { const n = await testEmbed(c); return { note: `返回了 ${n} 维向量` }; }
+  if (kind === 'tts') { await testVoice(c); return {}; }
+  if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) return { cancel: true };
+  return { img: await testImage(c) };
+}
+function togglePinData(id) {
+  const pin = C().pinned || (C().pinned = []), i = pin.indexOf(id);
+  if (i >= 0) pin.splice(i, 1); else pin.push(id);
+  commit('connections');
+  return i < 0;
+}
+/** 新建一个接口：先按这一类的第一个渠道填好，打开详情 */
+export function newConn(kind, hooks) {
+  const ch = CHANNELS[kind][0];
+  openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '' }, kind, true, hooks);
+}
+/** 接口详情（插线板和列表模式共用）。hooks：插线板传进来的那几样（测试状态、格子、刷新…），列表模式不传就用空的 */
+export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null, refresh = () => {}, togglePin = togglePinData, paintVoices = () => {}, setDefault = false } = {}) {
+  // 列表模式没有线可插：用「设为默认」代替「置顶」
+  const use = kind === 'embed' ? 'aux' : kind;
+  const defBtn = () => { const b = h('button', { onclick: () => { C().defaults[use] = orig.id; commit('connections'); b.textContent = '已是默认'; toast('设为默认了'); refresh(); } }, C().defaults[use] === orig.id ? '已是默认' : '设为默认'); return b; };
+  const d = JSON.parse(JSON.stringify(orig));
+  d.keys = d.keys || []; d.params = Object.assign({ temperature: .9, thinking: 'off' }, d.params); d.adv = Object.assign({ cache: false }, d.adv);
+  d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, d.img); d.tts = Object.assign({ voice: '', speed: 1, volume: 1 }, d.tts);
+  const tavern = isTv(d);
+  let dirty = !!isNew;
+  // 置顶 · 复制一份 · 删除 放在同一排
+  const pinBtn = () => { const pinned = () => (C().pinned || []).includes(orig.id), b = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); b.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶'); return b; };
+  const touch = () => { dirty = true; paintSt(); };
+  const st = () => { const s = status[orig.id] || ''; return s === 'bad' || s === 'test' ? s : needSetup(d, kind) ? 'need' : s; };
+  const faceEl = h('span.as-pb__face.as-pbd__face', h('b', FACE.idle));
+  const stText = h('span.as-pbd__st');
+  const paintSt = () => {
+    const s = st(); stText.className = 'as-pbd__st is-' + (s || 'none');
+    stText.textContent = s === 'ok' ? '已连接' : s === 'bad' ? '连不上' : s === 'test' ? '正在测…' : s === 'need' ? '还没配置' : '还没测过';
+    faceEl.firstChild.textContent = faceText(s || 'idle', orig.id) + (s === 'need' ? '?' : '');
+    faceEl.dataset.face = s || 'idle';
+  };
+  paintSt();
+  const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆当前连接' : d.name || (isNew ? '新接口' : ''));
+  const subEl = h('span.as-pbd__subline');
+  const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
+  paintSub();
+  // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
+  const testBtn = h('button.as-pbd__test', { onclick: async () => {
+    testBtn.disabled = true; status[orig.id] = 'test'; paintSt();
+    let r = {}, err = '';
+    try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; }
+    testBtn.disabled = false;
+    if (r.cancel) { delete status[orig.id]; paintSt(); return; }
+    status[orig.id] = err ? 'bad' : 'ok';
+    if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
+    paintSt();
+    const t = tileOf(orig.id); if (t && !err) { t.joyUntil = performance.now() + 1100; t.mood = (t.mood || 0) + 1; }
+    if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log') });
+    else toast(r.note ? `连上了，${r.note}` : dirty || isNew ? '连上了，记得保存' : '连上了');
+    if (r.img) { card.parentNode.querySelector('.as-pbd__testimg')?.remove(); card.after(h('img.as-pbd__testimg', { src: r.img, alt: '测试画出来的图' })); }
+  } }, icon('sparkle', 14, 2), '测试');
+  const card = h('div.as-pbd__card', faceEl, h('div.as-pbd__info', nameEl, subEl, stText), testBtn);
+
+  // 可以折起来的一组：标题右边写着现在的值
+  const fold = (title, ic, summary, build, open = false) => {
+    const sum = h('span.as-pbd__sum', summary());
+    const body = h('div.as-pbd__fbody'); let built = false;
+    const box = h('div.as-pbd__fold' + (open ? '.is-open' : ''));
+    const re = () => { sum.textContent = summary(); };
+    const rebuild = () => { body.replaceChildren(); build(body, re, rebuild); re(); };   // 只重画这一组（比如换了渠道，要多填的东西不一样）
+    const toggle = () => { if (!built) { build(body, re, rebuild); built = true; } box.classList.toggle('is-open'); };
+    if (open) { build(body, re, rebuild); built = true; }
+    box.append(h('button.as-pbd__fhead', { onclick: toggle, 'aria-expanded': String(open) }, icon(ic, 18, 1.8), h('span.as-pbd__ftitle', title), sum, h('span.as-pbd__chev', icon('chevron', 16, 2))), body);
+    return box;
+  };
+  const row = (label, ctrl, hint) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl), hint && h('p.as-pbd__hint', hint));
+
+  const groups = [];
+  if (tavern) {
+    const info = (k, v) => v ? h('div.as-pbd__row.is-inline', h('span.as-pbd__label', k), h('span.as-pbd__v', v)) : null;
+    groups.push(h('div.as-pbd__fold.is-open', h('div.as-pbd__fbody',
+      d.type === 'tavern'
+        ? [info('现在用的配置', d.cur || '（没用连接配置）'), info('模型', d.model), info('API', d.curApi),
+          h('p.as-pbd__hint', '酒馆此刻选中的连接是什么，这里就用什么；你在酒馆里一换，这里跟着变。温度这些也跟着酒馆的预设走。')]
+        : [info('API', d.api), info('模型', d.model), info('预设', d.preset), info('地址', d.url),
+          h('p.as-pbd__hint', d.gone ? '酒馆里已经没有这个配置了。把插在它上面的线换到别的接口，它就会自己消失。' : '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。')]
+    )));
+    if (setDefault) groups.push(h('div.as-pbd__danger', defBtn()));
+  } else {
+    groups.push(fold('连接', 'link', () => `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type} · ${keysOf(d).length} 把密钥`, (b, re, rebuild) => {
+      const nameIn = input({ value: d.name, placeholder: '随便起，方便自己认', onInput: v => { d.name = v; nameEl.textContent = v || '新接口'; touch(); } });
+      const typeBtn = h('button.as-pbd__select', { onclick: async () => {
+        const v = await actionSheet('类型', CHANNELS[kind].map(x => ({ value: x.v, label: x.label, active: x.v === d.type })));
+        if (!v || v === d.type) return; const ch = CHANNELS[kind].find(x => x.v === v);
+        // 换了渠道就按那家直连的来：地址换成它的（第三方留空自己填），密钥清空，模型换成它的默认
+        d.base = ch.base || ''; d.key = ''; d.keys = []; d.model = ch.model || ''; d.models = d.model ? [d.model] : []; paintSub();
+        if (kind === 'tts' && (!d.tts.voice || CHANNELS.tts.some(x => x.voice === d.tts.voice))) d.tts.voice = ch.voice || '';
+        // 名字还是原来渠道的名字（没自己改过）就跟着换
+        if (!d.name || CHANNELS[kind].some(x => x.label === d.name)) { d.name = ch.label; nameEl.textContent = ch.label; }
+        d.type = v; touch(); rebuild();
+      } }, h('span', (CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type), icon('chevron', 14, 2));
+      const baseIn = input({ value: d.base, placeholder: 'https://…', onInput: v => { d.base = v; touch(); } });
+      // 密钥：可以存好几把，被拒了自动换下一把
+      const keyBox = h('div.as-pbd__keys');
+      const drawKeys = () => {
+        keyBox.innerHTML = '';
+        const all = [d.key, ...d.keys];
+        all.forEach((k, i) => {
+          const inp = input({ value: k, placeholder: i ? '再一把密钥' : 'sk-…', type: 'password', onInput: v => { if (i === 0) d.key = v; else d.keys[i - 1] = v; touch(); re(); } });
+          keyBox.appendChild(h('div.as-pbd__key', inp,
+            i === (orig.keyIdx || 0) && k ? h('span.as-pbd__tag', '正在用') : null,
+            h('button.as-pbd__ibtn', { 'aria-label': '显示密钥', onclick: e => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.replaceChildren(icon(inp.type === 'password' ? 'eye' : 'eyeOff', 17, 1.8)); } }, icon('eye', 17, 1.8)),
+            i ? h('button.as-pbd__ibtn', { 'aria-label': '删掉这把密钥', onclick: () => { d.keys.splice(i - 1, 1); touch(); drawKeys(); re(); } }, icon('close', 16, 2)) : null));
+        });
+        keyBox.appendChild(h('button.as-pbd__dash', { onclick: () => { d.keys.push(''); touch(); drawKeys(); } }, icon('plus', 15, 2), '再加一把密钥'));
+      };
+      drawKeys();
+      const modelIn = input({ value: d.model, placeholder: kind === 'text' ? '例如 claude-opus' : kind === 'image' ? '例如 gpt-image-2' : '例如 tts-1', onInput: v => { d.model = v; paintSub(); touch(); paintModels(); } });
+      d.models = d.models || (d.model ? [d.model] : []);
+      const modelBox = h('div.as-chips.as-pbd__models');
+      const paintModels = () => modelBox.replaceChildren(...d.models.map(m => h('span.as-chip' + (m === d.model ? '.is-active' : ''), { onclick: () => useModel(m) }, m,
+        h('button.as-pbd__chipx', { 'aria-label': '删掉这个模型', onclick: e => { e.stopPropagation(); d.models = d.models.filter(x => x !== m); touch(); paintModels(); } }, icon('close', 11, 2.4)))));
+      const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
+      paintModels();
+      const pull = h('button.as-pbd__mini', { onclick: async () => {
+        pull.disabled = true; toast('正在拉取模型…');
+        try {
+          const models = await listModels(d);
+          if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
+          toast(`拉到 ${models.length} 个模型`);
+          const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
+        } catch (e) { toast('拉取失败：' + e.message); } finally { pull.disabled = false; }
+      } }, icon('link', 13, 2), '拉取');
+      // 官网：去哪拿密钥
+      const siteBox = h('div.as-pbd__site');
+      const paintSite = () => {
+        const ch = CHANNELS[kind].find(x => x.v === d.type) || {};
+        siteBox.replaceChildren(...[ch.note && h('p.as-pbd__hint', ch.note), ch.site && h('a.as-pbd__sitelink', { href: ch.site, target: '_blank', rel: 'noopener' }, icon('link', 13, 2), '官网：' + ch.site.replace(/^https?:\/\//, '').replace(/\/$/, ''))].filter(Boolean));
+      };
+      paintSite();
+      // 有的渠道要多填一两样（MiniMax 的 Group ID、豆包的 App ID）
+      const extra = (CHANNELS[kind].find(x => x.v === d.type) || {}).fields || [];
+      const extraRows = extra.map(([k, label]) => row(label, input({ value: d[k] || '', onInput: v => { d[k] = v.trim(); touch(); } })));
+      // 豆包分 V3（2.0 音色，要资源 ID）和 V1（1.0 音色）；第三方语音可以选中转站转发的是哪家的格式
+      if (d.type === 'doubao-tts') {
+        const res = row('资源 ID', input({ value: d.resId || '', placeholder: 'seed-tts-2.0', onInput: v => { d.resId = v.trim(); touch(); } }));
+        res.style.display = d.ver === 'v1' ? 'none' : '';
+        extraRows.push(row('接口版本', segmented([['v3', 'V3（2.0 音色）'], ['v1', 'V1（1.0 音色）']], d.ver || 'v3', v => { d.ver = v; res.style.display = v === 'v1' ? 'none' : ''; touch(); })), res);
+      }
+      if (d.type === 'custom-tts') {
+        const FMT = [['', 'OpenAI 格式'], ['minimax-cn', 'MiniMax 格式'], ['fish', 'Fish 格式'], ['elevenlabs', 'ElevenLabs 格式']];
+        const fb = h('button.as-pbd__select', { onclick: async () => {
+          const v = await actionSheet('接口格式', FMT.map(([k, l]) => ({ value: k || '-', label: l, active: (d.fmt || '') === k })));
+          if (v == null) return; d.fmt = v === '-' ? '' : v; fb.firstChild.textContent = FMT.find(x => x[0] === d.fmt)[1]; touch(); rebuild();
+        } }, h('span', (FMT.find(x => x[0] === (d.fmt || '')) || FMT[0])[1]), icon('chevron', 14, 2));
+        extraRows.push(row('接口格式', fb));
+      }
+      b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
+        row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
+    }, true));
+    if (kind === 'text') {
+      const T = [['off', '关'], ['low', '低'], ['medium', '中'], ['high', '高']];
+      groups.push(fold('生成参数', 'gear', () => `${(+d.params.temperature).toFixed(2)} · 推理${(T.find(x => x[0] === d.params.thinking) || T[0])[1]}${d.stream === false ? ' · 不流式' : ''}`, (b, re) => {
+        const out = h('output.as-pbd__val', (+d.params.temperature).toFixed(2));
+        const sl = slider({ min: 0, max: 2, step: .05, value: d.params.temperature, onInput: v => { d.params.temperature = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } });
+        const chipBox = h('div.as-pbd__chips');
+        const chips = () => { chipBox.innerHTML = ''; [0, .3, .7, 1, 1.3].forEach(v => chipBox.appendChild(h('button' + (Math.abs(d.params.temperature - v) < .001 ? '.is-on' : ''), { onclick: () => { d.params.temperature = v; sl.value = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } }, v.toFixed(1)))); };
+        chips();
+        b.append(row('温度', h('div.as-pbd__line', sl, out), '越低越稳，越高越放飞。单个聊天里还能另外设。'), chipBox,
+          row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'),
+          h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
+      }, true));
+      if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
+        b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '提示词缓存'), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')),
+          h('p.as-pbd__hint', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。'));
+      }));
+    }
+    if (kind === 'image') groups.push(fold('画风', 'image', () => `${(d.imgSets || []).find(x => x.id === (d.imgSet || ''))?.name || '默认方案'} · ${d.img.size}`, (b, re, rebuild) => {
+      const t = d.type, I = d.img, oai = t === 'openai-image' || t === 'image-compat';
+      // 生图方案：一整套参数存起来，点一下换（换之前把现在这套存回它自己那格）
+      const sets = d.imgSets || (d.imgSets = [{ id: '', name: '默认方案' }]), cur = d.imgSet || '';
+      const stash = () => { sets.find(x => x.id === cur).img = JSON.parse(JSON.stringify(d.img)); };
+      const go = id => { stash(); d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, JSON.parse(JSON.stringify(sets.find(x => x.id === id).img || {}))); d.imgSet = id; touch(); rebuild(); };
+      const chips = h('div.as-chips', sets.map(x => h('button.as-chip' + (x.id === cur ? '.is-active' : ''), { onclick: () => x.id !== cur && go(x.id) }, x.name)));
+      const acts = h('div.as-pbd__danger',
+        h('button', { onclick: async () => { const n = await dialog({ title: '新建方案', input: { value: `方案 ${sets.length + 1}` } }); if (!n || !n.trim()) return; stash(); const id = uid('is'); sets.push({ id, name: n.trim().slice(0, 12), img: JSON.parse(JSON.stringify(d.img)) }); d.imgSet = id; touch(); rebuild(); } }, '新建方案'),
+        ...(cur ? [h('button', { onclick: async () => { const x = sets.find(y => y.id === cur), n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 12); touch(); rebuild(); } } }, '改名'),
+          h('button.is-danger', { onclick: async () => { if (!(await dialog({ title: '删掉这个方案？', confirm: '删除', danger: true }))) return; d.imgSets = sets.filter(x => x.id !== cur); d.imgSet = ''; d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, sets[0].img || {}); touch(); rebuild(); } }, '删除')] : []));
+      // 尺寸：随便填，下面几个常用的点一下就填好（每家常用的不一样）
+      const SIZES = oai ? ['1024x1024', '1024x1536', '1536x1024'] : t === 'novelai' ? ['832x1216', '1216x832', '1024x1024'] : t === 'siliconflow' ? ['1024x1024', '768x1024', '1024x768'] : ['512x768', '768x512', '1024x1024'];
+      const sizeIn = input({ value: I.size, placeholder: '宽x高', onInput: v => { I.size = v.replace(/[×*X ]/g, 'x'); touch(); re(); paintSz(); } });
+      const szBox = h('div.as-pbd__chips'), paintSz = () => szBox.replaceChildren(...SIZES.map(v => h('button' + (I.size === v ? '.is-on' : ''), { onclick: () => { I.size = sizeIn.value = v; touch(); re(); paintSz(); } }, v.replace('x', '×'))));
+      paintSz();
+      const num = (k, ph) => input({ value: I[k] ?? '', type: 'number', placeholder: ph, onInput: v => { I[k] = v === '' ? undefined : +v; touch(); } });
+      const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
+      const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' }, SAMPLER = { novelai: 'k_euler_ancestral', 'sd-webui': 'Euler a', comfyui: 'euler_ancestral' };
+      b.append(row('方案', h('div', chips)), acts,
+        ...(oai ? [row('请求方式', segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
+        row('尺寸（宽×高）', h('div', sizeIn, szBox)),
+        ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])))] : []),
+        ...(SAMPLER[t] ? [row('采样器', input({ value: I.sampler || '', placeholder: SAMPLER[t], onInput: v => { I.sampler = v.trim(); touch(); } }))] : []),
+        ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '如：artist:xxx, artist:yyy')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
+        row('负面提示词', txt('neg', '例：lowres, bad anatomy')),
+        ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
+    }));
+    if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
+      const sp = h('output.as-pbd__val', d.tts.speed + 'x'), vo = h('output.as-pbd__val', Math.round(d.tts.volume * 100) + '%');
+      const chv = CHANNELS.tts.find(x => x.v === d.type) || {}, T = d.tts;
+      const set = k => v => { T[k] = v; touch(); re(); };
+      b.append(row('当前音色', voiceInput(() => d, T.voice, set('voice'), chv.voice ? '默认 ' + chv.voice : '音色 ID'), chv.note || ''),
+        row('男声默认', voiceInput(() => d, T.male, set('male'))), row('女声默认', voiceInput(() => d, T.female, set('female'))),
+        row('语速', h('div.as-pbd__line', slider({ min: .5, max: 2, step: .05, value: T.speed, onInput: v => { T.speed = +v.toFixed(2); sp.textContent = T.speed + 'x'; touch(); re(); } }), sp)),
+        row('音量', h('div.as-pbd__line', slider({ min: .2, max: 1, step: .05, value: T.volume, onInput: v => { T.volume = v; vo.textContent = Math.round(v * 100) + '%'; touch(); } }), vo)),
+        ...(isNew ? [] : [h('button.as-pbd__dash', { onclick: () => openLibrary(orig, paintVoices) }, icon('users', 15, 2), '音色库（每个人的声音）')]));
+    }));
+    if (!isNew) groups.push(h('div.as-pbd__danger', setDefault ? defBtn() : pinBtn(),
+      h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),
+      h('button.is-danger', { onclick: async () => {
+        if (!(await dialog({ title: `删掉「${orig.name}」？`, text: '插在它上面的线会被拔下来。', confirm: '删除', danger: true }))) return;
+        const list = C()[kind]; list.splice(list.indexOf(orig), 1);
+        for (const k of Object.keys(C().defaults)) if (C().defaults[k] === orig.id) C().defaults[k] = '';
+        commit('connections'); s.close(); refresh();
+      } }, '删除')));
+  }
+  const save = h('button.as-pbd__save', { onclick: () => {
+    if (tavern) { s.close(); return; }
+    d.name = (d.name || '').trim() || `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label} ${d.model || ''}`.trim();
+    d.keys = d.keys.filter(k => String(k).trim());
+    if (d.model && d.models && !d.models.includes(d.model)) d.models.push(d.model);
+    if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
+    else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
+    commit('connections'); dirty = false;
+    toast('保存好了'); s.close(); refresh();
+  } }, tavern ? '好的' : '保存');
+  const s = sheet({ title: '接口详情', cls: 'as-pbd', content: h('div.as-pbd__wrap', card, ...groups, h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => { dirty = false; s.close(); } }, '取消'), save)), onClose: () => { if (dirty && !isNew) toast('改动没保存'); } });
+}
+

@@ -1,9 +1,9 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
-import { h, uid, pickFile } from '../../core/util.js';
+import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navText, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, resolveConn, listModels, testConn } from '../../core/api.js';
+import { CHANNELS, resolveConn } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.41';
+export const VERSION = '0.6.42';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -87,89 +87,26 @@ async function openConnections() {
   openBoard({ list: () => { S().connView = 'list'; commit('settings'); nav.pop(); openConnList(); } });
 }
 function openConnList() {
+  // 点进去和插线板是同一个「接口详情」；列表没有线可插，所以多一个「设为默认」
+  const hooks = () => ({ refresh: () => p.el._onShow(), setDefault: true });
+  const add = () => import('./board.js').then(m => m.newConn(connKind, hooks()));
   const p = sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '向量']], connKind, v => { connKind = v; re(); })));
-    if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => editConn(null)))); return; }
+    if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => add()))); return; }
     const def = state.connections.defaults[connKind];
     body.appendChild(group(connKind === 'text' ? '「酒馆当前连接」= 你在酒馆里正在用的 API' : '', list.map(c => {
       const el = item({ icon: h('span', (CHANNELS[connKind].find(x => x.v === c.type) || { label: '酒' }).label.slice(0, 1)), color: c.type === 'tavern' ? 'orange' : 'blue', cls: 'as-settings-conn-card',
         title: c.name, sub: c.type === 'tavern' ? '跟着酒馆走，不用填密钥' : `${(CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
-        right: c.id === def ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => editConn(c) });
+        right: c.id === def ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => import('./board.js').then(m => m.openDetail(c, connKind, false, hooks())) });
       return el;
     }), '打勾的是全局默认。各个 App、各个聊天还能单独指定。'));
-    body.appendChild(btn('新建连接', 'secondary', () => editConn(null), { style: { width: '100%' } }));
+    body.appendChild(btn('新建连接', 'secondary', () => add(), { style: { width: '100%' } }));
   }, { right: navBtn('more', '更多', async () => {
     const m = await import('./board.js');
-    m.connMenu({ mode: 'list', schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add: () => editConn(null),
+    m.connMenu({ mode: 'list', schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add,
       switchMode: () => { S().connView = ''; commit('settings'); nav.pop(); openConnections(); } });
   }) });
-}
-function editConn(existing) {
-  const kind = connKind;
-  if (existing && existing.type === 'tavern') {
-    sub('connection-edit', existing.name, body => {
-      body.append(group('', [item({ title: '渠道', value: '酒馆当前连接' }), item({ title: '说明' })]),
-        group('', [item({ title: state.connections.defaults.text === 'tavern' ? '已是默认连接' : '设为默认', onClick: () => { state.connections.defaults.text = 'tavern'; commit('connections'); nav.pop(); toast('已设为默认'); } })]),
-        testBlock(existing));
-    });
-    return;
-  }
-  const c = existing ? { ...existing } : { id: uid('conn'), name: '', type: CHANNELS[kind][0].v, base: CHANNELS[kind][0].base, key: '', model: '' };
-  const p = page({ app: 'settings', id: 'settings-connection-edit', title: existing ? existing.name : '新建连接', back: true, right: navText('保存', () => {
-    if (!c.name.trim()) c.name = (CHANNELS[kind].find(x => x.v === c.type) || {}).label + ' ' + (c.model || '');
-    c.name = c.name.trim();
-    const list = state.connections[kind];
-    if (existing) Object.assign(existing, c); else list.push(c);
-    if (!state.connections.defaults[kind]) state.connections.defaults[kind] = c.id;
-    commit('connections'); toast('已保存'); nav.pop();
-  }, true) });
-  const keyIn = input({ value: c.key, placeholder: 'sk-…', type: 'password', onInput: v => { c.key = v; } });
-  const modelIn = input({ value: c.model, placeholder: '例如 gpt-4o-mini', onInput: v => { c.model = v; } });
-  const baseIn = input({ value: c.base, placeholder: 'https://…', onInput: v => { c.base = v; } });
-  const chItem = item({ title: '渠道类型', value: (CHANNELS[kind].find(x => x.v === c.type) || {}).label, chevron: true, onClick: async () => {
-    const v = await actionSheet('渠道类型', CHANNELS[kind].map(x => ({ value: x.v, label: x.label, active: x.v === c.type })));
-    if (!v) return;
-    const ch = CHANNELS[kind].find(x => x.v === v); c.type = v;
-    if (!c.base || CHANNELS[kind].some(x => x.base === c.base)) { c.base = ch.base; baseIn.value = ch.base; }
-    chItem.querySelector('.as-list-item__value').textContent = ch.label;
-  } });
-  const pull = h('button.as-inline-btn', { onclick: async () => {
-    pull.replaceChildren(h('i.as-spin')); toast('正在拉取模型…');
-    try {
-      const models = await listModels(c);
-      if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
-      toast(`拉到 ${models.length} 个模型`);
-      const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === c.model ? '.is-active' : ''), { onclick: () => { c.model = m; modelIn.value = m; s.close(); } }, h('span', m)))) });
-    } catch (e) { toast('拉取失败：' + e.message); } finally { pull.textContent = '拉取列表'; }
-  } }, '拉取列表');
-  p.body.append(
-    group('', [field('名称', input({ value: c.name, placeholder: '随便起，方便自己认', onInput: v => { c.name = v; } })), chItem]),
-    group('', [field('地址', baseIn), field('密钥', h('div.as-row', keyIn, h('button.as-eye', { 'aria-label': '显示密钥', onclick: () => { keyIn.type = keyIn.type === 'password' ? 'text' : 'password'; } }, icon('info', 18, 1.8)))),
-      field('模型', h('div.as-row', modelIn, pull))]),
-    kind === 'text' ? testBlock(c) : group('', [item({ title: '测试', sub: '生图和语音的测试下一轮做' })]),
-    existing ? group('', [
-      item({ title: state.connections.defaults[kind] === existing.id ? '已是默认连接' : '设为默认', onClick: () => { state.connections.defaults[kind] = existing.id; commit('connections'); toast('已设为默认'); nav.pop(); } }),
-      item({ title: '复制此连接', onClick: () => { state.connections[kind].push({ ...existing, ...c, id: uid('conn'), name: (c.name || existing.name) + ' 副本' }); commit('connections'); toast('已复制'); nav.pop(); } }),
-      item({ title: '删除连接', danger: true, onClick: async () => {
-        if (!(await dialog({ title: `删除「${existing.name}」？`, confirm: '删除', danger: true }))) return;
-        const list = state.connections[kind]; list.splice(list.indexOf(existing), 1);
-        if (state.connections.defaults[kind] === existing.id) state.connections.defaults[kind] = list[0] ? list[0].id : '';
-        commit('connections'); nav.pop();
-      } }),
-    ]) : null);
-  nav.push(p.el);
-}
-function testBlock(c) {
-  const res = h('div.as-settings-test', h('span.as-muted', '发一句很短的话试试'));
-  const b = btn('测试连接', 'primary', async () => {
-    b.disabled = true; b.classList.add('is-loading'); b.replaceChildren(h('i.as-spin'), ' 测试中');
-    res.className = 'as-settings-test'; res.replaceChildren(h('span.as-muted', '等待回复…'));
-    try { const out = await testConn(c); res.className = 'as-settings-test is-success'; res.replaceChildren(icon('check', 18, 2.4), `连接正常：「${out.slice(0, 20)}」`); }
-    catch (e) { res.className = 'as-settings-test is-error'; res.replaceChildren(icon('close', 18, 2.4), h('span', { style: { flex: 1 } }, '连接失败：' + e.message), btn('查看日志', 'text', () => shell.openApp('log'))); }
-    finally { b.disabled = false; b.classList.remove('is-loading'); b.textContent = '测试连接'; }
-  }, { style: { width: '100%' } });
-  return group('', [h('div', { style: { padding: '12px 14px 0' } }, b), res]);
 }
 
 /* ================= 应用管理 ================= */

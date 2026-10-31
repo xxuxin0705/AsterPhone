@@ -1,8 +1,22 @@
 // AI 调用：按「连接」的渠道类型拼请求。
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state } from './store.js';
-import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi } from './bridge.js';
+import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
 import { log } from './log.js';
+
+/** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
+ *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
+export async function xf(url, o = {}) {
+  try { return await fetch(url, o); }
+  catch (e) {
+    if ((o.signal && o.signal.aborted) || !/^https?:/i.test(url) || !inTavern()) throw e;
+    let r = null;
+    try { const c = ctx(); r = await fetch('/proxy/' + url, { ...o, headers: { ...(c && c.getRequestHeaders ? c.getRequestHeaders() : {}), ...o.headers } }); } catch (e2) { /* 代理也连不上 */ }
+    if (r && r.status === 404) { const t = await r.clone().text(); if (/proxy is disabled|Cannot (GET|POST)/i.test(t) || t.trim().startsWith('<')) r = null; }
+    if (!r) throw new Error(`连不上 ${new URL(url).host}（网络不通或被跨域拦截）。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试`);
+    return r;
+  }
+}
 
 export const CHANNELS = {
   text: [
@@ -119,7 +133,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
       out = await withKey(async key => {
         const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
         if (think) { body.reasoning_effort = P.thinking; delete body.temperature; body.max_completion_tokens = maxTokens + think; delete body.max_tokens; }
-        const res = await fetch(trim(conn.base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        const res = await xf(trim(conn.base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
         return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content);
       });
@@ -129,7 +143,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
         const sys = !system ? undefined : (conn.adv && conn.adv.cache) ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system;
         const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, stream, messages: [{ role: 'user', content: prompt }] };
         if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
-        const res = await fetch(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
+        const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
         return readOut(res, j => j.type === 'content_block_delta' && j.delta?.type === 'text_delta' ? j.delta.text : '', j => (j.content || []).filter(p => p.type === 'text').map(p => p.text).join(''));
@@ -139,7 +153,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
         const gc = { temperature: temp, maxOutputTokens: maxTokens + think };
         if (think) gc.thinkingConfig = { thinkingBudget: think };
         const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await xf(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
         if (!res.ok) throw new Error(await readErr(res));
         const parts = j => (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
@@ -189,31 +203,37 @@ export async function listModels(conn) {
 }
 async function pullModels(conn) {
   if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
-    const res = await fetch(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
+    const res = await xf(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id).sort();
   }
   if (conn.type === 'claude') {
-    const res = await fetch(trim(conn.base || 'https://api.anthropic.com') + '/v1/models', { headers: { 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
+    const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/models', { headers: { 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id);
   }
   if (conn.type === 'gemini') {
-    const res = await fetch(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
+    const res = await xf(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
   }
   // 本地 SD / ComfyUI：拉的是装好的底模
-  if (conn.type === 'sd-webui') { const res = await fetch(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
-  if (conn.type === 'comfyui') { const res = await fetch(trim(conn.base) + '/object_info/CheckpointLoaderSimple'); if (!res.ok) throw new Error(await readErr(res)); const j = await res.json(); return (((j.CheckpointLoaderSimple || {}).input || {}).required || {}).ckpt_name?.[0] || []; }
-  // 没有「模型列表」接口的（NovelAI、Fish、MiniMax、豆包…）：模型就那几个，直接列出来
-  return KNOWN_MODELS[conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type] || [];
+  if (conn.type === 'sd-webui') { const res = await xf(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
+  if (conn.type === 'comfyui') { const res = await xf(trim(conn.base) + '/object_info/CheckpointLoaderSimple'); if (!res.ok) throw new Error(await readErr(res)); const j = await res.json(); return (((j.CheckpointLoaderSimple || {}).input || {}).required || {}).ckpt_name?.[0] || []; }
+  // Fish、ElevenLabs 有自己的模型列表接口（照旧版小手机的拉法）
+  const tt = conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type;
+  if (tt === 'fish') { const res = await xf(trim(conn.base || 'https://api.fish.audio').replace(/\/v1$/, '') + '/compat/v1/models'); if (!res.ok) throw new Error(await readErr(res)); return ((await res.json()).data || []).map(m => String(m.id).replace(/^fish-audio\//, '')); }
+  if (tt === 'elevenlabs') {
+    const res = await xf(trim(conn.base || 'https://api.elevenlabs.io') + '/v1/models', { headers: { 'xi-api-key': keysOf(conn)[0] || '' } }); if (!res.ok) throw new Error(await readErr(res));
+    return (await res.json()).filter(m => m.can_do_text_to_speech !== false).map(m => m.model_id);
+  }
+  // 没有「模型列表」接口的（NovelAI、MiniMax、豆包…）：模型就那几个，直接列出来
+  return KNOWN_MODELS[tt] || [];
 }
 const KNOWN_MODELS = {
   novelai: ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-4-curated-preview', 'nai-diffusion-3', 'nai-diffusion-furry-3'],
   'doubao-tts': ['volcano_tts'], 'zhipu-embed': ['embedding-3', 'embedding-2'],
-  'minimax-cn': ['speech-2.8-hd', 'speech-2.8-turbo', 'speech-2.6-hd', 'speech-2.6-turbo'], fish: ['s2.1-pro', 's2.1-pro-free'],
-  elevenlabs: ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_turbo_v2_5'], mimo: ['mimo-v2.5-tts'],
+  'minimax-cn': ['speech-2.8-hd', 'speech-2.8-turbo', 'speech-2.6-hd', 'speech-2.6-turbo', 'speech-02-hd', 'speech-02-turbo', 'speech-01-hd', 'speech-01-turbo'], mimo: ['mimo-v2.5-tts'],
 };
 KNOWN_MODELS['minimax-intl'] = KNOWN_MODELS['minimax-cn'];
 
@@ -286,7 +306,7 @@ function comfyDefault({ model, full, neg, W, H, steps, scale, sampler }) {
 async function keep(url) {
   if (!url || url.startsWith('data:')) return url;
   try {
-    const b = await (await fetch(url)).blob();
+    const b = await (await xf(url)).blob();
     return await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
   } catch (e) { return url; }
 }
@@ -309,7 +329,7 @@ export async function generateImage(prompt, app = '聊天', connIn) {
   try {
     switch (conn.type) {
       case 'novelai': {
-        const res = await fetch(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ input: full, model: conn.model || 'nai-diffusion-4-5-full', action: 'generate', parameters: {
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: [] }, use_coords: false, use_order: true },
@@ -318,13 +338,13 @@ export async function generateImage(prompt, app = '聊天', connIn) {
         return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
       }
       case 'siliconflow': {
-        const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        const res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5 }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return keep(u);
       }
       case 'sd-webui': {
-        const res = await fetch(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await xf(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: +I.steps || 20, sampler_name: I.sampler || 'Euler a', cfg_scale: +I.scale || 7,
             ...(conn.model ? { override_settings: { sd_model_checkpoint: conn.model } } : {}) }) });
         if (!res.ok) await fail(res);
@@ -337,12 +357,12 @@ export async function generateImage(prompt, app = '聊天', connIn) {
           .reduce((t, [k, v]) => t.replaceAll(`%${k}%`, v), [['seed', Math.floor(Math.random() * 1e9)], ['width', W], ['height', H], ['steps', p.steps], ['scale', p.scale]]
             .reduce((t, [k, v]) => t.replaceAll(`"%${k}%"`, String(v)).replaceAll(`%${k}%`, String(v)), s));
         const wf = I.workflow && I.workflow.trim() ? JSON.parse(fill(I.workflow)) : comfyDefault(p);
-        const r1 = await fetch(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });
+        const r1 = await xf(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });
         if (!r1.ok) await fail(r1);
         const id = (await r1.json()).prompt_id;
         for (let i = 0; i < 180; i++) {
           await sleep(1000);
-          const hj = await (await fetch(`${base}/history/${id}`)).json(), outs = hj[id] && hj[id].outputs;
+          const hj = await (await xf(`${base}/history/${id}`)).json(), outs = hj[id] && hj[id].outputs;
           const img = outs && Object.values(outs).flatMap(o => o.images || [])[0];
           if (img) return keep(`${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${img.type || 'output'}`);
         }
@@ -350,13 +370,13 @@ export async function generateImage(prompt, app = '聊天', connIn) {
       }
       default: {     // OpenAI 官方 / 第三方：默认走 /images/generations；有的中转站只能走聊天接口出图
         if (I.mode === 'chat') {
-          const res = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
             body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})` }] }) });
           if (!res.ok) await fail(res);
           const u = imageInReply(await res.json()); if (!u) throw new Error('聊天接口的回复里没有图片'); return keep(u);
         }
         const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size: `${W}x${H}` };
-        const res = await fetch(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        const res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) await fail(res);
         const j = await res.json(), d = (j.data || [])[0] || {};
         if (d.b64_json) return b64png(d.b64_json);
@@ -385,7 +405,7 @@ export async function synthesize(conn, text, { voice } = {}) {
   // 第三方可以选「接口格式」：中转站转发的是 MiniMax / Fish / ElevenLabs 的格式时，照那家的发
   switch (conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type) {
     case 'minimax-cn': case 'minimax-intl': {
-      const res = await fetch(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      const res = await xf(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0 }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
       if (!res.ok) await bad(res);
       const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
@@ -393,17 +413,17 @@ export async function synthesize(conn, text, { voice } = {}) {
       return URL.createObjectURL(new Blob([hexToBytes(j.data.audio)], { type: 'audio/mpeg' }));
     }
     case 'fish': {
-      const res = await fetch(base + '/v1/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, model: conn.model || 's2.1-pro' },
+      const res = await xf(base + '/v1/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, model: conn.model || 's2.1-pro' },
         body: JSON.stringify({ text, reference_id: v || undefined, format: 'mp3', prosody: { speed } }) });
       if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
     }
     case 'elevenlabs': {
-      const res = await fetch(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+      const res = await xf(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
         body: JSON.stringify({ text, model_id: conn.model || 'eleven_multilingual_v2', voice_settings: { speed } }) });
       if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
     }
     case 'mimo': {
-      const res = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({ model: conn.model || 'mimo-v2.5-tts', messages: [{ role: 'assistant', content: text }], audio: { format: 'mp3', voice: v || 'mimo_default' } }) });
       if (!res.ok) await bad(res);
       const j = await res.json(), d = j.choices?.[0]?.message?.audio?.data; if (!d) throw new Error('MiMo 没有返回声音');
@@ -412,7 +432,7 @@ export async function synthesize(conn, text, { voice } = {}) {
     case 'doubao-tts': {
       if (!conn.appId) throw new Error('豆包要填 App ID');
       if (conn.ver !== 'v1') {   // V3 单向流式（2.0 音色）：一行一个 JSON，声音分段放在 data 里
-        const res = await fetch(base.replace(/\/api\/v\d\/?$/, '') + '/api/v3/tts/unidirectional', { method: 'POST',
+        const res = await xf(base.replace(/\/api\/v\d\/?$/, '') + '/api/v3/tts/unidirectional', { method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Api-App-Id': conn.appId, 'X-Api-Access-Key': key, 'X-Api-Resource-Id': conn.resId || 'seed-tts-2.0' },
           body: JSON.stringify({ user: { uid: 'asterphone' }, req_params: { text, speaker: v || 'zh_female_xiaohe_uranus_bigtts', audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: Math.round((speed - 1) * 100) } } }) });
         if (!res.ok) await bad(res);
@@ -421,7 +441,7 @@ export async function synthesize(conn, text, { voice } = {}) {
         if (!bytes.length) throw new Error('豆包没有返回声音');
         return URL.createObjectURL(new Blob(bytes, { type: 'audio/mpeg' }));
       }
-      const res = await fetch(base + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer;' + key },
+      const res = await xf(base + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer;' + key },
         body: JSON.stringify({ app: { appid: conn.appId, token: key, cluster: conn.model || 'volcano_tts' }, user: { uid: 'asterphone' },
           audio: { voice_type: v || 'BV001_streaming', encoding: 'mp3', speed_ratio: speed }, request: { reqid: Math.random().toString(36).slice(2) + Date.now(), text, operation: 'query' } }) });
       if (!res.ok) await bad(res);
@@ -429,7 +449,7 @@ export async function synthesize(conn, text, { voice } = {}) {
       return URL.createObjectURL(b64ToBlob(j.data));
     }
     default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
-      const res = await fetch(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
+      const res = await xf(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
         body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed }) });
       if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
     }
@@ -441,21 +461,32 @@ const MINIMAX_VOICES = [['female-shaonv', '少女'], ['female-yujie', '御姐'],
   ['male-qn-badao', '霸道青年'], ['male-qn-daxuesheng', '青年大学生'], ['presenter_male', '男性主持人'], ['presenter_female', '女性主持人'], ['audiobook_male_1', '男性有声书'], ['audiobook_female_1', '女性有声书']];
 export const VOICES = {
   'openai-tts': OPENAI_VOICES, 'custom-tts': OPENAI_VOICES, 'minimax-cn': MINIMAX_VOICES, 'minimax-intl': MINIMAX_VOICES,
-  elevenlabs: [['21m00Tcm4TlvDq8ikWAM', 'Rachel（女）'], ['EXAVITQu4vr4xnAvuAyY', 'Sarah（女）'], ['XB0fDUnXU5powFXDhCwa', 'Charlotte（女）'], ['JBFqnCBsd6RMkjVDRZzb', 'George（男）'], ['pNInz6obpgDQGcFmaJgB', 'Adam（男）'], ['onwK4e9ZLuTAKqWW03F9', 'Daniel（男）']],
+  elevenlabs: [['EXAVITQu4vr4xnSDxMaL', 'Sarah · 女'], ['FGY2WhTYpPnrIDTdsKH5', 'Laura · 女'], ['XB0fDUnXU5powFXDhCwa', 'Charlotte · 女'], ['Xb7hH8MSUJpSbSDYk0k2', 'Alice · 女'], ['XrExE9yKIg1WjnnlVkGX', 'Matilda · 女'], ['cgSgspJ2msm6clMCkdW9', 'Jessica · 女'], ['pFZP5JQG7iQjIQuC4Bku', 'Lily · 女'],
+    ['JBFqnCBsd6RMkjVDRZzb', 'George · 男'], ['IKne3meq5aSn9XLyUdCD', 'Charlie · 男'], ['N2lVS1w4EtoT3dr4eOWO', 'Callum · 男'], ['TX3LPaxmHKxFdv7VOQHJ', 'Liam · 男'], ['bIHbv24MWmeRgasZH58o', 'Will · 男'], ['cjVigY5qzO86Huf0OWal', 'Eric · 男'], ['iP95p4xoKVk53GoZ742B', 'Chris · 男'], ['nPczCjzI2devNBz1zQrb', 'Brian · 男'], ['onwK4e9ZLuTAKqWW03F9', 'Daniel · 男']],
   'doubao-tts': [['zh_female_xiaohe_uranus_bigtts', '小何（2.0）'], ['BV001_streaming', '通用女声（1.0）'], ['BV002_streaming', '通用男声（1.0）']],
-  mimo: [['mimo_default', '默认']],
+  mimo: [['冰糖', '冰糖 · 中文女声'], ['茉莉', '茉莉 · 中文女声'], ['苏打', '苏打 · 中文男声'], ['白桦', '白桦 · 中文男声'], ['Mia', 'Mia · 英文女声'], ['Chloe', 'Chloe · 英文女声'], ['Milo', 'Milo · 英文男声'], ['Dean', 'Dean · 英文男声'], ['mimo_default', '默认音色']],
 };
 /** 从网上拉音色列表：[{ id, name }]；这家拉不了返回 null */
 export async function listVoices(conn) {
   const key = keysOf(conn)[0] || '', base = trim(conn.base), type = conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type;
-  const get = async (url, opts) => { const res = await fetch(url, opts); if (!res.ok) throw new Error(await readErr(res)); return res.json(); };
+  const get = async (url, opts) => { const res = await xf(url, opts); if (!res.ok) throw new Error(await readErr(res)); return res.json(); };
   try {
     if (type === 'minimax-cn' || type === 'minimax-intl') {
-      const j = await get(base + '/v1/get_voice', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ voice_type: 'all' }) });
-      return [...(j.voice_cloning || []), ...(j.voice_generation || []), ...(j.system_voice || [])].map(x => ({ id: x.voice_id, name: x.voice_name || x.voice_id }));
+      const j = await get(base.replace(/\/v1(\/t2a_v2)?$/, '') + '/v1/get_voice', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ voice_type: 'all' }) });
+      if (j.base_resp && j.base_resp.status_code) throw new Error(`MiniMax ${j.base_resp.status_code}：${j.base_resp.status_msg}`);
+      return [...(j.voice_cloning || []).map(x => ({ id: x.voice_id, name: x.voice_id + ' · 复刻' })), ...(j.voice_generation || []).map(x => ({ id: x.voice_id, name: x.voice_id + ' · 设计' })),
+        ...(j.system_voice || []).map(x => ({ id: x.voice_id, name: x.voice_name || x.voice_id }))];
     }
-    if (type === 'fish') { const j = await get(base + '/model?page_size=100&self=true', { headers: { Authorization: 'Bearer ' + key } }); return (j.items || []).map(x => ({ id: x._id, name: x.title || x._id })); }
-    if (type === 'elevenlabs') { const j = await get(base + '/v1/voices', { headers: { 'xi-api-key': key } }); return (j.voices || []).map(x => ({ id: x.voice_id, name: x.name || x.voice_id })); }
+    if (type === 'fish') {   // 有密钥先列「我的音色」，没有就列热门的
+      const fb = base.replace(/\/v1$/, ''), list = async q => (await get(fb + '/model?' + q, { headers: key ? { Authorization: 'Bearer ' + key } : {} })).items || [];
+      let L = key ? await list('self=true&page_size=50') : []; const mine = L.length;
+      if (!L.length) L = await list('page_size=40&sort_by=task_count');
+      return L.map(x => ({ id: x._id, name: (x.title || x._id) + (mine ? '' : ' · 热门') }));
+    }
+    if (type === 'elevenlabs') {
+      const j = await get(base + '/v2/voices?page_size=100', { headers: { 'xi-api-key': key } });
+      return (j.voices || []).map(x => ({ id: x.voice_id, name: x.name + (x.labels && x.labels.gender ? ' · ' + ({ female: '女', male: '男' }[x.labels.gender] || x.labels.gender) : '') + (x.category === 'premade' ? '' : ' · 我的') }));
+    }
   } catch (e) {
     const msg = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message;
     log('error', '连接', `拉取音色失败（${conn.name || conn.type}）：${msg}`);
@@ -569,7 +600,7 @@ export const seedImageChannels = seedChannels;
 /** 测向量接口：把「你好」变成一串数字 */
 export async function testEmbed(conn) {
   const key = keysOf(conn)[0] || '';
-  const res = await fetch(trim(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
+  const res = await xf(trim(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
   if (!res.ok) throw new Error(await readErr(res));
   const j = await res.json(), v = j.data?.[0]?.embedding;
   if (!Array.isArray(v)) throw new Error('接口没有返回向量');
