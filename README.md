@@ -1,9 +1,9 @@
-# Aster ✦
+# AsterPhone ✦
 
 SillyTavern 小手机插件（设计阶段）。
 
 ## 安装到酒馆（预览版）
-酒馆 → 扩展 → 安装扩展 → 粘贴 `https://github.com/xxuxin0705/Aster` → 安装。
+酒馆 → 扩展 → 安装扩展 → 粘贴 `https://github.com/xxuxin0705/AsterPhone` → 安装。
 装好后页面右侧会出现一颗 ✦ 悬浮按钮：点一下打开手机，按住可以拖动位置。目前只有锁屏，解锁后是占位页。
 
 ## 文档阅读顺序

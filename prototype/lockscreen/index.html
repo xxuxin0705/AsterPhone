@@ -60,7 +60,8 @@ body { margin: 0; background: var(--stage); color: var(--stage-ink); font-family
 
 canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #gl { z-index: 0; transition: opacity 260ms ease; }
-#fx { z-index: 1; pointer-events: none; }
+#fx { z-index: 1; pointer-events: none; mix-blend-mode: screen; }
+@supports (mix-blend-mode: plus-lighter) { #fx { mix-blend-mode: plus-lighter; } }
 .as-fallback { position: absolute; inset: 0; background-size: cover; background-position: center; z-index: 0; }
 
 /* ---------- 状态栏 ---------- */
@@ -286,11 +287,20 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* ---------- 壁纸资料 ---------- */
 const WALL = {
   // noticeTop：通知放在哪里，避开这张图的主角（月亮）
-  castle: { day: 'wallpapers/castle-day.jpg', night: 'wallpapers/castle-night.jpg', aspect: 283 / 613,
-            moonDay: [0.38, 0.30], moonNight: [0.21, 0.24], noticeTop: '45%' },
+  castle: { day: 'wallpapers/castle-day.jpg', night: 'wallpapers/castle-night.jpg', aspect: 852 / 1846,
+            moonDay: [0.434, 0.236], moonNight: [0.44, 0.238], noticeTop: '38%',
+            starsDay: 'wallpapers/castle-day-stars.png', starsNight: 'wallpapers/castle-night-stars.png' },
   water:  { day: 'wallpapers/water-day.jpg', night: 'wallpapers/water-night.jpg', aspect: 574 / 1242,
             moonDay: [0.50, 0.523], moonNight: [0.50, 0.523], noticeTop: '29.5%' }
 };
+// 城堡的挂星：每一根线是一张精灵图（黑底，叠加着画），绕线的顶端摆动。数字是原图里的像素位置。
+const IMG_W = 852, IMG_H = 1846;
+const PEND = {
+  night: [{ax:0,aw:101,ah:293,px:474,py:0,sx:424,sy:0,len:243},{ax:103,aw:61,ah:150,px:638,py:0,sx:608,sy:0,len:120},{ax:166,aw:83,ah:483,px:687,py:0,sx:646,sy:0,len:442},{ax:251,aw:59,ah:253,px:765,py:456,sx:736,sy:456,len:224},{ax:312,aw:59,ah:350,px:607,py:586,sx:578,sy:586,len:321},{ax:373,aw:35,ah:141,px:825,py:456,sx:808,sy:456,len:124}],
+  day:   [{ax:0,aw:105,ah:280,px:479,py:0,sx:427,sy:0,len:228},{ax:107,aw:59,ah:142,px:639,py:0,sx:610,sy:0,len:113},{ax:168,aw:91,ah:502,px:713,py:0,sx:668,sy:0,len:457},{ax:261,aw:84,ah:513,px:813,py:0,sx:768,sy:0,len:468},{ax:347,aw:63,ah:245,px:774,py:476,sx:743,sy:476,len:214},{ax:412,aw:59,ah:196,px:612,py:596,sx:583,sy:596,len:167}]
+};
+for (const k in PEND) PEND[k].forEach((p, i) => { p.ph = i * 1.7 + .4; p.amp = 1; p.w = Math.sqrt(9.8 / Math.max(.12, p.len / 420)) * .55; });
+let swingKick = 0;   // 点一下城堡，星星被风吹得多晃一会儿
 // 鱼群：圆心、横纵比、每条鱼的起始角度和半径（量自原图）
 const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
   fish: [[-1.077,.4912],[-2.274,.4506],[-.475,.3628],[-3.056,.3695],[2.791,.3206],[.487,.3533],[1.928,.32],[1.095,.4479]] };
@@ -317,7 +327,7 @@ const FS = `
 precision highp float;
 uniform sampler2D uDay, uNight, uFish;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
-uniform vec3 uReveal; uniform vec4 uRipple; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom;
+uniform vec3 uReveal; uniform vec4 uRipple; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
@@ -335,10 +345,18 @@ void main(){
   vec2 s = sa > uImgAspect ? vec2(1., uImgAspect/sa) : vec2(sa/uImgAspect, 1.);
   vec2 iuv = (uv - .5) * s + .5;
   iuv = (iuv - .5) / uZoom + .5 + uDrift;
+  // 切换时的故障闪烁：一条条横块错位
+  if (uGlitch > .001) {
+    vec2 blk = floor(uv * vec2(5., 34.));
+    float hb = hash(blk + floor(uTime * 26.));
+    if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
+  }
   vec2 off = vec2(0.);
   if (uKind < .5) {
-    float w = smoothstep(.70, 1., iuv.y);
-    off.x += (sin(uTime*1.3 + iuv.y*18. + iuv.x*5.)*.0022 + sin(uTime*.7 + iuv.x*9.)*.0012) * w;
+    // 花丛随风摆：左侧花丛 + 最下面一排，避开城堡
+    float w = max(smoothstep(.42, .56, iuv.y) * (1. - smoothstep(.2, .34, iuv.x)), smoothstep(.72, .9, iuv.y));
+    off.x += (sin(uTime*1.25 + iuv.y*16. + iuv.x*5.)*.0026 + sin(uTime*.62 + iuv.x*9. + iuv.y*3.)*.0014) * w;
+    off.y += sin(uTime*.9 + iuv.x*11.) * .0009 * w;
   } else {
     off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
                cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
@@ -352,6 +370,11 @@ void main(){
   vec2 tuv = clamp(iuv + off, .001, .999);
   float b = uUnlock * .007;
   vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuv, b);
+  if (uGlitch > .001) {   // 色散
+    vec2 ca = vec2(.007 * uGlitch, 0.);
+    cD.r = texture2D(uDay, clamp(tuv + ca, .001, .999)).r; cD.b = texture2D(uDay, clamp(tuv - ca, .001, .999)).b;
+    cN.r = texture2D(uNight, clamp(tuv + ca, .001, .999)).r; cN.b = texture2D(uNight, clamp(tuv - ca, .001, .999)).b;
+  }
   float d = length((uv - uReveal.xy) * vec2(sa, 1.));
   float rev = 1. - smoothstep(uReveal.z - .14, uReveal.z, d);
   float m = mix(uMixFrom, uMixTo, rev);
@@ -364,16 +387,29 @@ void main(){
     float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
     col += sh * pow(n, 4.) * .55;
   } else {
-    float n = fbm(iuv*vec2(2.4,4.) + vec2(uTime*.014, uTime*.004));
-    float band = smoothstep(.12,.42,iuv.y)*(1.-smoothstep(.62,.82,iuv.y)) + .55*(1.-smoothstep(0.,.32,iuv.y));
-    vec3 mc = mix(vec3(.97,.97,1.), vec3(.42,.5,.78), m);
-    col = mix(col, mc, n*n*.24*band);
+    // 云层上缓慢流动的光
+    float n = fbm(iuv*vec2(2.2,3.6) + vec2(uTime*.016, uTime*.005));
+    float band = smoothstep(.25,.45,iuv.y)*(1.-smoothstep(.62,.8,iuv.y));
+    col = mix(col, mix(vec3(1.,1.,1.), vec3(.62,.66,.95), m), n*n*.13*band);
+    // 月光光束：从月亮放射出去，缓慢扫动
+    vec2 mp0 = mix(uMoonDay, uMoonNight, m);
+    vec2 pr = (iuv - mp0) * vec2(uImgAspect, 1.);
+    float ang = atan(pr.y, pr.x), rr = length(pr);
+    float beams = pow(.5 + .5*sin(ang*7. + uTime*.13) * sin(ang*11. - uTime*.09 + 1.3), 3.);
+    float beamMask = smoothstep(.07, .13, rr) * exp(-rr*3.2) * (.55 + .45*sin(uTime*.35));
+    col += beams * beamMask * mix(vec3(1.,.96,.88), vec3(.72,.78,1.), m) * mix(.16, .2, m);
+    // 城堡窗户的灯：暖色亮点轻轻闪
+    float lum0 = dot(col, vec3(.3,.59,.11));
+    float warm = smoothstep(.1, .3, col.r - col.b) * smoothstep(.45, .75, lum0);
+    float cell = hash(floor(iuv*vec2(70.,150.)));
+    col += col * warm * (.16*sin(uTime*(1.6 + cell*2.5) + cell*6.283) + .05*sin(uTime*13. + cell*40.));
   }
   vec2 mp = mix(uMoonDay, uMoonNight, m);
   float md = length((iuv - mp) * vec2(uImgAspect, 1.));
   float g = exp(-md*md/.012) * (.06 + .03*sin(uTime*.6));
   col += g * mix(vec3(1.,.93,.8), vec3(.78,.84,1.), m) * (uKind > .5 ? .7 : 1.);
-  col += (hash(gl_FragCoord.xy + fract(uTime*7.)*100.) - .5) * .03;
+  col += (hash(gl_FragCoord.xy + fract(uTime*7.)*100.) - .5) * (uKind > .5 ? .03 : .014);
+  col *= 1. + uGlitch * .18 * (hash(vec2(floor(uTime*30.), 1.)) - .3);
   gl_FragColor = vec4(col, 1.);
 }`;
 
@@ -392,7 +428,7 @@ function initGL() {
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  ['uDay','uNight','uFish','uRes','uImgAspect','uTime','uKind','uMixFrom','uMixTo','uUnlock','uReveal','uRipple','uMoonDay','uMoonNight','uDrift','uZoom']
+  ['uDay','uNight','uFish','uRes','uImgAspect','uTime','uKind','uMixFrom','uMixTo','uUnlock','uReveal','uRipple','uMoonDay','uMoonNight','uDrift','uZoom','uGlitch']
     .forEach(n => U[n] = gl.getUniformLocation(prog, n));
   gl.uniform1i(U.uDay, 0); gl.uniform1i(U.uNight, 1); gl.uniform1i(U.uFish, 2);
   return true;
@@ -453,8 +489,8 @@ function seedFx() {
   const w = WALL.castle;
   stars = Array.from({ length: 34 }, () => ({ u: rand(.04, .96), v: rand(.03, .5), s: rand(1.6, 4.2), sp: rand(.6, 1.8), ph: rand(0, 6.28), warm: Math.random() < .35 }));
   // 别让星星落在月亮上
-  stars = stars.filter(s => [w.moonDay, w.moonNight].every(mp => Math.hypot((s.u - mp[0]) * w.aspect, s.v - mp[1]) > .1));
-  motes = Array.from({ length: 22 }, () => ({ u: rand(0, 1), v: rand(.68, 1.02), r: rand(.8, 2.2), sp: rand(.006, .016), sw: rand(.4, 1.2), ph: rand(0, 6.28) }));
+  stars = stars.filter(s => [w.moonDay, w.moonNight].every(mp => Math.hypot((s.u - mp[0]) * w.aspect, s.v - mp[1]) > .12));
+  motes = Array.from({ length: 24 }, () => ({ u: rand(0, 1), v: rand(.45, 1.02), r: rand(.8, 2.4), sp: rand(.006, .016), sw: rand(.4, 1.2), ph: rand(0, 6.28), rot: rand(0, 6.28), vr: rand(-1.5, 1.5) }));
   glints = Array.from({ length: 14 }, () => ({ u: rand(.3, .7), v: rand(.45, .98), s: rand(2, 4.5), sp: rand(1.5, 3.2), ph: rand(0, 6.28) }));
 }
 seedFx();
@@ -466,6 +502,25 @@ function sparkle(ctx, x, y, r, a, color) {
   ctx.moveTo(x, y - r * 2.2); ctx.quadraticCurveTo(x, y, x + r * 2.2, y); ctx.quadraticCurveTo(x, y, x, y + r * 2.2); ctx.quadraticCurveTo(x, y, x - r * 2.2, y); ctx.quadraticCurveTo(x, y, x, y - r * 2.2);
   ctx.fill();
   ctx.globalAlpha = a * .35; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 6.283); ctx.fill();
+}
+/* 挂星摆动：日、夜各一套，按当前日夜比例叠加 */
+const starAtlas = {};
+function drawPendulums(t, dt, m) {
+  swingKick *= Math.pow(.35, dt);
+  const [ox, oy] = imgToScreen(0, 0), [ex] = imgToScreen(1, 0);
+  const k = (ex - ox) / IMG_W;                       // 一个图片像素在屏幕上有多大
+  for (const mode of ['day', 'night']) {
+    const a = mode === 'day' ? 1 - m : m, img = starAtlas[mode];
+    if (a < .02 || !img) continue;
+    for (const p of PEND[mode]) {
+      const amp = (.022 + swingKick * .09) * (reduceMotion ? .2 : 1);
+      const th = amp * Math.sin(t * p.w + p.ph) + amp * .35 * Math.sin(t * p.w * 2.3 + p.ph * 1.7);
+      const [px, py] = imgToScreen(p.px / IMG_W, p.py / IMG_H);
+      fx.save(); fx.globalAlpha = a; fx.translate(px, py); fx.rotate(th);
+      fx.drawImage(img, p.ax, 0, p.aw, p.ah, (p.sx - p.px) * k, (p.sy - p.py) * k, p.aw * k, p.ah * k);
+      fx.restore();
+    }
+  }
 }
 function drawFx(t, dt, m) {
   fx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -479,21 +534,34 @@ function drawFx(t, dt, m) {
       const col = s.warm || m < .5 ? (m < .5 ? '255,236,196' : '255,226,180') : '235,240,255';
       sparkle(fx, x, y, s.s * (.6 + .4 * tw), (.12 + .75 * tw) * (m < .5 ? .75 : 1), `rgb(${col})`);
     }
-    // 日间：花丛上飘起的光尘
-    if (m < .98) for (const p of motes) {
-      p.v -= p.sp * dt * .25; if (p.v < .6) { p.v = rand(.95, 1.03); p.u = rand(0, 1); }
-      const [x, y] = imgToScreen(p.u + Math.sin(t * p.sw + p.ph) * .01, p.v);
-      fx.globalAlpha = (1 - m) * .55 * Math.min(1, (p.v - .6) * 5); fx.fillStyle = 'rgb(255,248,226)';
-      fx.beginPath(); fx.arc(x, y, p.r, 0, 6.283); fx.fill();
+    drawPendulums(t, dt, m);
+    // 日间：花瓣被风吹着斜斜飘落；夜间：花丛里浮起萤火
+    for (const p of motes) {
+      if (m < .5) {
+        p.v += p.sp * dt * .45; p.u += p.sp * dt * .35; p.rot += p.vr * dt;
+        if (p.v > 1.04 || p.u > 1.04) { p.v = rand(.3, .7); p.u = rand(-.1, .5); }
+        const [x, y] = imgToScreen(p.u + Math.sin(t * p.sw + p.ph) * .012, p.v);
+        fx.save(); fx.translate(x, y); fx.rotate(p.rot); fx.scale(1, .45 + .35 * Math.sin(t * 2 + p.ph));
+        fx.globalAlpha = (1 - m * 2) * .7; fx.fillStyle = 'rgb(250,248,255)';
+        fx.beginPath(); fx.ellipse(0, 0, p.r * 2.2, p.r * 1.2, 0, 0, 6.283); fx.fill(); fx.restore();
+      } else {
+        p.v -= p.sp * dt * .18; if (p.v < .5) { p.v = rand(.9, 1.02); p.u = rand(0, 1); }
+        const [x, y] = imgToScreen(p.u + Math.sin(t * p.sw * .6 + p.ph) * .02, p.v + Math.cos(t * p.sw + p.ph) * .006);
+        const pulse = .4 + .6 * Math.pow(Math.max(0, Math.sin(t * p.sw * 1.7 + p.ph)), 2);
+        fx.globalAlpha = (m * 2 - 1) * pulse * .8 * Math.min(1, (p.v - .5) * 4);
+        const g = fx.createRadialGradient(x, y, 0, x, y, p.r * 4);
+        g.addColorStop(0, 'rgba(255,236,190,1)'); g.addColorStop(.35, 'rgba(255,220,160,.35)'); g.addColorStop(1, 'rgba(255,220,160,0)');
+        fx.fillStyle = g; fx.beginPath(); fx.arc(x, y, p.r * 4, 0, 6.283); fx.fill();
+      }
     }
-    // 夜间：流星，从右上往左下划过
-    if (m > .5 && !reduceMotion) {
+    // 流星：沿着画里那些流星线的方向，从右上往左下划过（白天淡一些）
+    if (!reduceMotion) {
       if (t > nextMeteor) { meteors.push({ x: rand(.45, 1.05) * W, y: rand(-.02, .22) * H, t0: t, life: rand(.7, 1.1), len: rand(90, 160), v: rand(520, 760) }); nextMeteor = t + rand(3.5, 8); }
       meteors = meteors.filter(me => t - me.t0 < me.life);
       for (const me of meteors) {
-        const k = (t - me.t0) / me.life, dx = -.78, dy = .62;
+        const k = (t - me.t0) / me.life, dx = -.87, dy = .5;
         const hx = me.x + dx * me.v * (t - me.t0), hy = me.y + dy * me.v * (t - me.t0);
-        const a = Math.sin(k * Math.PI) * m;
+        const a = Math.sin(k * Math.PI) * (.55 + .45 * m);
         const g = fx.createLinearGradient(hx, hy, hx - dx * me.len, hy - dy * me.len);
         g.addColorStop(0, `rgba(255,250,235,${a})`); g.addColorStop(1, 'rgba(255,250,235,0)');
         fx.globalAlpha = 1; fx.strokeStyle = g; fx.lineWidth = 1.4; fx.lineCap = 'round';
@@ -577,6 +645,11 @@ const unlockAnim = { from: 0, to: 0, start: -10, dur: .55 };
 function unlockValue(t) { const p = Math.min(1, Math.max(0, (t - unlockAnim.start) / unlockAnim.dur)); const e = 1 - Math.pow(1 - p, 3); return unlockAnim.from + (unlockAnim.to - unlockAnim.from) * e; }
 function setUnlock(v) { const t = now(); unlockAnim.from = unlockValue(t); unlockAnim.to = v; unlockAnim.start = t; }
 
+/* ---------- 故障闪烁 ---------- */
+let glitchT = -10;
+const glitchNow = t => { const k = (t - glitchT) / .55; return k < 0 || k > 1 ? 0 : Math.sin(k * Math.PI) * (1 - k * .4); };
+const glitch = () => { if (!reduceMotion) glitchT = now(); };
+
 /* ---------- 水波 ---------- */
 let ripple = [0, 0, -100, 0];
 
@@ -612,6 +685,7 @@ function frame() {
     gl.uniform2f(U.uMoonNight, w.moonNight[0], w.moonNight[1]);
     gl.uniform2f(U.uDrift, drift[0], drift[1]);
     gl.uniform1f(U.uZoom, zoom);
+    gl.uniform1f(U.uGlitch, glitchNow(t));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   drawFx(tt, reduceMotion ? dt * .15 : dt, m);
@@ -726,7 +800,7 @@ function unlock() {
   const r = finger.getBoundingClientRect(), p = phone.getBoundingClientRect();
   burstAt(r.left - p.left + r.width / 2, r.top - p.top + r.height / 2);
   setTimeout(() => {
-    $('#lock').classList.add('is-hidden'); setUnlock(1);
+    glitch(); $('#lock').classList.add('is-hidden'); setUnlock(1);
     closePin(); $('#home').classList.add('is-open'); $('#home').setAttribute('aria-hidden', 'false');
   }, 360);
 }
@@ -767,7 +841,8 @@ addEventListener('keydown', e => { if (!$('#pin').classList.contains('is-open'))
 
 /* ---------- 点水面 / 点通知 ---------- */
 phone.addEventListener('pointerdown', e => {
-  if (S.kind !== 'water' || e.target.closest('button, .as-sheet, .as-lock-notice__item, .as-pin')) return;
+  if (e.target.closest('button, .as-sheet, .as-lock-notice__item, .as-pin')) return;
+  if (S.kind === 'castle') { swingKick = 1; return; }
   const p = phone.getBoundingClientRect(); const [u, v] = screenToImg(e.clientX - p.left, e.clientY - p.top);
   ripple = [u, v, reduceMotion ? now() * .15 : now(), 1]; startle = 1;
 });
@@ -809,10 +884,10 @@ document.querySelectorAll('.as-segmented').forEach(g => g.addEventListener('clic
   const b = e.target.closest('button'); if (!b) return;
   const key = g.dataset.key, v = b.dataset.v; if (S[key] === v) return;
   const before = isNight(); S[key] = v; save(); syncSeg();
-  if (key === 'kind') bindWallpaper(false);
+  if (key === 'kind') { glitch(); bindWallpaper(false); }
   if (key === 'mode' && isNight() !== before) {
     const br = b.getBoundingClientRect(), p = phone.getBoundingClientRect();
-    setNight(isNight(), [(br.left + br.width / 2 - p.left) / p.width, (br.top + br.height / 2 - p.top) / p.height]);
+    setNight(isNight(), [(br.left + br.width / 2 - p.left) / p.width, (br.top + br.height / 2 - p.top) / p.height]); glitch();
   }
   if (key === 'timeSrc') renderClock(true);
 }));
@@ -826,6 +901,8 @@ async function boot() {
   resize(); syncSeg(); renderClock(true);
   setNight(isNight(), null, true);
   const srcs = [WALL.castle.day, WALL.castle.night, WALL.water.day, WALL.water.night];
+  loadImg(WALL.castle.starsDay).then(i => starAtlas.day = i).catch(() => {});
+  loadImg(WALL.castle.starsNight).then(i => starAtlas.night = i).catch(() => {});
   let ok = false;
   try { ok = initGL(); } catch (e) { console.warn(e); ok = false; }
   try {
