@@ -6,12 +6,13 @@ import { mountUI, toast, banner, avatar } from './core/ui.js';
 import * as nav from './core/nav.js';
 import { Wallpaper } from './core/wallpaper.js';
 import { shell } from './core/shell.js';
-import { postToParent } from './core/bridge.js';
+import { postToParent, inTavern } from './core/bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from './apps/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from './apps/home.js';
 
 const phone = $('#phone');
-const embedded = (() => { try { return window.parent !== window; } catch (e) { return true; } })();
+// 装在酒馆里 = 外层页面有 SillyTavern；别的地方（单独打开、预览页）都按「单独预览」处理
+const embedded = inTavern() || document.documentElement.classList.contains('as-embedded');
 const APP_LOADERS = {
   chat: () => import('./apps/chat/index.js'),
   settings: () => import('./apps/settings.js'),
