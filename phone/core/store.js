@@ -124,6 +124,7 @@ export function chatForContact(cid, create = true) {
     const d = state.apps.chat.defaults;
     c = { id: uid('c_'), type: 'dm', contactId: cid, pinned: false, muted: false, unread: 0, lastAt: 0, lastText: '',
       cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: true, showThink: false, conn: 'follow', temperature: null,
+        proactive: !!d.proactive, proactiveFreq: d.proactiveFreq || 'normal', proactiveLimit: d.proactiveLimit || 5, autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en',
         minLines: 1, maxLines: 4, avatarShape: 'round', showAvatar: true, bg: '', myAvatar: '', theirAvatar: '', streak: true } };
     state.chats.push(c); commit('chats');
   }

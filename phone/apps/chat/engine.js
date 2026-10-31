@@ -9,6 +9,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { render, globalSystem, myName, myPersona, getPrompt } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
+import { translate } from '../../core/translate.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -16,7 +17,81 @@ export function on(evt, fn) { if (!subs.has(evt)) subs.set(evt, new Set()); subs
 function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); } catch (e) { console.error(e); } }); }
 
 export const busy = new Set();
-export function startEngine() { /* 主动消息、离开期间补发：下一轮接在这里 */ }
+/* ---------- 自动行为：主动消息、离开期间补发、正文触发 ---------- */
+const FREQ = { low: 6 * 60, normal: 2 * 60, high: 40 };   // 安静多少分钟后 TA 可能来找你
+const today = () => new Date().toDateString();
+function autoLeft() {
+  const s = state.settings;
+  if (!s.autoUsed || s.autoUsed.date !== today()) s.autoUsed = { date: today(), count: 0 };
+  return (s.autoLimit ?? 30) - s.autoUsed.count;
+}
+function chatLeft(chat) { const d = chat.autoDay; return (chat.cfg.proactiveLimit || 5) - (d && d.date === today() ? d.n : 0); }
+function useAuto(chat) {
+  autoLeft(); state.settings.autoUsed.count++;
+  chat.autoDay = chat.autoDay && chat.autoDay.date === today() ? { date: today(), n: chat.autoDay.n + 1 } : { date: today(), n: 1 };
+  commit('settings');
+}
+const canGo = chat => chat.type === 'dm' && chat.cfg.proactive && !busy.has(chat.id) && autoLeft() > 0 && chatLeft(chat) > 0 && !(shell.inDnd && shell.inDnd());
+export function startEngine() {
+  const last = state.lastSeen || 0;
+  state.lastSeen = Date.now();
+  setInterval(() => { state.lastSeen = Date.now(); commit('seen'); }, 60000);
+  if (last && Date.now() - last > 60 * 60000) setTimeout(() => catchUp(Date.now() - last), 5000);
+  setInterval(tick, 60000);
+}
+async function tick() {
+  const hr = new Date().getHours(), t = today();
+  for (const chat of state.chats) {
+    if (!canGo(chat)) continue;
+    const c = contact(chat.contactId); if (!c) continue;
+    const quiet = (Date.now() - (chat.lastAt || 0)) / 60000;
+    let extra = null;
+    if (hr >= 7 && hr < 10 && chat.greet !== t + 'am' && quiet > 120) { chat.greet = t + 'am'; extra = `（早上了。${nameOf(c)} 起床后想到 ${myName()}，主动发消息说早安，可以聊聊今天的安排。）`; }
+    else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
+    else if (quiet > FREQ[chat.cfg.proactiveFreq || 'normal'] && Math.random() < .2) extra = render('proactive', { char: c.name || nameOf(c) });
+    if (!extra) continue;
+    useAuto(chat);
+    log('info', '主动消息', `${nameOf(c)} 主动来找你了`);
+    await requestReply(chat, { extra });
+    break;   // 一分钟最多一个人来找
+  }
+}
+async function catchUp(gapMs) {
+  const h = Math.round(gapMs / 3600000), gap = h >= 24 ? `${Math.round(h / 24)} 天` : `${h} 小时`;
+  const list = state.chats.filter(canGo).sort(() => Math.random() - .5).slice(0, 3);
+  for (const chat of list) {
+    const c = contact(chat.contactId); if (!c) continue;
+    useAuto(chat);
+    log('info', '离开期间补发', `${nameOf(c)} 在你离开的 ${gap} 里发来了消息`);
+    await requestReply(chat, { extra: render('catchup', { char: c.name || nameOf(c), gap }) });
+  }
+}
+/** 正文里刚发生了事：跟随正文、开了主动消息的角色，有时会来手机上说两句 */
+export function storyNudge(storyText) {
+  const cur = String(storyText || '');
+  const cands = state.chats.filter(ch => canGo(ch) && ch.cfg.linkMode === 'follow' && (() => { const c = contact(ch.contactId); return c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name)))); })());
+  if (!cands.length || Math.random() > .25) return;
+  const chat = cands[Math.floor(Math.random() * cands.length)], c = contact(chat.contactId);
+  setTimeout(() => {
+    if (!canGo(chat)) return;
+    useAuto(chat);
+    requestReply(chat, { extra: `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` });
+  }, 30000 + Math.random() * 60000);
+}
+
+/* ---------- 翻译 ---------- */
+const canTr = m => (m.type === 'text' || m.type === 'voice' || !m.type) && m.text;
+export async function translateMsg(chat, m, to) {
+  if (!canTr(m)) return;
+  const t = await translate(m.text, to || chat.cfg.myLang || 'zh-CN');
+  if (!t || t.trim() === String(m.text).trim()) return false;   // 本来就是这个语言，不用翻
+  m.tr = t; saveMsgs(chat.id); emit('reload', chat.id);
+  return true;
+}
+async function autoTranslate(chat, m) {
+  if (!chat.cfg.autoTr || !canTr(m)) return;
+  try { await translateMsg(chat, m); } catch (e) { /* 日志里有 */ }
+}
 
 /* ---------- 名字 / 头像 / 人设 ---------- */
 export const nameOf = c => (c && (c.remark || c.nick || c.name)) || '联系人';
@@ -43,6 +118,10 @@ function touch(chat, m) {
 /* ---------- 发消息（不会自动回复） ---------- */
 export async function send(chat, text, extra = {}) {
   const msgs = await getMsgs(chat.id);
+  if (chat.cfg.sendTr && chat.cfg.theirLang) {
+    try { const t = await translate(text, chat.cfg.theirLang); if (t && t !== text) { extra = { ...extra, orig: text }; text = t; } }
+    catch (e) { /* 翻译失败就发原文 */ }
+  }
   const m = { id: uid('m'), from: 'me', type: 'text', text, ...time.stamp(), ...extra };
   msgs.push(m); touch(chat, m);
   saveMsgs(chat.id); commit('chats');
@@ -123,7 +202,7 @@ export function parseReply(raw, c) {
     .replace(/^["“「](.*)["”」]$/, '$1').trim()).filter(Boolean);
   return { lines, inner };
 }
-export async function requestReply(chat) {
+export async function requestReply(chat, opts = {}) {
   if (isGroup(chat)) return requestGroupReply(chat);
   if (busy.has(chat.id)) return;
   const c = contact(chat.contactId);
@@ -131,8 +210,9 @@ export async function requestReply(chat) {
   busy.add(chat.id); emit('typing', chat.id, true);
   try {
     const msgs = await getMsgs(chat.id);
-    const { system, prompt } = buildReplyPrompt(chat, msgs);
-    const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: '聊天' });
+    const built = buildReplyPrompt(chat, msgs);
+    const prompt = built.prompt + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
+    const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
     const { lines, inner } = parseReply(raw, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
@@ -164,6 +244,7 @@ export async function requestReply(chat) {
       saveMsgs(chat.id); commit('chats');
       emit('msg', chat.id, m);
       shell.notify({ chatId: chat.id, title: nameOf(c), text: preview(m), avatarUrl: avatarOf(c, chat) });
+      autoTranslate(chat, m);
     }
     if (!shown) saveMsgs(chat.id);
   } catch (e) {
@@ -226,6 +307,7 @@ export async function requestGroupReply(chat) {
       if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
       saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
       shell.notify({ chatId: chat.id, title: chat.name, text: `${nameOf(p)}：${preview(m)}`, avatarUrl: chat.avatar || p.avatar });
+      autoTranslate(chat, m);
       if (shown >= (chat.cfg.maxSpeakers || 3) * 3) break;
     }
     if (!shown) await addSystem(chat, '大家好像都在忙，没人回');

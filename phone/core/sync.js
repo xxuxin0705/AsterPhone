@@ -45,6 +45,7 @@ function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, d
 async function readMessage(id) {
   const m = chatMessage(id); if (!m || m.is_user || m.is_system) return;
   const text = String(m.mes || '');
+  import('../apps/chat/engine.js').then(E => E.storyNudge(text)).catch(() => {});
   const t = time.parseTimeTag(text);
   if (t) { const cur = time.story(); if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm) time.setStory(t.day, t.hh, t.mm, 'story'); }
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;

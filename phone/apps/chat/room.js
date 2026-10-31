@@ -11,6 +11,7 @@ import * as E from './engine.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
+import { LANGS, langName } from '../../core/translate.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
 
@@ -122,7 +123,10 @@ export async function openRoom(chat) {
     }
     const col = h('div.as-chat-msg__col', nameTag,
       !me && m.inner && chat.cfg.showThink ? h('button.as-chat-inner', { onclick: e => e.currentTarget.classList.toggle('is-open') }, '💭', h('span', `${E.nameOf(c)} 心里在想：${m.inner}`)) : null,
-      bubble, rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,
+      bubble,
+      m.tr ? h('div.as-chat-tr', h('span', '译'), m.tr) : null,
+      m.orig ? h('div.as-chat-tr.is-orig', h('span', '原文'), m.orig) : null,
+      rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,
       tags.length ? h('div.as-chat-msg__tags', tags) : null,
       meta.length ? h('div.as-chat-msg__meta', meta) : null);
     const check = h('span.as-chat-check.as-chat-msg__check' + (selected.has(m.id) ? '.is-active' : ''), icon('check', 14, 2.6));
@@ -218,6 +222,11 @@ export async function openRoom(chat) {
         act('引用', 'comment', () => { setQuote(m); inputEl.focus(); }),
         me ? act('撤回', 'back', () => recall(m)) : act('重新生成', 'sparkle', () => regen(m)),
         act('编辑', 'edit', () => edit(m)),
+        act(m.tr ? '收起翻译' : '翻译', 'note', async () => {
+          if (m.tr) { delete m.tr; saveMsgs(chat.id); redraw(true); return; }
+          if (!m.text) { toast('这条没有文字可以翻译'); return; }
+          toast('正在翻译…'); try { if (!(await E.translateMsg(chat, m))) toast('本来就是这个语言'); } catch (e) { toast(e.message); }
+        }),
         act('收藏', 'bookmark', () => fav([m])),
         act(m.pinned ? '取消注入' : '注入正文', 'link', () => { m.pinned = !m.pinned; saveMsgs(chat.id); commit('inject'); redraw(true); toast(m.pinned ? '已钉住，会一直注入正文' : '已取消注入'); }),
         act('多选', 'list', () => { selected.clear(); selected.add(m.id); setSelecting(true); }),
@@ -361,7 +370,13 @@ function openSettings(chat, redrawRoom) {
       group('输出设定', [
         sliderRow('最少几句', 1, 8, 1, cfg.minLines || 1, v => { cfg.minLines = v; if (cfg.maxLines < v) cfg.maxLines = v; save(); }),
         sliderRow('最多几句', 1, 10, 1, cfg.maxLines || 4, v => { cfg.maxLines = v; if (cfg.minLines > v) cfg.minLines = v; save(); }),
-      ], '语音条数、主动消息、翻译：下一轮做'));
+      ]),
+      group('主动消息', [
+        toggleItem({ title: '允许 TA 主动发消息', sub: '很久没聊、早安晚安、正文里刚发生了什么时，TA 会自己来找你' }, !!cfg.proactive, v => { cfg.proactive = v; save(); draw(); }),
+        cfg.proactive ? h('div.as-field', h('span.as-field__label', '频率'), segmented([['low', '少'], ['normal', '正常'], ['high', '多']], cfg.proactiveFreq || 'normal', v => { cfg.proactiveFreq = v; save(); })) : null,
+        cfg.proactive ? sliderRow('每天最多', 1, 20, 1, cfg.proactiveLimit || 5, v => { cfg.proactiveLimit = v; save(); }, v => v + ' 次') : null,
+      ].filter(Boolean), '遵守通知里的免打扰时段；所有自动行为还共用「设置 → 应用管理」里的每日上限。酒馆关着时不会来，回来时会补发你不在时 TA 发的消息。'),
+      trGroup(cfg, save, draw));
     if (lastTab === 'mem') box.append(
       group('剧情关联', [
         h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); }),
@@ -387,6 +402,18 @@ function openSettings(chat, redrawRoom) {
   p.el._onShow = draw;
   p.el._onLeave = () => { redrawRoom && setTimeout(() => redrawRoom(true), 0); };
   nav.push(p.el);
+}
+
+/** 翻译设置（私聊、群聊共用） */
+export function trGroup(cfg, save, draw) {
+  const langs = LANGS.map(([v, l]) => [v, l]);
+  const pickLang = async (key, title) => { const v = await actionSheet(title, langs.map(([v, l]) => ({ value: v, label: l, active: cfg[key] === v }))); if (v) { cfg[key] = v; save(); draw(); } };
+  return group('翻译（免费，不花你的 API）', [
+    toggleItem({ title: '自动翻译 TA 的消息', sub: `翻成 ${langName(cfg.myLang || 'zh-CN')}，显示在气泡下面` }, !!cfg.autoTr, v => { cfg.autoTr = v; save(); draw(); }),
+    item({ title: '我看的语言', value: langName(cfg.myLang || 'zh-CN'), chevron: true, onClick: () => pickLang('myLang', '翻成什么语言给我看') }),
+    toggleItem({ title: '发送前把我的话翻成 TA 的语言', sub: '原文显示在我的气泡下面' }, !!cfg.sendTr, v => { cfg.sendTr = v; save(); draw(); }),
+    cfg.sendTr ? item({ title: 'TA 的语言', value: langName(cfg.theirLang || 'en'), chevron: true, onClick: () => pickLang('theirLang', 'TA 说什么语言') }) : null,
+  ].filter(Boolean), '也可以长按任意一条消息 → 翻译。');
 }
 
 /** 头像与备注 */

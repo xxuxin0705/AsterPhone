@@ -174,7 +174,7 @@ async function boot() {
   Object.assign(shell, {
     phone, wallpaper, openApp, close: closePhone, applyLook, setNight: (n, el) => setNight(n, el), notify,
     lockNow: () => onVisible(false), refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
-    wantNight, activeChat: null,
+    wantNight, activeChat: null, inDnd,
   });
   phone.dataset.mode = wantNight() ? 'night' : 'day';
   nav.initNav($('#stack'), { onHomeBack: closePhone, onStackChange });

@@ -147,7 +147,7 @@ function openApps() {
     const follow = k => { const v = state.apps.chat.conn[k]; return v === 'follow' ? '跟随全局' : (state.connections[k].find(x => x.id === v) || {}).name || '跟随全局'; };
     body.append(
       group('自动行为', [sliderRow('每日自动请求上限', { min: 0, max: 100, step: 1, value: S().autoLimit, onInput: v => { S().autoLimit = v; commit('settings'); } }),
-        item({ title: '今天已用', value: `${used} 次` })], '主动消息、离开期间补发、自动动态、聊天触发动态共用这一个总闸（这些功能下一轮上线）。'),
+        item({ title: '今天已用', value: `${used} 次` })], '主动消息、离开期间补发、正文触发的消息共用这一个总闸，用完今天就不会再自动发了。'),
       group('应用', [
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', sub: '下一轮做', chevron: true, onClick: () => toast('资源库下一轮做') }),
@@ -174,7 +174,8 @@ function openChatApp() {
         field('新聊天默认联动方式', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); })),
         toggleItem({ title: '先加好友才能聊', sub: '下一轮配合「新的朋友」一起生效' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
         toggleItem({ title: '角色配图真的生图', sub: '关着时显示图片描述卡' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
-        item({ title: '主动消息', value: '下一轮' }),
+        toggleItem({ title: '新聊天默认允许 TA 主动发消息', sub: '每个聊天还能在「聊天设置 → 行为」里单独开关' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
+        a.defaults.proactive ? field('默认频率', segmented([['low', '少'], ['normal', '正常'], ['high', '多']], a.defaults.proactiveFreq || 'normal', v => { a.defaults.proactiveFreq = v; commit('apps'); })) : null,
       ]),
       group('注入正文', [
         item({ title: '注入默认表', sub: '哪些消息会写进正文', chevron: true, onClick: openInjectTable }),

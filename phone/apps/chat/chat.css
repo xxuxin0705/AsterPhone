@@ -405,3 +405,9 @@
 .as-chat-members span { font: 400 12px/1.2 var(--font-ui); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-chat-members em { font-style: normal; font: 400 10px/1.2 var(--font-ui); color: var(--as-color-accent); min-height: 12px; }
 .as-chat-members__plus { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--as-color-text-2); color: var(--as-color-text-2); }
+
+/* 翻译 */
+.as-chat-tr { max-width: 100%; margin-top: 2px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,.32); border: 1px dashed var(--as-color-glass-line); font: 400 .86em/1.5 var(--font-ui); color: var(--as-color-text); white-space: pre-wrap; word-break: break-word; }
+.as-chat-tr span { margin-right: 6px; font-size: .78em; padding: 1px 5px; border-radius: 6px; background: color-mix(in srgb, var(--as-color-accent) 16%, transparent); color: var(--as-color-accent); }
+.as-chat-tr.is-orig { color: var(--as-color-text-2); }
+.as-phone[data-mode="night"] .as-chat-tr { background: rgba(255,255,255,.06); }

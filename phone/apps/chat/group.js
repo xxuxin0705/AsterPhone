@@ -5,6 +5,7 @@ import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionS
 import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
+import { trGroup } from './room.js';
 
 /** 群头像：设置了就用；没设置就把前 4 个人的头像拼成一块 */
 export function groupAvatar(chat, size = 44) {
@@ -102,7 +103,8 @@ export function openGroupSettings(chat, redrawRoom) {
       group('剧情关联', [
         h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
-      ]));
+      ]),
+      trGroup(cfg, save, draw));
     if (lastTab === 'data') box.append(group('', [
       item({ title: '导出群聊记录', chevron: true, onClick: async () => {
         const data = { app: 'AsterPhone', kind: 'group', chat, msgs: await getMsgs(chat.id) };
