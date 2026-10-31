@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.26';
+export const VERSION = '0.6.27';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -435,9 +435,9 @@ async function cropWall(id) {
   const src = await walls.source(id); if (!src || !src.img && !src.video) return false;
   const media = src.img || src.video, iw = media.naturalWidth || media.videoWidth, ih = media.naturalHeight || media.videoHeight;
   const ph = shell.phone.getBoundingClientRect(), FW = 200, FH = Math.round(FW * ph.height / ph.width);
-  const old = src.crop || [0, 0, 1, 1];
+  const old = (walls.info(id) || {}).crop;   // 没调过的：和平时壁纸一样，铺满、居中
   const base = Math.max(FW / iw, FH / ih), zMin = Math.min(.5, Math.min(FW / iw, FH / ih) / base);
-  let z = Math.max(zMin, Math.min(4, (FW / (iw * base)) / old[2])), ox = -old[0] * iw * base * z, oy = -old[1] * ih * base * z;
+  let z = old ? Math.max(zMin, Math.min(4, (FW / (iw * base)) / old[2])) : 1, ox = old ? -old[0] * iw * base * z : (FW - iw * base) / 2, oy = old ? -old[1] * ih * base * z : (FH - ih * base) / 2;
   const pic = h('img.as-crop__img', { src: src.img ? src.img.src : '', alt: '' });
   if (!src.img) { const c = document.createElement('canvas'); c.width = iw; c.height = ih; c.getContext('2d').drawImage(src.video, 0, 0); pic.src = c.toDataURL('image/jpeg', .85); }
   const frame = h('div.as-crop__frame', { style: { width: FW + 'px', height: FH + 'px' } }, pic);
