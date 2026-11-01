@@ -352,6 +352,13 @@ function bumpStreak(chat) {
 }
 
 /* ---------- 剧情里 TA 发来的消息（暗号 <asterphone>） ---------- */
+/** 暗号里的群名找哪个群：先找同名的，再找名字差不多的（「宿舍」→「宿舍群」），再找有这个人、最近最热闹的群 */
+function storyGroup(name, c) {
+  const gs = state.chats.filter(isGroup), n = String(name).trim(), core = s => String(s || '').replace(/[群聊\s]/g, '');
+  return gs.find(g => g.name === n)
+    || (core(n) && gs.find(g => core(g.name) && (core(g.name).includes(core(n)) || core(n).includes(core(g.name)))))
+    || gs.filter(g => g.members.includes(c.id)).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0] || null;
+}
 /** 正文里写到有人用手机给你发消息、转账、发红包（暗号 <asterphone from="谁" group="群名">…</asterphone>）：
  *  一行一条，[转账] [红包] 这些写法和手机里一样；带 group 且找得到这个群就发在群里，否则发私聊 */
 export async function deliverFromStory(name, text, groupName = '') {
@@ -363,7 +370,7 @@ export async function deliverFromStory(name, text, groupName = '') {
     state.contacts.push(c); commit('contacts');
     log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
   }
-  const g = groupName && state.chats.find(x => isGroup(x) && x.name === groupName.trim());
+  const g = groupName && storyGroup(groupName, c);
   if (g && !g.members.includes(c.id)) { g.members.push(c.id); await addSystem(g, `「${nameOf(c)}」加入了群聊`); }
   const chat = g || chatForContact(c.id, true), msgs = await getMsgs(chat.id);
   for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {

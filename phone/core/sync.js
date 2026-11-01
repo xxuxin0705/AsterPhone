@@ -40,7 +40,11 @@ function hideAll() {
 /* ---------- 1. 暗号指令 ---------- */
 export function tagInstruction() {
   const text = compose('tag');
-  return text ? `[AsterPhone 格式说明]\n${text}` : '';
+  if (!text) return '';
+  // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
+  const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
+  const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}）`);
+  return `[AsterPhone 格式说明]\n${text}` + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的。` : '');
 }
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 
