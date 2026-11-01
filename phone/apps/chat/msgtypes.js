@@ -19,7 +19,7 @@ export function previewOf(m) {
     case 'transfer': return `[转账] ${money(m.amount)}`;
     case 'packet': return `[红包] ${m.note || '恭喜发财，大吉大利'}`;
     case 'location': return `[位置] ${m.text}`;
-    case 'call': return `[${m.mode === 'video' ? '视频' : '语音'}通话] ${fmtDur(m.dur || 0)}`;
+    case 'call': return m.missed ? `[${m.from === 'them' ? '未接来电' : '对方未接'}]` : `[${m.mode === 'video' ? '视频' : '语音'}通话] ${fmtDur(m.dur || 0)}`;
     case 'card': return `[名片] ${m.name}`;
     default: return m.text || '';
   }
@@ -34,7 +34,7 @@ export function forAI(m) {
     case 'transfer': return `[转账 ${money(m.amount)}${m.note ? '，备注：' + m.note : ''}｜${statusText(m)}]`;
     case 'packet': return `[红包 ${money(m.amount)}${m.note ? '，' + m.note : ''}｜${statusText(m)}]`;
     case 'location': return `[位置：${m.text}]`;
-    case 'call': return `[${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}${m.text ? '，聊了：' + m.text.slice(0, 200) : ''}]`;
+    case 'call': return m.missed ? `[${m.mode === 'video' ? '视频' : '语音'}通话，没接通]` : `[${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}${m.text ? '，聊了：' + m.text.slice(0, 200) : ''}]`;
     case 'card': return `[名片：${m.name}]`;
     default: return m.text || '';
   }

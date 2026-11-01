@@ -220,16 +220,7 @@ export async function requestReply(chat, opts = {}) {
       if (shown >= cap) break;
       const p = parseLine(line);
       // 收下 / 退还我刚发的转账、红包
-      if (p.type === 'accept' || p.type === 'return') {
-        const t = [...msgs].reverse().find(x => x.from === 'me' && (x.type === 'transfer' || x.type === 'packet') && x.status === 'pending');
-        if (t) {
-          t.status = p.type === 'accept' ? 'accepted' : 'returned';
-          if (t.status === 'returned') ledger(t.amount, `${nameOf(c)} 退还了${t.type === 'packet' ? '红包' : '转账'}`);
-          await addSystem(chat, `${nameOf(c)} ${t.status === 'accepted' ? '收下了' : '退还了'}你的${t.type === 'packet' ? '红包' : '转账'} ${money(t.amount)}`);
-          emit('reload', chat.id);
-        }
-        continue;
-      }
+      if (p.type === 'accept' || p.type === 'return') { await settleMine(chat, msgs, c, p.type === 'accept'); continue; }
       if (p.type === 'poke-them') { await addSystem(chat, `「${nameOf(c)}」拍了拍你${state.me.pokeSuffix || ''}`, { pokeMe: true }); continue; }
       if (!first) { emit('typing', chat.id, true); await sleep(Math.min(2400, 420 + String(p.text || '').length * 70)); }
       const m = { id: uid('m'), from: 'them', ...p, batch, ...time.stamp() };
@@ -352,6 +343,30 @@ function bumpStreak(chat) {
 }
 
 /* ---------- 剧情里 TA 发来的消息（暗号 <asterphone>） ---------- */
+/* ---------- 正文 → 手机（暗号）：两种联动方式都一样 ----------
+ * <asterphone from="谁" group="群名" type="…">内容</asterphone>，core/sync.js 读到后交给 fromStory。
+ * 没有 type：内容一行一条，写法和手机里一样（[语音] [图片] [转账] [红包] [名片] [拍一拍] [收下] [退还]），另加 [撤回]、[语音通话] / [视频通话]。
+ * type：动态 / 点赞 / 评论（你最新那条动态）/ 加好友 / 拉群。 */
+export async function fromStory({ from, body = '', group = '', type = '' }) {
+  const c = storyContact(from); if (!c) return;
+  if (type === '动态') return momentFromStory(c.name, body);
+  if (type === '点赞' || type === '评论') return reactFromStory(c, type, body);
+  if (type === '加好友') { const chat = chatForContact(c.id, true); await addSystem(chat, `你和「${nameOf(c)}」已经是好友了`); if (body.trim()) await deliverFromStory(c, body); return; }
+  if (type === '拉群') return groupFromStory(c, group, body);
+  return deliverFromStory(c, body, group);
+}
+/** 暗号里的人：通讯录里有就用，没有就加进来（直接是好友） */
+function storyContact(name) {
+  const n = String(name || '').trim(); if (!n) return null;
+  let c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(n));
+  if (!c) {
+    const ch = characters().find(k => k.name === n);
+    c = { id: uid('p'), name: n, nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: ch ? ch.avatar : '', charKey: ch ? ch.key : '', persona: '', source: ch ? 'card' : 'story', star: false, group: '', createdAt: Date.now() };
+    state.contacts.push(c); commit('contacts');
+    log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
+  }
+  return c;
+}
 /** 正文里提到谁发了动态：放进动态。还不是好友的先只记名字，加了好友就挂到 TA 名下（relinkMoments），在 TA 的动态里看得到 */
 export function momentFromStory(name, text) {
   const n = String(name || '').trim(); if (!n || !text) return;
@@ -364,6 +379,23 @@ export function momentFromStory(name, text) {
 export function relinkMoments() {
   for (const mo of state.moments) if (!mo.author && mo.authorName) { const c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(mo.authorName)); if (c) mo.author = c.id; }
 }
+/** 给你最新那条动态点赞 / 评论 */
+function reactFromStory(c, type, text) {
+  const mo = state.moments.find(m => m.author === 'me'); if (!mo) return;
+  if (type === '点赞') { if (!mo.likes.includes(c.id)) mo.likes.push(c.id); }
+  else if (text.trim()) mo.comments.push({ id: uid('cm'), who: c.id, to: null, text: text.trim(), at: Date.now() });
+  commit('moments');
+  shell.notify({ title: '动态', text: `${nameOf(c)}${type === '点赞' ? '赞了你的动态' : '评论了你的动态：' + text.trim()}`, avatarUrl: c.avatar });
+}
+/** 拉你进群：群不在就建一个（拉人的当群主），内容写群里还有谁 */
+async function groupFromStory(c, name, others) {
+  const ids = [c.id, ...String(others).split(/[、，,\s]+/).filter(Boolean).map(n => storyContact(n).id)];
+  let g = name && state.chats.find(x => isGroup(x) && x.name === name.trim());
+  if (!g) { g = createGroup([...new Set(ids)], name.trim() || undefined); g.owner = c.id; await addSystem(g, `「${nameOf(c)}」邀请你加入了群聊`); }
+  else for (const id of new Set(ids)) if (!g.members.includes(id)) { g.members.push(id); await addSystem(g, `「${nameOf(contact(id))}」加入了群聊`); }
+  commit('chats');
+  shell.notify({ chatId: g.id, title: g.name, text: `「${nameOf(c)}」邀请你加入了群聊`, avatarUrl: c.avatar });
+}
 /** 暗号里的群名找哪个群：先找同名的，再找名字差不多的（「宿舍」→「宿舍群」），再找有这个人、最近最热闹的群 */
 function storyGroup(name, c) {
   const gs = state.chats.filter(isGroup), n = String(name).trim(), core = s => String(s || '').replace(/[群聊\s]/g, '');
@@ -371,23 +403,33 @@ function storyGroup(name, c) {
     || (core(n) && gs.find(g => core(g.name) && (core(g.name).includes(core(n)) || core(n).includes(core(g.name)))))
     || gs.filter(g => g.members.includes(c.id)).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0] || null;
 }
-/** 正文里写到有人用手机给你发消息、转账、发红包（暗号 <asterphone from="谁" group="群名">…</asterphone>）：
- *  一行一条，[转账] [红包] 这些写法和手机里一样；带 group 且找得到这个群就发在群里，否则发私聊 */
-export async function deliverFromStory(name, text, groupName = '') {
-  const n = String(name || '').trim(); if (!n || !text) return;
-  let c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(n));
-  if (!c) {
-    const ch = characters().find(k => k.name === n);
-    c = { id: uid('p'), name: n, nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: ch ? ch.avatar : '', charKey: ch ? ch.key : '', persona: '', source: ch ? 'card' : 'story', star: false, group: '', createdAt: Date.now() };
-    state.contacts.push(c); commit('contacts');
-    log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
-  }
+/** 我刚发的、还没收的转账 / 红包：对方收下或退还（手机里 TA 回复、正文暗号都走这里） */
+async function settleMine(chat, msgs, c, accept) {
+  const t = [...msgs].reverse().find(x => x.from === 'me' && (x.type === 'transfer' || x.type === 'packet') && x.status === 'pending');
+  if (!t) return;
+  t.status = accept ? 'accepted' : 'returned';
+  if (!accept) ledger(t.amount, `${nameOf(c)} 退还了${t.type === 'packet' ? '红包' : '转账'}`);
+  await addSystem(chat, `${nameOf(c)} ${accept ? '收下了' : '退还了'}你的${t.type === 'packet' ? '红包' : '转账'} ${money(t.amount)}`);
+  emit('reload', chat.id);
+}
+/** 正文里写到有人在手机上给你发东西：一行一条；带 group 且找得到这个群就发在群里，否则发私聊 */
+export async function deliverFromStory(c, text, groupName = '') {
+  if (!c || !text) return;
   const g = groupName && storyGroup(groupName, c);
   if (g && !g.members.includes(c.id)) { g.members.push(c.id); await addSystem(g, `「${nameOf(c)}」加入了群聊`); }
   const chat = g || chatForContact(c.id, true), msgs = await getMsgs(chat.id);
   for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {
-    const m = { id: uid('m'), from: 'them', ...(g ? { who: c.id } : {}), ...parseLine(line), fromStory: true, ...time.stamp() };
-    if (['accept', 'return', 'poke-them'].includes(m.type)) continue;
+    const call = /^[\[【]\s*(语音|视频)通话\s*[\]】]/.exec(line);
+    if (call) { const dm = chatForContact(c.id, true); import('./specials.js').then(S => S.ringIn(dm, c, call[1] === '视频' ? 'video' : 'voice')); continue; }
+    if (/^[\[【]\s*撤回\s*[\]】]/.test(line)) {
+      const last = [...msgs].reverse().find(m => m.from === 'them' && !m.recalled && (!g || m.who === c.id));
+      if (last) { last.recalled = true; if (msgs[msgs.length - 1] === last) chat.lastText = preview(last); emit('reload', chat.id); }
+      continue;
+    }
+    const p = parseLine(line);
+    if (p.type === 'accept' || p.type === 'return') { await settleMine(chat, msgs, c, p.type === 'accept'); continue; }
+    if (p.type === 'poke-them') { await addSystem(chat, `「${nameOf(c)}」拍了拍你${state.me.pokeSuffix || ''}`, { pokeMe: true }); continue; }
+    const m = { id: uid('m'), from: 'them', ...(g ? { who: c.id } : {}), ...p, fromStory: true, ...time.stamp() };
     msgs.push(m); touch(chat, m); if (g) chat.lastText = `${nameOf(c)}：${preview(m)}`;
     if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
     emit('msg', chat.id, m);

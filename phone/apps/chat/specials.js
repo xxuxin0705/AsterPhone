@@ -6,6 +6,7 @@ import * as nav from '../../core/nav.js';
 import { generateImage, stopSpeak } from '../../core/api.js';
 import { speakAs } from '../../core/voice.js';
 import * as E from './engine.js';
+import { shell } from '../../core/shell.js';
 import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 
 /* ================= 气泡 ================= */
@@ -57,16 +58,18 @@ export function buildBubble(m, ctx) {
       return h('div.as-chat-bubble.as-chat-loc', h('div.as-chat-loc__map', h('span', icon('moments', 22, 2))), h('div.as-chat-loc__name', m.text));
     case 'call':
       return h('div.as-chat-bubble.as-chat-callrec', { onclick: e => { e.stopPropagation(); if (m.text) dialog({ title: `${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}`, text: m.text, cancel: null, confirm: '关闭' }); } },
-        icon('phone', 16, 2), `${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}`);
+        icon('phone', 16, 2), m.missed ? (m.from === 'them' ? '未接来电' : '对方未接') : `${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}`);
     case 'card': {
       const known = state.contacts.find(p => [p.name, p.nick, p.remark].includes(m.name));
       const el = h('div.as-chat-bubble.as-chat-card', h('div.as-chat-card__top', avatar(known && known.avatar, m.name, 40), h('div', h('b', m.name), h('span', known ? (known.sign || '已是好友') : '点一下加好友'))), h('div.as-chat-card__foot', '个人名片'));
       el.addEventListener('click', async e => {
         e.stopPropagation();
-        if (known) { (await import('./people.js')).openProfile(known.id); return; }
-        if (!(await dialog({ title: `加「${m.name}」为好友？`, text: `${mine ? '' : E.nameOf(ctx.c) + ' 推荐的名片。'}申请会放进「联系人 → 新的朋友」，在那里接受就能聊天了。`, confirm: '发送申请' }))) return;
-        const { addFriendRequest } = await import('./aiload.js');
-        toast(addFriendRequest(m.name, { from: mine ? '' : E.nameOf(ctx.c), persona: m.persona || '' }) ? '已放进「新的朋友」' : '已经申请过了');
+        const k2 = state.contacts.find(p => [p.name, p.nick, p.remark].includes(m.name));   // 刚加过的也算
+        if (k2) { (await import('./people.js')).openProfile(k2.id); return; }
+        if (!(await dialog({ title: `加「${m.name}」为好友？`, text: mine ? '' : `${E.nameOf(ctx.c)} 推荐的名片`, confirm: '添加' }))) return;
+        const { blankContact } = await import('./people.js');
+        state.contacts.push({ ...blankContact(), name: m.name, persona: m.persona || '', source: 'card' }); commit('contacts');
+        toast(`已添加「${m.name}」`); el.querySelector('.as-chat-card__top > div > span').textContent = '已是好友';
       });
       return el;
     }
@@ -174,21 +177,30 @@ export function openStickerManager() {
 }
 
 /* ================= 语音 / 视频通话 ================= */
-export function openCall(chat, c, mode = 'voice') {
+/** 正文里写到 TA 打电话过来：响铃，接 / 挂由你决定；没接就记一条「未接来电」 */
+export function ringIn(chat, c, mode) {
+  shell.notify({ chatId: chat.id, title: E.nameOf(c), text: `邀请你${mode === 'video' ? '视频' : '语音'}通话`, avatarUrl: E.avatarOf(c, chat) });
+  openCall(chat, c, mode, true);
+}
+export function openCall(chat, c, mode = 'voice', incoming = false) {
   const host = document.querySelector('#phone');
   const lines = [];
-  let sec = 0, busy = false, ended = false;
-  const timer = h('div.as-chat-call__time', '正在呼叫…');
+  let sec = 0, busy = false, ended = false, picked = !incoming;
+  const timer = h('div.as-chat-call__time', incoming ? `邀请你${mode === 'video' ? '视频' : '语音'}通话…` : '正在呼叫…');
   const log = h('div.as-chat-call__log');
   const input = h('input.as-chat-call__input', { placeholder: '说点什么…', enterkeyhint: 'send' });
   const say = h('button.as-chat-call__say', { onclick: talk }, icon('send', 18, 2));
   const bgUrl = chat.cfg.callBg || chat.cfg.bg || E.avatarOf(c, chat);
+  let bar, ring, btns;
   const el = h('div.as-chat-call' + (mode === 'video' ? '.is-video' : ''),
     h('div.as-chat-call__bg', bgUrl ? { style: { backgroundImage: `url("${bgUrl}")` } } : null),
     h('div.as-chat-call__head', avatar(E.avatarOf(c, chat), E.nameOf(c), 96), h('b', E.nameOf(c)), timer),
     log,
-    h('div.as-chat-call__bar', input, say),
-    h('div.as-chat-call__btns',
+    bar = h('div.as-chat-call__bar', { hidden: incoming }, input, say),
+    ring = h('div.as-chat-call__btns', { hidden: !incoming },
+      h('button.is-hang', { 'aria-label': '拒绝', onclick: hang }, icon('phone', 24, 2)),
+      h('button.is-pick', { 'aria-label': '接听', onclick: pick }, icon('phone', 24, 2))),
+    btns = h('div.as-chat-call__btns', { hidden: incoming },
       h('button', { 'aria-label': '静音', onclick: e => { e.currentTarget.classList.toggle('is-on'); stopSpeak(); } }, icon('mic', 22, 1.8)),
       h('button.is-hang', { 'aria-label': '挂断', onclick: hang }, icon('phone', 24, 2)),
       h('button', { 'aria-label': '让 TA 说', onclick: () => talk(true) }, icon('sparkle', 22, 1.8))));
@@ -196,7 +208,9 @@ export function openCall(chat, c, mode = 'voice') {
   requestAnimationFrame(() => el.classList.add('is-open'));
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) talk(); });
   const tick = setInterval(() => { if (sec >= 0 && lines.length + sec > 0) { sec++; timer.textContent = `${mode === 'video' ? '视频' : '语音'}通话中 ${fmtDur(sec)}`; } }, 1000);
-  setTimeout(() => { if (!ended) { sec = 0; timer.textContent = '已接通'; talk(true); } }, 1400);
+  if (incoming) setTimeout(() => { if (!picked && !ended) hang(); }, 45000);   // 45 秒没接：未接来电
+  else setTimeout(() => { if (!ended) { sec = 0; timer.textContent = '已接通'; talk(true); } }, 1400);
+  function pick() { picked = true; ring.hidden = true; bar.hidden = btns.hidden = false; sec = 0; timer.textContent = '已接通'; talk(true); }
 
   function add(who, text) { lines.push({ who, text }); log.appendChild(h('div.as-chat-call__line' + (who === 'me' ? '.is-me' : ''), text)); log.scrollTop = log.scrollHeight; }
   async function talk(themOnly) {
@@ -215,7 +229,7 @@ export function openCall(chat, c, mode = 'voice') {
     ended = true; clearInterval(tick); stopSpeak();
     el.classList.remove('is-open'); setTimeout(() => el.remove(), 360);
     const text = lines.map(l => `${l.who === 'me' ? '我' : E.nameOf(c)}：${l.text}`).join('\n');
-    await E.sendSpecial(chat, { type: 'call', mode, dur: Math.max(sec, 1), text });
+    await E.sendSpecial(chat, picked ? { type: 'call', mode, dur: Math.max(sec, 1), text, ...(incoming ? { from: 'them' } : {}) } : { type: 'call', mode, dur: 0, missed: true, from: 'them' });
   }
 }
 

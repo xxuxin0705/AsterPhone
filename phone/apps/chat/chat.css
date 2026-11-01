@@ -392,6 +392,7 @@
 .as-chat-call__btns button.is-on { background: #fff; color: #0d2c4a; }
 .as-chat-call__btns .is-hang { background: #f0605a; border-color: transparent; transform: rotate(135deg); }
 .as-chat-call__btns .is-hang:active { transform: rotate(135deg) scale(.92); }
+.as-chat-call__btns .is-pick { background: #34c759; border-color: transparent; }   /* 来电：接听 */
 
 /* ================= 群聊 ================= */
 .as-chat-gava { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; box-sizing: border-box; border-radius: 26%; background: rgba(255,255,255,.55); border: 1px solid var(--as-color-glass-line); overflow: hidden; flex: none; align-content: center; }

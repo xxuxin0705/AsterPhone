@@ -58,17 +58,17 @@ async function readMessage(id) {
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {
-    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), grp = /group\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), mo = /type\s*=\s*["“']?动态/.test(r[1]);
+    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), grp = /group\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), ty = /type\s*=\s*["“']?([^"”'>\s]+)/.exec(r[1]);
     let from = attr ? attr[1].trim() : '', body = r[2].trim();
     if (!from) { const mm = /^([^:：\n]{1,20})[:：]\s*([\s\S]+)$/.exec(body); if (mm) { from = mm[1].trim(); body = mm[2].trim(); } }
-    if (from && body) found.push([from, body, grp ? grp[1].trim() : '', mo]);
+    if (from && (body || ty)) found.push([from, body, grp ? grp[1].trim() : '', ty ? ty[1] : '']);
   }
   if (!found.length) return;
-  const { deliverFromStory, momentFromStory } = await import('../apps/chat/engine.js');
-  for (const [from, body, grp, mo] of found) {
-    const k = `${id}|${m.swipe_id ?? 0}|${from}|${grp}|${mo}|${body}`;
+  const { fromStory } = await import('../apps/chat/engine.js');
+  for (const [from, body, group, type] of found) {
+    const k = `${id}|${m.swipe_id ?? 0}|${from}|${group}|${type}|${body}`;
     if (seen.has(k)) continue; seen.add(k);
-    if (mo) momentFromStory(from, body); else await deliverFromStory(from, body, grp);
+    await fromStory({ from, body, group, type });
   }
   hideTagsIn(id, tag());
 }
