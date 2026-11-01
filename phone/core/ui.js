@@ -1,6 +1,6 @@
 // 公共积木：页面、顶栏、列表组、开关、分段选择、滑块、抽屉、弹窗、轻提示……
 // 类名都按设计规范的门牌号来（as-xxx），皮肤靠这些名字改样子。
-import { h, $ } from './util.js';
+import { h, $, pickFile } from './util.js';
 import { state } from './store.js';
 
 let root = null;
@@ -150,6 +150,53 @@ export function actionSheet(title, options) {
     const s = sheet({ title, content: h('div.as-actions', options.map(o => h('button.as-actions__item' + (o.danger ? '.is-danger' : '') + (o.active ? '.is-active' : ''), {
       onclick: () => { done = true; s.close(); res(o.value); } }, o.icon && icon(o.icon, 20), h('span', o.label), o.active && icon('check', 18, 2))),
     h('button.as-actions__cancel', { onclick: () => s.close() }, '取消')), onClose: () => { if (!done) res(null); } });
+  });
+}
+
+/** 设图片（头像、背景、封面）：从相册选（选完拖一拖、捏一捏框出要的那块）/ 填图片链接 / 恢复默认。
+ *  ratio = 宽 ÷ 高（'screen' 就是手机屏幕的比例），size = 存下来的长边像素。返回图片（dataURL 或链接）；'' 是恢复默认；null 是没改 */
+export async function pickImage(title, { ratio = 1, size = 320, has = false } = {}) {
+  const v = await actionSheet(title, [{ value: 'file', label: '从相册选择', icon: 'image' }, { value: 'url', label: '图片链接', icon: 'link' }, has && { value: '', label: '恢复默认', icon: 'close' }].filter(Boolean));
+  if (v === '') return '';
+  if (v === 'url') {
+    const u = ((await dialog({ title: '图片链接', input: { placeholder: '图片链接' } })) || '').trim();
+    if (!u) return null;
+    if (!(await new Promise(ok => { const i = new Image(); i.onload = () => ok(true); i.onerror = () => ok(false); i.src = u; }))) { toast('这个链接打不开图片'); return null; }
+    return u;
+  }
+  if (v !== 'file') return null;
+  const f = await pickFile();
+  return f ? cropImage(f, ratio === 'screen' ? root.clientWidth / root.clientHeight : ratio, size) : null;
+}
+function cropImage(file, ratio, size) {
+  return new Promise(res => {
+    const url = URL.createObjectURL(file), img = h('img.as-crop__img', { alt: '' });
+    const fw = Math.min(root.clientWidth - 48, (root.clientHeight - 200) * ratio), fh = fw / ratio;
+    const frame = h('div.as-crop__frame', { style: { width: fw + 'px', height: fh + 'px' } }, img);
+    let s = 1, min = 1, x = 0, y = 0, gap = 0;   // 图片缩放倍数、左上角在框里的位置
+    const fit = () => { s = Math.max(s, min); x = Math.min(0, Math.max(fw - img.naturalWidth * s, x)); y = Math.min(0, Math.max(fh - img.naturalHeight * s, y)); img.style.transform = `translate(${x}px, ${y}px) scale(${s})`; };
+    img.onload = () => { min = s = Math.max(fw / img.naturalWidth, fh / img.naturalHeight); x = (fw - img.naturalWidth * s) / 2; y = (fh - img.naturalHeight * s) / 2; fit(); };
+    img.onerror = () => { toast('这张图打不开'); done(null); };
+    // 一根手指拖，两根手指捏着缩放（围着框的中间缩）
+    const pts = new Map();
+    frame.onpointerdown = e => { frame.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); gap = 0; };
+    frame.onpointermove = e => {
+      const old = pts.get(e.pointerId); if (!old) return; pts.set(e.pointerId, e);
+      if (pts.size === 1) { x += e.clientX - old.clientX; y += e.clientY - old.clientY; }
+      else { const [a, b] = [...pts.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        if (gap) { const ns = Math.max(min, s * d / gap), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; } gap = d; }
+      fit();
+    };
+    frame.onpointerup = frame.onpointercancel = e => { pts.delete(e.pointerId); gap = 0; };
+    frame.onwheel = e => { e.preventDefault(); const ns = Math.max(min, s * (e.deltaY < 0 ? 1.1 : .9)), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; fit(); };
+    const box = h('div.as-crop', frame, h('div.as-crop__bar', btn('取消', 'secondary', () => done(null)), btn('确定', 'primary', () => {
+      const k = size / Math.max(fw, fh), c = document.createElement('canvas');
+      c.width = Math.round(fw * k); c.height = Math.round(fh * k);
+      c.getContext('2d').drawImage(img, -x / s, -y / s, fw / s, fh / s, 0, 0, c.width, c.height);
+      done(c.toDataURL('image/jpeg', .86));
+    })));
+    function done(v) { URL.revokeObjectURL(url); box.remove(); res(v); }
+    root.append(box); img.src = url;
   });
 }
 

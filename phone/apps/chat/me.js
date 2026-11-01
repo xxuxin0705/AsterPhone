@@ -1,7 +1,7 @@
 // 我：主页（头像、数字格、签名、关于我）、编辑资料、钱包、收藏。
-import { h, fileToDataURL, pickFile } from '../../core/util.js';
+import { h } from '../../core/util.js';
 import { state, commit, subscribe, getMsgs, contact } from '../../core/store.js';
-import { page, group, item, field, input, textarea, segmented, avatar, icon, navText, toast, empty, dialog } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, segmented, avatar, icon, navText, toast, empty, dialog, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { userPersona, userName, inTavern } from '../../core/bridge.js';
@@ -36,7 +36,7 @@ export function renderMe(ctx) {
       ]),
       group('我的动态', [h('div', { style: { paddingBottom: '4px' } }, (() => { const f = h('div'); feedInto(f, state.moments.filter(m => m.author === 'me'), draw); return f; })())]));
   }
-  async function changeAvatar() { const f = await pickFile(); if (!f) return; state.me.avatar = await fileToDataURL(f, 320); commit('me'); draw(); }
+  async function changeAvatar() { const v = await pickImage('头像', { has: !!state.me.avatar }); if (v == null) return; state.me.avatar = v; commit('me'); draw(); }
   draw();
   ctx.el._onShowMe = draw;
   const unsub = subscribe(w => { if (w === 'me' || w === 'all' || w === 'moments') draw(); });

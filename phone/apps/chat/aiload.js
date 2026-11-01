@@ -1,8 +1,8 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
-import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
+import { h, uid } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
 import { groupAvatar } from './group.js';
-import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
+import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, currentCharacter, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
@@ -103,7 +103,7 @@ export function openPreview(data, { after, lore, under } = {}) {
     const ck = h('span.as-chat-check' + (x._on ? '.is-active' : ''), icon('check', 14, 2.6));
     const toggle = () => { x._on = !x._on; ck.classList.toggle('is-active', x._on); el.classList.toggle('is-off', !x._on); };
     const ava = () => kind === 'p' ? avatar(x.avatar || '', x.name, 36) : groupAvatar(x, 36);
-    const avaBox = h('span', { onclick: async ev => { ev.stopPropagation(); const f = await pickFile(); if (f) { x.avatar = await fileToDataURL(f, 320); avaBox.replaceChildren(ava()); } } }, ava());
+    const avaBox = h('span', { onclick: async ev => { ev.stopPropagation(); const v = await pickImage(kind === 'g' ? '群头像' : '头像', { has: !!x.avatar }); if (v != null) { x.avatar = v; avaBox.replaceChildren(ava()); } } }, ava());
     const title = h('b', x.name);
     const rename = v => { x.name = v; title.textContent = v; if (!x.avatar) avaBox.replaceChildren(ava()); labels.forEach(([m, s]) => { if (m === x) s.textContent = v; }); };
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));

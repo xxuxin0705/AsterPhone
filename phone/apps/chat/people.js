@@ -1,7 +1,7 @@
 // 联系人相关的页面和抽屉：资料页（直接改）、手动添加、选人。
-import { h, uid, sortZh, fileToDataURL, pickFile } from '../../core/util.js';
+import { h, uid, sortZh } from '../../core/util.js';
 import { state, commit, contact, chatForContact, clearMsgs } from '../../core/store.js';
-import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem } from '../../core/ui.js';
+import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { nameOf, relinkMoments } from './engine.js';
 
@@ -48,7 +48,7 @@ export function openContactForm() {
   const c = blankContact();
   const ava = h('div', { style: { display: 'grid', placeItems: 'center', padding: '6px 0 18px' } });
   const drawAva = () => { ava.innerHTML = ''; ava.appendChild(h('button', { style: { border: 0, background: 'none', padding: 0, cursor: 'pointer', display: 'grid', justifyItems: 'center', gap: '8px', color: 'var(--as-color-accent)', font: '500 13px/1 var(--font-ui)' },
-    onclick: async () => { const f = await pickFile(); if (f) { c.avatar = await fileToDataURL(f, 320); drawAva(); } } }, avatar(c.avatar, c.name || c.nick || '新', 76), '更换头像')); };
+    onclick: async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v != null) { c.avatar = v; drawAva(); } } }, avatar(c.avatar, c.name || c.nick || '新', 76), '更换头像')); };
   drawAva();
   const p = page({ app: 'chat', id: 'chat-contacts-add', title: '添加好友', back: true,
     right: navText('保存', () => {
@@ -65,7 +65,7 @@ export function openContactForm() {
 export function openProfile(cid, { onMessage } = {}) {
   const c = contact(cid); if (!c) { toast('这个联系人不在了'); return; }
   const p = page({ app: 'chat', id: 'chat-profile', title: '', back: true });
-  const ava = h('button.as-chat-profile__ava', { 'aria-label': '换头像', onclick: async () => { const f = await pickFile(); if (f) { c.avatar = await fileToDataURL(f, 320); commit('contacts'); paintAva(); } } });
+  const ava = h('button.as-chat-profile__ava', { 'aria-label': '换头像', onclick: async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v != null) { c.avatar = v; commit('contacts'); paintAva(); } } });
   const paintAva = () => ava.replaceChildren(avatar(c.avatar, nameOf(c), 72, 'square'));
   const nameEl = h('div.as-chat-profile__name'), lines = h('div');
   const paintHead = () => {

@@ -1,7 +1,7 @@
 // 动态页：封面 + 动态流；发动态；生成角色动态；点赞 / 评论 / 生成评论；某个人的动态空间。
 import { h, uid, onLongPress, fileToDataURL, pickFile, $ } from '../../core/util.js';
 import { state, commit, contact, subscribe } from '../../core/store.js';
-import { page, group, item, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet } from '../../core/ui.js';
+import { page, group, item, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { nameOf, who, genMoment, genComments, relinkMoments } from './engine.js';
@@ -33,8 +33,8 @@ function cover(personId = 'me') {
   const el = h('div.as-chat-moments-cover', { style: bg ? { backgroundImage: `url(${bg})` } : {}, title: personId === 'me' ? '点一下换封面' : '' },
     h('div.as-chat-moments-cover__me', h('div.as-chat-moments-cover__name', authorName(personId)), avatar(authorAvatar(personId), authorName(personId), 68, 'square')));
   if (personId === 'me') el.addEventListener('click', async () => {
-    const f = await pickFile(); if (!f) return;
-    state.me.cover = await fileToDataURL(f, 900); commit('me'); el.style.backgroundImage = `url(${state.me.cover})`;
+    const v = await pickImage('封面', { ratio: el.clientWidth / el.clientHeight, size: 900, has: !!state.me.cover }); if (v == null) return;
+    state.me.cover = v; commit('me'); el.style.backgroundImage = v ? `url(${v})` : '';
   });
   return el;
 }

@@ -1,7 +1,7 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
-import { h, onLongPress, fileToDataURL, pickFile } from '../../core/util.js';
+import { h, onLongPress } from '../../core/util.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -426,9 +426,8 @@ function openAvatarPage(chat, after) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const p = page({ app: 'chat', id: 'chat-room-avatar', title: '头像与备注', back: true });
   const pick = async (key, label) => {
-    const v = await actionSheet(label, [{ value: 'pick', label: '从相册选择', icon: 'image' }, cfg[key] && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
-    if (v === 'pick') { const f = await pickFile(); if (f) { cfg[key] = await fileToDataURL(f, 320); commit('chats'); draw(); } }
-    if (v === 'clear') { cfg[key] = ''; commit('chats'); draw(); }
+    const v = await pickImage(label, { has: !!cfg[key] }); if (v == null) return;
+    cfg[key] = v; commit('chats'); draw();
   };
   const preview = h('div.as-chat-ava-preview');
   function draw() {
@@ -464,7 +463,7 @@ function openBgPage(chat, after) {
     p.body.append(group('聊天背景', [
       h('div.as-chat-bg-preview', { style: cfg.bg ? { backgroundImage: `url(${cfg.bg})` } : {} }, cfg.bg ? null : h('span', '默认：跟随主题的蓝色渐变')),
       h('div.as-chat-bg-btns',
-        btn('导入背景', 'secondary', async () => { const f = await pickFile(); if (f) { cfg.bg = await fileToDataURL(f, 1100); commit('chats'); draw(); } }),
+        btn('导入背景', 'secondary', async () => { const v = await pickImage('聊天背景', { ratio: 'screen', size: 1100 }); if (v) { cfg.bg = v; commit('chats'); draw(); } }),
         btn('恢复默认', 'secondary', () => { cfg.bg = ''; commit('chats'); draw(); })),
     ], '语音通话的背景，等通话功能上线后也放在这里。'));
   }

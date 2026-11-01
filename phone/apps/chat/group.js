@@ -1,7 +1,7 @@
 // 群聊：建群、群头像（没设置时是群名第一个字）、群设置（资料 / 成员 / 行为 / 数据）。
-import { h, fileToDataURL, pickFile } from '../../core/util.js';
+import { h } from '../../core/util.js';
 import { state, commit, contact, getMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
@@ -48,9 +48,8 @@ export function openGroupSettings(chat, redrawRoom) {
     if (lastTab === 'info') box.append(
       group('群资料', [
         item({ title: '群头像', right: groupAvatar(chat, 30), chevron: true, onClick: async () => {
-          const v = await actionSheet('群头像', [{ value: 'pick', label: '从相册选择', icon: 'image' }, chat.avatar && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
-          if (v === 'pick') { const f = await pickFile(); if (f) { chat.avatar = await fileToDataURL(f, 320); save(); draw(); } }
-          if (v === 'clear') { chat.avatar = ''; save(); draw(); }
+          const v = await pickImage('群头像', { has: !!chat.avatar }); if (v == null) return;
+          chat.avatar = v; save(); draw();
         } }),
         field('群名', input({ value: chat.name, onInput: v => { chat.name = v.trim() || chat.name; save(); } })),
         field('群介绍（只给 AI 看，帮它理解这是个什么群）', textarea({ value: chat.intro || '', rows: 3, placeholder: '例如：大学室友群，平时互损', onInput: v => { chat.intro = v; save(); } })),
@@ -60,12 +59,11 @@ export function openGroupSettings(chat, redrawRoom) {
         field('我的群昵称', input({ value: cfg.myNick || '', placeholder: state.me.nick || '不填就用我的网名', onInput: v => { cfg.myNick = v.trim(); save(); } })),
         field('我的头衔', input({ value: cfg.myTitle || '', placeholder: '例如：群宠', onInput: v => { cfg.myTitle = v.trim(); save(); } })),
         item({ title: '我在本群的头像', right: cfg.myAvatar ? avatar(cfg.myAvatar, '', 30) : h('span.as-muted', '默认'), chevron: true, onClick: async () => {
-          const f = await pickFile(); if (f) { cfg.myAvatar = await fileToDataURL(f, 320); save(); draw(); }
+          const v = await pickImage('我在本群的头像', { has: !!cfg.myAvatar }); if (v != null) { cfg.myAvatar = v; save(); draw(); }
         } }),
         item({ title: '聊天背景', right: cfg.bg ? avatar(cfg.bg, '', 30, 'square') : h('span.as-muted', '默认'), chevron: true, onClick: async () => {
-          const v = await actionSheet('聊天背景', [{ value: 'pick', label: '从相册选择', icon: 'image' }, cfg.bg && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
-          if (v === 'pick') { const f = await pickFile(); if (f) { cfg.bg = await fileToDataURL(f, 1100); save(); draw(); } }
-          if (v === 'clear') { cfg.bg = ''; save(); draw(); }
+          const v = await pickImage('聊天背景', { ratio: 'screen', size: 1100, has: !!cfg.bg }); if (v == null) return;
+          cfg.bg = v; save(); draw();
         } }),
       ]));
     if (lastTab === 'members') {

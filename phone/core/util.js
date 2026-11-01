@@ -66,23 +66,19 @@ export function initial(s) {
 }
 export const sortZh = (a, b) => collator.compare(a, b);
 
-/** 文件 → dataURL（头像、背景用），顺手压缩到 maxSize 以内 */
+/** 文件 → dataURL（发图片、表情用），顺手压缩到 maxSize 以内。
+ *  不先把整张原图读成一长串文字（手机拍的照片有十几兆，那样很卡、还会把页面撑崩），直接让浏览器打开文件 */
 export function fileToDataURL(file, maxSize = 512) {
   return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onerror = rej;
-    fr.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const s = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        res(c.toDataURL('image/jpeg', .86));
-      };
-      img.onerror = rej; img.src = fr.result;
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .86));
     };
-    fr.readAsDataURL(file);
+    img.onerror = e => { URL.revokeObjectURL(url); rej(e); }; img.src = url;
   });
 }
 export function pickFile(accept = 'image/*') {
