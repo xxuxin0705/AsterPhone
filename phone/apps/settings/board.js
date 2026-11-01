@@ -7,7 +7,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, SAMPLERS, listSamplers, failCfg, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 import { openVoicePage, voiceInput, withInfo } from './voices.js';
@@ -15,8 +15,8 @@ import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/v
 
 const C = () => state.connections;
 const subscribeConn = fn => subscribe(w => { if (w === 'connections' || w === 'all') fn(); });
-const KIND_NAME = { text: '文字', image: '生图', tts: '语音', embed: '向量' };
-/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 向量记忆（Embedding），以后找旧聊天用 */
+const KIND_NAME = { text: '文字', image: '生图', tts: '语音', embed: '其他' };
+/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 自己写标签的接口（向量、通话…），App 设置里按标签挑 */
 const CORDS = [
   { use: 'text', kind: 'text', label: '聊天', sym: '@', ink: [52, 120, 220], glow: [140, 200, 255] },
   { use: 'image', kind: 'image', label: '生图', sym: '#', ink: [130, 92, 220], glow: [200, 170, 255] },
@@ -689,7 +689,8 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
 /* ================= 接口详情 ================= */
 const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
 const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
-const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : KIND_NAME[kind];
+const tagOf = c => c.tag || (CHANNELS.embed.find(x => x.v === c.type) || {}).tag || '其他';   // 「其他」线上的接口：自己写的标签，没写就用这一类默认的
+const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : kind === 'embed' ? tagOf(c) : KIND_NAME[kind];
 const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
   : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
   : (!keysOf(c).length && !((CHANNELS.image.find(x => x.v === c.type) || CHANNELS.tts.find(x => x.v === c.type) || {}).noKey) && c.type !== 'tavern' ? '还没填密钥' : c.model || '');
@@ -698,6 +699,8 @@ async function doTest(c, kind) {
   const chs = CHANNELS[kind] || [], ch = chs.find(x => x.v === c.type) || {};
   if (kind !== 'text' && !ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
   if (kind === 'text') { await testConn(c); return {}; }
+  if (c.type === 'gemini-live') { await testLive(c); return { note: '能开实时对话' }; }
+  if (c.type === 'openai-realtime' || c.type === 'other-compat') { const w = await testCompat(c); return w ? { note: w } : {}; }
   if (kind === 'embed') { const n = await testEmbed(c); return { note: `返回了 ${n} 维向量` }; }
   if (kind === 'tts') { await testVoice(c); return {}; }
   if (!ch.noKey && !(await dialog({ title: '真画一张试试？', text: '会画一张很小的图，付费渠道会扣一张图的钱。', confirm: '画' }))) return { cancel: true };
@@ -739,7 +742,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
   paintSt();
   const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆当前连接' : d.name || (isNew ? '新接口' : ''));
   const subEl = h('span.as-pbd__subline');
-  const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
+  const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${kind === 'embed' ? tagOf(d) : KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
   paintSub();
   // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
   const testBtn = h('button.as-pbd__test', { onclick: async () => {
@@ -794,8 +797,10 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         if (kind === 'tts' && (!d.tts.voice || CHANNELS.tts.some(x => x.voice === d.tts.voice))) d.tts.voice = ch.voice || '';
         // 名字还是原来渠道的名字（没自己改过）就跟着换
         if (!d.name || CHANNELS[kind].some(x => x.label === d.name)) { d.name = ch.label; nameEl.textContent = ch.label; }
-        d.type = v; touch(); rebuild();
+        d.type = v; paintSub(); touch(); rebuild();
       } }, h('span', (CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type), icon('chevron', 14, 2));
+      // 「其他」线：标签自己写（格子上显示它，App 设置里按它挑），空着就用这一类默认的
+      const tagIn = kind === 'embed' && input({ value: d.tag || '', placeholder: (CHANNELS.embed.find(x => x.v === d.type) || {}).tag || '标签', onInput: v => { d.tag = v.trim().slice(0, 8); paintSub(); touch(); } });
       const baseIn = input({ value: d.base, placeholder: 'https://…', onInput: v => { d.base = v; touch(); } });
       // 密钥：可以存好几把，被拒了自动换下一把
       const keyBox = h('div.as-pbd__keys');
@@ -852,7 +857,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         } }, h('span', (FMT.find(x => x[0] === (d.fmt || '')) || FMT[0])[1]), icon('chevron', 14, 2));
         extraRows.push(row('接口格式', fb));
       }
-      b.append(row('名字', nameIn), row('类型', typeBtn), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
+      b.append(row('名字', nameIn), row('类型', typeBtn), ...(tagIn ? [row('标签', tagIn)] : []), siteBox, ...extraRows, row('地址', baseIn), row('密钥', keyBox, (CHANNELS[kind].find(x => x.v === d.type) || {}).noKey ? '这个渠道可以不填密钥。' : '只存在这台设备上；导出数据时默认不带。有好几把的话，被拒或限流会自动换下一把。'),
         row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
     }, true));
     if (kind === 'text') {

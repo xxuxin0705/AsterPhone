@@ -12,12 +12,12 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.53';
+export const VERSION = '0.6.54';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
 const LOCK_LABEL = { none: '无（上滑解锁）', finger: '指纹', pin: '数字密码', pattern: '手势密码' };
-const KIND_LABEL = { text: '文字', image: '生图', tts: '语音', embed: '向量' };
+const KIND_LABEL = { text: '文字', image: '生图', tts: '语音', embed: '其他' };
 const S = () => state.settings;
 const sliderRow = (label, { min, max, step, value, onInput, fmt = v => v }) => {
   const out = h('output', fmt(value));
@@ -98,7 +98,7 @@ function openConnList() {
   const p = sub('connections', '连接 · 列表', (body, re) => {
     const list = state.connections[connKind];
     mic.hidden = connKind !== 'tts';
-    body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '向量']], connKind, v => { connKind = v; re(); })));
+    body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '其他']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => add()))); return; }
     const def = state.connections.defaults[connKind];
     body.appendChild(group(connKind === 'text' ? '「酒馆当前连接」= 你在酒馆里正在用的 API' : '', list.map(c => {

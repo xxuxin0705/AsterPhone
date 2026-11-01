@@ -40,9 +40,13 @@ export const CHANNELS = {
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
-    { v: 'siliconflow-embed', label: '硅基流动', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
-    { v: 'zhipu-embed', label: '智谱', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
-    { v: 'openai-embed', label: '第三方（OpenAI 兼容）', base: '', model: 'text-embedding-3-small', site: '', custom: true },
+    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、两个实时通话，也可以自定义
+    { v: 'siliconflow-embed', label: '硅基流动', tag: '向量', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
+    { v: 'zhipu-embed', label: '智谱', tag: '向量', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
+    { v: 'openai-embed', label: '第三方向量（OpenAI 兼容）', tag: '向量', base: '', model: 'text-embedding-3-small', site: '', custom: true },
+    { v: 'openai-realtime', label: 'OpenAI 实时语音', tag: '通话', base: 'https://api.openai.com/v1', model: 'gpt-realtime-2.1', site: 'https://platform.openai.com/api-keys' },
+    { v: 'gemini-live', label: 'Gemini Live', tag: '通话', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.8-live', site: 'https://aistudio.google.com/apikey' },
+    { v: 'other-compat', label: '自定义（OpenAI 兼容）', tag: '', base: '', model: '', site: '', custom: true },
   ],
   // 语音渠道：同样先填好地址、默认模型、默认音色、官网。fields = 这个渠道额外要填的东西
   tts: [
@@ -209,7 +213,7 @@ async function readOut(res, pickDelta, pickWhole) {
 
 /** 拉取模型列表 */
 // 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
-const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed']);
+const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed', 'openai-realtime', 'other-compat']);
 /** 拉模型列表：能从网上拉的就拉，没有列表接口的给出这家固定的那几个。失败了记进日志 */
 export async function listModels(conn) {
   try { return await pullModels(conn); }
@@ -223,17 +227,19 @@ async function pullModels(conn) {
   if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
     const res = await xf(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
-    const j = await res.json(); return (j.data || []).map(m => m.id).sort();
+    const j = await res.json(), ids = (j.data || []).map(m => m.id).sort();
+    return conn.type === 'openai-realtime' ? ids.filter(m => /realtime|live/i.test(m)) : ids;
   }
   if (conn.type === 'claude') {
     const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/models', { headers: { 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id);
   }
-  if (conn.type === 'gemini') {
+  if (conn.type === 'gemini' || conn.type === 'gemini-live') {   // Live 只列能实时对话（bidiGenerateContent）的
     const res = await xf(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
     if (!res.ok) throw new Error(await readErr(res));
-    const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
+    const how = conn.type === 'gemini-live' ? 'bidiGenerateContent' : 'generateContent';
+    const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes(how)).map(m => m.name.replace(/^models\//, ''));
   }
   // 本地 SD / ComfyUI：拉的是装好的底模
   if (conn.type === 'sd-webui') { const res = await xf(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
@@ -657,6 +663,24 @@ export function seedChannels() {
   return changed;
 }
 export const seedImageChannels = seedChannels;
+/** 测 Gemini Live：开一条实时连接，发个开场，等它回「准备好了」就断开（不说话、不花钱） */
+export function testLive(conn) {
+  const url = trim(conn.base || 'https://generativelanguage.googleapis.com').replace(/^http/, 'ws') + '/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' + encodeURIComponent(keysOf(conn)[0] || '');
+  return new Promise((ok, no) => {
+    const ws = new WebSocket(url), t = setTimeout(() => { ws.close(); no(new Error('等了 15 秒没回应')); }, 15000);
+    ws.onopen = () => ws.send(JSON.stringify({ setup: { model: 'models/' + conn.model } }));
+    ws.onmessage = async e => {
+      clearTimeout(t); const txt = typeof e.data === 'string' ? e.data : await e.data.text(); ws.close();
+      if (/setupComplete/.test(txt)) ok(); else no(new Error(txt.slice(0, 160)));
+    };
+    ws.onclose = e => { clearTimeout(t); no(new Error(`连不上（${e.code}${e.reason ? ' ' + e.reason : ''}）`)); };   // 已经 ok 过再 no 不起作用
+  });
+}
+/** 测 OpenAI 兼容的接口：拉一下模型列表，看密钥对不对、填的模型在不在 */
+export async function testCompat(conn) {
+  const models = await pullModels(conn);
+  return conn.model && models.length && !models.includes(conn.model) ? `没找到模型「${conn.model}」` : '';
+}
 /** 测向量接口：把「你好」变成一串数字 */
 export async function testEmbed(conn) {
   const key = keysOf(conn)[0] || '';
