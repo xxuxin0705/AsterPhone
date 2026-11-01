@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.58';
+export const VERSION = '0.6.59';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -597,10 +597,10 @@ function openLinkTime() {
         toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「仅线上聊天」的私聊');
       } })]);
     const dnd = dndGroup();
-    online.hidden = dnd.hidden = a.defaults.linkMode !== 'online';
+    online.hidden = a.defaults.linkMode !== 'online';   // 定时来找你只有仅线上才有；免打扰两种都管（正文触发的也不来）
     body.append(
       group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
-        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); online.hidden = dnd.hidden = v !== 'online'; }))]),
+        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; commit('apps'); online.hidden = v !== 'online'; }))]),
       online, dnd,
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),

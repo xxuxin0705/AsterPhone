@@ -100,6 +100,11 @@ export function openGroupSettings(chat, redrawRoom) {
         toggleItem({ title: '专属温度' }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); draw(); }),
         cfg.temperature != null ? sliderRow('温度', 0, 1.5, .05, cfg.temperature, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)) : null,
       ].filter(Boolean)),
+      group('主动消息', [
+        toggleItem({ title: '群里会自己聊起来', sub: cfg.linkMode === 'online' ? '正文里提到这个群或群里的人，或隔一阵子、早晚时，大家会在群里说几句' : '正文里提到这个群或群里的人时，大家有时会在群里说几句' }, !!cfg.proactive, v => { cfg.proactive = v; save(); draw(); }),
+        cfg.proactive && cfg.linkMode === 'online' ? sliderRow('多久热闹一次', 1, 24, 1, cfg.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时') : null,
+        cfg.proactive && cfg.linkMode === 'online' ? sliderRow('每天最多', 1, 20, 1, cfg.proactiveLimit || 5, v => { cfg.proactiveLimit = v; save(); }, v => v + ' 次') : null,
+      ].filter(Boolean), cfg.linkMode === 'online' ? '遵守免打扰时段；定时的算进每日上限，正文触发的不算。' : '遵守免打扰时段；正文触发的不算进每日上限。'),
       group('剧情关联', [
         h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),

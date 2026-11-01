@@ -18,9 +18,10 @@ export function on(evt, fn) { if (!subs.has(evt)) subs.set(evt, new Set()); subs
 function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); } catch (e) { console.error(e); } }); }
 
 export const busy = new Set();
-/* ---------- 自动行为 ----------
- * 仅线上聊天：TA 每隔几小时会主动来找你（加早安晚安），离开期间会补发；这些算进「每日主动消息上限」。
- * 跟随正文：正文里刚发生了和 TA 有关的事时，TA 有时会来说两句；这个不算进上限。 */
+/* ---------- 自动行为（私聊、群聊都一样，要先打开这个聊天的「主动发消息」） ----------
+ * 两种模式：正文里刚发生了和 TA（群里的人 / 这个群）有关的事时，有时会来说两句；这个不算进上限。
+ * 只有仅线上聊天：还会每隔几小时来找你（加早安晚安），离开期间会补发；这些算进「每日主动消息上限」。
+ *   跟随正文不定时来：手机里的事会写进正文，你没顾上看时自己发一堆会把正文带跑。 */
 const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 / 多」换算成小时
 const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || 3;
 const today = () => new Date().toDateString();
@@ -35,7 +36,7 @@ function useAuto(chat) {
   chat.autoDay = chat.autoDay && chat.autoDay.date === today() ? { date: today(), n: chat.autoDay.n + 1 } : { date: today(), n: 1 };
   commit('settings');
 }
-const free = chat => chat.type === 'dm' && chat.cfg.proactive && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
+const free = chat => (chat.type === 'dm' || chat.type === 'group') && chat.cfg.proactive && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
 const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && autoLeft() > 0 && chatLeft(chat) > 0;
 export function startEngine() {
   const last = state.lastSeen || 0;
@@ -48,16 +49,16 @@ async function tick() {
   const hr = new Date().getHours(), t = today();
   for (const chat of state.chats) {
     if (!canGo(chat)) continue;
-    const c = contact(chat.contactId); if (!c) continue;
+    const g = isGroup(chat), c = g ? null : contact(chat.contactId); if (!g && !c) continue;
     const quiet = (Date.now() - (chat.lastAt || 0)) / 60000, every = everyH(chat) * 60;
     if ((Date.now() - (chat.lastProactive || 0)) / 60000 < every) continue;   // 离上次主动找你还不到设定的小时数
     let extra = null;
-    if (hr >= 7 && hr < 10 && chat.greet !== t + 'am' && quiet > 120) { chat.greet = t + 'am'; extra = `（早上了。${nameOf(c)} 起床后想到 ${myName()}，主动发消息说早安，可以聊聊今天的安排。）`; }
-    else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
-    else if (quiet > every && Math.random() < .2) extra = compose('proactive', { char: c.name || nameOf(c) });
+    if (hr >= 7 && hr < 10 && chat.greet !== t + 'am' && quiet > 120) { chat.greet = t + 'am'; extra = g ? '（早上了，群里有人先冒头打招呼，大家聊几句今天的安排。）' : `（早上了。${nameOf(c)} 起床后想到 ${myName()}，主动发消息说早安，可以聊聊今天的安排。）`; }
+    else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = g ? '（夜深了，群里有人说要睡了，大家互道晚安。）' : `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
+    else if (quiet > every && Math.random() < .2) extra = g ? '（群里有一阵没人说话了，有人主动挑起话头，大家接着聊。）' : compose('proactive', { char: c.name || nameOf(c) });
     if (!extra) continue;
     useAuto(chat); chat.lastProactive = Date.now();
-    log('info', '主动消息', `${nameOf(c)} 主动来找你了`);
+    log('info', '主动消息', g ? `群「${chat.name}」自己聊起来了` : `${nameOf(c)} 主动来找你了`);
     await requestReply(chat, { extra });
     break;   // 一分钟最多一个人来找
   }
@@ -66,10 +67,10 @@ async function catchUp(gapMs) {
   const h = Math.round(gapMs / 3600000), gap = h >= 24 ? `${Math.round(h / 24)} 天` : `${h} 小时`;
   const list = state.chats.filter(canGo).sort(() => Math.random() - .5).slice(0, 3);
   for (const chat of list) {
-    const c = contact(chat.contactId); if (!c) continue;
+    const g = isGroup(chat), c = g ? null : contact(chat.contactId); if (!g && !c) continue;
     useAuto(chat);
-    log('info', '离开期间补发', `${nameOf(c)} 在你离开的 ${gap} 里发来了消息`);
-    await requestReply(chat, { extra: compose('catchup', { char: c.name || nameOf(c), gap }) });
+    log('info', '离开期间补发', g ? `群「${chat.name}」在你离开的 ${gap} 里聊了几句` : `${nameOf(c)} 在你离开的 ${gap} 里发来了消息`);
+    await requestReply(chat, { extra: g ? `（${myName()} 离开了 ${gap}，这段时间里群里大家聊了些什么。）` : compose('catchup', { char: c.name || nameOf(c), gap }) });
   }
 }
 /** 试一下：让最近聊过的「仅线上聊天」私聊对象马上主动来找你（不算进每日上限，免打扰时段也照样来）。返回名字，没有可用的聊天返回 '' */
@@ -80,15 +81,16 @@ export function pokeNow() {
   requestReply(chat, { extra: compose('proactive', { char: c.name || nameOf(c) }) });
   return nameOf(c);
 }
-/** 正文里刚发生了事：跟随正文、开了主动消息的角色，有时会来手机上说两句 */
+/** 正文里刚发生了事：开了主动消息的私聊（正文提到 TA）、群聊（正文提到这个群或群里的人），有时会来手机上说两句。两种模式都会 */
 export function storyNudge(storyText) {
   const cur = String(storyText || '');
-  const cands = state.chats.filter(ch => free(ch) && ch.cfg.linkMode === 'follow' && (() => { const c = contact(ch.contactId); return c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name)))); })());
+  const named = c => c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name))));
+  const cands = state.chats.filter(ch => free(ch) && (isGroup(ch) ? (ch.name && cur.includes(ch.name)) || ch.members.some(id => named(contact(id))) : named(contact(ch.contactId))));
   if (!cands.length || Math.random() > .25) return;
-  const chat = cands[Math.floor(Math.random() * cands.length)], c = contact(chat.contactId);
+  const chat = cands[Math.floor(Math.random() * cands.length)], c = isGroup(chat) ? null : contact(chat.contactId);
   setTimeout(() => {
     if (!free(chat)) return;   // 正文触发的不算进每日上限
-    requestReply(chat, { extra: `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` });
+    requestReply(chat, { extra: c ? `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` : '（正文里刚发生的事被群里的人看到或聊起，大家在群里说了几句。）' });
   }, 30000 + Math.random() * 60000);
 }
 
@@ -194,12 +196,12 @@ function historyText(msgs, c, n = 24) {
 /** 人设、世界书、正文：按「设置 → 上下文与世界书」里的开关来 */
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
-const followStory = (linkMode, n) => linkMode === 'follow' ? (storyText(n) || '（暂无）') : null;
+const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
 async function worldBlock(scan) { const w = await worldText(scan).catch(() => ''); return w ? `\n【世界书】\n${w}\n` : ''; }
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const min = Math.max(1, cfg.minLines || 1), max = Math.max(min, cfg.maxLines || 4);
-  const story = followStory(cfg.linkMode) ?? '（这是一段只在手机上的聊天，和正文无关）', history = historyText(msgs, c);
+  const story = storyNow(), history = historyText(msgs, c);
   return {
     system: specialsGuide(),
     prompt: compose('dm', {
@@ -222,7 +224,7 @@ export function parseReply(raw, c) {
   return { lines, inner };
 }
 export async function requestReply(chat, opts = {}) {
-  if (isGroup(chat)) return requestGroupReply(chat);
+  if (isGroup(chat)) return requestGroupReply(chat, opts);
   if (busy.has(chat.id)) return;
   const c = contact(chat.contactId);
   const conn = resolveConn('text', 'chat', chat.cfg.conn);
@@ -282,7 +284,7 @@ export function createGroup(memberIds, name) {
   const g = { id: uid('g_'), type: 'group', name: name || memberIds.slice(0, 3).map(id => nameOf(contact(id))).join('、'), avatar: '', members: memberIds.slice(), owner: 'me', admins: [], titles: {}, intro: '', notice: '',
     pinned: false, muted: false, unread: 0, lastAt: Date.now(), lastText: '',
     cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: false, showThink: false, conn: 'follow', temperature: null, maxSpeakers: 3, minLines: 1, maxLines: 3,
-      bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline' } };
+      bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline', proactive: false, proactiveEvery: 3, proactiveLimit: 5 } };
   state.chats.push(g); commit('chats');
   return g;
 }
@@ -294,7 +296,7 @@ function groupHistory(msgs, n = 30) {
     return `${who}：${q}${forAI(m)}`;
   }).join('\n') || '（群里还没人说话）';
 }
-export async function requestGroupReply(chat) {
+export async function requestGroupReply(chat, opts = {}) {
   if (busy.has(chat.id)) return;
   busy.add(chat.id); emit('typing', chat.id, true);
   try {
@@ -304,10 +306,10 @@ export async function requestGroupReply(chat) {
     const lastMine = [...msgs].reverse().find(m => m.from === 'me');
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
-    const story = followStory(chat.cfg.linkMode) ?? '（这个群只在手机上，和正文无关）', history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '');
+    const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
       time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 });
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: '群聊' });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
