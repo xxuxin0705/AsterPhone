@@ -2,7 +2,7 @@
 // - 事件：一句话（报错红、警告黄、信息绿），比如「正文里出现了新联系人」。
 // - 调用：每次找 AI（文字、生图、语音）一条。开始就出现（进行中、实时计时、流式收到的字边收边显示、能中止），
 //   结束后原地变成功 / 失败；记着用的哪个接口和模型、发出去的内容、收回来的内容。
-// 只留最近 300 条；发出去 / 收回来的内容只有最近 30 次调用留着（每条最多 2 万字），再早的只剩一句话，免得占内存。
+// 只留最近 300 条；发出去 / 收回来的内容只有最近 50 次调用留着（每条最多 2 万字），再早的只剩一句话，免得占内存。
 import { kvGet, kvSet } from './store.js';
 import { debounce } from './util.js';
 
@@ -21,7 +21,7 @@ export async function loadLogs() {
 }
 function push(entry) {
   logs.push(entry); if (logs.length > 300) tell(logs.shift(), 'remove');
-  if (entry.kind === 'call') { let n = 0; for (let i = logs.length - 1; i >= 0; i--) if (logs[i].kind === 'call' && ++n > 30 && logs[i].req) { logs[i].req = logs[i].res = ''; tell(logs[i], 'update'); } }
+  if (entry.kind === 'call') { let n = 0; for (let i = logs.length - 1; i >= 0; i--) if (logs[i].kind === 'call' && ++n > 50 && logs[i].req) { logs[i].req = logs[i].res = ''; tell(logs[i], 'update'); } }
   save(); tell(entry, 'add');
   return entry;
 }
