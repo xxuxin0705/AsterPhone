@@ -397,6 +397,13 @@ export async function testImage(conn) { return generateImage('a small cute star,
 let playing = null;
 const hexToBytes = hex => { const h0 = String(hex).replace(/^0x/, '').replace(/\s/g, ''); const out = new Uint8Array(h0.length >> 1); for (let i = 0; i < out.length; i++) out[i] = parseInt(h0.substr(i * 2, 2), 16); return out; };
 const b64ToBlob = (b64, type = 'audio/mpeg') => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
+// 有的接口（或中转站、酒馆代理）出错时也回 200，内容是一段字；这种当成错误，把那段字说出来
+const audioOf = async res => {
+  const b = await res.blob();
+  if (!b.size) throw new Error('返回的声音是空的');
+  if (b.type && !/^audio\/|octet-stream|mpeg/.test(b.type)) throw new Error(`返回的不是声音（${b.type}）：${(await b.text()).slice(0, 160)}`);
+  return URL.createObjectURL(b);
+};
 /** 用某个语音接口把一段文字变成声音，返回可以播放的地址 */
 export async function synthesize(conn, text, { voice } = {}) {
   const T = conn.tts || {}, v = voice || T.voice || conn.voice || (CHANNELS.tts.find(x => x.v === conn.type) || {}).voice || '';
@@ -415,12 +422,12 @@ export async function synthesize(conn, text, { voice } = {}) {
     case 'fish': {
       const res = await xf(base + '/v1/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, model: conn.model || 's2.1-pro' },
         body: JSON.stringify({ text, reference_id: v || undefined, format: 'mp3', prosody: { speed } }) });
-      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+      if (!res.ok) await bad(res); return audioOf(res);
     }
     case 'elevenlabs': {
       const res = await xf(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
         body: JSON.stringify({ text, model_id: conn.model || 'eleven_multilingual_v2', voice_settings: { speed } }) });
-      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+      if (!res.ok) await bad(res); return audioOf(res);
     }
     case 'mimo': {
       const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
@@ -451,7 +458,7 @@ export async function synthesize(conn, text, { voice } = {}) {
     default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
       const res = await xf(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
         body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed }) });
-      if (!res.ok) await bad(res); return URL.createObjectURL(await res.blob());
+      if (!res.ok) await bad(res); return audioOf(res);
     }
   }
 }
@@ -496,9 +503,11 @@ export async function listVoices(conn) {
 }
 /** 试听：用这个接口、这个音色念一句 */
 export async function tryVoice(conn, voice, text = '你好呀，能听到我说话吗？') {
-  const url = await Promise.race([synthesize(conn, text, { voice }), new Promise((_, no) => setTimeout(() => no(new Error('等了 40 秒还没合成好')), 40000))]);
-  stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a;
-  await a.play().catch(e => { throw new Error(e.name === 'NotAllowedError' ? '浏览器没让出声，再点一次' : '合成好了但播不出来'); });
+  try {
+    const url = await Promise.race([synthesize(conn, text, { voice }), new Promise((_, no) => setTimeout(() => no(new Error('等了 40 秒还没合成好')), 40000))]);
+    stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a;
+    await a.play().catch(e => { throw new Error(e.name === 'NotAllowedError' ? '浏览器没让出声，再点一次' : `合成好了但播不出来（${e.name}：${e.message}）`); });
+  } catch (e) { log('warn', '语音', `「${conn.name}」试听失败：${e.message}`); throw e; }
 }
 /** 测语音接口：说一句「你好呀」并播出来 */
 export async function testVoice(conn) {
