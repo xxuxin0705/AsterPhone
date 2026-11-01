@@ -1,4 +1,4 @@
-// 群聊：建群、群头像（没设置时用成员头像拼成九宫格）、群设置（资料 / 成员 / 行为 / 数据）。
+// 群聊：建群、群头像（没设置时是群名第一个字）、群设置（资料 / 成员 / 行为 / 数据）。
 import { h, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, getMsgs, clearMsgs } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty } from '../../core/ui.js';
@@ -8,14 +8,9 @@ import * as E from './engine.js';
 import * as P from '../../core/promptstore.js';
 import { trGroup } from './room.js';
 
-/** 群头像：设置了就用；没设置就把前 4 个人的头像拼成一块 */
+/** 群头像：设置了就用；没设置就是群名第一个字 */
 export function groupAvatar(chat, size = 44) {
-  if (chat.avatar) { const a = avatar(chat.avatar, chat.name, size); a.style.borderRadius = '26%'; return a; }
-  const ids = (chat.members || []).slice(0, 4);
-  const box = h('span.as-chat-gava', { style: { width: size + 'px', height: size + 'px' } });
-  box.classList.toggle('is-two', ids.length <= 2);
-  ids.forEach(id => { const p = contact(id) || {}; box.appendChild(avatar(p.avatar, E.nameOf(p), size / 2 - 1)); });
-  return box;
+  const a = avatar(chat.avatar, [...(chat.name || '群')][0], size); a.style.borderRadius = '26%'; return a;
 }
 
 /** 发起群聊：选人 → 起名 → 建好直接打开 */
@@ -53,7 +48,7 @@ export function openGroupSettings(chat, redrawRoom) {
     if (lastTab === 'info') box.append(
       group('群资料', [
         item({ title: '群头像', right: groupAvatar(chat, 30), chevron: true, onClick: async () => {
-          const v = await actionSheet('群头像', [{ value: 'pick', label: '从相册选择', icon: 'image' }, chat.avatar && { value: 'clear', label: '用成员头像拼', icon: 'grid' }].filter(Boolean));
+          const v = await actionSheet('群头像', [{ value: 'pick', label: '从相册选择', icon: 'image' }, chat.avatar && { value: 'clear', label: '恢复默认', icon: 'close' }].filter(Boolean));
           if (v === 'pick') { const f = await pickFile(); if (f) { chat.avatar = await fileToDataURL(f, 320); save(); draw(); } }
           if (v === 'clear') { chat.avatar = ''; save(); draw(); }
         } }),

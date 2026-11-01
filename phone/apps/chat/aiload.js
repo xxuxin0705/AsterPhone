@@ -1,6 +1,7 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, commit, contact } from '../../core/store.js';
+import { state, commit, contact, chatForContact } from '../../core/store.js';
+import { groupAvatar } from './group.js';
 import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
@@ -101,10 +102,10 @@ export function openPreview(data, { after, lore, under } = {}) {
   const card = (x, kind) => {
     const ck = h('span.as-chat-check' + (x._on ? '.is-active' : ''), icon('check', 14, 2.6));
     const toggle = () => { x._on = !x._on; ck.classList.toggle('is-active', x._on); el.classList.toggle('is-off', !x._on); };
-    const ava = () => x.avatar || kind === 'p' ? avatar(x.avatar || '', x.name, 36, kind === 'g' ? 'square' : 'round') : h('span.as-chat-gava', { style: { width: '36px', height: '36px' } });
+    const ava = () => kind === 'p' ? avatar(x.avatar || '', x.name, 36) : groupAvatar(x, 36);
     const avaBox = h('span', { onclick: async ev => { ev.stopPropagation(); const f = await pickFile(); if (f) { x.avatar = await fileToDataURL(f, 320); avaBox.replaceChildren(ava()); } } }, ava());
     const title = h('b', x.name);
-    const rename = v => { x.name = v; title.textContent = v; if (!x.avatar && kind === 'p') avaBox.replaceChildren(ava()); labels.forEach(([m, s]) => { if (m === x) s.textContent = v; }); };
+    const rename = v => { x.name = v; title.textContent = v; if (!x.avatar) avaBox.replaceChildren(ava()); labels.forEach(([m, s]) => { if (m === x) s.textContent = v; }); };
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
       h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? state.contacts.some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
@@ -150,6 +151,7 @@ export function openPreview(data, { after, lore, under } = {}) {
       const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
       if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; }
       state.contacts.push(c); x._c = c; np++;
+      chatForContact(c.id, true).lastAt = Date.now();   // 没聊过也在消息列表里
     }
     const idOf = m => m === ME ? 'me' : people.includes(m) ? m._c && m._c.id : m.id;
     for (const g of groups.filter(x => x._on)) {
