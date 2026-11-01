@@ -3,7 +3,7 @@
 // 整个 App 只有两处会找 AI：角色歌单右上角的「AI 挑歌」、笔记里的「生成乐评」，都是手动点的。
 import { h, onLongPress, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, icon, navBtn, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, switchEl } from '../../core/ui.js';
+import { page, group, item, field, input, btn, icon, navBtn, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, switchEl } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -26,7 +26,8 @@ export function open() {
   const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root' });
   const titleEl = p.nav.querySelector('.as-navbar__title'), rightEl = p.nav.querySelector('.as-navbar__right');
   const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.map(([id, label]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, label)));
-  const mini = miniBar();
+  const mini = miniBar(), meBg = h('div.as-mu-mebg');
+  p.el.prepend(meBg);
   p.el.append(h('div.as-mu-dock', mini.el, tabs));
   p.el._onLeave = P.onMusic(() => mini.paint());
   cur = null; go('home');
@@ -38,7 +39,7 @@ export function open() {
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.tab === id));
     p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me');
     titleEl.replaceChildren(); rightEl.replaceChildren(); p.body.innerHTML = ''; p.body.scrollTop = 0; p.el._onShow = null;
-    TABS.find(t => t[0] === id)[2]({ body: p.body, el: p.el, title: titleEl, right: rightEl, go });
+    TABS.find(t => t[0] === id)[2]({ body: p.body, el: p.el, title: titleEl, right: rightEl, meBg, go });
   }
 }
 function miniBar() {
@@ -126,12 +127,15 @@ function renderSearch(ctx) {
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  const paint = keep(box, () => JSON.stringify([myNick(), myAvatar(), M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length]), () => {
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)));
+  const paint = keep(box, () => JSON.stringify([me(), Math.floor((M().heard || 0) / 3600), M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length]), () => {
     const plays = Object.values(M().plays).reduce((n, x) => n + x.n, 0);
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
+    const u = me();
+    ctx.meBg.style.backgroundImage = bgUrl(u.bg); ctx.meBg.classList.toggle('has-img', !!u.bg);
     return [
-      h('div.as-mu-me', avatar(myAvatar(), myNick(), 84), h('b', myNick()),
-        h('div.as-mu-me__stat', h('span', h('b', String(M().liked.length)), ' 喜欢'), h('span', h('b', String(M().lists.length)), ' 歌单'), h('span', h('b', String(plays)), ' 次播放'))),
+      h('div.as-mu-me', avatar(u.avatar, u.nick, 78), h('b', u.nick), u.sign ? h('div.as-mu-me__sign', u.sign) : null,
+        h('div.as-mu-me__stat', h('span', h('b', String(u.follows)), ' 关注'), h('span', h('b', String(u.fans)), ' 粉丝'), h('b', 'Lv.' + u.lv), h('span', h('b', String(Math.floor((M().heard || 0) / 3600))), ' 小时'))),
       h('div.as-mu-pills', [['最近', 'moments', () => openList('最近播放', M().recent)], ['本地', 'box', openLocal], ['排行', 'flame', openRank], ['导入', 'plus', importList]]
         .map(([t, ic, fn]) => h('button', { onclick: fn }, icon(ic, 16, 2), t))),
       h('div.as-mu-sheet',
@@ -167,6 +171,27 @@ function renderMe(ctx) {
       M().lists.push({ id, name: name.trim() || '网易云歌单', songs }); commit('music'); paint(); toast(`导入了 ${songs.length} 首`);
     } catch (e) { log('error', '音乐', '导入歌单失败：' + e.message); toast('导入失败：' + e.message); }
   }
+}
+/** 「我的」资料：昵称、头像没改过就跟着「我」 */
+const me = () => { const u = M().profile || {}; return { nick: u.nick || myNick(), avatar: u.avatar || myAvatar(), sign: u.sign || '', bg: u.bg || '', follows: u.follows || 0, fans: u.fans || 0, lv: u.lv || 1 }; };
+function editMe(after) {
+  const d = { ...(M().profile || {}) }, hours = Math.floor((M().heard || 0) / 3600);
+  const p = page({ app: 'music', id: 'music-edit', title: '编辑资料', back: true });
+  const av = h('span'), bgThumb = h('span.as-mu-lcover.is-thumb');
+  const paintImgs = () => { av.replaceChildren(avatar(d.avatar || myAvatar(), d.nick || myNick(), 40)); bgThumb.style.backgroundImage = bgUrl(d.bg); };
+  paintImgs();
+  const img = (k, title, opt) => async () => { const v = await pickImage(title, { ...opt, has: !!d[k] }); if (v != null) { d[k] = v; paintImgs(); } };
+  const num = (k, label, v) => field(label, input({ type: 'number', value: String(v), onInput: x => { d[k] = Math.max(0, parseInt(x, 10) || 0); } }));
+  const f = { hours };
+  p.body.append(
+    group('', [item({ title: '头像', right: av, chevron: true, onClick: img('avatar', '头像', { ratio: 1, size: 320 }) }), item({ title: '背景', right: bgThumb, chevron: true, onClick: img('bg', '背景', { ratio: 1, size: 900 }) })]),
+    group('', [field('昵称', input({ value: d.nick || '', placeholder: myNick(), onInput: v => { d.nick = v.trim(); } })), field('个性签名', input({ value: d.sign || '', placeholder: '个性签名', onInput: v => { d.sign = v.trim(); } }))]),
+    group('', [num('follows', '关注', d.follows || 0), num('fans', '粉丝', d.fans || 0), num('lv', '等级', d.lv || 1), field('听歌小时', input({ type: 'number', value: String(hours), onInput: x => { f.hours = Math.max(0, parseInt(x, 10) || 0); } }))]),
+    h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
+      M().profile = d; if (f.hours !== hours) M().heard = f.hours * 3600;
+      commit('music'); nav.pop(); after();
+    })));
+  nav.push(p.el);
 }
 const openRank = () => openList('听歌排行', Object.values(M().plays).sort((a, b) => b.n - a.n).map(x => x.s), { count: s => `${M().plays[s.id].n} 次` });
 function openLocal() {
@@ -272,7 +297,7 @@ export function openPlayer() {
     top.replaceChildren(h('em', M().from || ''), topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();
-    lines = L.map(x => h('p', x.text));
+    lines = L.map(x => h('p', h('span', x.text), x.tr ? h('small', x.tr) : null));
     lrc.replaceChildren(...(L.length ? lines : [h('p.is-none', s.local ? '本地的歌没有歌词' : '纯音乐，或者没找到歌词')]));
     li = -2; tick();
   };

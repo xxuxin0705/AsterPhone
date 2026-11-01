@@ -51,7 +51,9 @@ export function parseLrc(text) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
     const t = line.replace(/\[\d+:\d+(?:\.\d+)?\]/g, '').trim(); if (!t) continue;
-    for (const m of line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)) out.push({ t: +m[1] * 60 + +m[2], text: t });
+    // 外语歌音源把翻译接在后面括号里：「原文 (中文)」→ 拆成原文和翻译两行
+    const m = t.match(/^(.*?)\s*[(（]([^()（）]*)[)）]$/), tr = m && /[\u3040-\u30ffA-Za-z\uac00-\ud7af]/.test(m[1]) && /[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff]/.test(m[2]);
+    for (const x of line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)) out.push({ t: +x[1] * 60 + +x[2], text: tr ? m[1] : t, tr: tr ? m[2] : '' });
   }
   return out.sort((a, b) => a.t - b.t);
 }
@@ -137,8 +139,13 @@ export function like(s = current()) {
 }
 export const liked = s => !!s && M().liked.some(x => x.id === s.id);
 
-let saveT = 0;
-audio.addEventListener('timeupdate', () => { if (Date.now() - saveT > 5000) { saveT = Date.now(); M().pos = audio.currentTime; commit('music'); } tell('time'); });
+// 听歌时长（「我的」里的小时数）：两次 timeupdate 之间真的在放才算
+let saveT = 0, lastT = 0, heard = 0;
+audio.addEventListener('timeupdate', () => {
+  const now = Date.now(); if (now - lastT < 2000) heard += now - lastT; lastT = now;
+  if (now - saveT > 5000) { saveT = now; M().pos = audio.currentTime; M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
+  tell('time');
+});
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => M().mode === 'one' ? (audio.currentTime = 0, audio.play()) : next());
 
