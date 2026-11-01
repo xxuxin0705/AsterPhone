@@ -747,7 +747,7 @@ function togglePinData(id) {
 /** 新建一个接口：先按这一类的第一个渠道填好，打开详情 */
 export function newConn(kind, hooks, tag) {
   // 拎着「其他」线的某一股插到「添加」上：先挑带这个标签的渠道，没有就用自定义，标签填好
-  const ch = (tag && (CHANNELS[kind].find(x => x.tag === tag) || CHANNELS[kind].find(x => x.v === 'other-compat'))) || CHANNELS[kind][0];
+  const ch = (tag && (CHANNELS[kind].find(x => x.tag === tag) || CHANNELS[kind].find(x => x.v === 'other-compat'))) || CHANNELS[kind].at(-1);   // 不带标签：默认第三方（OpenAI 兼容），它在每类的最后一个
   openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', ...(tag && ch.tag !== tag ? { tag } : {}) }, kind, true, hooks);
 }
 /** 接口详情（插线板和列表模式共用）。hooks：插线板传进来的那几样（测试状态、格子、刷新…），列表模式不传就用空的 */
