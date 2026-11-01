@@ -1,5 +1,5 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
-import { h, uid } from '../../core/util.js';
+import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
 import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -20,8 +20,8 @@ function pickJSON(raw) {
 }
 
 /* ================= AI 智能加载 ================= */
-let goBtn = null, loading = false;   // 退出再进来还在生成：按钮接着转圈，不能再点
-const spin = () => { goBtn.disabled = true; goBtn.replaceChildren(h('i.as-spin'), ' AI 正在想…'); };
+let goBtn = null, loading = null;   // 正在生成就是它的 AbortController：退出再进来按钮还是「取消生成」
+const spin = () => { goBtn.classList.replace('as-btn--primary', 'as-btn--secondary'); goBtn.replaceChildren(h('i.as-spin'), ' 取消生成'); };
 export function openAiLoad(after) {
   const o = { want: '', fixCount: false, count: 6, groups: true, gWant: '', fixG: false, groupCount: 1 };
   const p = page({ app: 'chat', id: 'chat-contacts-ai', title: withInfo('AI 智能加载', '读当前角色卡、你的人设和最近的剧情，想出你手机里会有哪些人和群。生成完先给你看，勾选、改好了再加进来。'), back: true });
@@ -31,7 +31,7 @@ export function openAiLoad(after) {
   const gWant = h('div.as-field', textarea({ rows: 2, placeholder: '想要什么群（可以不填）', onInput: v => { o.gWant = v; } }));
   const gFix = toggleItem({ title: '规定群数' }, o.fixG, v => { o.fixG = v; sync(); });
   const sync = () => { countRow.hidden = !o.fixCount; gWant.hidden = gFix.hidden = !o.groups; gRow.hidden = !o.groups || !o.fixG; };
-  const mine = goBtn = btn('开始生成', 'primary', run, { style: { width: '100%' } });
+  const mine = goBtn = btn('开始生成', 'primary', () => loading ? loading.abort() : run(), { style: { width: '100%' } });
   if (loading) spin();
   p.el._onLeave = () => { if (goBtn === mine) goBtn = null; };
   p.body.append(
@@ -42,7 +42,6 @@ export function openAiLoad(after) {
   nav.push(p.el);
 
   async function run() {
-    if (loading) return;
     let keep = true;
     if (state.contacts.length) {
       const v = await actionSheet('已经有联系人了', [{ value: 'keep', label: '保留现有，只补缺的', icon: 'plus' }, { value: 'reset', label: '清空重来', icon: 'trash', danger: true }]);
@@ -55,55 +54,94 @@ export function openAiLoad(after) {
       + (o.fixCount ? `新的人一共正好 ${o.count} 个。` : '新的人有几个按剧情自己定，要有亲疏远近，包括角色卡里提到的人。')
       + (o.groups ? `\n群聊：${o.fixG ? `正好 ${o.groupCount} 个` : '要几个按剧情自己定'}${o.gWant.trim() ? `，${me} 说：${o.gWant.trim()}` : ''}。成员从联系人里选，${me} 默认在每个群里，不用写。${keep && groupNames.length ? `\n已经有的群（不要重复）：${groupNames.join('、')}` : ''}` : '\n不要生成群聊，groups 留空数组。');
     const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）', require, withGroups: o.groups ? '和群聊' : '' });
-    loading = true; spin();
+    loading = new AbortController(); spin();
     try {
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载' });
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载', stop: loading.signal });
       const data = pickJSON(raw);
       if (!keep) { state.contacts.splice(0); commit('contacts'); }
       openPreview(data, { after, under: !!goBtn });
-    } catch (e) { log('error', 'AI 智能加载', e.message); toast('生成失败：' + e.message); }
-    finally { loading = false; if (goBtn) { goBtn.disabled = false; goBtn.textContent = '开始生成'; } }
+    } catch (e) { if (e.message === '已中止') toast('取消了'); else { log('error', 'AI 智能加载', e.message); toast('生成失败：' + e.message); } }
+    finally { loading = null; if (goBtn) { goBtn.classList.replace('as-btn--secondary', 'as-btn--primary'); goBtn.textContent = '开始生成'; } }
   }
 }
 
 /* ================= 预览勾选页 ================= */
 export function openPreview(data, { after, lore, under } = {}) {
+  const ME = {}, me = myName();   // 群成员 / 群主 / 头衔都直接指着人（预览里的人、已有联系人、我），改了名字也跟着
+  const byName = n => state.contacts.find(c => [c.name, c.nick, c.remark].includes(String(n || '').trim()));
   const people = (data.people || []).filter(x => x && x.name).map(x => ({ ...x, _on: !state.contacts.some(c => c.name === x.name) }));
+  const ref = n => { n = String(n || '').trim(); return n === me || n === '我' ? ME : people.find(x => x.name === n) || byName(n); };
+  const nm = m => m === ME ? me : people.includes(m) ? m.name : E.nameOf(m);
   const hasGroup = n => state.chats.some(c => c.type === 'group' && c.name === n);
-  const groups = (data.groups || []).filter(x => x && x.name).map(x => ({ ...x, members: x.members || [], _on: !hasGroup(x.name) }));
+  const groups = (data.groups || []).filter(x => x && x.name).map(x => {
+    const members = [...new Set((x.members || []).map(ref))].filter(m => m && m !== ME), owner = ref(x.owner) || ME;
+    if (owner !== ME && !members.includes(owner)) members.push(owner);
+    return { ...x, members, owner, titles: new Map(Object.entries(x.titles || {}).map(([n, t]) => [ref(n), String(t || '').trim()]).filter(([m, t]) => m && t)), _on: !hasGroup(x.name) };
+  });
+  const labels = [];   // 群成员格子里的名字：预览里改了真实姓名，这里跟着改
   const p = page({ app: 'chat', id: 'chat-contacts-preview', title: '看看 AI 想的', back: true, right: navText('加入', add, true) });
   const card = (x, kind) => {
     const ck = h('span.as-chat-check' + (x._on ? '.is-active' : ''), icon('check', 14, 2.6));
     const toggle = () => { x._on = !x._on; ck.classList.toggle('is-active', x._on); el.classList.toggle('is-off', !x._on); };
-    const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), multi ? textarea({ value: x[key] || '', rows: 2, onInput: v => { x[key] = v; } }) : input({ value: x[key] || '', onInput: v => { x[key] = v; } }));
+    const ava = () => x.avatar || kind === 'p' ? avatar(x.avatar || '', x.name, 36, kind === 'g' ? 'square' : 'round') : h('span.as-chat-gava', { style: { width: '36px', height: '36px' } });
+    const avaBox = h('span', { onclick: async ev => { ev.stopPropagation(); const f = await pickFile(); if (f) { x.avatar = await fileToDataURL(f, 320); avaBox.replaceChildren(ava()); } } }, ava());
+    const title = h('b', x.name);
+    const rename = v => { x.name = v; title.textContent = v; if (!x.avatar && kind === 'p') avaBox.replaceChildren(ava()); labels.forEach(([m, s]) => { if (m === x) s.textContent = v; }); };
+    const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
-      h('div.as-chat-pv__head', { onclick: toggle }, ck, kind === 'g' ? h('span.as-chat-gava', { style: { width: '36px', height: '36px' } }) : avatar('', x.name, 36), h('b', x.name), x.gender ? h('em', x.gender) : null, (kind === 'p' ? state.contacts.some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
+      h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? state.contacts.some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
       kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
-        : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), h('div.as-muted', `群主：${x.owner || '我'} · 成员：${x.members.join('、') || '（无）'}`)]);
+        : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), members(x)]);
     return el;
   };
+  // 群成员：和群资料页一样的格子；点人设头衔 / 设群主 / 移出，最后一格邀请
+  function members(x) {
+    const grid = h('div.as-chat-members');
+    const paint = () => grid.replaceChildren(...[ME, ...x.members].map(m => {
+      const s = h('span', nm(m)); labels.push([m, s]);
+      return h('button', { onclick: () => menu(m) }, avatar(m === ME ? state.me.avatar : m.avatar || '', nm(m), 48), s, h('em', x.owner === m ? '群主' : x.titles.get(m) || ''));
+    }), h('button', { onclick: invite }, h('span.as-chat-members__plus', icon('plus', 22, 1.8)), h('span', '邀请')));
+    async function menu(m) {
+      const v = await actionSheet(nm(m), [{ value: 'title', label: '设置群头衔', icon: 'star' }, x.owner !== m && { value: 'owner', label: '设为群主', icon: 'users' }, m !== ME && { value: 'kick', label: '移出群聊', icon: 'trash', danger: true }].filter(Boolean));
+      if (v === 'title') { const t = await dialog({ title: '群头衔', input: { value: x.titles.get(m) || '' } }); if (t !== null) x.titles.set(m, t.trim()); }
+      if (v === 'owner') x.owner = m;
+      if (v === 'kick') { x.members = x.members.filter(y => y !== m); if (x.owner === m) x.owner = ME; }
+      if (v) paint();
+    }
+    async function invite() {
+      const all = [...people, ...state.contacts.filter(c => !people.some(y => y.name === c.name))].filter(m => !x.members.includes(m));
+      if (!all.length) { toast('没有可以邀请的人了'); return; }
+      const picked = await pickMany('邀请进群', all.map((m, i) => ({ key: String(i), name: nm(m), avatar: m.avatar })));
+      if (picked && picked.length) { x.members.push(...picked.map(i => all[+i])); paint(); }
+    }
+    paint();
+    return grid;
+  }
   p.body.append(
-    people.length ? group(`联系人（${people.length}）`, [h('div.as-chat-pvs', people.map(x => card(x, 'p')))], '点名字那一行可以取消勾选；下面的内容可以直接改。') : empty('AI 没想出新的人'),
+    people.length ? group(`联系人（${people.length}）`, [h('div.as-chat-pvs', people.map(x => card(x, 'p')))], '点勾取消，点头像换头像，内容都能改。') : empty('AI 没想出新的人'),
     groups.length ? group(`群聊（${groups.length}）`, [h('div.as-chat-pvs', groups.map(x => card(x, 'g')))]) : null,
     btn('确认加入', 'primary', add, { style: { width: '100%' } }));
   nav.push(p.el);
 
   async function add() {
-    const byName = n => state.contacts.find(c => [c.name, c.nick, c.remark].includes(String(n || '').trim()));
     let np = 0, ng = 0;
-    for (const x of people.filter(x => x._on)) {
-      if (byName(x.name)) continue;
-      const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', source: lore ? 'lore' : 'ai' };
+    for (const x of people) {
+      const old = byName(x.name);
+      if (old) { x._c = old; continue; }
+      if (!x._on) continue;
+      const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
       if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; }
-      state.contacts.push(c); np++;
+      state.contacts.push(c); x._c = c; np++;
     }
+    const idOf = m => m === ME ? 'me' : people.includes(m) ? m._c && m._c.id : m.id;
     for (const g of groups.filter(x => x._on)) {
       if (hasGroup(g.name.trim())) continue;
-      const ids = g.members.map(byName).filter(Boolean).map(c => c.id);
+      const ids = [...new Set(g.members.map(idOf).filter(Boolean))];
       if (ids.length < 2) continue;
-      const chat = E.createGroup([...new Set(ids)], g.name.trim());
-      chat.intro = g.intro || ''; chat.notice = g.notice || '';
-      const owner = byName(g.owner); if (owner) chat.owner = owner.id;
+      const chat = E.createGroup(ids, g.name.trim());
+      chat.intro = g.intro || ''; chat.notice = g.notice || ''; chat.avatar = g.avatar || '';
+      chat.owner = ids.includes(idOf(g.owner)) ? idOf(g.owner) : 'me';
+      g.titles.forEach((t, m) => { if (m === ME) chat.cfg.myTitle = t; else if (ids.includes(idOf(m))) chat.titles[idOf(m)] = t; });
       ng++;
     }
     commit('contacts'); commit('chats');

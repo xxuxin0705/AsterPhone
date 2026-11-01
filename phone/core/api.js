@@ -2,7 +2,7 @@
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state } from './store.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
-import { log, startCall, orAbort } from './log.js';
+import { log, startCall, orAbort, abortCall } from './log.js';
 
 /** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
  *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
@@ -132,7 +132,7 @@ export async function generate(opts) {
   }
   throw last;
 }
-async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天' }) {
+async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天', stop }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -142,6 +142,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
   const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆当前连接' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
   const signal = call.signal, part = call.part;
+  stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });   // 页面上的「取消」：和日志里点中止一样
   try {
     let out;
     // 换密钥：当前这把被拒了就换下一把，直到都试过

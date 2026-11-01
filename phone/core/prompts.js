@@ -97,7 +97,7 @@ export const DEFAULT_PROMPTS = {
 
 只输出一个 JSON，不要别的文字，格式：
 {"people":[{"name":"真实姓名","nick":"网名","remark":"{{user}} 给 TA 的备注","gender":"男/女/其他","sign":"个性签名","pokeSuffix":"拍一拍后缀，比如 的小脑袋","persona":"两三句人设：身份、性格、和 {{user}} 的关系"}],
- "groups":[{"name":"群名","intro":"这个群是干什么的","notice":"群公告，可以为空","owner":"群主名字（必须是 people 里的或已有联系人）","members":["成员名字"]}]}` },
+ "groups":[{"name":"群名","intro":"这个群是干什么的","notice":"群公告，可以为空","owner":"群主名字（people 里的、已有联系人或 {{user}}）","members":["成员名字"],"titles":{"成员名字":"群头衔（有才写，也可以给 {{user}}）"}}]}` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 
