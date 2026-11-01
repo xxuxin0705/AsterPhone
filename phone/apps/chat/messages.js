@@ -6,7 +6,7 @@ import * as time from '../../core/time.js';
 import { nameOf, avatarOf, groupTitle } from './engine.js';
 import { groupAvatar, createGroupFlow } from './group.js';
 import { openRoom } from './room.js';
-import { pickContact, openContactForm, importFromTavern } from './people.js';
+import { pickContact, openContactForm } from './people.js';
 
 let filter = 'all', query = '';
 export function renderMessages(ctx) {
@@ -19,12 +19,11 @@ export function renderMessages(ctx) {
   async function plusMenu() {
     const v = await actionSheet('', [
       { value: 'dm', label: '发起单聊', icon: 'chat' }, { value: 'group', label: '发起群聊', icon: 'users' },
-      { value: 'add', label: '添加好友', icon: 'user' }, { value: 'card', label: '从酒馆角色卡添加', icon: 'box' },
+      { value: 'add', label: '添加好友', icon: 'user' },
     ]);
     if (v === 'dm') { const c = await pickContact('发起单聊'); if (c) openRoom(chatForContact(c.id, true)); }
     if (v === 'group') newGroup();
     if (v === 'add') openContactForm();
-    if (v === 'card') { await importFromTavern(); draw(); }
   }
   async function newGroup() { const g = await createGroupFlow(); if (g) openRoom(g); }
   function draw() {
@@ -37,8 +36,7 @@ export function renderMessages(ctx) {
     if (!list.length) {
       listBox.appendChild(query ? empty('没有找到相关的聊天') : empty('还没有聊天', h('div', { style: { display: 'grid', gap: '10px' } },
         btn('去添加联系人', 'primary', () => ctx.switchTab('contacts')),
-        btn('从酒馆角色卡添加', 'secondary', async () => { if (await importFromTavern()) ctx.switchTab('contacts'); }),
-        btn('AI 智能加载', 'text', () => import('./aiload.js').then(m => m.openAiLoad(() => ctx.switchTab('contacts')))))));
+        btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(() => ctx.switchTab('contacts')))))));
       return;
     }
     // 分组：置顶一组，联系人分组各一组，剩下的一组；每组可以折叠

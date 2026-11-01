@@ -4,17 +4,16 @@ import { state, commit, subscribe } from '../../core/store.js';
 import { page, group, item, avatar, icon, navBtn, actionSheet, dialog, toast, empty, btn } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { nameOf } from './engine.js';
-import { openProfile, openContactForm, importFromTavern, sorted } from './people.js';
+import { openProfile, openContactForm, sorted } from './people.js';
 
 let query = '';
 export function renderContacts(ctx) {
   ctx.setRight(navBtn('plus', '添加', async () => {
     const v = await actionSheet('添加联系人', [
-      { value: 'add', label: '手动添加好友', icon: 'user' }, { value: 'card', label: '从酒馆角色卡添加', icon: 'box' },
+      { value: 'add', label: '手动添加好友', icon: 'user' },
       { value: 'ai', label: 'AI 智能加载', icon: 'sparkle' }, { value: 'lore', label: '从世界书添加', icon: 'note' },
     ]);
     if (v === 'add') openContactForm();
-    if (v === 'card') { await importFromTavern(); draw(); }
     if (v === 'ai') (await import('./aiload.js')).openAiLoad(draw);
     if (v === 'lore') (await import('./aiload.js')).openLoreAdd(draw);
   }));
@@ -34,7 +33,7 @@ export function renderContacts(ctx) {
     ]));
     if (!state.contacts.length) {
       listBox.appendChild(empty('还没有联系人', h('div', { style: { display: 'grid', gap: '10px' } },
-        btn('从酒馆角色卡添加', 'primary', async () => { await importFromTavern(); draw(); }), btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()))));
+        btn('AI 智能加载', 'primary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()))));
       return;
     }
     const stars = all.filter(c => c.star);

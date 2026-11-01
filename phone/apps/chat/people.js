@@ -1,9 +1,8 @@
-// 联系人相关的页面和抽屉：资料页、手动添加 / 编辑、从酒馆角色卡导入、选人。
+// 联系人相关的页面和抽屉：资料页、手动添加 / 编辑、选人。
 import { h, uid, sortZh, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, chatForContact, clearMsgs } from '../../core/store.js';
 import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, navBtn, sheet, actionSheet, dialog, toast, toggleItem } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { characters, inTavern } from '../../core/bridge.js';
 import { nameOf, personaOf, genMoment, relinkMoments } from './engine.js';
 
 export const blankContact = () => ({ id: uid('p'), name: '', nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: '', charKey: '', persona: '', source: 'manual', star: false, group: '', createdAt: Date.now() });
@@ -31,19 +30,6 @@ export function pickMany(title, list, { preselect = [], disabled = [] } = {}) {
     const s = sheet({ title, onClose: () => { if (!done) res(null); }, content: h('div.as-stack-gap', h('div.as-chat-pick', rows),
       btn('确定', 'primary', () => { done = true; s.close(); res([...sel]); })) });
   });
-}
-
-/* ---------- 从酒馆角色卡添加 ---------- */
-export async function importFromTavern() {
-  if (!inTavern()) { toast('单独预览时读不到酒馆角色卡'); return 0; }
-  const chars = characters();
-  if (!chars.length) { toast('酒馆里还没有角色卡'); return 0; }
-  const have = state.contacts.filter(c => c.charKey).map(c => c.charKey);
-  const picked = await pickMany('从角色卡添加', chars.map(c => ({ key: c.key, name: c.name, avatar: c.avatar, note: have.includes(c.key) ? '已添加' : '' })), { disabled: have });
-  if (!picked || !picked.length) return 0;
-  picked.forEach(k => { const ch = chars.find(c => c.key === k); state.contacts.push({ ...blankContact(), name: ch.name, avatar: ch.avatar, charKey: ch.key, source: 'card' }); });
-  commit('contacts'); toast(`新增 ${picked.length} 个联系人`);
-  return picked.length;
 }
 
 /* ---------- 手动添加 / 编辑 ---------- */
