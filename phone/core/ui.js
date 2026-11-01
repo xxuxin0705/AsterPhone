@@ -147,7 +147,8 @@ export function sheet({ title, content, onClose, cls = '' }) {
     mask.classList.remove('is-open'); el.classList.remove('is-open'); el.style.transform = '';
     setTimeout(() => { mask.remove(); el.remove(); }, 420); onClose && onClose();
   };
-  mask.addEventListener('click', close);
+  // 长按弹出来的抽屉：手指抬起时那一下 click 会落在遮罩上，别当成「点外面关掉」
+  const t0 = Date.now(); mask.addEventListener('click', () => { if (Date.now() - t0 > 500) close(); });
   // 往下拖关闭，拉过头会回弹
   let y0 = null;
   el.addEventListener('pointerdown', e => { if (e.target.closest('button, input, textarea, .as-sheet__body')) return; y0 = e.clientY; el.style.transition = 'none'; el.setPointerCapture(e.pointerId); });

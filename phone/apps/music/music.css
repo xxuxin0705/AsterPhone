@@ -1,11 +1,12 @@
 /* 音乐 App。播放页照网易云：唱片在转、上方一支白唱臂；背景是封面放大模糊 + 一层雾，或者自己选的图 */
 .as-mu-cover { display: inline-block; flex: none; border-radius: 10px; background: var(--as-color-surface-2) center / cover; }
 .as-mu-row .as-list-item__icon { width: auto; height: auto; background: none !important; }
-.as-mu-gap { height: 84px; }
+.as-mu-gap { height: 70px; }
+.as-mu-root .as-page__body { padding-bottom: 12px; }
 .as-mu-playall { display: flex; align-items: center; gap: 6px; margin: 0 6px 12px; padding: 8px 14px; border: 0; border-radius: 999px; background: var(--as-color-accent); color: var(--as-color-on-accent); font: 600 14px/1 var(--font-ui); cursor: pointer; }
 
-/* 迷你播放条：浮在首页底部 */
-.as-mu-mini { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; border-radius: 22px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); box-shadow: var(--as-shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); cursor: pointer; }
+/* 迷你播放条：浮在底部标签栏上面 */
+.as-mu-mini { position: absolute; left: 12px; right: 12px; bottom: 82px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; border-radius: 22px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); box-shadow: var(--as-shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); cursor: pointer; }
 .as-mu-mini__cover { width: 40px; height: 40px; flex: none; border-radius: 50%; background: #222 center / cover; border: 3px solid rgba(20,20,20,.85); animation: as-mp-spin 20s linear infinite paused; }
 .as-mu-mini__cover.is-playing { animation-play-state: running; }
 .as-mu-mini__title { flex: 1; min-width: 0; font: 500 14px/1.2 var(--font-ui); color: var(--as-color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -57,3 +58,41 @@
 .as-mu-queue__row b { font: 500 15px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-mu-queue__row span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; }
 .as-mu-queue__row.is-cur b, .as-mu-queue__row.is-cur span { color: var(--as-color-accent); }
+
+/* 广场 / 搜索 / 我的 */
+.as-mu-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+.as-mu-chip { border: 1px solid var(--as-color-glass-line); border-radius: 999px; padding: 7px 14px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 13px/1 var(--font-ui); cursor: pointer; }
+.as-mu-chip.is-on { background: var(--as-color-accent); border-color: var(--as-color-accent); color: var(--as-color-on-accent); }
+.as-mu-chip.is-x { padding: 7px 10px; color: var(--as-color-text-2); display: grid; place-items: center; }
+.as-mu-me { display: flex; align-items: center; gap: 14px; padding: 10px 8px 20px; }
+.as-mu-me b { display: block; font: 600 20px/1.3 var(--font-ui); color: var(--as-color-text); }
+.as-mu-me span { font: 400 13px/1.3 var(--font-ui); color: var(--as-color-text-2); }
+.as-mu-cover svg { display: block; margin: auto; height: 100%; color: var(--as-color-text-2); }
+
+/* 笔记 */
+.as-mu-quote { margin: 4px 6px 14px; padding: 12px 16px; border-left: 3px solid var(--as-color-accent); background: var(--as-color-surface-2); border-radius: 0 14px 14px 0; }
+.as-mu-quote p { margin: 0; font: 500 15px/1.7 var(--font-ui); color: var(--as-color-text); }
+.as-mu-playone { color: var(--as-color-accent); display: grid; place-items: center; }
+.as-mu-reviews { display: grid; gap: 14px; padding: 12px 14px 4px; }
+.as-mu-reviews:empty { padding: 0; }
+.as-mu-hot { max-height: 60vh; overflow: auto; }
+.as-mu-review { display: flex; gap: 10px; align-items: flex-start; }
+.as-mu-review > div { min-width: 0; flex: 1; }
+.as-mu-review__name { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--font-ui); color: var(--as-color-text); }
+.as-mu-review__name em { font: 400 10px/1 var(--font-ui); padding: 2px 6px; border-radius: 999px; background: var(--as-color-surface-2); color: var(--as-color-text-2); font-style: normal; }
+.as-mu-review__name span { margin-left: auto; font: 400 11px/1 var(--font-ui); color: var(--as-color-text-2); }
+.as-mu-review__text { margin-top: 3px; font: 400 14px/1.55 var(--font-ui); color: var(--as-color-text); white-space: pre-wrap; }
+.as-mu-review__btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px 14px; }
+.as-mu-review__btns > :only-child { grid-column: 1 / -1; }
+/* 生成乐评的抽屉 */
+.as-mu-rsheet { display: grid; gap: 8px; }
+.as-mu-rsheet__h { display: flex; align-items: baseline; gap: 8px; margin: 6px 4px 0; font: 600 14px/1.3 var(--font-ui); color: var(--as-color-text); }
+.as-mu-rsheet__h span { font: 400 12px/1 var(--font-ui); color: var(--as-color-text-2); }
+.as-mu-rsheet .as-mu-chips { padding: 0 4px; }
+.as-mu-faces { display: flex; gap: 10px; overflow-x: auto; padding: 4px 4px 6px; }
+.as-mu-face { flex: none; display: grid; justify-items: center; gap: 5px; width: 72px; padding: 8px 4px; border: 2px solid transparent; border-radius: 16px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 400 11px/1.2 var(--font-ui); cursor: pointer; }
+.as-mu-face span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mu-face.is-on { border-color: var(--as-color-accent); background: color-mix(in srgb, var(--as-color-accent) 14%, transparent); }
+.as-mu-only { display: flex; align-items: center; gap: 8px; margin: 4px; font: 400 14px/1.3 var(--font-ui); color: var(--as-color-text); cursor: pointer; }
+.as-mu-sum { margin: 0 4px 4px; font: 400 12px/1.4 var(--font-ui); color: var(--as-color-accent); }
+.as-mu-rsheet .as-mu-review__btns { padding: 6px 0 0; }

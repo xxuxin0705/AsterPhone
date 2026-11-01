@@ -388,6 +388,7 @@ function bumpStreak(chat) {
 export async function fromStory({ from, body = '', group = '', type = '' }) {
   const c = storyContact(from); if (!c) return;
   if (type === '动态') return momentFromStory(c.name, body);
+  if (type === '加歌') return (await import('../../core/music.js')).storyAddSong(c, body);
   if (type === '点赞' || type === '评论') return reactFromStory(c, type, body);
   if (type === '加好友') { c.cut = ''; commit('contacts'); const chat = chatForContact(c.id, true); await addSystem(chat, `你和「${nameOf(c)}」已经是好友了`); if (body.trim()) await deliverFromStory(c, body); return; }
   if (type === '删好友' || type === '拉黑') { c.cut = type === '删好友' ? 'deleted' : 'blocked'; commit('contacts'); log('info', '聊天', `正文里「${nameOf(c)}」${type === '删好友' ? '把你删了' : '把你拉黑了'}`); return; }   // 和真的一样不提醒，你发消息时才知道

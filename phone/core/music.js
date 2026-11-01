@@ -1,9 +1,12 @@
 // 音乐的播放器本体：关掉音乐 App、收起手机都接着放。
 // 音源（照旧插件）：vkeys 搜歌；Meting 取播放链接、歌词、歌单。地址在 state.music.src 里能改。
 // 播放链接直接塞给 <audio>（放别人家的音乐文件不会被跨域拦）；只有搜歌、歌词、歌单要读内容，走 xf（被拦时借酒馆代理）。
-import { state, commit } from './store.js';
-import { xf } from './api.js';
+// 角色的歌单存在联系人身上（c.songs，跟着聊天窗口走）；笔记在 state.musicNotes（也跟窗口走）。
+import { state, commit, kvGet, kvSet, kvDel } from './store.js';
+import { xf, generate, resolveConn } from './api.js';
 import { log } from './log.js';
+import { compose } from './promptstore.js';
+import { uid } from './util.js';
 
 export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
@@ -20,20 +23,28 @@ async function get(url, as = 'json', what = '读音源') {
   const out = await (as === 'json' ? r.json() : r.text()); slow(what, t0);
   return out;
 }
+export const label = s => `${s.name} - ${s.artist}`;
 
 /* ---------- 找歌 ---------- */
 export async function search(word) {
   const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }), 'json', `搜「${word}」`);
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
-const lists = new Map();   // 这次打开手机读过的歌单 / 榜单，再点直接用
+/** 按「歌名 - 歌手」找一首（AI 挑的歌、正文里提到的歌都走这）；找不到就是 null */
+export async function findSong(text) {
+  const [name, artist = ''] = String(text).split(/\s[-–—]\s|[-–—]/).map(s => s.trim());
+  if (!name) return null;
+  const list = await search(artist ? `${name} ${artist}` : name).catch(() => []);
+  return list.find(s => s.name.toLowerCase() === name.toLowerCase()) || list[0] || null;
+}
+/** 歌单 / 榜单：读过的存在这台设备上，下次先给存的（马上出来），再去读新的 */
 export async function playlist(id) {
-  if (lists.has(id)) return lists.get(id);
   const j = await get(meting('playlist', id), 'json', '读歌单');
   const out = (Array.isArray(j) ? j : []).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
-  lists.set(id, out);
+  if (out.length) kvSet('mulist:' + id, out).catch(() => {});
   return out;
 }
+export const cachedList = id => kvGet('mulist:' + id).catch(() => null);
 /** 从网易云分享链接 / 一串数字里找出歌单编号 */
 export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || String(t).match(/[?&]id=(\d{5,})/) || String(t).trim().match(/^(\d{5,})$/)) || [])[1] || '';
 export function parseLrc(text) {
@@ -44,6 +55,21 @@ export function parseLrc(text) {
   }
   return out.sort((a, b) => a.t - b.t);
 }
+/** 网易云的热评：网页直连多半会被拦，能不能拿到要在真机上试 */
+export async function hotComments(id) {
+  const j = await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
+  return (j.hotComments || j.comments || []).map(c => ({ name: (c.user || {}).nickname || '网友', text: c.content, likes: c.likedCount || 0 }));
+}
+
+/* ---------- 本地 MP3（存在这台设备上） ---------- */
+export async function addLocal(file) {
+  const [a, b] = file.name.replace(/\.[^.]+$/, '').split(/\s-\s|-/).map(s => s.trim());
+  const s = { id: 'L' + uid(''), name: b || a || file.name, artist: b ? a : '本地', pic: '', local: true, size: file.size };
+  await kvSet('mufile:' + s.id, file);
+  M().local.unshift(s); commit('music');
+  return s;
+}
+export async function removeLocal(s) { M().local = M().local.filter(x => x.id !== s.id); commit('music'); await kvDel('mufile:' + s.id); }
 
 /* ---------- 放 ---------- */
 export const audio = new Audio();
@@ -58,24 +84,33 @@ export const playing = () => !audio.paused;
 
 /** 放一组歌，从第 i 首开始 */
 export function playList(list, i = 0) { M().queue = list.slice(); M().idx = i; fails = 0; load(true); }
-function load(autoplay) {
+async function load(autoplay) {
   const s = current(); if (!s) return;
   restored = true; lyrics = []; tell('song');
+  M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
+  const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++; commit('music');
   const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
-  M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50); commit('music');
-  // 先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样）
-  const urls = [meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
-  const tryUrl = i => {
-    audio.onerror = () => {
-      if (i + 1 < urls.length) return tryUrl(i + 1);
-      log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error');
-      if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
-    };
-    audio.src = urls[i];
-    if (autoplay) audio.play().catch(() => tell('blocked'));
-  };
-  tryUrl(0);
   sysInfo(s);
+  const go = urls => {
+    // 先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样）
+    const tryUrl = i => {
+      audio.onerror = () => {
+        if (i + 1 < urls.length) return tryUrl(i + 1);
+        log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error');
+        if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
+      };
+      audio.src = urls[i];
+      if (autoplay) audio.play().catch(() => tell('blocked'));
+    };
+    tryUrl(0);
+  };
+  if (s.local) {
+    const f = await kvGet('mufile:' + s.id).catch(() => null);
+    if (!f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
+    if (current() === s) go([URL.createObjectURL(f)]);
+    return;
+  }
+  go([meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`]);
   get(meting('lrc', s.id), 'text', '拿歌词').then(t => { if (current() === s) { lyrics = parseLrc(t); tell('lyrics'); } })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
 }
@@ -128,3 +163,42 @@ function duck(e) {
   else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(() => tell('blocked')); }
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }
+
+/* ---------- 让 AI 挑歌：心动模式、角色的歌单 ----------
+ * AI 只给「歌名 - 歌手」，手机再一首首去搜；onStep(找到几首, 一共几首) 给界面报进度 */
+const aiLines = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(l => l.replace(/^\d+[.、)）]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l && l.includes('-'));
+async function lookup(lines, onStep) {
+  const out = [];
+  for (const l of lines) { const s = await findSong(l); if (s && !out.some(x => x.id === s.id)) out.push(s); onStep && onStep(out.length, lines.length); }
+  return out;
+}
+export async function heartPick(onStep) {
+  const liked = M().liked.map(label), recent = M().recent.slice(0, 15).map(label);
+  if (!liked.length && !recent.length) throw new Error('先点几首「喜欢」，心动模式才知道你的口味');
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '心动模式', maxTokens: 600,
+    prompt: compose('heart', { liked: liked.join('\n') || '（无）', recent: recent.join('\n') || '（无）', count: 15 }) });
+  const songs = await lookup(aiLines(raw), onStep);
+  if (!songs.length) throw new Error('AI 挑的歌一首都没搜到');
+  return songs;
+}
+export async function charPick(c, onStep) {
+  const { personaOf, nameOf } = await import('../apps/chat/engine.js');
+  const { storyText } = await import('./context.js');
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 500,
+    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: (c.songs || []).map(label).join('\n') || '（无）', count: 8 }) });
+  const songs = (await lookup(aiLines(raw), onStep)).filter(s => !(c.songs || []).some(x => x.id === s.id));
+  if (!songs.length) throw new Error('AI 挑的歌一首都没搜到');
+  c.songs = [...(c.songs || []), ...songs]; commit('contacts');
+  return songs;
+}
+export function addToChar(c, s) {
+  c.songs = c.songs || [];
+  if (c.songs.some(x => x.id === s.id)) return false;
+  c.songs.push(s); commit('contacts'); return true;
+}
+/** 正文暗号 type="加歌"：TA 把某首歌加进了自己的歌单 */
+export async function storyAddSong(c, text) {
+  const s = await findSong(text);
+  if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${text}》，但没搜到`); return; }
+  if (addToChar(c, s)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单`);
+}

@@ -17,6 +17,11 @@ export const PROMPT_CATS = [
     { id: 'aiLoad', name: 'AI 加载联系人', vars: ['user', 'cards', 'user_persona', 'story', 'existing', 'require', 'withGroups'] },
     { id: 'lore', name: '世界书拆人', vars: ['user', 'entries', 'existing'] },
   ] },
+  { app: '音乐', items: [
+    { id: 'review', name: '乐评', vars: ['user', 'song', 'lyrics', 'note', 'reviews', 'people', 'must', 'count', 'strangers'] },
+    { id: 'heart', name: '心动模式', vars: ['liked', 'recent', 'count'] },
+    { id: 'charSongs', name: '角色歌单', vars: ['char', 'persona', 'story', 'existing', 'count'] },
+  ] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] }] },
 ];
 
@@ -98,6 +103,45 @@ export const DEFAULT_PROMPTS = {
 只输出一个 JSON，不要别的文字，格式：
 {"people":[{"name":"真实姓名","nick":"网名","remark":"{{user}} 给 TA 的备注","gender":"男/女/其他","sign":"个性签名","pokeSuffix":"拍一拍后缀，比如 的小脑袋","persona":"两三句人设：身份、性格、和 {{user}} 的关系"}],
  "groups":[{"name":"群名","intro":"这个群是干什么的","notice":"群公告，可以为空","owner":"群主名字（people 里的、已有联系人或 {{user}}）","members":["成员名字"],"titles":{"成员名字":"群头衔（有才写，也可以给 {{user}}）"}}]}` },
+  // ---------- 音乐 ----------
+  review: { name: '乐评', cats: ['review'], on: true, main: true,
+    text: `{{user}} 在听《{{song}}》，把这几句歌词收进了笔记：
+{{lyrics}}
+
+【{{user}} 写的感悟】
+{{note}}
+
+【已经有的乐评】
+{{reviews}}
+
+【可以来写乐评的人】
+{{people}}
+
+请写 {{count}} 条乐评，像网易云评论区那样：有人聊歌、有人聊自己的事、有人回应 {{user}} 写的感悟，长短不一，别都一个腔调。{{must}}{{strangers}}
+每条一行，格式：名字|内容。路人写成：路人|随便起个网名|内容。只输出这些行。` },
+  heart: { name: '心动模式', cats: ['heart'], on: true, main: true,
+    text: `下面是一个人喜欢的歌和最近在听的歌。请按这个口味推荐 {{count}} 首风格相近、但这里没有的歌（真实存在、网易云能搜到的），中文日文英文都可以。
+
+【喜欢的歌】
+{{liked}}
+
+【最近在听】
+{{recent}}
+
+每行一首，格式：歌名 - 歌手。只输出这些行。` },
+  charSongs: { name: '角色歌单', cats: ['charSongs'], on: true, main: true,
+    text: `你是 {{char}}。按你的人设和最近的经历，挑 {{count}} 首你会放进自己歌单的歌（真实存在、网易云能搜到的，别和已有的重复）。
+
+【人设】
+{{persona}}
+
+【最近的事】
+{{story}}
+
+【歌单里已经有的】
+{{existing}}
+
+每行一首，格式：歌名 - 歌手。只输出这些行。` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 
