@@ -107,3 +107,5 @@
 .as-crop__img { position: absolute; left: 0; top: 0; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
 .as-ctx-tag__mark { display: none; }
 .as-ctx-tag.is-keep .as-ctx-tag__mark { display: inline-flex; }
+
+.as-settings-now .as-list-item__value { max-width: 80%; }   /* 「现在」后面的日期时间要写全 */

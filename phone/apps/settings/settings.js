@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.55';
+export const VERSION = '0.6.56';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -142,9 +142,9 @@ function openChatApp() {
     body.append(
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
       group('聊天默认设置（每个聊天还能单独改）', [
-        toggleItem({ title: '先加好友才能聊' }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
-        toggleItem({ title: '角色配图真的生图' }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
-        toggleItem({ title: '新聊天默认允许 TA 主动发消息' }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
+        toggleItem({ title: withInfo('先加好友才能聊', '打开后，没聊过的角色要先在「通讯录 → 新的朋友」里加好友，才能私聊；关着就能直接聊。') }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
+        toggleItem({ title: withInfo('角色配图真的生图', '角色发图片、发动态配图时：打开就真的用生图接口画出来；关着只显示一张写着画面的描述卡，点「生图」才画（省钱）。') }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
+        toggleItem({ title: withInfo('新聊天默认允许 TA 主动发消息', '以后新建的私聊，一开始就打开「允许 TA 主动发消息」。已经有的聊天不变，每个聊天里还能单独开关。') }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
       ].filter(Boolean)),
       group('注入正文', [
         item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
@@ -581,7 +581,7 @@ function openLinkTime() {
     const hm = input({ value: `${p2(st.hh)}:${p2(st.mm)}`, type: 'time' });
     const dateIn = input({ value: `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}`, type: 'date' });
     const nowText = () => { if (S().timeSrc === 'story') { const s1 = time.story(); return `${time.fmtDate(s1.date)} ${p2(s1.hh)}:${p2(s1.mm)}`; } const d = new Date(); return `${time.fmtDate(d)} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
-    const nowItem = item({ title: '现在', value: nowText() });
+    const nowItem = item({ title: '现在', value: nowText(), cls: 'as-settings-now' });
     // 切换「跟随剧情 / 现实时间」只显示 / 藏起手动设定那一块，不重画整页
     const manual = h('div.as-field', { hidden: S().timeSrc !== 'story' }, h('span.as-field__label', '读不到剧情时间时：手动设定'),
       h('div.as-settings-time', { style: { padding: 0 } }, dateIn, hm),
