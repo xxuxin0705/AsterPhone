@@ -82,8 +82,8 @@ export const current = () => M().queue[M().idx] || null;
 export const lyricsNow = () => lyrics;
 export const playing = () => !audio.paused;
 
-/** 放一组歌，从第 i 首开始 */
-export function playList(list, i = 0) { M().queue = list.slice(); M().idx = i; fails = 0; load(true); }
+/** 放一组歌，从第 i 首开始；from 是从哪个歌单放的（播放页顶上显示） */
+export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
 async function load(autoplay) {
   const s = current(); if (!s) return;
   restored = true; lyrics = []; tell('song');
@@ -164,22 +164,28 @@ function duck(e) {
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }
 
-/* ---------- 让 AI 挑歌：心动模式、角色的歌单 ----------
- * AI 只给「歌名 - 歌手」，手机再一首首去搜；onStep(找到几首, 一共几首) 给界面报进度 */
+/* ---------- 心动模式：红心歌曲和相似推荐，不找 AI ----------
+ * 喜欢的歌里随机挑几位歌手，搜他们别的歌，和红心歌穿插着放 */
+export async function heartPick() {
+  const base = (M().liked.length ? M().liked : M().recent).filter(s => !s.local);
+  if (!base.length) throw new Error('先点几首「喜欢」，心动模式才知道你的口味');
+  const mix = a => a.sort(() => Math.random() - .5);
+  const mine = mix([...base]), seen = new Set(base.map(s => s.id));
+  const artists = [...new Set(mine.map(s => s.artist.split(/[/、,，&]/)[0].trim()))].slice(0, 5);
+  const extra = [];
+  for (const found of await Promise.all(artists.map(a => search(a).catch(() => []))))
+    mix(found.filter(s => !seen.has(s.id))).slice(0, 4).forEach(s => { seen.add(s.id); extra.push(s); });
+  const out = [];
+  while (mine.length || extra.length) out.push(...mine.splice(0, 1), ...extra.splice(0, 2));
+  return out;
+}
+
+/* ---------- 角色的歌单：AI 只给「歌名 - 歌手」，手机再一首首去搜；onStep(找到几首, 一共几首) 给界面报进度 ---------- */
 const aiLines = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(l => l.replace(/^\d+[.、)）]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l && l.includes('-'));
 async function lookup(lines, onStep) {
   const out = [];
   for (const l of lines) { const s = await findSong(l); if (s && !out.some(x => x.id === s.id)) out.push(s); onStep && onStep(out.length, lines.length); }
   return out;
-}
-export async function heartPick(onStep) {
-  const liked = M().liked.map(label), recent = M().recent.slice(0, 15).map(label);
-  if (!liked.length && !recent.length) throw new Error('先点几首「喜欢」，心动模式才知道你的口味');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '心动模式', maxTokens: 600,
-    prompt: compose('heart', { liked: liked.join('\n') || '（无）', recent: recent.join('\n') || '（无）', count: 15 }) });
-  const songs = await lookup(aiLines(raw), onStep);
-  if (!songs.length) throw new Error('AI 挑的歌一首都没搜到');
-  return songs;
 }
 export async function charPick(c, onStep) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
