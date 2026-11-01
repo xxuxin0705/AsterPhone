@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.59';
+export const VERSION = '0.6.60';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -586,12 +586,9 @@ function openLinkTime() {
     const manual = h('div.as-field', { hidden: S().timeSrc !== 'story' }, h('span.as-field__label', '读不到剧情时间时：手动设定'),
       h('div.as-settings-time', { style: { padding: 0 } }, dateIn, hm),
       btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); }));
-    // 仅线上聊天才有「每天主动发几条」；切换只显示 / 藏起这一块
-    const used = S().autoUsed && S().autoUsed.date === new Date().toDateString() ? S().autoUsed.count : 0;
-    const online = group(withInfo('线上聊天', 'TA 会每隔这么久主动来找你一次，免打扰时段里不会来；所有人加起来每天最多主动找你「上限」这么多次。'), [
+    // 仅线上聊天才有「定时来找你」；切换只显示 / 藏起这一块
+    const online = group(withInfo('线上聊天', 'TA 会每隔这么久主动来找你一次（每个私聊、群聊里还能单独改），免打扰时段里不会来。'), [
       sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } }),
-      sliderRow('每日主动消息上限', { min: 0, max: 100, step: 1, value: S().autoLimit ?? 30, onInput: v => { S().autoLimit = v; commit('settings'); } }),
-      item({ title: '今天已用', value: `${used} 次` }),
       item({ title: '让 TA 现在来找我', chevron: true, onClick: async () => {
         const name = (await import('../chat/engine.js')).pokeNow();
         toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「仅线上聊天」的私聊');

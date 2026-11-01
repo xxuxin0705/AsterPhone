@@ -50,7 +50,6 @@ export function defaults() {
       device: { fab: 'iphone', fabSize: 52, tripleTap: false },
       // 发给手机 AI 的上下文：读几条正文、带不带你的发言、标签要 / 不要、人设、世界书（见 core/context.js）
       ctx: { count: 6, withUser: true, keep: ['content'], drop: ['thinking'], keepOff: [], userPersona: true, charPersona: true, followTavern: true, books: {}, entries: {} },
-      autoLimit: 30, autoUsed: { date: '', count: 0 },
       storyTime: { day: 3, minutes: 21 * 60 + 20, at: Date.now() },
     },
     connections: {
@@ -66,7 +65,7 @@ export function defaults() {
       chat: {
         conn: { text: 'follow', image: 'follow', tts: 'follow' },
         prompts: {},                      // 改过的提示词存这里；没改过就用默认
-        defaults: { linkMode: 'follow', proactive: false, proactiveFreq: 'normal', proactiveEvery: 3, proactiveLimit: 5, groupDm: 'inline', imageGen: false },
+        defaults: { linkMode: 'follow', proactiveEvery: 3, groupDm: 'inline', imageGen: false },
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
@@ -136,7 +135,7 @@ export function chatForContact(cid, create = true) {
     const d = state.apps.chat.defaults;
     c = { id: uid('c_'), type: 'dm', contactId: cid, pinned: false, muted: false, unread: 0, lastAt: 0, lastText: '',
       cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: true, showThink: false, conn: 'follow', temperature: null,
-        proactive: !!d.proactive, proactiveFreq: d.proactiveFreq || 'normal', proactiveEvery: d.proactiveEvery || 3, proactiveLimit: d.proactiveLimit || 5, autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en',
+        autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en',
         minLines: 1, maxLines: 4, avatarShape: 'round', showAvatar: true, bg: '', myAvatar: '', theirAvatar: '', streak: true } };
     state.chats.push(c); commit('chats');
   }

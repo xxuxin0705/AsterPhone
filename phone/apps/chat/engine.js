@@ -18,26 +18,15 @@ export function on(evt, fn) { if (!subs.has(evt)) subs.set(evt, new Set()); subs
 function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); } catch (e) { console.error(e); } }); }
 
 export const busy = new Set();
-/* ---------- 自动行为（私聊、群聊都一样，要先打开这个聊天的「主动发消息」） ----------
- * 两种模式：正文里刚发生了和 TA（群里的人 / 这个群）有关的事时，有时会来说两句；这个不算进上限。
- * 只有仅线上聊天：还会每隔几小时来找你（加早安晚安），离开期间会补发；这些算进「每日主动消息上限」。
+/* ---------- 自动行为（私聊、群聊都会，不用开开关；免打扰时段里不来） ----------
+ * 两种模式：正文里刚发生了和 TA（群里的人 / 这个群）有关的事时，会来说两句。
+ * 只有仅线上聊天：还会每隔几小时来找你（加早安晚安），离开期间会补发；隔几小时在每个聊天里能单独改，默认跟「联动方式与时间」。
  *   跟随正文不定时来：手机里的事会写进正文，你没顾上看时自己发一堆会把正文带跑。 */
 const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 / 多」换算成小时
-const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || 3;
+const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3;
 const today = () => new Date().toDateString();
-function autoLeft() {
-  const s = state.settings;
-  if (!s.autoUsed || s.autoUsed.date !== today()) s.autoUsed = { date: today(), count: 0 };
-  return (s.autoLimit ?? 30) - s.autoUsed.count;
-}
-function chatLeft(chat) { const d = chat.autoDay; return (chat.cfg.proactiveLimit || 5) - (d && d.date === today() ? d.n : 0); }
-function useAuto(chat) {
-  autoLeft(); state.settings.autoUsed.count++;
-  chat.autoDay = chat.autoDay && chat.autoDay.date === today() ? { date: today(), n: chat.autoDay.n + 1 } : { date: today(), n: 1 };
-  commit('settings');
-}
-const free = chat => (chat.type === 'dm' || chat.type === 'group') && chat.cfg.proactive && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
-const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && autoLeft() > 0 && chatLeft(chat) > 0;
+const free = chat => (chat.type === 'dm' || chat.type === 'group') && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
+const canGo = chat => free(chat) && chat.cfg.linkMode === 'online';
 export function startEngine() {
   const last = state.lastSeen || 0;
   state.lastSeen = Date.now();
@@ -57,7 +46,7 @@ async function tick() {
     else if (hr >= 22 && chat.greet !== t + 'pm' && quiet > 90) { chat.greet = t + 'pm'; extra = g ? '（夜深了，群里有人说要睡了，大家互道晚安。）' : `（夜深了。${nameOf(c)} 睡前想跟 ${myName()} 说晚安。）`; }
     else if (quiet > every && Math.random() < .2) extra = g ? '（群里有一阵没人说话了，有人主动挑起话头，大家接着聊。）' : compose('proactive', { char: c.name || nameOf(c) });
     if (!extra) continue;
-    useAuto(chat); chat.lastProactive = Date.now();
+    chat.lastProactive = Date.now();
     log('info', '主动消息', g ? `群「${chat.name}」自己聊起来了` : `${nameOf(c)} 主动来找你了`);
     await requestReply(chat, { extra });
     break;   // 一分钟最多一个人来找
@@ -68,12 +57,11 @@ async function catchUp(gapMs) {
   const list = state.chats.filter(canGo).sort(() => Math.random() - .5).slice(0, 3);
   for (const chat of list) {
     const g = isGroup(chat), c = g ? null : contact(chat.contactId); if (!g && !c) continue;
-    useAuto(chat);
     log('info', '离开期间补发', g ? `群「${chat.name}」在你离开的 ${gap} 里聊了几句` : `${nameOf(c)} 在你离开的 ${gap} 里发来了消息`);
     await requestReply(chat, { extra: g ? `（${myName()} 离开了 ${gap}，这段时间里群里大家聊了些什么。）` : compose('catchup', { char: c.name || nameOf(c), gap }) });
   }
 }
-/** 试一下：让最近聊过的「仅线上聊天」私聊对象马上主动来找你（不算进每日上限，免打扰时段也照样来）。返回名字，没有可用的聊天返回 '' */
+/** 试一下：让最近聊过的「仅线上聊天」私聊对象马上主动来找你（免打扰时段也照样来）。返回名字，没有可用的聊天返回 '' */
 export function pokeNow() {
   const chat = state.chats.filter(ch => ch.type === 'dm' && ch.cfg.linkMode === 'online' && !busy.has(ch.id)).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0];
   const c = chat && contact(chat.contactId); if (!c) return '';
@@ -89,7 +77,7 @@ export function storyNudge(storyText) {
   if (!cands.length || Math.random() > .25) return;
   const chat = cands[Math.floor(Math.random() * cands.length)], c = isGroup(chat) ? null : contact(chat.contactId);
   setTimeout(() => {
-    if (!free(chat)) return;   // 正文触发的不算进每日上限
+    if (!free(chat)) return;
     requestReply(chat, { extra: c ? `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` : '（正文里刚发生的事被群里的人看到或聊起，大家在群里说了几句。）' });
   }, 30000 + Math.random() * 60000);
 }
@@ -284,7 +272,7 @@ export function createGroup(memberIds, name) {
   const g = { id: uid('g_'), type: 'group', name: name || memberIds.slice(0, 3).map(id => nameOf(contact(id))).join('、'), avatar: '', members: memberIds.slice(), owner: 'me', admins: [], titles: {}, intro: '', notice: '',
     pinned: false, muted: false, unread: 0, lastAt: Date.now(), lastText: '',
     cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: false, showThink: false, conn: 'follow', temperature: null, maxSpeakers: 3, minLines: 1, maxLines: 3,
-      bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline', proactive: false, proactiveEvery: 3, proactiveLimit: 5 } };
+      bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline' } };
   state.chats.push(g); commit('chats');
   return g;
 }
