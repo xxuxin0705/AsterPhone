@@ -1,6 +1,6 @@
 // 音色库 / 读音表的抽屉：插线板、列表模式、联系人资料都从这里打开（改的是同一份数据）
 import { h, uid } from '../../core/util.js';
-import { state, commit } from '../../core/store.js';
+import { state, commit, contact } from '../../core/store.js';
 import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
@@ -35,6 +35,16 @@ export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') 
     }) }, '拉取') : null,
     playBtn(getConn, () => inp.value));
 }
+/** 读音表的一行：写法 → 读音，试听、删掉。读音表和某个人的声音抽屉共用 */
+const readingRow = (r, changed, del, conn, voice) => h('div.as-pbd__line.as-vl__reading',
+  input({ value: r.from, placeholder: '写法', onInput: v => { r.from = v.trim(); changed(); } }), h('span.as-vl__arrow', '→'),
+  input({ value: r.to, placeholder: '读音', onInput: v => { r.to = v.trim(); changed(); } }),
+  h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => {
+    const c = conn(); if (!c) { toast('先插一个语音接口'); return; }
+    if (!(r.to || r.from)) { toast('先写上读音'); return; }
+    listen(e.currentTarget, c, voice(c), r.to || r.from);
+  } }, icon('play', 16, 2)),
+  h('button.as-pbd__ibtn', { 'aria-label': '删掉这一行', onclick: del }, icon('close', 14, 2)));
 const row = (label, ctrl) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl));
 
 /** 一个人在某个接口上用的音色，写成一行字 */
@@ -79,15 +89,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   /* 读音表：改了马上存 */
   const rbox = h('div');
   const R = () => V().readings;
-  const paintReadings = () => rbox.replaceChildren(...R().map((r, i) => h('div.as-pbd__line.as-vl__reading',
-    input({ value: r.from, placeholder: '写法', onInput: v => { r.from = v.trim(); save(); } }), h('span.as-vl__arrow', '→'),
-    input({ value: r.to, placeholder: '读音', onInput: v => { r.to = v.trim(); save(); } }),
-    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => {
-      const c = defaultConn(); if (!c) { toast('先插一个语音接口'); return; }
-      if (!(r.to || r.from)) { toast('先写上读音'); return; }
-      listen(e.currentTarget, c, voiceOf('me', c).voice, r.to || r.from);
-    } }, icon('play', 16, 2)),
-    h('button.as-pbd__ibtn', { 'aria-label': '删掉这一行', onclick: () => { R().splice(i, 1); save(); paintReadings(); } }, icon('close', 14, 2)))),
+  const paintReadings = () => rbox.replaceChildren(...R().map(r => readingRow(r, save, () => { R().splice(R().indexOf(r), 1); save(); paintReadings(); }, defaultConn, c => voiceOf('me', c).voice)),
     h('button.as-pbd__dash', { onclick: () => { R().push({ from: '', to: '' }); save(); paintReadings(); } }, icon('plus', 15, 2), '加一行'));
   const readTab = group(withInfo('读音表', '念出来的时候把「写法」换成「读音」，比如日语人名。发语音、通话都会用，聊天里显示的字不变。'), [h('div.as-field', rbox)]);
   /* 三栏 */
@@ -141,9 +143,17 @@ export function openPerson(id, onDone = () => {}) {
       row('当前音色', h('div.as-pbd__line', pick, playBtn(() => c, () => (mine || fb).voice), del)),
       ...(form ? [row('新增音色', form)] : []));
   };
-  paintConn(); paint();
+  // 读音：读音表里写法是 TA 名字（真实姓名 / 网名 / 备注）的那几行，在这改和在读音表改是同一份；点保存才写回去
+  const c0 = id === 'me' ? { name: state.me.realName, nick: state.me.nick } : contact(id) || {};
+  const names = [c0.name, c0.nick, c0.remark].filter(Boolean);
+  const reads = V().readings.filter(r => names.includes(r.from)).map(r => ({ ...r }));
+  const curVoice = c => { const S = P.voices[c.id], m = S && S.list.find(x => x.id === S.cur); return (m || fallbackVoice(id, c)).voice; };
+  const rbox = h('div');
+  const paintR = () => rbox.replaceChildren(...reads.map(r => readingRow(r, () => {}, () => { reads.splice(reads.indexOf(r), 1); paintR(); }, connOf, curVoice)),
+    h('button.as-pbd__dash', { onclick: () => { reads.push({ from: names[0] || '', to: '' }); paintR(); } }, icon('plus', 15, 2), '加一行'));
+  paintConn(); paint(); paintR();
   const s = sheet({ title: `${p.name}的声音`, cls: 'as-pbd', content: h('div.as-pbd__wrap',
-    V().mode === 'each' ? row('声音渠道', connBtn) : null, box,
+    V().mode === 'each' ? row('声音渠道', connBtn) : null, box, row('读音', rbox),
     h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => s.close() }, '取消'),
-      h('button.as-pbd__save', { onclick: () => { V().people[id] = P; save(); toast('保存好了'); s.close(); onDone(); } }, '保存'))) });
+      h('button.as-pbd__save', { onclick: () => { V().people[id] = P; V().readings = [...V().readings.filter(r => !names.includes(r.from)), ...reads.filter(r => r.from && r.to)]; save(); toast('保存好了'); s.close(); onDone(); } }, '保存'))) });
 }

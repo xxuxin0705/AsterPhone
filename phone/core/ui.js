@@ -1,6 +1,7 @@
 // 公共积木：页面、顶栏、列表组、开关、分段选择、滑块、抽屉、弹窗、轻提示……
 // 类名都按设计规范的门牌号来（as-xxx），皮肤靠这些名字改样子。
 import { h, $ } from './util.js';
+import { state } from './store.js';
 
 let root = null;
 export function mountUI(phoneEl) { root = phoneEl; }
@@ -104,7 +105,10 @@ export function textarea({ value = '', placeholder = '', rows = 4, onInput, id }
 export const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
 export function field(label, control, hint) { return h('label.as-field', h('span.as-field__label', label), control, hint && h('span.as-field__hint', hint)); }
 export function btn(label, variant = 'primary', onclick, attrs = {}) { return h('button.as-btn.as-btn--' + variant, { onclick, ...attrs }, label); }
+// 默认头像上的字用真实姓名的最后一个字：传进来的多半是备注 / 网名（「大狗狗！！」只剩个「！」），按它找回是谁
+const realOf = n => (n && state.contacts.find(c => c.remark === n || c.nick === n) || {}).name || (n && n === state.me.nick && state.me.realName) || n;
 export function avatar(url, name = '', size = 40, shape = 'round') {
+  name = realOf(name);
   const el = h('span.as-avatar' + (shape === 'square' ? '.as-avatar--square' : ''), { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * .42) + 'px' } });
   if (url) el.appendChild(h('img', { src: url, alt: '', loading: 'lazy', onerror: () => { el.innerHTML = ''; el.textContent = (name || '?').slice(-1); el.style.background = colorFor(name); } }));
   else { el.textContent = (name || '?').slice(-1); el.style.background = colorFor(name); }
