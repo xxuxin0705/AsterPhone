@@ -66,7 +66,7 @@ export function defaults() {
       chat: {
         conn: { text: 'follow', image: 'follow', tts: 'follow' },
         prompts: {},                      // 改过的提示词存这里；没改过就用默认
-        defaults: { linkMode: 'follow', proactive: false, proactiveFreq: 'normal', proactiveEvery: 3, proactiveLimit: 5, friendFirst: false, groupDm: 'inline', imageGen: false },
+        defaults: { linkMode: 'follow', proactive: false, proactiveFreq: 'normal', proactiveEvery: 3, proactiveLimit: 5, groupDm: 'inline', imageGen: false },
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },

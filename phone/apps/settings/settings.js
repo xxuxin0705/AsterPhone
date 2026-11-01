@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.57';
+export const VERSION = '0.6.58';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -142,7 +142,6 @@ function openChatApp() {
     body.append(
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
       group('聊天默认设置（每个聊天还能单独改）', [
-        toggleItem({ title: withInfo('先加好友才能聊', '打开后，没聊过的角色要先在「通讯录 → 新的朋友」里加好友，才能私聊；关着就能直接聊。') }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
         toggleItem({ title: withInfo('角色配图真的生图', '角色发图片、发动态配图时：打开就真的用生图接口画出来；关着只显示一张写着画面的描述卡，点「生图」才画（省钱）。') }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
       ].filter(Boolean)),
       group('注入正文', [
