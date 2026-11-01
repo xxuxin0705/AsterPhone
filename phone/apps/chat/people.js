@@ -75,7 +75,7 @@ export function openProfile(cid, { onMessage } = {}) {
   };
   const thumbs = h('div.as-chat-thumbs');
   const paintMoments = () => { relinkMoments(); const ms = state.moments.filter(m => m.author === c.id).slice(0, 4);
-    thumbs.replaceChildren(...(ms.length ? ms.map(m => m.images && m.images[0] ? h('span', { style: { backgroundImage: `url(${m.images[0]})` } }) : h('span', (m.text || '').slice(0, 8))) : [h('span.as-muted', '还没有')])); };
+    thumbs.replaceChildren(...ms.map(m => m.images && m.images[0] ? h('span', { style: { backgroundImage: `url(${m.images[0]})` } }) : h('span', (m.text || '').slice(0, 8)))); };   // 没有动态就空着
   const keep = { ...c };   // 名字清空时不存空的
   const changed = k => {
     if ((k === 'name' || k === 'nick') && !c.name.trim() && !c.nick.trim()) { c.name = keep.name; return; }
