@@ -422,9 +422,9 @@ export async function synthesize(conn, text, { voice } = {}) {
       if (!j.data || !j.data.audio) throw new Error('MiniMax 没有返回声音');
       return URL.createObjectURL(new Blob([hexToBytes(j.data.audio)], { type: 'audio/mpeg' }));
     }
-    case 'fish': {
-      const res = await xf(base + '/v1/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, model: conn.model || 's2.1-pro' },
-        body: JSON.stringify({ text, reference_id: v || undefined, format: 'mp3', prosody: { speed } }) });
+    case 'fish': {   // 走 Fish 的 OpenAI 兼容地址：网页能直接连（/v1/tts 会被跨域拦，Tauri Tavern 又没有代理），旧小手机也是这样
+      const res = await xf(base.replace(/\/v1$/, '') + '/compat/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model: 'fish-audio/' + String(conn.model || 's2.1-pro').replace(/^fish-audio\//, ''), input: text, voice: v || '', response_format: 'mp3', ...(speed !== 1 && { speed }) }) });
       if (!res.ok) await bad(res); return audioOf(res);
     }
     case 'elevenlabs': {
