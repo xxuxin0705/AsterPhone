@@ -25,15 +25,15 @@ export function rain(cv, page) {
     drops = Array.from({ length: 70 }, () => drop(false)); lines.clear();
   }
   // 一句排好：字号放不下就缩，每块记下落地位置、掉下来时的歪斜、碎开时水花往哪溅
-  function layout(x) {
-    if (lines.has(x)) return lines.get(x);
+  function layout(L, i) {
+    const x = L[i]; if (lines.has(x)) return lines.get(x);
     let fs = SIZE; ctx.font = `500 ${fs}px ${FONT}`;
-    const toks = x.text.match(TOK) || [];
+    const toks = x.w ? x.w.map(w => w.text) : x.text.match(TOK) || [];   // 有逐字时间就按它分块
     let ws = toks.map(t => ctx.measureText(t).width), sum = ws.reduce((a, b) => a + b, 0);
     if (sum > W - 40) { fs = Math.max(13, fs * (W - 40) / sum); ctx.font = `500 ${fs}px ${FONT}`; ws = toks.map(t => ctx.measureText(t).width); sum = ws.reduce((a, b) => a + b, 0); }
     let at = (W - sum) / 2;
-    const out = { fs, tr: x.tr, toks: [] };
-    toks.forEach((t, k) => { if (t.trim()) out.toks.push({ t, x: at, w: ws[k], jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
+    const out = { fs, tr: x.tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
+    toks.forEach((t, k) => { if (t.trim()) out.toks.push({ t: t.trim(), at: when[out.toks.length], x: at, w: ws[k], jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
       sp: Array.from({ length: 5 }, () => [(Math.random() - .5) * 2.4, .6 + Math.random() * .8]) }); at += ws[k]; });
     lines.set(x, out);
     return out;
@@ -86,13 +86,12 @@ export function rain(cv, page) {
   }
   // pop：-1 = 正常；>= 0 = 从换句起过了几秒，字从左到右一个个碎掉
   function draw(L, i, t, clock, pop) {
-    const x = L[i], lay = layout(x), n = lay.toks.length; if (!n) return;
+    const x = L[i], lay = layout(L, i), n = lay.toks.length; if (!n) return;
     if (pop > n * GAP + POP) return;
-    const step = P.lineDur(L, i) / n;
     ctx.font = `500 ${lay.fs}px ${FONT}`; ctx.textBaseline = 'alphabetic';
     let landed = 0;
     lay.toks.forEach((k, j) => {
-      const q = (t - (x.t + j * step - FALL)) / FALL; if (q <= 0) return;   // 提前 FALL 秒开始掉，唱到时刚好落地
+      const q = (t - (k.at - FALL)) / FALL; if (q <= 0) return;   // 提前 FALL 秒开始掉，唱到时刚好落地
       let y, rot, a = 1;
       if (q < 1) { y = -20 + (ground + 20) * q * q; rot = k.r0 * (1 - q) + k.r1 * q; a = Math.min(1, q * 3); }
       else { const b = Math.min(1, (q - 1) * FALL / .3); y = ground - Math.sin(b * Math.PI) * 6 * (1 - b); rot = k.r1; landed++; }

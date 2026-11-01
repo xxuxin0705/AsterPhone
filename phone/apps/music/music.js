@@ -324,7 +324,7 @@ export function openPlayer() {
       if (lines[i]) lines[i].classList.add('is-cur');
       if (el && Date.now() - touched > 3000) lrc.scrollTo({ top: el.offsetTop - lrc.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
     }
-    const c = L[i]; if (c) { const len = P.lineDur(L, i); lines[i].style.setProperty('--p', Math.min(100, (t - c.t) / len * 100) + '%'); }
+    if (L[i]) lines[i].style.setProperty('--p', P.sung(L, i, t) * 100 + '%');
   }
   function loop() {
     cancelAnimationFrame(raf);

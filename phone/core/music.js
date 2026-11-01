@@ -57,8 +57,31 @@ export function parseLrc(text) {
   }
   return out.sort((a, b) => a.t - b.t);
 }
-/** 这一句大概唱多久：没有逐字时间，按到下一句的间隔和字数估（下雨天落字、歌词从左往右亮都用它） */
-export const lineDur = (L, i) => { const x = L[i], gap = (L[i + 1] ? L[i + 1].t : x.t + 6) - x.t; return Math.max(.3, Math.min(gap * .85, x.text.replace(/\s/g, '').length * .3 + .3)); };
+/** 网易云逐字歌词：[句开始,句时长](字开始,字时长,0)字(…)字…，单位毫秒 */
+export function parseYrc(text) {
+  const out = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const m = line.match(/^\[(\d+),\d+\](.*)/); if (!m) continue;
+    const w = [...m[2].matchAll(/\((\d+),(\d+),\d+\)([^(]*)/g)].map(x => ({ t: x[1] / 1000, d: x[2] / 1000, text: x[3] })).filter(x => x.text.trim());
+    if (w.length) out.push({ t: m[1] / 1000, text: w.map(x => x.text).join('').trim(), tr: '', w });
+  }
+  return out;
+}
+/** 第 i 句里每一块（字 / 词）几点唱到：有逐字时间就用真的；没有就把这句摊在到下一句的间隔里估 */
+export function wordTimes(L, i, parts) {
+  const x = L[i]; if (x.w) return x.w.map(w => w.t);
+  const step = est(L, i, parts) / parts;
+  return Array.from({ length: parts }, (_, j) => x.t + j * step);
+}
+const est = (L, i, parts) => Math.max(.3, Math.min(((L[i + 1] ? L[i + 1].t : L[i].t + 6) - L[i].t) * .85, parts * .6 + .5));
+/** 第 i 句唱了几成（0～1），歌词从左往右亮用 */
+export function sung(L, i, t) {
+  const x = L[i];
+  if (!x.w) return Math.min(1, (t - x.t) / est(L, i, x.text.replace(/\s/g, '').length || 1));
+  let got = 0, all = 0;
+  for (const w of x.w) { all += w.text.length; got += w.text.length * Math.min(1, Math.max(0, (t - w.t) / (w.d || .05))); }
+  return got / all;
+}
 /** 网易云的热评：网页直连多半会被拦，能不能拿到要在真机上试 */
 export async function hotComments(id) {
   const j = await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
@@ -115,8 +138,17 @@ async function load(autoplay) {
     return;
   }
   go([meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`]);
-  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { if (current() === s) { lyrics = parseLrc(t); tell('lyrics'); } })
+  // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
+  let base = [], yrc = [];
+  const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
+  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { base = parseLrc(t); done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
+  get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
+    const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc;
+    yrc = typeof y === 'string' ? parseYrc(y) : [];
+    log('info', '音乐', yrc.length ? `《${s.name}》拿到了逐字歌词` : `《${s.name}》没有逐字歌词，按句子估时间`);
+    if (yrc.length) done();
+  }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词没拿到：${e.message}`));
 }
 export function toggle() {
   if (!current()) return;
