@@ -67,13 +67,15 @@ export function parseYrc(text) {
   }
   return out;
 }
-/** 第 i 句里每一块（字 / 词）几点唱到：有逐字时间就用真的；没有就把这句摊在到下一句的间隔里估 */
+/** 第 i 句里每一块（字 / 词）几点落地：有逐字时间就用真的；没有就按最早那版的速度估（一块约 0.45 秒），
+ * 再整体晚 LAG 秒——最早那版字是唱到才开始掉、0.75 秒后落地，作者觉得那个速度对，只是要再早零点几秒 */
+export const LAG = .45;
 export function wordTimes(L, i, parts) {
   const x = L[i]; if (x.w) return x.w.map(w => w.t);
-  const step = est(L, i, parts) / parts;
-  return Array.from({ length: parts }, (_, j) => x.t + j * step);
+  const step = est(L, i, parts) * .9 / parts;
+  return Array.from({ length: parts }, (_, j) => x.t + LAG + j * step);
 }
-const est = (L, i, parts) => Math.max(.3, Math.min(((L[i + 1] ? L[i + 1].t : L[i].t + 6) - L[i].t) * .85, parts * .6 + .5));
+const est = (L, i, parts) => Math.min((L[i + 1] ? L[i + 1].t : L[i].t + 5) - L[i].t, parts * .45 + .6);
 /** 第 i 句唱了几成（0～1），歌词从左往右亮用 */
 export function sung(L, i, t) {
   const x = L[i];

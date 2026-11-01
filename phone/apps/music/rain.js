@@ -79,9 +79,10 @@ export function rain(cv, page) {
     let L = P.lyricsNow();
     if (!L.length) { const s = P.current() || {}; L = [{ t: 0, text: s.name || '', tr: s.artist || '' }]; }
     if (L !== forL) { forL = L; lines.clear(); }
-    let i = -1; while (i + 1 < L.length && L[i + 1].t - FALL <= t) i++;   // 下一句的第一个字开始往下掉，就算换句了
+    const go = k => (L[k].w ? L[k].w[0].t : L[k].t + P.LAG) - FALL;   // 这一句第一个字开始往下掉的时候，就算换句了
+    let i = -1; while (i + 1 < L.length && go(i + 1) <= t) i++;
     if (i < 0) return;
-    if (i > 0) draw(L, i - 1, t, clock, t - (L[i].t - FALL));
+    if (i > 0) draw(L, i - 1, t, clock, t - go(i));
     draw(L, i, t, clock, -1);
   }
   // pop：-1 = 正常；>= 0 = 从换句起过了几秒，字从左到右一个个碎掉
