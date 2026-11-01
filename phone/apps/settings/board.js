@@ -5,12 +5,12 @@
 // 小脸：平时呆呆的 ·_·，拎着线靠近会好奇地看过来，插中先「≧▽≦」，连上了 ^‿^，连不上 T_T 还会掉眼泪。
 import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
-import { page, navBtn, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
+import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, failCfg, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, SAMPLERS, listSamplers, failCfg, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
-import { openVoicePage, voiceInput } from './voices.js';
+import { openVoicePage, voiceInput, withInfo } from './voices.js';
 import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/voice.js';
 
 const C = () => state.connections;
@@ -812,22 +812,22 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         keyBox.appendChild(h('button.as-pbd__dash', { onclick: () => { d.keys.push(''); touch(); drawKeys(); } }, icon('plus', 15, 2), '再加一把密钥'));
       };
       drawKeys();
-      const modelIn = input({ value: d.model, placeholder: kind === 'text' ? '例如 claude-opus' : kind === 'image' ? '例如 gpt-image-2' : '例如 tts-1', onInput: v => { d.model = v; paintSub(); touch(); paintModels(); } });
+      const modelIn = input({ value: d.model, placeholder: '模型 ID', onInput: v => { d.model = v; paintSub(); touch(); paintModels(); } });
       d.models = d.models || (d.model ? [d.model] : []);
       const modelBox = h('div.as-chips.as-pbd__models');
       const paintModels = () => modelBox.replaceChildren(...d.models.map(m => h('span.as-chip' + (m === d.model ? '.is-active' : ''), { onclick: () => useModel(m) }, m,
         h('button.as-pbd__chipx', { 'aria-label': '删掉这个模型', onclick: e => { e.stopPropagation(); d.models = d.models.filter(x => x !== m); touch(); paintModels(); } }, icon('close', 11, 2.4)))));
       const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
       paintModels();
-      const pull = h('button.as-pbd__mini', { onclick: async () => {
-        pull.disabled = true; toast('正在拉取模型…');
+      const pull = h('button.as-pbd__mini', { onclick: () => busy(pull, async () => {
+        toast('正在拉取模型…');
         try {
           const models = await listModels(d);
           if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
           toast(`拉到 ${models.length} 个模型`);
           const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
-        } catch (e) { toast('拉取失败：' + e.message); } finally { pull.disabled = false; }
-      } }, icon('link', 13, 2), '拉取');
+        } catch (e) { toast('拉取失败：' + e.message); }
+      }) }, icon('link', 13, 2), '拉取');
       // 官网：去哪拿密钥
       const siteBox = h('div.as-pbd__site');
       const paintSite = () => {
@@ -890,14 +890,21 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
       paintSz();
       const num = (k, ph) => input({ value: I[k] ?? '', type: 'number', placeholder: ph, onInput: v => { I[k] = v === '' ? undefined : +v; touch(); } });
       const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
-      const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' }, SAMPLER = { novelai: 'k_euler_ancestral', 'sd-webui': 'Euler a', comfyui: 'euler_ancestral' };
+      const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' };
+      // 采样器：从这家支持的里面挑，不用手打（本地 SD / ComfyUI 先问它装了哪些）
+      const sampLbl = h('span', I.sampler || (SAMPLERS[t] || [])[0] || '');
+      const sampBtn = h('button.as-pbd__select', { onclick: async () => {
+        const list = await busy(sampBtn, () => listSamplers(d)); if (!list) return;
+        const v = await actionSheet('采样器', list.map(x => ({ value: x, label: x, active: x === sampLbl.textContent })));
+        if (v) { I.sampler = v; sampLbl.textContent = v; touch(); }
+      } }, sampLbl, icon('chevron', 14, 2));
       b.append(row('方案', h('div', chips)), acts,
-        ...(oai ? [row('请求方式', segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
+        ...(oai ? [row(withInfo('请求方式', '生图接口：gpt-image、dall-e 这类画图模型用。聊天接口：图片夹在聊天回复里，Gemini 画图这类边聊边出图的模型用；有的中转站只开了这一条。'), segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
         row('尺寸（宽×高）', h('div', sizeIn, szBox)),
         ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])))] : []),
-        ...(SAMPLER[t] ? [row('采样器', input({ value: I.sampler || '', placeholder: SAMPLER[t], onInput: v => { I.sampler = v.trim(); touch(); } }))] : []),
-        ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '如：artist:xxx, artist:yyy')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
-        row('负面提示词', txt('neg', '例：lowres, bad anatomy')),
+        ...(SAMPLERS[t] ? [row('采样器', sampBtn)] : []),
+        ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '画师串')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
+        row('负面提示词', txt('neg', '负面提示词')),
         ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
     }));
     if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {

@@ -1,7 +1,7 @@
 // 音色库 / 读音表的抽屉：插线板、列表模式、联系人资料都从这里打开（改的是同一份数据）
 import { h, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
+import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
 import { V, save, people, connFor, defaultConn, voiceOf, fallbackVoice } from '../../core/voice.js';
@@ -11,12 +11,9 @@ const fmtOf = c => c.type === 'custom-tts' && c.fmt ? c.fmt : c.type;
 const PULL = new Set(['minimax-cn', 'minimax-intl', 'fish', 'elevenlabs']);
 const FROM = { male: '男声默认', female: '女声默认', base: '当前音色' };
 /** 试听：按钮转圈直到出声，出声了说「正在播放」，失败说原因 */
-async function listen(btn, conn, voice, text) {
-  if (btn.disabled) return;
-  btn.disabled = true; btn.replaceChildren(h('span.as-spin'));
+const listen = (btn, conn, voice, text) => busy(btn, async () => {
   try { await tryVoice(conn, voice, text); toast('正在播放'); } catch (e) { toast('试听失败：' + e.message); }
-  btn.disabled = false; btn.replaceChildren(icon('play', 16, 2));
-}
+});
 const playBtn = (conn, voice, text) => h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => { e.stopPropagation(); listen(e.currentTarget, conn(), voice(), text); } }, icon('play', 16, 2));
 
 /** 音色输入：手填，旁边快选（这家常用的）、拉取（网上拉）、试听。getConn 每次现取，换了渠道也对 */
@@ -27,14 +24,14 @@ export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') 
   const t = fmtOf(getConn());
   return h('div.as-pbd__line', inp,
     VOICES[t] ? h('button.as-pbd__mini', { onclick: () => pick('快选音色', VOICES[fmtOf(getConn())] || []) }, '快选') : null,
-    PULL.has(t) ? h('button.as-pbd__mini', { onclick: async () => {
+    PULL.has(t) ? h('button.as-pbd__mini', { onclick: e => busy(e.currentTarget, async () => {
       toast('正在拉取音色…');
       try {
         const list = await listVoices(getConn()) || [];
         if (!list.length) { toast('没有拉到音色，可以手动填'); return; }
         toast(`拉到 ${list.length} 个音色`); pick(`选择音色（${list.length}）`, list.map(x => [x.id, x.name]));
       } catch (e) { toast('拉取失败：' + e.message); }
-    } }, '拉取') : null,
+    }) }, '拉取') : null,
     playBtn(getConn, () => inp.value));
 }
 const row = (label, ctrl) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl));
@@ -100,7 +97,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   p.el._onShow = () => { paintChips(); paintDefaults(); paintPeople(); };   // 从接口设置回来：名字、默认渠道可能变了
   nav.push(p.el);
 }
-const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
+export const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
 
 /** 一个人的声音：（各自模式下）用哪个渠道 + 在那个渠道上存的几个音色，挑一个用。改完点保存 */
 export function openPerson(id, onDone = () => {}) {
@@ -131,7 +128,7 @@ export function openPerson(id, onDone = () => {}) {
     const del = mine && h('button.as-pbd__ibtn', { 'aria-label': '删除这个音色', onclick: () => { S.list = S.list.filter(y => y !== mine); S.cur = ''; paint(); } }, icon('close', 14, 2));
     let name = '', voice = '';
     const form = adding && h('div.as-vl__box',
-      input({ placeholder: '起个名字，比如「温柔」', onInput: v => { name = v.trim(); } }),
+      input({ placeholder: '名字', onInput: v => { name = v.trim(); } }),
       voiceInput(() => c, '', v => { voice = v; }),
       h('div.as-pbd__line',
         h('button.as-pbd__mini', { onclick: () => { adding = false; paint(); } }, '取消'),

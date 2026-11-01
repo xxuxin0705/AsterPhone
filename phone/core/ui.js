@@ -185,6 +185,12 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
 
 /* ---------- 轻提示 ---------- */
 let toastEl = null, toastT = 0;
+/** 按钮干活时（拉取、试听…）转圈、不能再点，大小不变；干完恢复原样 */
+export async function busy(btn, fn) {
+  if (btn.disabled) return;
+  const old = [...btn.childNodes]; btn.style.minWidth = btn.offsetWidth + 'px'; btn.disabled = true; btn.replaceChildren(h('span.as-spin'));
+  try { return await fn(); } finally { btn.disabled = false; btn.replaceChildren(...old); btn.style.minWidth = ''; }
+}
 export function toast(msg, action) {
   if (!toastEl) { toastEl = h('div.as-toast', { role: 'status' }); root.appendChild(toastEl); }
   toastEl.innerHTML = '';

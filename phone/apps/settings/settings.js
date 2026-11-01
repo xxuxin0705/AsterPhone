@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.52';
+export const VERSION = '0.6.53';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -299,9 +299,25 @@ function openLook() {
     let fontSeg = mkSeg();
     const pickFont = f => {
       S().clock.font = f; commit('look'); shell.applyLook(); paintClock();
-      body.querySelectorAll('.as-font-row .as-tag-accent').forEach(c => { c.hidden = c.dataset.font !== f; });
+      mineVal.textContent = mineName();
       const nseg = mkSeg(); fontSeg.replaceWith(nseg); fontSeg = nseg;   // 选了导入的字体，上面三个都不亮
     };
+    // 导入的字体收在一格里：下拉换用哪个、导入新的、删掉正在用的
+    const mineName = () => (userFonts().find(x => 'u:' + x.id === S().clock.font) || {}).name || '没用';
+    const mine = item({ title: '自己的字体', value: mineName(), chevron: true, onClick: async () => {
+      const cur = userFonts().find(x => 'u:' + x.id === S().clock.font);
+      const v = await actionSheet('锁屏用自己的字体', [...userFonts().map(x => ({ label: x.name, value: 'u:' + x.id, active: x === cur })), { label: '导入字体文件', value: '__add' },
+        ...(cur ? [{ label: `删除「${cur.name}」`, value: '__del', danger: true }] : [])]);
+      if (v == null) return;
+      if (v === '__add') {
+        const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+        try { const x = await importClockFont(f); pickFont('u:' + x.id); toast('已导入「' + x.name + '」'); } catch (e) { toast(e.message); }
+      } else if (v === '__del') {
+        if (!(await dialog({ title: `删掉「${cur.name}」？`, confirm: '删除', danger: true }))) return;
+        await removeClockFont(cur.id); pickFont('sf');
+      } else pickFont(v);
+    } });
+    const mineVal = mine.querySelector('.as-list-item__value');
     const prev = h('div.as-settings-preview', '今晚的月亮很圆。你那边能看到吗？');
     const night = shell.phone.dataset.mode === 'night';
     body.append(
@@ -332,19 +348,7 @@ function openLook() {
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))]),
       group('时间', [clockPreview(night),
         fontSeg,
-        // 导入的字体：点一下就用它，右边可以删；可以导入好几个
-        ...userFonts().map(x => item({ title: x.name, cls: 'as-font-row',
-          right: h('span.as-font-row__end', h('span.as-tag-accent', { hidden: S().clock.font !== 'u:' + x.id, dataset: { font: 'u:' + x.id } }, icon('check', 20, 2.4)),
-            h('button.as-textbtn.as-font-row__del', { onclick: async e => {
-              e.stopPropagation();
-              if (!(await dialog({ title: `删掉「${x.name}」？`, confirm: '删除', danger: true }))) return;
-              await removeClockFont(x.id); commit('look'); shell.applyLook(); paintClock(); re();
-            } }, '删除')),
-          onClick: () => pickFont('u:' + x.id) })),
-        item({ title: '导入字体文件', value: '.otf / .ttf', chevron: true, onClick: async () => {
-          const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
-          try { const x = await importClockFont(f); S().clock.font = 'u:' + x.id; commit('look'); shell.applyLook(); paintClock(); toast('已导入「' + x.name + '」'); re(); } catch (e) { toast(e.message); }
-        } }),
+        mine,
         segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); wheel.hidden = v !== 'custom'; })),
         wheel,
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),

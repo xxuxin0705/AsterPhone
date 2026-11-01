@@ -488,6 +488,20 @@ export async function synthesize(conn, text, { voice } = {}) {
     }
   }
 }
+/* ---------- 采样器：NovelAI 是固定几个；本地 SD / ComfyUI 问它自己装了哪些 ---------- */
+export const SAMPLERS = {
+  novelai: ['k_euler_ancestral', 'k_euler', 'k_dpmpp_2s_ancestral', 'k_dpmpp_2m', 'k_dpmpp_2m_sde', 'k_dpmpp_sde'],
+  'sd-webui': ['Euler a', 'Euler', 'DPM++ 2M', 'DPM++ SDE', 'DPM++ 2M SDE', 'DDIM', 'UniPC'],
+  comfyui: ['euler_ancestral', 'euler', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde', 'ddim', 'uni_pc'],
+};
+export async function listSamplers(conn) {
+  const base = trim(conn.base);
+  try {
+    if (conn.type === 'sd-webui') { const res = await xf(base + '/sdapi/v1/samplers'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(x => x.name); }
+    if (conn.type === 'comfyui') { const res = await xf(base + '/object_info/KSampler'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).KSampler.input.required.sampler_name[0]; }
+  } catch (e) { log('warn', '连接', `问不到「${conn.name || conn.type}」的采样器，先列常用的：${e.message}`); }
+  return SAMPLERS[conn.type] || [];
+}
 /* ---------- 音色：每家常用的列成表（快选）；能从网上拉的就拉（拉取） ---------- */
 const OPENAI_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'].map(v => [v, v]);
 const MINIMAX_VOICES = [['female-shaonv', '少女'], ['female-yujie', '御姐'], ['female-chengshu', '成熟女性'], ['female-tianmei', '甜美女性'], ['male-qn-qingse', '青涩青年'], ['male-qn-jingying', '精英青年'],
