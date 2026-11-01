@@ -385,7 +385,7 @@ function storyContact(name) {
   if (!c) {
     const ch = characters().find(k => k.name === n);
     c = { id: uid('p'), name: n, nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: ch ? ch.avatar : '', charKey: ch ? ch.key : '', persona: '', source: ch ? 'card' : 'story', star: false, group: '', createdAt: Date.now() };
-    state.contacts.push(c); commit('contacts');
+    state.contacts.push(c); commit('contacts'); chatForContact(c.id, true).lastAt = Date.now();
     log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
   }
   return c;

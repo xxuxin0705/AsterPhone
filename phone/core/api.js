@@ -10,6 +10,9 @@ export async function xf(url, o = {}) {
   try { return await fetch(url, o); }
   catch (e) {
     if ((o.signal && o.signal.aborted) || !/^https?:/i.test(url) || !inTavern()) throw e;
+    // OpenAI 格式的聊天 / 拉模型：借酒馆自己「自定义（兼容 OpenAI）」那条路转一手。本地酒馆和 Tauri Tavern 都有，不用开代理
+    const m = /^(.*)\/(chat\/completions|models)$/.exec(url), auth = o.headers && o.headers.Authorization;
+    if (m && auth) return viaTavern(m[1], m[2] === 'models', o, auth);
     let r = null;
     try { const c = ctx(); r = await fetch('/proxy/' + url, { ...o, headers: { ...(c && c.getRequestHeaders ? c.getRequestHeaders() : {}), ...o.headers } }); } catch (e2) { /* 代理也连不上 */ }
     // 本地酒馆没开代理回 404；Tauri Tavern 根本没有 /proxy/，回 200 + 酒馆首页。两种都算「没有代理」
@@ -19,6 +22,14 @@ export async function xf(url, o = {}) {
       : `连不上 ${new URL(url).host}（网络不通或被跨域拦截）。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试`);
     return r;
   }
+}
+
+async function viaTavern(base, models, o, auth) {
+  const body = { ...(models ? {} : JSON.parse(o.body)), chat_completion_source: 'custom', custom_url: base, custom_include_headers: `Authorization: ${JSON.stringify(auth)}` };
+  const r = await fetch(`/api/backends/chat-completions/${models ? 'status' : 'generate'}`, { method: 'POST', signal: o.signal, headers: { ...(ctx()?.getRequestHeaders?.() || {}), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!models) return r;
+  const j = await r.clone().json().catch(() => null);   // 拉模型失败时酒馆也回 200，只是带着 error
+  return j && !j.error ? r : new Response(JSON.stringify({ error: { message: (j && j.message) || '酒馆那边也没拉到模型' } }), { status: 502 });
 }
 
 export const CHANNELS = {
@@ -91,6 +102,8 @@ export const connOfTag = tag => (state.connections.embed || []).find(c => c.id =
 export function connLabel(c) { return c ? c.name : '未设置'; }
 
 const trim = s => String(s || '').replace(/\/+$/, '');
+// OpenAI 兼容的地址只填了域名（https://xxx.com/）：接口都在 /v1 下面，自动补上
+const oaiBase = s => (s = trim(s), /^https?:\/\/[^/]+$/i.test(s) ? s + '/v1' : s);
 async function readErr(res) {
   let t = ''; try { t = await res.text(); } catch (e) { /* 空 */ }
   try { const j = JSON.parse(t); t = (j.error && (j.error.message || j.error)) || j.message || t; } catch (e) { /* 不是 JSON */ }
@@ -164,7 +177,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
       out = await withKey(async key => {
         const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
         if (think) { body.reasoning_effort = P.thinking; delete body.temperature; body.max_completion_tokens = maxTokens + think; delete body.max_tokens; }
-        const res = await xf(trim(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
         return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part);
       });
@@ -235,7 +248,7 @@ export async function listModels(conn) {
 }
 async function pullModels(conn) {
   if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
-    const res = await xf(trim(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
+    const res = await xf(oaiBase(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(), ids = (j.data || []).map(m => m.id).sort();
     return conn.type === 'openai-realtime' ? ids.filter(m => /realtime|live/i.test(m)) : ids;

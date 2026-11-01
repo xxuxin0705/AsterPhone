@@ -138,8 +138,7 @@ export function openPreview(data, { after, lore, under } = {}) {
   }
   p.body.append(
     people.length ? group(`联系人（${people.length}）`, [h('div.as-chat-pvs', people.map(x => card(x, 'p')))], '点勾取消，点头像换头像，内容都能改。') : empty('AI 没想出新的人'),
-    groups.length ? group(`群聊（${groups.length}）`, [h('div.as-chat-pvs', groups.map(x => card(x, 'g')))]) : null,
-    btn('确认加入', 'primary', add, { style: { width: '100%' } }));
+    groups.length ? group(`群聊（${groups.length}）`, [h('div.as-chat-pvs', groups.map(x => card(x, 'g')))]) : null);
   nav.push(p.el);
 
   async function add() {
@@ -220,7 +219,8 @@ export function openNewFriends() {
   };
   function accept(r) {
     r.status = 'accepted';
-    state.contacts.push({ ...blankContact(), name: r.name, persona: r.persona || '', source: 'card' });
+    const c = { ...blankContact(), name: r.name, persona: r.persona || '', source: 'card' };
+    state.contacts.push(c); chatForContact(c.id, true).lastAt = Date.now();
     commit('contacts'); toast(`已添加 ${r.name}`); draw();
   }
   draw(); p.el._onShow = draw; nav.push(p.el);
