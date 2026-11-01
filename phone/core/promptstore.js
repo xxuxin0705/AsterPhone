@@ -19,6 +19,12 @@ export const schemeName = (cat, sid = schemesOf(cat).cur) => sid ? schemeOf(cat,
 /** 这套方案的所有条，按顺序；默认方案给内置的 */
 export const blocksIn = (cat, sid = schemesOf(cat).cur) => sid ? schemeOf(cat, sid).blocks : builtin(cat);
 
+/** 某个聊天单独指定的方案：'follow'（或没设）= 跟随全局，'' = 默认方案，别的是方案 id；方案被删了也算跟随全局。返回 undefined 就是跟随 */
+export const chatScheme = (cat, v) => v == null || v === 'follow' || (v && !schemeOf(cat, v)) ? undefined : v;
+/** 聊天设置里「提示词方案」那一行：显示的字 + 点开挑 */
+export function schemeLabel(cat, v) { const s = chatScheme(cat, v); return s === undefined ? `跟随全局（${schemeName(cat)}）` : schemeName(cat, s); }
+export const schemeOptions = (cat, v) => [{ value: 'follow', label: `跟随全局（${schemeName(cat)}）`, active: chatScheme(cat, v) === undefined },
+  { value: '', label: '默认方案', active: chatScheme(cat, v) === '' }, ...schemesOf(cat).list.map(s => ({ value: s.id, label: s.name, active: chatScheme(cat, v) === s.id }))];
 export function useScheme(cat, sid) { schemesOf(cat).cur = sid; commit('prompts'); }
 /** 复制一套方案（默认的也行），复制出来的马上用上 */
 export function copyScheme(cat, sid) {
@@ -39,8 +45,8 @@ export function removeBlock(cat, sid, id) { schemeOf(cat, sid).blocks = bl(cat, 
 
 const baseVars = () => ({ user: myName(), tag: state.timeTagName || 'astertime' });
 /** 把正在用的方案里打开的条拼起来 */
-export function compose(cat, vars = {}) {
-  return blocksIn(cat).filter(b => b.on).map(b => fill(b.text, { ...baseVars(), ...vars }).trim()).filter(Boolean).join('\n\n');
+export function compose(cat, vars = {}, sid) {
+  return blocksIn(cat, sid).filter(b => b.on).map(b => fill(b.text, { ...baseVars(), ...vars }).trim()).filter(Boolean).join('\n\n');
 }
 
 /** 旧版（改过的内置条、自己新建的条、关掉的、排过的顺序）：和默认不一样的分类，变成「我的方案 1」并用上 */

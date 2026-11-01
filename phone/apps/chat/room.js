@@ -8,6 +8,7 @@ import { shell } from '../../core/shell.js';
 import { log } from '../../core/log.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
+import * as P from '../../core/promptstore.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
@@ -364,6 +365,11 @@ function openSettings(chat, redrawRoom) {
         toggleItem({ title: '续火花', sub: '两边当天都说过话就 +1 天，跟随时间来源' }, cfg.streak !== false, v => { cfg.streak = v; save(); }),
       ]),
       group('AI', [
+        item({ title: '提示词方案', value: P.schemeLabel('dm', cfg.prompt), chevron: true, onClick: async e => {
+          const valEl = e.currentTarget.querySelector('.as-list-item__value');
+          const v = await actionSheet('这个聊天用哪套提示词', P.schemeOptions('dm', cfg.prompt)); if (v == null) return;
+          cfg.prompt = v; save(); valEl.textContent = P.schemeLabel('dm', v);
+        } }),
         item({ title: '使用的连接', value: cfg.conn && cfg.conn !== 'follow' ? connLabel(conns.find(x => x.id === cfg.conn)) : '跟随应用设置', chevron: true, onClick: async () => {
           const v = await actionSheet('这个聊天用哪个连接', [{ value: 'follow', label: '跟随应用设置', active: !cfg.conn || cfg.conn === 'follow' }, ...conns.map(x => ({ value: x.id, label: x.name, active: cfg.conn === x.id }))]);
           if (v) { cfg.conn = v; save(); draw(); }

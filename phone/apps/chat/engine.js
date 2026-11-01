@@ -8,7 +8,7 @@ import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { compose, myName, myPersona } from '../../core/promptstore.js';
+import { compose, myName, myPersona, chatScheme } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
 import { translate } from '../../core/translate.js';
 
@@ -202,7 +202,7 @@ export async function buildReplyPrompt(chat, msgs) {
     prompt: compose('dm', {
       char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
       story, world: await worldBlock(story + '\n' + history), time: time.forPrompt(), history, min, max,
-    }),
+    }, chatScheme('dm', cfg.prompt)),
   };
 }
 const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -295,7 +295,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
-      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 });
+      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt));
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
