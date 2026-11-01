@@ -1,12 +1,12 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
 import { h, uid } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, textarea, input, field, avatar, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
+import { page, group, item, toggleItem, slider, textarea, input, avatar, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, currentCharacter, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
 import { storyText } from '../../core/context.js';
-import { compose, myPersona } from '../../core/promptstore.js';
+import { compose, myPersona, myName } from '../../core/promptstore.js';
 import { log } from '../../core/log.js';
 import { blankContact, pickMany } from './people.js';
 import * as E from './engine.js';
@@ -21,19 +21,19 @@ function pickJSON(raw) {
 
 /* ================= AI 智能加载 ================= */
 export function openAiLoad(after) {
-  const o = { mode: 'auto', count: 6, must: '', groups: true, groupCount: 1 };
+  const o = { want: '', fixCount: false, count: 6, groups: true, gWant: '', fixG: false, groupCount: 1 };
   const p = page({ app: 'chat', id: 'chat-contacts-ai', title: 'AI 智能加载', back: true });
-  const countRow = h('div.as-settings-slider-row', h('span', '人数'), slider({ min: 1, max: 12, step: 1, value: o.count, onInput: v => { o.count = v; cOut.textContent = v + ' 人'; } }), h('output', o.count + ' 人'));
-  const cOut = countRow.querySelector('output');
-  const mustBox = h('div', field('必须包含谁（每行一个，可以写一句描述）', textarea({ rows: 3, placeholder: '例如：\n阿铭 —— 大学室友，话痨\n周老师', onInput: v => { o.must = v; } })));
-  const gOut = h('output', o.groupCount + ' 个');
+  const cOut = h('output', o.count + ' 人'), gOut = h('output', o.groupCount + ' 个');
+  const countRow = h('div.as-settings-slider-row', h('span', '人数'), slider({ min: 1, max: 12, step: 1, value: o.count, onInput: v => { o.count = v; cOut.textContent = v + ' 人'; } }), cOut);
   const gRow = h('div.as-settings-slider-row', h('span', '群的数量'), slider({ min: 1, max: 4, step: 1, value: o.groupCount, onInput: v => { o.groupCount = v; gOut.textContent = v + ' 个'; } }), gOut);
-  const sync = () => { countRow.hidden = o.mode !== 'pick'; mustBox.hidden = o.mode !== 'pick'; gRow.hidden = !o.groups; };
+  const gWant = h('div.as-field', textarea({ rows: 2, placeholder: '想要什么群（可以不填）', onInput: v => { o.gWant = v; } }));
+  const gFix = toggleItem({ title: '规定群数' }, o.fixG, v => { o.fixG = v; sync(); });
+  const sync = () => { countRow.hidden = !o.fixCount; gWant.hidden = gFix.hidden = !o.groups; gRow.hidden = !o.groups || !o.fixG; };
   const goBtn = btn('开始生成', 'primary', run, { style: { width: '100%' } });
   p.body.append(
     h('p.as-muted', { style: { margin: '0 6px 14px' } }, '读当前角色卡、你的人设和最近的剧情，想出你手机里会有哪些人和群。生成完先给你看，勾选、改好了再加进来。'),
-    group('方式', [h('div.as-field', segmented([['auto', '全部交给 AI'], ['pick', '我来点名']], o.mode, v => { o.mode = v; sync(); })), countRow, mustBox]),
-    group('群聊', [toggleItem({ title: '顺便生成群聊' }, o.groups, v => { o.groups = v; sync(); }), gRow]),
+    group('联系人', [h('div.as-field', textarea({ rows: 3, placeholder: '想要谁（可以不填）', onInput: v => { o.want = v; } })), toggleItem({ title: '规定人数' }, o.fixCount, v => { o.fixCount = v; sync(); }), countRow]),
+    group('群聊', [toggleItem({ title: '顺便生成群聊' }, o.groups, v => { o.groups = v; sync(); }), gWant, gFix, gRow]),
     goBtn);
   sync();
   nav.push(p.el);
@@ -46,9 +46,11 @@ export function openAiLoad(after) {
     }
     const chars = characters(), cur = currentCharacter();
     const cards = (cur ? chars.filter(x => x.key === cur.key) : chars.slice(0, 3)).map(x => `${x.name}：${(x.persona || '').slice(0, 1200)}`).join('\n\n') || '（没有读到角色卡，请根据常识自由发挥一个都市日常的人际圈）';
-    const require = o.mode === 'auto' ? '人数自己定，3~8 个，要有亲疏远近，包括角色卡里提到的人。' : `正好 ${o.count} 个人。${o.must.trim() ? '必须包含：\n' + o.must.trim() : ''}`;
-    const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）',
-      require: require + (o.groups ? `\n群聊：${o.groupCount} 个，成员从这些人里选，{{user}} 默认在每个群里，不用写。` : '\n不要生成群聊，groups 留空数组。'), withGroups: o.groups ? '和群聊' : '' });
+    const me = myName(), groupNames = state.chats.filter(c => c.type === 'group').map(c => c.name);
+    const require = (o.want.trim() ? `${me} 说：${o.want.trim()}\n这里点到的人一定要有；除非说了只要这些，还可以按剧情再补别的人。\n` : '')
+      + (o.fixCount ? `新的人一共正好 ${o.count} 个。` : '新的人有几个按剧情自己定，要有亲疏远近，包括角色卡里提到的人。')
+      + (o.groups ? `\n群聊：${o.fixG ? `正好 ${o.groupCount} 个` : '要几个按剧情自己定'}${o.gWant.trim() ? `，${me} 说：${o.gWant.trim()}` : ''}。成员从联系人里选，${me} 默认在每个群里，不用写。${keep && groupNames.length ? `\n已经有的群（不要重复）：${groupNames.join('、')}` : ''}` : '\n不要生成群聊，groups 留空数组。');
+    const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）', require, withGroups: o.groups ? '和群聊' : '' });
     goBtn.disabled = true; goBtn.replaceChildren(h('i.as-spin'), ' AI 正在想…');
     try {
       const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载' });
@@ -63,14 +65,15 @@ export function openAiLoad(after) {
 /* ================= 预览勾选页 ================= */
 export function openPreview(data, { after, lore } = {}) {
   const people = (data.people || []).filter(x => x && x.name).map(x => ({ ...x, _on: !state.contacts.some(c => c.name === x.name) }));
-  const groups = (data.groups || []).filter(x => x && x.name).map(x => ({ ...x, members: x.members || [], _on: true }));
+  const hasGroup = n => state.chats.some(c => c.type === 'group' && c.name === n);
+  const groups = (data.groups || []).filter(x => x && x.name).map(x => ({ ...x, members: x.members || [], _on: !hasGroup(x.name) }));
   const p = page({ app: 'chat', id: 'chat-contacts-preview', title: '看看 AI 想的', back: true, right: navText('加入', add, true) });
   const card = (x, kind) => {
     const ck = h('span.as-chat-check' + (x._on ? '.is-active' : ''), icon('check', 14, 2.6));
     const toggle = () => { x._on = !x._on; ck.classList.toggle('is-active', x._on); el.classList.toggle('is-off', !x._on); };
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), multi ? textarea({ value: x[key] || '', rows: 2, onInput: v => { x[key] = v; } }) : input({ value: x[key] || '', onInput: v => { x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
-      h('div.as-chat-pv__head', { onclick: toggle }, ck, kind === 'g' ? h('span.as-chat-gava', { style: { width: '36px', height: '36px' } }) : avatar('', x.name, 36), h('b', x.name), x.gender ? h('em', x.gender) : null, kind === 'p' && state.contacts.some(c => c.name === x.name) ? h('em', '已有') : null),
+      h('div.as-chat-pv__head', { onclick: toggle }, ck, kind === 'g' ? h('span.as-chat-gava', { style: { width: '36px', height: '36px' } }) : avatar('', x.name, 36), h('b', x.name), x.gender ? h('em', x.gender) : null, (kind === 'p' ? state.contacts.some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
       kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
         : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), h('div.as-muted', `群主：${x.owner || '我'} · 成员：${x.members.join('、') || '（无）'}`)]);
     return el;
@@ -91,6 +94,7 @@ export function openPreview(data, { after, lore } = {}) {
       state.contacts.push(c); np++;
     }
     for (const g of groups.filter(x => x._on)) {
+      if (hasGroup(g.name.trim())) continue;
       const ids = g.members.map(byName).filter(Boolean).map(c => c.id);
       if (ids.length < 2) continue;
       const chat = E.createGroup([...new Set(ids)], g.name.trim());
