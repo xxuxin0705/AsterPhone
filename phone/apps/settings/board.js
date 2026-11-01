@@ -7,7 +7,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 import { openVoicePage, voiceInput, withInfo } from './voices.js';
@@ -16,7 +16,7 @@ import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/v
 const C = () => state.connections;
 const subscribeConn = fn => subscribe(w => { if (w === 'connections' || w === 'all') fn(); });
 const KIND_NAME = { text: '文字', image: '生图', tts: '语音', embed: '其他' };
-/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 自己写标签的接口（向量、通话…），App 设置里按标签挑 */
+/** 四根线。use = 存在 defaults 里的名字；kind = 能插哪一类接口。「其他」= 自己写标签的接口（向量、通话…）：线在末端分叉，每个标签一股（defaults['aux:标签']） */
 const CORDS = [
   { use: 'text', kind: 'text', label: '聊天', sym: '@', ink: [52, 120, 220], glow: [140, 200, 255] },
   { use: 'image', kind: 'image', label: '生图', sym: '#', ink: [130, 92, 220], glow: [200, 170, 255] },
@@ -190,9 +190,9 @@ export function openBoard({ list }) {
   function syncUses() {
     for (const t of tiles) {
       if (!t.c) continue;
-      const want = CORDS.filter(cd => C().defaults[cd.use] === t.c.id).map(cd => cd.label).join(',');
+      const on = plugs.filter(pl => C().defaults[pl.use] === t.c.id), want = on.map(pl => pl.label).join(',');
       if (t.usesEl.dataset.v === want) continue;
-      t.usesEl.dataset.v = want; t.usesEl.replaceChildren(...CORDS.filter(cd => C().defaults[cd.use] === t.c.id).map(cd => h('i', { style: { '--c': `rgb(${cd.ink})` } }, cd.label)));
+      t.usesEl.dataset.v = want; t.usesEl.replaceChildren(...on.map(pl => h('i', { style: { '--c': `rgb(${pl.ink})` } }, pl.label)));
     }
     const sc = '方案：' + ((C().schemes || []).find(s => s.id === C().scheme) || { name: '当前接法' }).name + ' ▾';
     if (schemeChip.textContent !== sc) schemeChip.textContent = sc;
@@ -284,14 +284,32 @@ export function openBoard({ list }) {
   const stOf = c => status[c.id] || '';   // 只认这次点「测试」的结果；插上就算好，以前测失败的不再一直挂着哭脸
 
   /* ----- 线（插头） ----- */
-  const plugs = CORDS.map((cd, i) => ({ ...cd, i, x: 0, y: 0, vx: 0, vy: 0, tilt: 0, tv: 0, sway: 0, swayV: 0, mode: 'rest', target: null, prev: null, snapT: 0, from: null, grab: null, vis: 1, shake: 0 }));
+  // cord = 第几根线（底下的分类）；tag = 「其他」线的哪一股（别的线没有）
+  const mkPlug = (cd, cord, tag) => ({ ...cd, cord, tag, use: tag == null ? cd.use : auxKey(tag), label: tag == null ? cd.label : tag, tagEl: tag == null ? null : h('span.as-pb__ptag', { style: { '--c': `rgb(${cd.ink})` } }, tag),
+    x: 0, y: 0, vx: 0, vy: 0, tilt: 0, tv: 0, sway: 0, swayV: 0, mode: 'rest', target: null, prev: null, snapT: 0, from: null, grab: null, vis: 1, shake: 0 });
+  const plugs = CORDS.slice(0, 3).map((cd, i) => mkPlug(cd, i));
+  /** 「其他」线：有几种标签就分几股（一个接口都没有时也留一股「向量」） */
+  function syncBranches() {
+    const tags = [...new Set(C().embed.map(tagOf))]; if (!tags.length) tags.push('向量');
+    for (let j = plugs.length - 1; j >= 0; j--) if (plugs[j].tag != null && !tags.includes(plugs[j].tag) && plugs[j].mode !== 'drag') { plugs[j].tagEl.remove(); plugs.splice(j, 1); }
+    tags.forEach((tag, j) => {
+      let q = plugs.find(x => x.tag === tag);
+      if (!q) { q = mkPlug(CORDS[3], 3, tag); q.tagEl.hidden = active !== 3; p.body.appendChild(q.tagEl); plugs.push(q); q.fresh = true; }
+      q.j = j; q.n = tags.length;
+      if (q.fresh) { q.fresh = false; const r = restOf(q); q.x = r.x; q.y = r.y; }
+    });
+    plugs.forEach((q, i) => { q.i = i; });
+  }
+  const fits = (pl, c) => pl.tag == null || tagOf(c) === pl.tag;
   const B = () => p.body.getBoundingClientRect();
   const W = () => p.body.clientWidth, H = () => p.body.clientHeight;
   let active = lastCord;
-  const cur = () => plugs[active];
-  const isOn = pl => pl.i === active;
-  const restOf = pl => ({ x: W() / 2, y: cordsBox.offsetTop + 8 });
-  const anchorOf = pl => ({ x: W() / 2 + 34, y: H() + 50 });
+  const cur = () => plugs.find(pl => pl.cord === active);
+  const isOn = pl => pl.cord === active;
+  const restOf = pl => ({ x: W() / 2 + (pl.tag == null ? 0 : (pl.j - (pl.n - 1) / 2) * 64), y: cordsBox.offsetTop + 8 });
+  const forkAt = () => ({ x: W() / 2 + 34, y: tabs.getBoundingClientRect().top - B().top - 44 });   // 「其他」线在这里分叉，刚好高过底下的分类栏
+  const anchorOf = pl => pl.tag == null ? { x: W() / 2 + 34, y: H() + 50 } : forkAt();
+  syncBranches();
   function portOf(t, pl) {
     const b = B(), r = t.port.getBoundingClientRect(), pr = panel.getBoundingClientRect();
     const same = plugs.filter(q => q.target === t.c?.id && q.mode !== 'drag'), k = Math.max(0, same.indexOf(pl)), n = Math.max(1, same.length);
@@ -301,16 +319,17 @@ export function openBoard({ list }) {
     return { x, y, hidden };
   }
   function placePlugs(instant) {
+    syncBranches();
     for (const pl of plugs) {
       if (!instant && (pl.mode === 'drag' || pl.mode === 'snap')) continue;   // 正在拖 / 正在飞的线别打断
       const id = C().defaults[pl.use], t = id && tileOf(id);
-      if (t && t.kind === pl.kind) { pl.mode = 'plugged'; pl.target = id; }
+      if (t && t.kind === pl.kind && fits(pl, t.c)) { pl.mode = 'plugged'; pl.target = id; }
       else { pl.mode = 'rest'; pl.target = null; }
       if (instant) { const q = pl.mode === 'plugged' ? portOf(tileOf(pl.target), pl) : restOf(pl); pl.x = q.x; pl.y = q.y; }
     }
   }
   // 底部切换：这根线给谁
-  const tabs = h('div.as-pb__tabs', { role: 'tablist' }, plugs.map(pl => h('button.as-pb__tab', { role: 'tab', style: { '--c': `rgb(${pl.ink})` }, onclick: () => setActive(pl.i) }, h('i', pl.sym), pl.label)));
+  const tabs = h('div.as-pb__tabs', { role: 'tablist' }, CORDS.map((cd, i) => h('button.as-pb__tab', { role: 'tab', style: { '--c': `rgb(${cd.ink})` }, onclick: () => setActive(i) }, h('i', cd.sym), cd.label)));
   const cordHint = h('span.as-pb__cordhint');
   cordsBox.append(cordHint, tabs);
   // 语音线上的小拨片：统一一个渠道 ↔ 每个人用自己的渠道（各自时线变成彩色）。位置每帧跟着线走
@@ -322,14 +341,16 @@ export function openBoard({ list }) {
   paintMode(); modeSw.hidden = micBtn.hidden = cur().kind !== 'tts'; p.body.appendChild(modeSw);
   function layoutLabels() {
     [...tabs.children].forEach((b, i) => { b.classList.toggle('is-on', i === active); b.setAttribute('aria-selected', String(i === active)); });
-    const pl = cur(); cordHint.textContent = pl.mode === 'drag' ? `把「${pl.label}」插进一个${KIND_NAME[pl.kind]}接口` : pl.mode === 'rest' ? `「${pl.label}」还没插，拎起来插进上面一个接口` : '';
+    const ons = plugs.filter(isOn), pl = ons.find(q => q.mode === 'drag') || ons.find(q => q.mode === 'rest');
+    cordHint.textContent = !pl ? '' : pl.mode === 'drag' ? `把「${pl.label}」插进一个${pl.tag == null ? KIND_NAME[pl.kind] : `「${pl.tag}」`}接口` : `「${pl.label}」还没插，拎起来插进上面一个接口`;
+    for (const q of plugs) if (q.tagEl) q.tagEl.hidden = !isOn(q) || q.mode === 'plugged';   // 插好了格子上自己会写，插头旁边就不挂了
   }
   /** 换一根线：板子上只留这一类接口（只是藏起来，不重建），线淡入 */
   function setActive(i) {
     if (i === active || dragging()) return;
     active = lastCord = i;
-    const pl = cur(); pl.vis = 0;
-    filterTiles(); panel.scrollTop = 0; modeSw.hidden = micBtn.hidden = pl.kind !== 'tts';
+    plugs.filter(isOn).forEach(q => { q.vis = 0; });
+    filterTiles(); panel.scrollTop = 0; modeSw.hidden = micBtn.hidden = CORDS[i].kind !== 'tts';
     requestAnimationFrame(() => { placePlugs(true); layoutLabels(); forceDraw = true; });
     ocean.kick(.3);
   }
@@ -374,7 +395,7 @@ export function openBoard({ list }) {
     const pl = plugs.find(x => x.mode === 'drag' && x.grab && x.grab.id === e.pointerId); if (!pl) return;
     pl.grab = null; quietUntil = performance.now() + 350;
     const t = nearTile(pl);
-    if (t && !t.c) { backOrRest(pl); addNew(pl.kind); return; }
+    if (t && !t.c) { backOrRest(pl); addNew(pl.kind, pl.tag); return; }
     if (t) snapTo(pl, t.c.id); else backOrRest(pl);
   };
   p.body.addEventListener('pointerup', up); p.body.addEventListener('pointercancel', up);
@@ -383,7 +404,7 @@ export function openBoard({ list }) {
   function nearTile(pl) {
     let best = null, bd = 64;
     for (const t of tiles) {
-      if (t.c && t.kind !== pl.kind) continue;
+      if (t.c && (t.kind !== pl.kind || !fits(pl, t.c))) continue;
       const q = portOf(t, pl); if (q.hidden) continue;
       const d = Math.hypot(q.x - pl.x, q.y - pl.y); if (d < bd) { bd = d; best = t; }
     }
@@ -420,7 +441,7 @@ export function openBoard({ list }) {
     for (const t of tiles) {
       if (!t.c) { t.el.classList.toggle('is-near', !!dp && nearTile(dp) === t); continue; }
       const used = plugs.some(pl => pl.kind === t.kind && C().defaults[pl.use] === t.c.id && !(pl.mode === 'drag' && isOn(pl)));
-      const st = stOf(t.c), compat = dp && dp.kind === t.kind, near = dp && nearTile(dp) === t;
+      const st = stOf(t.c), compat = dp && dp.kind === t.kind && fits(dp, t.c), near = dp && nearTile(dp) === t;
       if (now > t.blinkAt) { t.blinkUntil = now + 140; t.blinkAt = now + 2200 + Math.random() * 4200; }
       let f, look = 0;
       if (now < (t.huhUntil || 0)) f = 'need';
@@ -531,6 +552,12 @@ export function openBoard({ list }) {
   /** 把一层画成字符：cable(pl) 要不要画这根线，head(pl) 要不要画这个插头 */
   function drawLayer(ctx, now, cable, head) {
     dens.fill(0); own.fill(0); typ.fill(0);
+    // 「其他」线：先画一根主干从底下直直伸到分叉点，各股再从那里出发
+    const br = plugs.find(q => isOn(q) && q.tag != null);
+    if (br && cable(br)) {
+      const A = { x: W() / 2 + 34, y: H() + 50 }, F = forkAt(), n = Math.max(2, Math.ceil((A.y - F.y) / 3));
+      for (let i = 0; i <= n; i++) { const y = A.y + (F.y - A.y) * i / n; for (const [o, a] of [[0, .82], [-4, .5], [4, .42], [-7, .14]]) stamp(A.x + o, y, a, br.i + 1, 0); }
+    }
     const order = [...plugs].sort((a, b) => (a.mode === 'drag') - (b.mode === 'drag'));
     for (const pl of order) {
       if (!isOn(pl)) continue;
@@ -562,6 +589,7 @@ export function openBoard({ list }) {
         if (d <= 0) continue;
         const kk = cy * cols + cx; dens[kk] = d; own[kk] = pl.i + 1; typ[kk] = metal ? 1 : 0;
       }
+      if (pl.tagEl) { pl.tagEl.style.left = (X0 + 20) + 'px'; pl.tagEl.style.top = (Y0 + PL * .4) + 'px'; pl.tagEl.style.opacity = pl.vis; }   // 分叉的每股挂着自己的标签
       // 插头正面印着这根线的记号（@ % # S）
       const mx = Math.floor((X0 - s * PL * .5) / CW), my = Math.floor((Y0 + c * PL * .5) / CH);
       if (mx >= 0 && my >= 0 && mx < cols && my < rows) { const kk = my * cols + mx; dens[kk] = 1; own[kk] = pl.i + 1; typ[kk] = 3; }
@@ -599,7 +627,7 @@ export function openBoard({ list }) {
   /* ================= 接口详情 ================= */
   const hooks = () => ({ status, tileOf, refresh, togglePin, paintVoices });
   const detail = (c, k, isNew) => openDetail(c, k, isNew, hooks());
-  const addNew = kind => newConn(kind || cur().kind, hooks());
+  const addNew = (kind, tag) => newConn(kind || cur().kind, hooks(), tag);
   /* ================= 右上角菜单 ================= */
   const menu = () => connMenu({ mode: 'board', kind: cur().kind, schemes, add: () => addNew(), switchMode: list });
   const voicePage = (conn, tab) => openVoicePage({ conn, tab, onChange: () => { paintVoices(); paintMode(); forceDraw = true; }, openConn: c => detail(c, 'tts') });
@@ -659,6 +687,7 @@ function retrySheet(kind = 'text') {
     h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}线断了，改用副 API`), sw), bkRow);
   sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
 }
+const isWire = k => ['text', 'image', 'tts'].includes(k) || k.startsWith('aux:');   // defaults 里哪些是线（每股一个）
 /** 接线方案：onApply = 换了方案之后（插线板要把线一根根挪过去），onChange = 方案增删之后 */
 export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
   const list = C().schemes;
@@ -666,19 +695,23 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
     box.innerHTML = '';
     if (!list.length) box.appendChild(h('p.as-pbd__hint', '还没有方案。把现在每根线插在哪存成一个方案，以后点一下就整套换过去。'));
     list.forEach(sc => box.appendChild(h('div.as-pbd__scheme' + (C().scheme === sc.id ? '.is-on' : ''),
-      h('button.as-pbd__scheme-main', { onclick: () => applyScheme(sc) }, h('b', sc.name), h('span', CORDS.map(cd => { const c = (C()[cd.kind] || []).find(x => x.id === sc.map[cd.use]); return c ? `${cd.label}→${c.name}` : null; }).filter(Boolean).join('　') || '全部没插')),
+      h('button.as-pbd__scheme-main', { onclick: () => applyScheme(sc) }, h('b', sc.name), h('span', Object.entries(sc.map).map(([k, id]) => {
+        const tag = k === 'aux' ? '向量' : k.startsWith('aux:') ? k.slice(4) : null, cd = CORDS.find(x => x.use === (tag == null ? k : 'aux')), c = cd && (C()[cd.kind] || []).find(x => x.id === id);
+        return c ? `${tag || cd.label}→${c.name}` : null;
+      }).filter(Boolean).join('　') || '全部没插')),
       h('button.as-pbd__ibtn', { 'aria-label': '删掉这个方案', onclick: async () => { if (!(await dialog({ title: `删掉方案「${sc.name}」？`, confirm: '删除', danger: true }))) return; list.splice(list.indexOf(sc), 1); if (C().scheme === sc.id) C().scheme = ''; commit('connections'); draw(); onChange(); } }, icon('trash', 16, 1.8)))));
     box.appendChild(h('button.as-pbd__dash', { onclick: async () => {
       const name = await dialog({ title: '存成方案', input: { placeholder: '方案名字' } });
       if (!name) return;
-      const sc = { id: uid('sch'), name: String(name).slice(0, 16), map: Object.fromEntries(CORDS.map(cd => [cd.use, C().defaults[cd.use] || ''])) };
+      const sc = { id: uid('sch'), name: String(name).slice(0, 16), map: Object.fromEntries(Object.entries(C().defaults).filter(([k, v]) => v && isWire(k))) };
       list.push(sc); C().scheme = sc.id; commit('connections'); draw(); onChange(); toast('存好了');
     } }, icon('plus', 15, 2), '把现在的接法存成方案'));
   };
   const box = h('div.as-pbd__wrap');
   const s = sheet({ title: '接线方案', cls: 'as-pbd', content: box });
   function applyScheme(sc) {
-    for (const cd of CORDS) C().defaults[cd.use] = sc.map[cd.use] || '';
+    for (const k of Object.keys(C().defaults)) if (isWire(k)) C().defaults[k] = '';
+    for (const [k, v] of Object.entries(sc.map)) if (k !== 'aux' || v) C().defaults[k === 'aux' ? auxKey('向量') : k] = v;   // 旧方案的「其他」只有一个插头，算「向量」那股
     C().scheme = sc.id; commit('connections'); s.close();
     onApply(sc);
     toast(`换成「${sc.name}」`);
@@ -689,7 +722,6 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
 /* ================= 接口详情 ================= */
 const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
 const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
-const tagOf = c => c.tag || (CHANNELS.embed.find(x => x.v === c.type) || {}).tag || '其他';   // 「其他」线上的接口：自己写的标签，没写就用这一类默认的
 const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : kind === 'embed' ? tagOf(c) : KIND_NAME[kind];
 const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
   : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
@@ -713,14 +745,15 @@ function togglePinData(id) {
   return i < 0;
 }
 /** 新建一个接口：先按这一类的第一个渠道填好，打开详情 */
-export function newConn(kind, hooks) {
-  const ch = CHANNELS[kind][0];
-  openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '' }, kind, true, hooks);
+export function newConn(kind, hooks, tag) {
+  // 拎着「其他」线的某一股插到「添加」上：先挑带这个标签的渠道，没有就用自定义，标签填好
+  const ch = (tag && (CHANNELS[kind].find(x => x.tag === tag) || CHANNELS[kind].find(x => x.v === 'other-compat'))) || CHANNELS[kind][0];
+  openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', ...(tag && ch.tag !== tag ? { tag } : {}) }, kind, true, hooks);
 }
 /** 接口详情（插线板和列表模式共用）。hooks：插线板传进来的那几样（测试状态、格子、刷新…），列表模式不传就用空的 */
 export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null, refresh = () => {}, togglePin = togglePinData, paintVoices = () => {}, setDefault = false } = {}) {
   // 列表模式没有线可插：用「设为默认」代替「置顶」
-  const use = kind === 'embed' ? 'aux' : kind;
+  const use = kind === 'embed' ? auxKey(tagOf(orig)) : kind;
   const defBtn = () => { const b = h('button', { onclick: () => { C().defaults[use] = orig.id; commit('connections'); b.textContent = '已是默认'; toast('设为默认了'); refresh(); } }, C().defaults[use] === orig.id ? '已是默认' : '设为默认'); return b; };
   const d = JSON.parse(JSON.stringify(orig));
   d.keys = d.keys || []; d.params = Object.assign({ temperature: .9, thinking: 'off' }, d.params); d.adv = Object.assign({ cache: false }, d.adv);
@@ -936,7 +969,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
     d.name = (d.name || '').trim() || `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label} ${d.model || ''}`.trim();
     d.keys = d.keys.filter(k => String(k).trim());
     if (d.model && d.models && !d.models.includes(d.model)) d.models.push(d.model);
-    if (isNew) { C()[kind].push(d); if (!C().defaults[kind]) C().defaults[kind] = d.id; }
+    if (isNew) { C()[kind].push(d); const k0 = kind === 'embed' ? auxKey(tagOf(d)) : kind; if (!C().defaults[k0]) C().defaults[k0] = d.id; }   // 这一类（这个标签）还没插：新的直接插上
     else { Object.assign(orig, d); if (status[orig.id] === 'ok' || status[orig.id] === 'bad') orig.ok = status[orig.id] === 'ok'; }
     commit('connections'); dirty = false;
     toast('保存好了'); s.close(); refresh();

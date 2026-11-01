@@ -64,7 +64,7 @@ export const CHANNELS = {
 
 /** 找出这次该用哪个连接：聊天自己的 → 应用的 → 全局默认。kind = text / image / tts / embed（「其他」线：向量记忆） */
 export function resolveConn(kind = 'text', app = 'chat', override = 'follow') {
-  if (kind === 'embed') return (state.connections.embed || []).find(c => c.id === state.connections.defaults.aux) || null;
+  if (kind === 'embed') return connOfTag('向量');
   const list = state.connections[kind] || [];
   const pick = id => list.find(c => c.id === id);
   if (override && override !== 'follow' && pick(override)) return pick(override);
@@ -83,6 +83,11 @@ export function backupOf(kind) {
   const b = failCfg(kind);
   return b.on ? (state.connections[kind] || []).find(c => c.id === b.id) || null : null;
 }
+/** 「其他」线上的接口：自己写的标签，没写就用这一类默认的 */
+export const tagOf = c => c.tag || (CHANNELS.embed.find(x => x.v === c.type) || {}).tag || '其他';
+/** 「其他」线分叉，每个标签一股；defaults['aux:标签'] = 这股插在哪个接口上 */
+export const auxKey = tag => 'aux:' + tag;
+export const connOfTag = tag => (state.connections.embed || []).find(c => c.id === state.connections.defaults[auxKey(tag)] && tagOf(c) === tag) || null;
 export function connLabel(c) { return c ? c.name : '未设置'; }
 
 const trim = s => String(s || '').replace(/\/+$/, '');
@@ -655,10 +660,10 @@ export function seedChannels() {
       C.seeded[pre + ch.v] = true; changed = true;
     }
   }
-  // 以前「其他」线插的是聊天接口，现在它专门接向量：插错类的拔掉，默认插在硅基流动上
+  // 「其他」线以前只有一个插头（defaults.aux，插的是向量）：搬到「向量」那一股；第一次默认插在硅基流动上
   const d = C.defaults;
-  if (d.aux && !C.embed.some(c => c.id === d.aux)) { d.aux = ''; changed = true; }
-  if (!d.aux && !C.seeded.embPlug && C.embed.some(c => c.id === 'emb_siliconflow-embed')) { d.aux = 'emb_siliconflow-embed'; changed = true; }
+  if (d.aux) { if (C.embed.some(c => c.id === d.aux) && !d[auxKey('向量')]) d[auxKey('向量')] = d.aux; d.aux = ''; changed = true; }
+  if (!d[auxKey('向量')] && !C.seeded.embPlug && C.embed.some(c => c.id === 'emb_siliconflow-embed')) { d[auxKey('向量')] = 'emb_siliconflow-embed'; changed = true; }
   C.seeded.embPlug = true;
   return changed;
 }

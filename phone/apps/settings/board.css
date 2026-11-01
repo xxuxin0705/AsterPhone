@@ -212,6 +212,7 @@
 .as-pb__avghost { position: absolute; z-index: 30; pointer-events: none; transform: translate(-50%, -50%) scale(1.25); box-shadow: 0 6px 16px rgba(0,0,0,.3); border-radius: 50%; }
 
 /* 语音线上的小拨片 */
+.as-pb__ptag { position: absolute; z-index: 7; left: 0; top: 0; transform: translateY(-50%); pointer-events: none; padding: 2px 7px; border-radius: 99px; background: var(--c); color: #fff; font: 700 10px/1.2 var(--font-ui); white-space: nowrap; box-shadow: 0 2px 6px rgba(20,40,70,.2); }
 .as-pb__modesw { position: absolute; z-index: 7; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border: 0; border-radius: 99px; background: var(--pb-chrome, #fff); color: var(--pb-ink); font: 700 10.5px/1 var(--font-ui); box-shadow: 0 3px 10px rgba(20,40,70,.25); cursor: pointer; touch-action: manipulation; }
 .as-pb__modesw i { position: relative; width: 26px; height: 14px; border-radius: 99px; background: rgb(210, 132, 40); transition: background 240ms; }
 .as-pb__modesw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 240ms var(--as-ease-spring, ease); }

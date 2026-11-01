@@ -3,7 +3,7 @@ import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, resolveConn } from '../../core/api.js';
+import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.54';
+export const VERSION = '0.6.55';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -100,11 +100,11 @@ function openConnList() {
     mic.hidden = connKind !== 'tts';
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '其他']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => add()))); return; }
-    const def = state.connections.defaults[connKind];
+    const isDef = c => state.connections.defaults[connKind === 'embed' ? auxKey(tagOf(c)) : connKind] === c.id;   // 「其他」每个标签各有一个默认
     body.appendChild(group(connKind === 'text' ? '「酒馆当前连接」= 你在酒馆里正在用的 API' : '', list.map(c => {
       const el = item({ icon: h('span', (CHANNELS[connKind].find(x => x.v === c.type) || { label: '酒' }).label.slice(0, 1)), color: c.type === 'tavern' ? 'orange' : 'blue', cls: 'as-settings-conn-card',
-        title: c.name, sub: c.type === 'tavern' ? '跟着酒馆走，不用填密钥' : `${(CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
-        right: c.id === def ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => import('./board.js').then(m => m.openDetail(c, connKind, false, hooks())) });
+        title: c.name, sub: c.type === 'tavern' ? '跟着酒馆走，不用填密钥' : `${connKind === 'embed' ? tagOf(c) : (CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
+        right: isDef(c) ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => import('./board.js').then(m => m.openDetail(c, connKind, false, hooks())) });
       return el;
     }), '打勾的是默认，App、聊天里还能单独换'));
     body.appendChild(btn('新建连接', 'secondary', () => add(), { style: { width: '100%' } }));
