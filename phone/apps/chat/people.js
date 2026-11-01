@@ -41,10 +41,7 @@ function contactFields(c, changed = () => {}) {
       field('性别', segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; changed('gender'); })),
       f('地区', 'region', '例如：上海'), f('个性签名', 'sign', ''), f('拍一拍后缀', 'pokeSuffix', '例如：的小脑袋', '你拍 TA 时显示「你拍了拍 TA的小脑袋」'),
     ]),
-    group('人设', [
-      c.charKey ? item({ title: '人设来源', value: '角色卡' }) : null,
-      field(c.charKey ? '补充 / 覆盖人设' : '人设', textarea({ value: c.persona || '', placeholder: c.charKey ? '留空就用角色卡里的人设' : '性格、经历、和你的关系……', rows: 5, onInput: v => { c.persona = v; changed('persona'); } })),
-    ].filter(Boolean)),
+    group('人设', [field(c.charKey ? '补充 / 覆盖人设' : '人设', textarea({ value: c.persona || '', placeholder: c.charKey ? '留空就用角色卡里的人设' : '性格、经历、和你的关系……', rows: 5, onInput: v => { c.persona = v; changed('persona'); } }))]),
   ];
 }
 export function openContactForm() {
@@ -94,7 +91,6 @@ export function openProfile(cid, { onMessage } = {}) {
       btn('打电话', 'secondary', () => toast('语音通话下一轮做'))),
     group('', [
       item({ title: '动态', right: thumbs, chevron: true, onClick: () => import('./moments.js').then(m => m.openUserMoments(c.id)) }),
-      item({ title: '人设来源', value: c.charKey ? '角色卡' : c.source === 'story' ? '正文里出现' : '手写' }),
       // 声音：和设置 → 连接 → 音色库里的是同一份
       item({ title: '声音', chevron: true, onClick: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }),
     ]),
