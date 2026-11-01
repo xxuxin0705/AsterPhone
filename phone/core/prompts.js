@@ -15,7 +15,7 @@ export const PROMPT_CATS = [
     { id: 'catchup', name: '离开期间补发', vars: ['char', 'user', 'gap'] },
     { id: 'verify', name: '好友验证', vars: ['char', 'user', 'persona', 'story', 'text'] },
     { id: 'aiLoad', name: 'AI 加载联系人', vars: ['user', 'cards', 'user_persona', 'story', 'existing', 'require', 'withGroups'] },
-    { id: 'lore', name: '世界书拆人', vars: ['user', 'entries'] },
+    { id: 'lore', name: '世界书拆人', vars: ['user', 'entries', 'existing'] },
   ] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] }] },
 ];
@@ -102,6 +102,9 @@ export const DEFAULT_PROMPTS = {
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 
 {{entries}}
+
+【已经有的联系人（不要重复）】
+{{existing}}
 
 只输出一个 JSON，不要别的文字，格式：
 {"people":[{"name":"真实姓名","nick":"网名","remark":"","gender":"","sign":"个性签名","pokeSuffix":"","persona":"根据条目写两三句人设","entry":"来自哪个条目（条目标题）"}]}` },

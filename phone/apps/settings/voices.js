@@ -98,7 +98,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   p.el._onShow = () => { paintChips(); paintDefaults(); paintPeople(); };   // 从接口设置回来：名字、默认渠道可能变了
   nav.push(p.el);
 }
-export const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
+export { withInfo } from '../../core/ui.js';
 
 /** 一个人的声音：（各自模式下）用哪个渠道 + 在那个渠道上存的几个音色，挑一个用。改完点保存 */
 export function openPerson(id, onDone = () => {}) {

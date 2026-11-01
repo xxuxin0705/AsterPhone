@@ -1,7 +1,7 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
 import { h, uid } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, group, item, toggleItem, slider, textarea, input, avatar, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
+import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, currentCharacter, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
@@ -22,7 +22,7 @@ function pickJSON(raw) {
 /* ================= AI 智能加载 ================= */
 export function openAiLoad(after) {
   const o = { want: '', fixCount: false, count: 6, groups: true, gWant: '', fixG: false, groupCount: 1 };
-  const p = page({ app: 'chat', id: 'chat-contacts-ai', title: 'AI 智能加载', back: true });
+  const p = page({ app: 'chat', id: 'chat-contacts-ai', title: withInfo('AI 智能加载', '读当前角色卡、你的人设和最近的剧情，想出你手机里会有哪些人和群。生成完先给你看，勾选、改好了再加进来。'), back: true });
   const cOut = h('output', o.count + ' 人'), gOut = h('output', o.groupCount + ' 个');
   const countRow = h('div.as-settings-slider-row', h('span', '人数'), slider({ min: 1, max: 12, step: 1, value: o.count, onInput: v => { o.count = v; cOut.textContent = v + ' 人'; } }), cOut);
   const gRow = h('div.as-settings-slider-row', h('span', '群的数量'), slider({ min: 1, max: 4, step: 1, value: o.groupCount, onInput: v => { o.groupCount = v; gOut.textContent = v + ' 个'; } }), gOut);
@@ -31,7 +31,6 @@ export function openAiLoad(after) {
   const sync = () => { countRow.hidden = !o.fixCount; gWant.hidden = gFix.hidden = !o.groups; gRow.hidden = !o.groups || !o.fixG; };
   const goBtn = btn('开始生成', 'primary', run, { style: { width: '100%' } });
   p.body.append(
-    h('p.as-muted', { style: { margin: '0 6px 14px' } }, '读当前角色卡、你的人设和最近的剧情，想出你手机里会有哪些人和群。生成完先给你看，勾选、改好了再加进来。'),
     group('联系人', [h('div.as-field', textarea({ rows: 3, placeholder: '想要谁（可以不填）', onInput: v => { o.want = v; } })), toggleItem({ title: '规定人数' }, o.fixCount, v => { o.fixCount = v; sync(); }), countRow]),
     group('群聊', [toggleItem({ title: '顺便生成群聊' }, o.groups, v => { o.groups = v; sync(); }), gWant, gFix, gRow]),
     goBtn);
@@ -125,7 +124,7 @@ export async function openLoreAdd(after) {
   toast('AI 正在拆人…');
   try {
     const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', maxTokens: 2400, app: '世界书拆人',
-      prompt: compose('lore', { entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
+      prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
     openPreview(pickJSON(raw), { after, lore: { world, entries: chosen } });
   } catch (e) { log('error', '世界书拆人', e.message); toast('拆人失败：' + e.message); }
 }

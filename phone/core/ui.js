@@ -100,6 +100,8 @@ export function textarea({ value = '', placeholder = '', rows = 4, onInput, id }
   requestAnimationFrame(grow);
   return t;
 }
+/** 标题旁边的小 i：点开看一两句说明 */
+export const withInfo = (title, text) => h('span.as-info-head', title, h('button.as-info-btn', { 'aria-label': title + '说明', onclick: e => { e.stopPropagation(); dialog({ title, text, confirm: '知道了', cancel: '' }); } }, icon('info', 15, 2)));
 export function field(label, control, hint) { return h('label.as-field', h('span.as-field__label', label), control, hint && h('span.as-field__hint', hint)); }
 export function btn(label, variant = 'primary', onclick, attrs = {}) { return h('button.as-btn.as-btn--' + variant, { onclick, ...attrs }, label); }
 export function avatar(url, name = '', size = 40, shape = 'round') {
