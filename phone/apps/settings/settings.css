@@ -109,3 +109,5 @@
 .as-ctx-tag.is-keep .as-ctx-tag__mark { display: inline-flex; }
 
 .as-settings-now .as-list-item__value { max-width: 80%; }   /* 「现在」后面的日期时间要写全 */
+.as-chip.is-off { opacity: .45; text-decoration: line-through; }   /* 「给手机看」里暂时关掉的标签 */
+.as-ctx-add { color: var(--as-color-accent); border-style: dashed; }

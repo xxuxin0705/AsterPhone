@@ -13,7 +13,7 @@ export function rawStory(n = C().count) {
 
 // 排版用的 HTML 标签（加粗、换行…）不算「标签」：永远只去掉记号、留下里面的字
 const FORMAT = new Set('b i u s em strong br p span div small big font del ins sub sup code pre blockquote a img hr ul ol li h1 h2 h3 h4 h5 h6 center q mark ruby rt'.split(' '));
-const tagsIn = text => [...String(text).matchAll(/<([a-zA-Z][\w:-]*)[\s>]/g)].map(m => m[1].toLowerCase()).filter(t => !FORMAT.has(t));
+const tagsIn = text => [...String(text).matchAll(/<([\p{L}_][\p{L}\p{N}_:-]*)[\s>]/gu)].map(m => m[1].toLowerCase()).filter(t => !FORMAT.has(t));   // 中文标签（<草稿>）也算
 /** 最近正文里出现过的标签和次数（<!-- --> 记作「!--」）。多扫一些，免得漏掉 */
 export function detectTags(list = rawStory(30)) {
   const count = {};
@@ -25,10 +25,13 @@ export function detectTags(list = rawStory(30)) {
   return count;
 }
 
-const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${t}\\b[^>]*>[\\s\\S]*?<\\/${t}>`, 'gi');
-/** 按设置清洗一条正文：勾了「发给手机」的标签留下里面的字，没勾的标签连内容一起去掉 */
+const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${esc(t)}(?=[\\s>])[^>]*>[\\s\\S]*?<\\/${esc(t)}>`, 'giu');
+/** 现在真正给手机看的标签：「给手机看」里没被暂时关掉的 */
+export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
+/** 按设置清洗一条正文：只留「给手机看」里的标签（去掉记号留下字），别的标签连内容一起去掉（「不给看」的、没分类的都算）；没被标签包着的字照常留着 */
 export function cleanText(text) {
-  const keep = C().keep;
+  const keep = keepNow();
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   if (!keep.includes('!--')) t = t.replace(block('!--'), '');

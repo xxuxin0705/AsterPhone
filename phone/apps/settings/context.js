@@ -1,7 +1,7 @@
 // 设置 → 上下文与世界书：手机里的 AI 能看到哪些正文、哪些标签、人设、世界书，最后能预览。
 import { h } from '../../core/util.js';
 import { commit } from '../../core/store.js';
-import { group, item, toggleItem, segmented, input, empty, icon } from '../../core/ui.js';
+import { group, item, toggleItem, segmented, input, empty, icon, actionSheet, dialog } from '../../core/ui.js';
 import { worldNames, currentCharacter, characters } from '../../core/bridge.js';
 import { myPersona } from '../../core/promptstore.js';
 import { C, rawStory, detectTags, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
@@ -27,12 +27,32 @@ export function openContext({ sub, sliderRow, withInfo }) {
   });
 }
 
-/** 正文里用标签包起来的段落：每个标签选「要 / 不要」。thinking、content 一直列着（默认不要 / 要），其余是从最近正文里扫出来的 */
+/** 正文筛选：两排标签。「给手机看」的点一下能暂时关掉；「加标签」列出正文里扫到、还没分类的，也能自己打字加 */
 function tagGroup(s, withInfo) {
-  const found = detectTags(), names = [...new Set(['content', 'thinking', ...Object.keys(found), ...s.keep])];
-  const row = t => h('div.as-field', h('span.as-field__label', label(t), found[t] ? h('small.as-muted', ` · 出现 ${found[t]} 次`) : null),
-    segmented([['keep', '要'], ['drop', '不要']], s.keep.includes(t) ? 'keep' : 'drop', v => { s.keep = v === 'keep' ? [...s.keep, t] : s.keep.filter(x => x !== t); save(); }));
-  return group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。选「要」的段落手机能看到，选「不要」的整段去掉；没被标签包着的正文照常给手机看。'), names.map(row));
+  s.keepOff = s.keepOff || []; s.drop = (s.drop || []).filter(t => !s.keep.includes(t));   // 以前只有「要」：已经在「要」里的不再放进「不要」
+  const lists = { keep: s.keep, drop: s.drop };
+  const boxes = {}, paint = k => boxes[k].replaceChildren(...lists[k].map(t => {
+    const off = k === 'keep' && s.keepOff.includes(t);
+    return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : ''), { onclick: k === 'keep' ? () => {
+      s.keepOff = off ? s.keepOff.filter(x => x !== t) : [...s.keepOff, t]; save(); paint(k);
+    } : null }, label(t),
+      h('button.as-pbd__chipx', { 'aria-label': `删掉「${label(t)}」`, onclick: e => {
+        e.stopPropagation(); lists[k].splice(lists[k].indexOf(t), 1); s.keepOff = s.keepOff.filter(x => x !== t); save(); paint(k);
+      } }, icon('close', 11, 2.4)));
+  }), h('button.as-chip.as-ctx-add', { onclick: () => add(k) }, icon('plus', 12, 2.4), '加标签'));
+  const add = async k => {
+    const found = detectTags(), fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t));
+    let t = fresh.length ? await actionSheet('加标签', [...fresh.map(x => ({ value: x, label: `${label(x)} · 出现 ${found[x]} 次` })), { value: '__type', label: '自己输入…' }]) : '__type';
+    if (t === '__type') t = await dialog({ title: '加标签', input: { placeholder: '标签名' } });
+    t = String(t || '').trim().replace(/^<\/?|>$/g, '').toLowerCase(); if (!t) return;
+    const other = k === 'keep' ? 'drop' : 'keep';
+    if (lists[other].includes(t)) { lists[other].splice(lists[other].indexOf(t), 1); paint(other); }   // 一个标签只在一边
+    if (!lists[k].includes(t)) lists[k].push(t);
+    save(); paint(k);
+  };
+  const row = (k, title) => { boxes[k] = h('div.as-chips'); paint(k); return h('div.as-field', h('span.as-field__label', title), boxes[k]); };
+  return group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。手机只看得到「给手机看」里的标签内容（点一下能暂时关掉）；「不给手机看」的和没分类的标签，整段都去掉。没被标签包着的正文照常给手机看。'),
+    [row('keep', '给手机看'), row('drop', '不给手机看')]);
 }
 
 /** 世界书：圈圈管整本开关，点名字进去管单条 */

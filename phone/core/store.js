@@ -49,7 +49,7 @@ export function defaults() {
       notify: { banner: true, sound: false, volume: .6, tone: 'twin', dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
       device: { fab: 'iphone', fabSize: 52, tripleTap: false },
       // 发给手机 AI 的上下文：读几条正文、带不带你的发言、标签要 / 不要、人设、世界书（见 core/context.js）
-      ctx: { count: 6, withUser: true, keep: ['content'], userPersona: true, charPersona: true, followTavern: true, books: {}, entries: {} },
+      ctx: { count: 6, withUser: true, keep: ['content'], drop: ['thinking'], keepOff: [], userPersona: true, charPersona: true, followTavern: true, books: {}, entries: {} },
       autoLimit: 30, autoUsed: { date: '', count: 0 },
       storyTime: { day: 3, minutes: 21 * 60 + 20, at: Date.now() },
     },

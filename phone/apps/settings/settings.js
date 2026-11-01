@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.56';
+export const VERSION = '0.6.57';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -144,7 +144,6 @@ function openChatApp() {
       group('聊天默认设置（每个聊天还能单独改）', [
         toggleItem({ title: withInfo('先加好友才能聊', '打开后，没聊过的角色要先在「通讯录 → 新的朋友」里加好友，才能私聊；关着就能直接聊。') }, a.defaults.friendFirst, v => { a.defaults.friendFirst = v; commit('apps'); }),
         toggleItem({ title: withInfo('角色配图真的生图', '角色发图片、发动态配图时：打开就真的用生图接口画出来；关着只显示一张写着画面的描述卡，点「生图」才画（省钱）。') }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
-        toggleItem({ title: withInfo('新聊天默认允许 TA 主动发消息', '以后新建的私聊，一开始就打开「允许 TA 主动发消息」。已经有的聊天不变，每个聊天里还能单独开关。') }, !!a.defaults.proactive, v => { a.defaults.proactive = v; commit('apps'); re(); }),
       ].filter(Boolean)),
       group('注入正文', [
         item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
@@ -567,7 +566,9 @@ function openNotify() {
 
 /** 免打扰：通知页和「仅线上聊天」里各放一份，改的是同一个设置；开关只显示 / 藏起时间，不重画 */
 function dndGroup() {
-  const n = S().notify, t = (v, k) => input({ value: v, type: 'time', onInput: x => { n[k] = x; commit('settings'); } });
+  // 时间选择器里点了「清除」：回到默认的 23:00 / 08:00，不留空
+  const DEF = { dndFrom: '23:00', dndTo: '08:00' }, n = S().notify;
+  const t = (v, k) => { if (!v) n[k] = v = DEF[k]; const el = input({ value: v, type: 'time', onInput: x => { n[k] = x || DEF[k]; if (!x) el.value = DEF[k]; commit('settings'); } }); return el; };
   const times = h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo')));
   times.style.display = n.dnd ? '' : 'none';
   return group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); times.style.display = v ? '' : 'none'; }), times]);
