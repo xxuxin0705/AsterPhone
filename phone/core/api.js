@@ -12,8 +12,11 @@ export async function xf(url, o = {}) {
     if ((o.signal && o.signal.aborted) || !/^https?:/i.test(url) || !inTavern()) throw e;
     let r = null;
     try { const c = ctx(); r = await fetch('/proxy/' + url, { ...o, headers: { ...(c && c.getRequestHeaders ? c.getRequestHeaders() : {}), ...o.headers } }); } catch (e2) { /* 代理也连不上 */ }
-    if (r && r.status === 404) { const t = await r.clone().text(); if (/proxy is disabled|Cannot (GET|POST)/i.test(t) || t.trim().startsWith('<')) r = null; }
-    if (!r) throw new Error(`连不上 ${new URL(url).host}（网络不通或被跨域拦截）。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试`);
+    // 本地酒馆没开代理回 404；Tauri Tavern 根本没有 /proxy/，回 200 + 酒馆首页。两种都算「没有代理」
+    if (r && (r.status === 404 || /text\/html/i.test(r.headers.get('content-type') || ''))) { const t = await r.clone().text(); if (/proxy is disabled|Cannot (GET|POST)/i.test(t) || t.trim().startsWith('<')) r = null; }
+    if (!r) throw new Error(top.__TAURI__ || top.__TAURI_INTERNALS__
+      ? `连不上 ${new URL(url).host}（多半是这家不让网页直接连，Tauri Tavern 又没有转发代理）`
+      : `连不上 ${new URL(url).host}（网络不通或被跨域拦截）。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试`);
     return r;
   }
 }
