@@ -43,8 +43,8 @@ export function tagInstruction() {
   if (!text) return '';
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
-  const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}）`);
-  return `[AsterPhone 格式说明]\n${text}` + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的。` : '');
+  const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
+  return `[AsterPhone 格式说明]\n${text}` + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 
@@ -58,17 +58,17 @@ async function readMessage(id) {
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {
-    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), grp = /group\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]);
+    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), grp = /group\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), mo = /type\s*=\s*["“']?动态/.test(r[1]);
     let from = attr ? attr[1].trim() : '', body = r[2].trim();
     if (!from) { const mm = /^([^:：\n]{1,20})[:：]\s*([\s\S]+)$/.exec(body); if (mm) { from = mm[1].trim(); body = mm[2].trim(); } }
-    if (from && body) found.push([from, body, grp ? grp[1].trim() : '']);
+    if (from && body) found.push([from, body, grp ? grp[1].trim() : '', mo]);
   }
   if (!found.length) return;
-  const { deliverFromStory } = await import('../apps/chat/engine.js');
-  for (const [from, body, grp] of found) {
-    const k = `${id}|${m.swipe_id ?? 0}|${from}|${grp}|${body}`;
+  const { deliverFromStory, momentFromStory } = await import('../apps/chat/engine.js');
+  for (const [from, body, grp, mo] of found) {
+    const k = `${id}|${m.swipe_id ?? 0}|${from}|${grp}|${mo}|${body}`;
     if (seen.has(k)) continue; seen.add(k);
-    await deliverFromStory(from, body, grp);
+    if (mo) momentFromStory(from, body); else await deliverFromStory(from, body, grp);
   }
   hideTagsIn(id, tag());
 }

@@ -4,7 +4,7 @@ import { state, commit, contact, chatForContact, clearMsgs } from '../../core/st
 import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, navBtn, sheet, actionSheet, dialog, toast, toggleItem } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { characters, inTavern } from '../../core/bridge.js';
-import { nameOf, personaOf, genMoment } from './engine.js';
+import { nameOf, personaOf, genMoment, relinkMoments } from './engine.js';
 
 export const blankContact = () => ({ id: uid('p'), name: '', nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: '', charKey: '', persona: '', source: 'manual', star: false, group: '', createdAt: Date.now() });
 export const sorted = () => [...state.contacts].sort((a, b) => sortZh(nameOf(a), nameOf(b)));
@@ -98,7 +98,7 @@ export function openProfile(cid, { onMessage } = {}) {
   function draw() {
     p.body.innerHTML = '';
     const line = (k, v) => v ? h('div.as-chat-profile__line', `${k}：${v}`) : null;
-    const moments = state.moments.filter(m => m.author === c.id).slice(0, 4);
+    relinkMoments(); const moments = state.moments.filter(m => m.author === c.id).slice(0, 4);
     p.body.append(
       h('div.as-chat-profile', avatar(c.avatar, nameOf(c), 72, 'square'), h('div.as-chat-profile__main',
         h('div.as-chat-profile__name', nameOf(c), c.star && h('span.as-chat-star', icon('star', 16, 2)), c.gender === '男' ? h('span.as-muted', '♂') : c.gender === '女' ? h('span.as-muted', '♀') : null),

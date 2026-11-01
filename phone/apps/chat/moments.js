@@ -4,7 +4,7 @@ import { state, commit, contact, subscribe } from '../../core/store.js';
 import { page, group, item, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
-import { nameOf, who, genMoment, genComments } from './engine.js';
+import { nameOf, who, genMoment, genComments, relinkMoments } from './engine.js';
 import { myNick } from '../../core/promptstore.js';
 import { openProfile, pickMany, sorted } from './people.js';
 
@@ -17,7 +17,7 @@ export function renderMoments(ctx) {
   ctx.setRight(navBtn('sparkle', '生成角色动态', () => openGenerate()), cam);
   const feed = h('div');
   ctx.body.append(cover(), feed);
-  function draw() { feed.innerHTML = ''; feedInto(feed, state.moments, draw); }
+  function draw() { relinkMoments(); feed.innerHTML = ''; feedInto(feed, state.moments.filter(m => m.author), draw); }   // 还不是好友的人的动态先不显示
   async function moreMenu() {
     const v = await actionSheet('动态', [{ value: 'gen', label: '生成角色动态', icon: 'sparkle' }, { value: 'clear', label: '清空所有动态', icon: 'trash', danger: true }]);
     if (v === 'gen') openGenerate();
@@ -154,7 +154,7 @@ export function openUserMoments(cid) {
   const c = contact(cid); if (!c) return;
   const p = page({ app: 'chat', id: 'chat-moments-user', title: nameOf(c), back: true, cls: 'as-chat-moments' });
   const feed = h('div');
-  const draw = () => { feed.innerHTML = ''; feedInto(feed, state.moments.filter(m => m.author === cid), draw); };
+  const draw = () => { relinkMoments(); feed.innerHTML = ''; feedInto(feed, state.moments.filter(m => m.author === cid), draw); };
   p.body.append(cover(cid), c.sign ? h('p.as-muted', { style: { padding: '0 16px 10px', textAlign: 'right' } }, c.sign) : null, feed);
   draw(); p.el._onShow = draw;
   nav.push(p.el);

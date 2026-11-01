@@ -352,6 +352,18 @@ function bumpStreak(chat) {
 }
 
 /* ---------- 剧情里 TA 发来的消息（暗号 <asterphone>） ---------- */
+/** 正文里提到谁发了动态：放进动态。还不是好友的先只记名字，加了好友就挂到 TA 名下（relinkMoments），在 TA 的动态里看得到 */
+export function momentFromStory(name, text) {
+  const n = String(name || '').trim(); if (!n || !text) return;
+  const c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(n));
+  let desc = '';
+  const body = String(text).replace(/\[图片[:：]?\s*([^\]]*)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
+  state.moments.unshift({ id: uid('mo'), author: c ? c.id : '', authorName: n, text: body, imageDesc: desc, images: [], ...time.stamp(), likes: [], comments: [], vis: 'public', fromStory: true });
+  commit('moments');
+}
+export function relinkMoments() {
+  for (const mo of state.moments) if (!mo.author && mo.authorName) { const c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(mo.authorName)); if (c) mo.author = c.id; }
+}
 /** 暗号里的群名找哪个群：先找同名的，再找名字差不多的（「宿舍」→「宿舍群」），再找有这个人、最近最热闹的群 */
 function storyGroup(name, c) {
   const gs = state.chats.filter(isGroup), n = String(name).trim(), core = s => String(s || '').replace(/[群聊\s]/g, '');
