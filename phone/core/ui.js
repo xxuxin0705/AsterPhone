@@ -193,14 +193,16 @@ export async function busy(btn, fn) {
   const old = [...btn.childNodes]; btn.style.minWidth = btn.offsetWidth + 'px'; btn.disabled = true; btn.replaceChildren(h('span.as-spin'));
   try { return await fn(); } finally { btn.disabled = false; btn.replaceChildren(...old); btn.style.minWidth = ''; }
 }
+/** action = true：要等的操作，带等待动画一直挂着，直到下一条 toast 把它换掉（所以结束时一定要再 toast 一句结果） */
 export function toast(msg, action) {
   if (!toastEl) { toastEl = h('div.as-toast', { role: 'status' }); root.appendChild(toastEl); }
+  const wait = action === true; if (wait) action = null;
   toastEl.innerHTML = '';
-  toastEl.append(h('span', msg));
+  toastEl.append(...(wait ? [h('i.as-spin')] : []), h('span', msg));
   if (action) toastEl.append(h('button.as-toast__action', { onclick: () => { toastEl.classList.remove('is-open'); action.fn(); } }, action.label));
   toastEl.classList.toggle('has-action', !!action);
   requestAnimationFrame(() => toastEl.classList.add('is-open'));
-  clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('is-open'), action ? 3600 : 1900);
+  clearTimeout(toastT); if (!wait) toastT = setTimeout(() => toastEl.classList.remove('is-open'), action ? 3600 : 1900);
 }
 
 /* ---------- 横幅通知 ---------- */

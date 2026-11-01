@@ -132,7 +132,7 @@ export async function generate(opts) {
   }
   throw last;
 }
-async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天', stop }) {
+async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天', stop, onPart }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -141,7 +141,7 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
   let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
   const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆当前连接' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
-  const signal = call.signal, part = call.part;
+  const signal = call.signal, part = onPart ? t => { call.part(t); onPart(t); } : call.part;
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });   // 页面上的「取消」：和日志里点中止一样
   try {
     let out;

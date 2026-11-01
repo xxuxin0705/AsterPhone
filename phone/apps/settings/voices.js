@@ -26,7 +26,7 @@ export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') 
   return h('div.as-pbd__line', inp,
     VOICES[t] ? h('button.as-pbd__mini', { onclick: () => pick('快选音色', VOICES[fmtOf(getConn())] || []) }, '快选') : null,
     PULL.has(t) ? h('button.as-pbd__mini', { onclick: e => busy(e.currentTarget, async () => {
-      toast('正在拉取音色…');
+      toast('正在拉取音色…', true);
       try {
         const list = await listVoices(getConn()) || [];
         if (!list.length) { toast('没有拉到音色，可以手动填'); return; }

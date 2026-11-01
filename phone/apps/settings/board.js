@@ -858,7 +858,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
       const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
       paintModels();
       const pull = h('button.as-pbd__mini', { onclick: () => busy(pull, async () => {
-        toast('正在拉取模型…');
+        toast('正在拉取模型…', true);
         try {
           const models = await listModels(d);
           if (!models.length) { toast('没有拉到模型，可以手动填'); return; }

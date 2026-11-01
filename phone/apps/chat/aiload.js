@@ -20,8 +20,21 @@ function pickJSON(raw) {
 }
 
 /* ================= AI 智能加载 ================= */
-let goBtn = null, loading = null;   // 正在生成就是它的 AbortController：退出再进来按钮还是「取消生成」
-const spin = () => { goBtn.classList.replace('as-btn--primary', 'as-btn--secondary'); goBtn.replaceChildren(h('i.as-spin'), ' 取消生成'); };
+let goBtn = null, bar = null, loading = null;   // 正在生成就是它的 AbortController：退出再进来按钮还是「取消生成」、进度接着走
+const prog = { t0: 0, np: 0, ng: 0, fix: 0 };
+const spin = () => { goBtn.classList.replace('as-btn--primary', 'as-btn--secondary'); goBtn.textContent = '取消生成'; };
+// 波浪条：想到的那段亮起来，最前面凹下去一个浪头，没到的轻轻起伏；颜色跟主题。
+// 没规定人数时不知道总数：每想到一个人往前推一截、越往后推得越少，生成完才算满
+const BARS = 32;
+function paintBar() {
+  if (!bar) return;
+  bar.hidden = !loading; if (!loading) return;
+  const s = (Date.now() - prog.t0) / 1000;
+  const head = BARS * (prog.fix ? Math.min(.96, prog.np / prog.fix) : .88 * (1 - .72 ** prog.np) + Math.min(.06, s / 100));
+  [...bar.firstChild.children].forEach((b, i) => { b.classList.toggle('is-on', i < head); b.style.setProperty('--k', (1 - .55 * Math.exp(-((i - head) ** 2) / 6)).toFixed(2)); });
+  bar.lastChild.firstChild.textContent = `AI 正在想… 已等 ${Math.round(s)} 秒`;
+  bar.lastChild.lastChild.textContent = prog.fix ? `${prog.np} / ${prog.fix} 人` : `已想到 ${prog.np} 人${prog.ng ? ` · ${prog.ng} 个群` : ''}`;
+}
 export function openAiLoad(after) {
   const o = { want: '', fixCount: false, count: 6, groups: true, gWant: '', fixG: false, groupCount: 1 };
   const p = page({ app: 'chat', id: 'chat-contacts-ai', title: withInfo('AI 智能加载', '读当前角色卡、你的人设和最近的剧情，想出你手机里会有哪些人和群。生成完先给你看，勾选、改好了再加进来。'), back: true });
@@ -32,12 +45,14 @@ export function openAiLoad(after) {
   const gFix = toggleItem({ title: '规定群数' }, o.fixG, v => { o.fixG = v; sync(); });
   const sync = () => { countRow.hidden = !o.fixCount; gWant.hidden = gFix.hidden = !o.groups; gRow.hidden = !o.groups || !o.fixG; };
   const mine = goBtn = btn('开始生成', 'primary', () => loading ? loading.abort() : run(), { style: { width: '100%' } });
+  const myBar = bar = h('div.as-wave', h('div.as-wave__bars', [...Array(BARS)].map((_, i) => h('i', { style: { '--i': i } }))), h('div.as-wave__st', h('span'), h('b')));
   if (loading) spin();
-  p.el._onLeave = () => { if (goBtn === mine) goBtn = null; };
+  paintBar();
+  p.el._onLeave = () => { if (goBtn === mine) goBtn = null; if (bar === myBar) bar = null; };
   p.body.append(
     group('联系人', [h('div.as-field', textarea({ rows: 3, placeholder: '想要谁（可以不填）', onInput: v => { o.want = v; } })), toggleItem({ title: '规定人数' }, o.fixCount, v => { o.fixCount = v; sync(); }), countRow]),
     group('群聊', [toggleItem({ title: '顺便生成群聊' }, o.groups, v => { o.groups = v; sync(); }), gWant, gFix, gRow]),
-    goBtn);
+    goBtn, myBar);
   sync();
   nav.push(p.el);
 
@@ -55,13 +70,16 @@ export function openAiLoad(after) {
       + (o.groups ? `\n群聊：${o.fixG ? `正好 ${o.groupCount} 个` : '要几个按剧情自己定'}${o.gWant.trim() ? `，${me} 说：${o.gWant.trim()}` : ''}。成员从联系人里选，${me} 默认在每个群里，不用写。${keep && groupNames.length ? `\n已经有的群（不要重复）：${groupNames.join('、')}` : ''}` : '\n不要生成群聊，groups 留空数组。');
     const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）', require, withGroups: o.groups ? '和群聊' : '' });
     loading = new AbortController(); spin();
+    Object.assign(prog, { t0: Date.now(), np: 0, ng: 0, fix: o.fixCount ? o.count : 0 }); paintBar();
+    const tick = setInterval(paintBar, 1000);
     try {
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载', stop: loading.signal });
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载', stop: loading.signal,
+        onPart: t => { const [a, b = ''] = t.split('"groups"'); prog.np = (a.match(/"name"\s*:/g) || []).length; prog.ng = (b.match(/"name"\s*:/g) || []).length; paintBar(); } });
       const data = pickJSON(raw);
       if (!keep) { state.contacts.splice(0); commit('contacts'); }
       openPreview(data, { after, under: !!goBtn });
     } catch (e) { if (e.message === '已中止') toast('取消了'); else { log('error', 'AI 智能加载', e.message); toast('生成失败：' + e.message); } }
-    finally { loading = null; if (goBtn) { goBtn.classList.replace('as-btn--secondary', 'as-btn--primary'); goBtn.textContent = '开始生成'; } }
+    finally { clearInterval(tick); loading = null; paintBar(); if (goBtn) { goBtn.classList.replace('as-btn--secondary', 'as-btn--primary'); goBtn.textContent = '开始生成'; } }
   }
 }
 
@@ -164,11 +182,12 @@ export async function openLoreAdd(after) {
   const picked = await pickMany('选写了人物的条目', entries.map(e => ({ key: String(e.uid), name: e.title, note: e.keys.slice(0, 2).join('、') })));
   if (!picked || !picked.length) return;
   const chosen = entries.filter(e => picked.includes(String(e.uid)));
-  toast('AI 正在拆人…');
+  toast('AI 正在拆人…', true);
   try {
     const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', maxTokens: 2400, app: '世界书拆人',
       prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
-    openPreview(pickJSON(raw), { after, lore: { world, entries: chosen } });
+    const data = pickJSON(raw); toast(`拆出 ${(data.people || []).length} 个人`);
+    openPreview(data, { after, lore: { world, entries: chosen } });
   } catch (e) { log('error', '世界书拆人', e.message); toast('拆人失败：' + e.message); }
 }
 

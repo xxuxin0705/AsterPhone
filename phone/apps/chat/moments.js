@@ -69,7 +69,7 @@ function opbar(anchor, m, redraw) {
   const bar = h('div.as-chat-opbar', { style: { right: (hr.right - r.left + 6) + 'px', top: (r.top - hr.top + r.height / 2 - 19) + 'px' } },
     act(liked ? '取消' : '赞', 'heart', () => { liked ? m.likes.splice(m.likes.indexOf('me'), 1) : m.likes.push('me'); commit('moments'); }),
     act('评论', 'comment', () => commentOn(m, null, redraw)),
-    act('生成评论', 'sparkle', async () => { toast('大家正在看…'); try { const n = await genComments(m); toast(n ? `来了 ${n} 条互动` : '大家都没理'); } catch (e) { toast('生成失败：' + e.message); } }),
+    act('生成评论', 'sparkle', async () => { toast('大家正在看…', true); try { const n = await genComments(m); toast(n ? `来了 ${n} 条互动` : '大家都没理'); } catch (e) { toast('生成失败：' + e.message); } }),
     m.author === 'me' ? act('删除', 'trash', async () => { if (await dialog({ title: '删除这条动态？', confirm: '删除', danger: true })) { state.moments.splice(state.moments.indexOf(m), 1); commit('moments'); } }) : null);
   host.appendChild(bar);
   setTimeout(() => document.addEventListener('pointerdown', outside, true));

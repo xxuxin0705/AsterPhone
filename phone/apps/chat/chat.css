@@ -427,3 +427,12 @@
 /* 被删 / 被拉黑后发的消息：气泡左边一个红色感叹号 */
 .as-chat-bounced { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .as-chat-bounce { flex: none; width: 18px; height: 18px; border-radius: 50%; background: #f0605a; color: #fff; font: 700 12px/18px var(--font-ui); text-align: center; }
+
+/* AI 智能加载的波浪条（颜色跟主题） */
+.as-wave { margin-top: 14px; }
+.as-wave__bars { display: flex; align-items: center; gap: 4px; height: 52px; padding: 0 14px; border-radius: 999px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); }
+.as-wave__bars i { flex: 1; height: 70%; border-radius: 3px; background: var(--as-color-accent); opacity: .25; transform: scaleY(var(--k, 1)); transition: transform 350ms, opacity 400ms; animation: as-breathe 1.6s ease-in-out infinite; animation-delay: calc(var(--i) * -90ms); }
+.as-wave__bars i.is-on { opacity: 1; animation: none; }
+@keyframes as-breathe { 50% { transform: scaleY(calc(var(--k, 1) * .55)); } }
+.as-wave__st { display: flex; justify-content: space-between; margin: 8px 6px 0; font: 400 12px/1.2 var(--font-ui); color: var(--as-color-text-2); }
+.as-wave__st b { color: var(--as-color-text); font-weight: 600; }

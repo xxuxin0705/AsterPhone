@@ -229,7 +229,7 @@ export async function openRoom(chat) {
         act(m.tr ? '收起翻译' : '翻译', 'note', async () => {
           if (m.tr) { delete m.tr; saveMsgs(chat.id); redraw(true); return; }
           if (!m.text) { toast('这条没有文字可以翻译'); return; }
-          toast('正在翻译…'); try { if (!(await E.translateMsg(chat, m))) toast('本来就是这个语言'); } catch (e) { toast(e.message); }
+          toast('正在翻译…', true); try { toast(await E.translateMsg(chat, m) ? '翻译好了' : '本来就是这个语言'); } catch (e) { toast(e.message); }
         }),
         act('收藏', 'bookmark', () => fav([m])),
         act(m.pinned ? '取消注入' : '注入正文', 'link', () => { m.pinned = !m.pinned; saveMsgs(chat.id); commit('inject'); redraw(true); toast(m.pinned ? '已钉住，会一直注入正文' : '已取消注入'); }),

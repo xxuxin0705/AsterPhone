@@ -73,7 +73,7 @@ export function openProfile(cid, { onMessage } = {}) {
     ]);
     if (v === 'edit') openContactForm(c);
     if (v === 'star') { c.star = !c.star; commit('contacts'); draw(); toast(c.star ? '已设为星标' : '已取消星标'); }
-    if (v === 'moment') { toast('正在生成…'); try { await genMoment(c); toast('TA 发了一条新动态'); draw(); } catch (e) { toast('生成失败：' + e.message); } }
+    if (v === 'moment') { toast('正在生成…', true); try { await genMoment(c); toast('TA 发了一条新动态'); draw(); } catch (e) { toast('生成失败：' + e.message); } }
     if (v === 'del') {
       if (!(await dialog({ title: `删除「${nameOf(c)}」？`, text: '和 TA 的聊天记录也会一起删掉。', confirm: '删除', danger: true }))) return;
       const ch = state.chats.find(x => x.contactId === c.id);
