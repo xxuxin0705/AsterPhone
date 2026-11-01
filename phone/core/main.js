@@ -1,6 +1,6 @@
 // AsterPhone 启动入口：读数据 → 铺壁纸 → 锁屏 / 桌面 → 页面导航 → 和酒馆接上线。
 import { $, h } from './util.js';
-import { state, load, subscribe, commit } from './store.js';
+import { state, load, subscribe, commit, enterWindow } from './store.js';
 import { loadLogs, log } from './log.js';
 import { mountUI, toast, banner, avatar } from './ui.js';
 import * as nav from './nav.js';
@@ -9,7 +9,7 @@ import { shell } from './shell.js';
 import { applySkins } from './skin.js';
 import * as walls from './walls.js';
 import { loadClockFonts, applyFonts } from './fonts.js';
-import { postToParent, inTavern } from './bridge.js';
+import { postToParent, inTavern, chatWindow } from './bridge.js';
 import { initLock, lock, isLocked, renderNotices, renderClock, resetLock, syncFoot } from '../apps/lock/lock.js';
 import { initHome, showHome, renderBadges, renderWidget } from '../apps/home/home.js';
 
@@ -196,6 +196,7 @@ function bindTripleTap() {
 /* ---------- 启动 ---------- */
 async function boot() {
   await Promise.all([load(), loadLogs()]);
+  await enterWindow(chatWindow());   // 认出酒馆现在开着哪个聊天窗口，换上它那份数据
   (await import('./promptstore.js')).migratePrompts();
   walls.splitRows();
   try { const { seedImageChannels } = await import('./api.js'); if (seedImageChannels()) commit('connections'); } catch (e) { console.warn(e); }

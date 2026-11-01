@@ -5,12 +5,15 @@
 // - 读音表：全局一张，念之前把「写法」换成「读音」（主要给日语人名用），显示的字不动
 import { state, commit, contact } from './store.js';
 import { resolveConn, speak } from './api.js';
+import { myAvatar } from './promptstore.js';
 
 export const V = () => state.voice || (state.voice = { mode: 'one', useDefault: true, people: {}, readings: [] });
 export const save = () => commit('voice');
 /** 音色库里列出来的人：「我」排第一，然后是联系人 */
+/** 音色按真实姓名记（跟着角色卡；同一张卡的不同窗口里，同名的就是同一个人） */
+export const pk = id => id === 'me' ? 'me' : (contact(id) || {}).name || id;
 export function people() {
-  return [{ id: 'me', name: '我', avatar: state.me.avatar || '', gender: state.me.gender },
+  return [{ id: 'me', name: '我', avatar: myAvatar(), gender: state.me.gender },
     ...state.contacts.map(c => ({ id: c.id, name: c.remark || c.nick || c.name || '联系人', avatar: c.avatar || '', gender: c.gender }))];
 }
 const genderOf = id => id === 'me' ? state.me.gender : (contact(id) || {}).gender;
@@ -21,11 +24,11 @@ const ttsList = () => state.connections.tts || [];
 export const defaultConn = () => resolveConn('tts', 'chat');
 /** 这个人用哪个语音接口 */
 export function connFor(id) {
-  const p = V().people[id], own = V().mode === 'each' && p && p.conn && ttsList().find(c => c.id === p.conn);
+  const p = V().people[pk(id)], own = V().mode === 'each' && p && p.conn && ttsList().find(c => c.id === p.conn);
   return own || defaultConn();
 }
 /** 这个人在这个接口上存的音色：{ list: [{ id, name, voice }], cur } */
-export const savedOn = (id, connId) => ((V().people[id] || {}).voices || {})[connId] || { list: [], cur: '' };
+export const savedOn = (id, connId) => ((V().people[pk(id)] || {}).voices || {})[connId] || { list: [], cur: '' };
 /** 这个人在这个接口上实际用的音色，以及它是怎么来的（'own' / 'male' / 'female' / 'base'） */
 export function voiceOf(id, conn) {
   const s = savedOn(id, conn.id), mine = s.list.find(x => x.id === s.cur);

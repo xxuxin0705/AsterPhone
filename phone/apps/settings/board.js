@@ -11,7 +11,7 @@ import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, tes
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 import { openVoicePage, voiceInput, withInfo } from './voices.js';
-import { V, save as saveVoice, people, connFor, defaultConn } from '../../core/voice.js';
+import { V, save as saveVoice, people, connFor, defaultConn, pk } from '../../core/voice.js';
 
 const C = () => state.connections;
 const subscribeConn = fn => subscribe(w => { if (w === 'connections' || w === 'all') fn(); });
@@ -181,7 +181,7 @@ export function openBoard({ list }) {
     const t = tiles.find(o => o.kind === 'tts' && !o.el.hidden && (r => e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom)(o.el.getBoundingClientRect()));
     if (!t) return;
     // 拖回「语音」线插着的格子 = 改回跟随
-    const P = V().people[person.id] || (V().people[person.id] = { conn: '', voices: {} });
+    const P = V().people[pk(person.id)] || (V().people[pk(person.id)] = { conn: '', voices: {} });
     P.conn = t.c.id === (defaultConn() || {}).id ? '' : t.c.id; saveVoice(); paintVoices();
     toast(P.conn ? `${person.name}改用「${t.c.name}」说话` : `${person.name}跟随「语音」线`);
   }, true);

@@ -68,7 +68,7 @@ export function openGroupSettings(chat, redrawRoom) {
       ]));
     if (lastTab === 'members') {
       const grid = h('div.as-chat-members',
-        h('div.as-chat-members__me', avatar(cfg.myAvatar || state.me.avatar, state.me.nick || '我', 48), h('span', cfg.myNick || state.me.nick || '我'), h('em', chat.owner === 'me' ? '群主' : (cfg.myTitle || ''))),
+        h('div.as-chat-members__me', avatar(cfg.myAvatar || P.myAvatar(), state.me.nick || '我', 48), h('span', cfg.myNick || state.me.nick || '我'), h('em', chat.owner === 'me' ? '群主' : (cfg.myTitle || ''))),
         ...chat.members.map(id => {
           const m = contact(id); if (!m) return null;
           return h('button', { onclick: () => memberMenu(id) }, avatar(m.avatar, E.nameOf(m), 48), h('span', E.nameOf(m)),

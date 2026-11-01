@@ -38,7 +38,7 @@ export const CHAT_MSG_TYPES = [
 ];
 export function defaults() {
   return {
-    v: 2,
+    v: 2, winV: 1,
     settings: {
       mode: 'auto', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
       // 壁纸：锁屏、桌面各选各的；random = 每次锁屏 / 打开手机随机换；live = Live 图怎么动（press 按住播放 / loop 一直循环）
@@ -82,7 +82,67 @@ export function defaults() {
 export const state = defaults();
 const listeners = new Set();
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-const persist = debounce(() => kvSet('state', JSON.parse(JSON.stringify(state))).catch(e => console.error('[AsterPhone] 保存失败', e)), 300);
+/* ---------- 每个酒馆聊天窗口一份手机数据 ---------- */
+// 联系人、群、聊天、动态、收藏、新的朋友、分组、我的资料（含钱包）按窗口存在 'win:窗口' 里；其余（设置、接口、提示词、表情包、皮肤…）整部手机共用。
+// 音色和读音跟着角色卡：当前卡的放在 state.voice 里，别的卡的放在 state.voiceCards 里，换卡时对调
+const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me'];
+export let win = { key: '', card: '', label: '' };
+let entered = false;
+async function saveNow() {
+  const s = JSON.parse(JSON.stringify(state)), w = { label: win.label };
+  SCOPED.forEach(k => { w[k] = s[k]; delete s[k]; });
+  await Promise.all([kvSet('state', s), entered && kvSet('win:' + win.key, w)]);   // 还没认出是哪个窗口前不写，免得空数据盖掉
+}
+const persist = debounce(() => saveNow().catch(e => console.error('[AsterPhone] 保存失败', e)), 300);
+/** 换到另一个窗口（w = bridge 的 chatWindow()，没开聊天是 null）。真的换了返回 true */
+export async function enterWindow(w) {
+  w = w || { key: '', card: '', label: '没有打开聊天' };
+  if (entered && w.key === win.key) return false;
+  if (entered) await saveNow();
+  const d = (await kvGet('win:' + w.key).catch(() => null)) || {}, def = defaults();
+  SCOPED.forEach(k => { state[k] = merge(def[k], d[k]); });
+  const V = state.voice || (state.voice = { mode: 'one', useDefault: true, people: {}, readings: [] }), C = state.voiceCards || (state.voiceCards = {});
+  if (V.card !== w.card) {
+    if (V.card != null) C[V.card] = { people: V.people, readings: V.readings };
+    const n = C[w.card] || JSON.parse(JSON.stringify(C.__legacy || { people: {}, readings: [] }));   // 新卡先拿一份更新前的（按名字认人，名字对不上的用不到）
+    delete C[w.card]; Object.assign(V, { card: w.card, people: n.people, readings: n.readings });
+  }
+  win = w; entered = true;
+  return true;
+}
+/** 别的窗口里存着的手机数据（不含当前窗口） */
+export async function windowList() {
+  const out = [];
+  for (const k of await kvKeys()) {
+    if (!String(k).startsWith('win:') || k === 'win:' + win.key) continue;
+    const d = await kvGet(k);
+    if (d && ((d.contacts || []).length || (d.chats || []).length)) out.push({ key: k.slice(4), label: d.label || '（没打开聊天时）', people: d.contacts.length, chats: (d.chats || []).length });
+  }
+  return out;
+}
+/** 把别的窗口的数据复制到当前窗口（当前窗口原来的全部换掉）。all = false 只要联系人和群（群的设置带着，聊天记录不要） */
+export async function inheritWindow(key, all) {
+  const d = JSON.parse(JSON.stringify((await kvGet('win:' + key)) || {})), def = defaults();
+  for (const c of state.chats) await clearMsgs(c.id);
+  SCOPED.forEach(k => { state[k] = def[k]; });
+  state.contacts = d.contacts || []; state.groups = d.groups || def.groups;
+  for (const c of d.chats || []) {
+    if (!all && c.type !== 'group') continue;
+    const old = c.id; c.id = uid(c.type === 'group' ? 'g_' : 'c_');   // 聊天记录按聊天存，换个新编号复制一份，两边各改各的
+    if (all) { const m = await kvGet('msgs:' + old); if (m) await kvSet('msgs:' + c.id, m); }
+    else Object.assign(c, { lastText: '', unread: 0, lastAt: Date.now() });
+    state.chats.push(c);
+  }
+  if (all) { state.moments = d.moments || []; state.favorites = d.favorites || []; state.friendRequests = d.friendRequests || []; state.me = merge(def.me, d.me); }
+  state.contacts.forEach(c => { const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || Date.now(); });
+  commit('all');
+}
+export async function deleteWindow(key) {
+  const d = (await kvGet('win:' + key)) || {};
+  for (const c of d.chats || []) { await kvDel('msgs:' + c.id); msgCache.delete(c.id); }
+  for (const k of await kvKeys()) if ((d.chats || []).some(c => String(k).startsWith(`tts:${c.id}:`))) await kvDel(k);
+  await kvDel('win:' + key);
+}
 export function commit(what) { persist(); listeners.forEach(f => { try { f(what); } catch (e) { console.error(e); } }); }
 
 function merge(base, saved) {
@@ -103,6 +163,16 @@ export async function load() {
       // 以前只有一个 wallpaper（锁屏桌面共用）→ 现在拆成两个
       const S = saved.settings;
       if (S && S.wallpaper && !S.walls) S.walls = { lock: S.wallpaper, home: S.wallpaper };
+      // 以前聊天数据全手机一份 → 现在一个窗口一份：原来的先整个备份，再存成「更新前的数据」，哪个窗口想要就去继承
+      if (!saved.winV) {
+        await kvSet('backup:before-windows', saved);
+        const old = { label: '更新前的数据' };
+        SCOPED.forEach(k => { if (k in saved) { old[k] = saved[k]; delete saved[k]; } });
+        await kvSet('win:__legacy', old);
+        const v = saved.voice, nameOf = id => id === 'me' ? 'me' : ((old.contacts || []).find(c => c.id === id) || {}).name || id;
+        if (v) { saved.voiceCards = { __legacy: { people: Object.fromEntries(Object.entries(v.people || {}).map(([id, x]) => [nameOf(id), x])), readings: v.readings || [] } }; v.people = {}; v.readings = []; delete v.card; }
+        saved.winV = 1;
+      }
       Object.assign(state, merge(defaults(), saved));
     }
   } catch (e) { console.warn('[AsterPhone] 读取数据失败，使用默认值', e); }

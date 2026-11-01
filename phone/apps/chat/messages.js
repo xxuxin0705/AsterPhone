@@ -38,7 +38,8 @@ export function renderMessages(ctx) {
     if (!list.length) {
       listBox.appendChild(query ? empty('没有找到相关的聊天') : empty('还没有聊天', h('div', { style: { display: 'grid', gap: '10px' } },
         btn('去添加联系人', 'primary', () => ctx.switchTab('contacts')),
-        btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(() => ctx.switchTab('contacts')))))));
+        btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(() => ctx.switchTab('contacts')))),
+        btn('从别的窗口继承', 'text', () => import('./aiload.js').then(m => m.openInherit(draw))))));
       return;
     }
     // 分组：置顶一组，联系人分组各一组，剩下的一组；每组可以折叠

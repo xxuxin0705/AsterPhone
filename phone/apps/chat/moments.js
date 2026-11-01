@@ -5,10 +5,10 @@ import { page, group, item, field, textarea, input, segmented, avatar, icon, nav
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { nameOf, who, genMoment, genComments, relinkMoments } from './engine.js';
-import { myNick } from '../../core/promptstore.js';
+import { myNick, myAvatar } from '../../core/promptstore.js';
 import { openProfile, pickMany, sorted } from './people.js';
 
-const authorAvatar = id => id === 'me' ? state.me.avatar : (contact(id) || {}).avatar;
+const authorAvatar = id => id === 'me' ? myAvatar() : (contact(id) || {}).avatar;
 const authorName = id => id === 'me' ? myNick() : nameOf(contact(id));
 
 export function renderMoments(ctx) {

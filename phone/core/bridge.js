@@ -34,6 +34,15 @@ export function characters() {
     persona: [ch.description, ch.personality && ('性格：' + ch.personality), ch.scenario && ('场景：' + ch.scenario)].filter(Boolean).join('\n'),
   }));
 }
+/** 酒馆现在开着哪个聊天窗口：key 分手机数据用，card 是角色卡（酒馆群就是这个群），分音色和读音用。没开聊天 / 不在酒馆里 → null */
+export function chatWindow() {
+  const c = ctx(); if (!c) return null;
+  let id = ''; try { id = c.getCurrentChatId ? c.getCurrentChatId() : c.chatId; } catch (e) { /* 读不到就当没开 */ }
+  if (!id) return null;
+  const g = c.groupId && (c.groups || []).find(x => x.id === c.groupId), ch = !g && c.characters && c.characters[c.characterId];
+  const card = g ? 'group:' + g.id : ch ? ch.avatar : '';
+  return { key: card + '|' + id, card, label: g ? `${g.name} · ${id}` : String(id) };
+}
 export function currentCharacter() {
   const c = ctx(); if (!c || c.characterId == null || !c.characters) return null;
   const ch = c.characters[c.characterId]; return ch ? { key: ch.avatar, name: ch.name } : null;

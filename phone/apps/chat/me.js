@@ -5,7 +5,7 @@ import { page, group, item, field, input, textarea, segmented, avatar, icon, nav
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { userPersona, userName, inTavern } from '../../core/bridge.js';
-import { myName, myNick, myPersona } from '../../core/promptstore.js';
+import { myName, myNick, myPersona, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from './engine.js';
 import { feedInto } from './moments.js';
 
@@ -22,7 +22,7 @@ export function renderMe(ctx) {
     const about = myPersona();
     box.innerHTML = '';
     box.append(
-      h('div.as-chat-me-head', h('button', { style: { border: 0, background: 'none', padding: 0, cursor: 'pointer' }, 'aria-label': '换头像', onclick: changeAvatar }, avatar(me.avatar, myNick(), 72, 'square')),
+      h('div.as-chat-me-head', h('button', { style: { border: 0, background: 'none', padding: 0, cursor: 'pointer' }, 'aria-label': '换头像', onclick: changeAvatar }, avatar(myAvatar(), myNick(), 72, 'square')),
         h('div.as-chat-me-head__main', h('div.as-chat-me-head__name', myNick()), h('div.as-chat-me-head__id', '真名：' + myName()), h('div.as-chat-me-head__sign', me.sign || '还没有个性签名'))),
       h('div.as-chat-me-stats', (me.stats || []).slice(0, 4).map(k => h('div.as-chat-me-stat', h('b', String(val[k] ?? '-')), h('span', STAT_LABEL[k] || k)))),
       (me.birthday || me.region || (me.tags || []).length) ? h('div.as-chips', { style: { margin: '0 4px 16px' } },

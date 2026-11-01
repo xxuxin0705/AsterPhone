@@ -2,10 +2,10 @@
 // 1. 往正文里放「暗号」指令（让 AI 输出剧情时间、正文里发给你的手机消息）
 // 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机，并把标签从正文显示里藏起来
 // 3. 把手机里的聊天注入正文（跟随正文的聊天自动注入最近 N 条；手动钉住的始终注入）
-import { state, subscribe, getMsgs, contact, commit } from './store.js';
+import { state, subscribe, getMsgs, contact, commit, enterWindow } from './store.js';
 import { syncTavernProfiles } from './api.js';
 import { debounce } from './util.js';
-import { inTavern, onTavern, setInjection, hideTagsIn, chatMessage, ctx } from './bridge.js';
+import { inTavern, onTavern, setInjection, hideTagsIn, chatMessage, ctx, chatWindow } from './bridge.js';
 import { log } from './log.js';
 import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
@@ -21,7 +21,11 @@ export function startSync() {
   onTavern('MESSAGE_SWIPED', onMsg);
   onTavern('MESSAGE_UPDATED', id => { onMsg(id); hideTagsIn(id, tag()); });
   ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED'].forEach(ev => onTavern(ev, id => hideTagsIn(id, tag())));
-  onTavern('CHAT_CHANGED', () => { setTimeout(hideAll, 300); refresh(); });
+  onTavern('CHAT_CHANGED', async () => {
+    // 换了聊天窗口：手机换成这个窗口的那份数据；开着的页面是上个窗口的，关掉回桌面
+    if (await enterWindow(chatWindow())) { (await import('./nav.js')).closeAll(); commit('all'); }
+    setTimeout(hideAll, 300); refresh();
+  });
   onTavern('GENERATION_STARTED', () => { applyTags(); });
   subscribe(what => { if (what === 'prompts' || what === 'all' || what === 'inject') { applyTags(); refresh(); } else if (String(what).startsWith('msgs:') || what === 'chats') refresh(); });
   // 酒馆的连接配置：一开始同步一次，之后酒馆里加 / 删 / 改 / 切换配置时再同步

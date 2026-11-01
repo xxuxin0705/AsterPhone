@@ -1,6 +1,6 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
-import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
+import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.83';
+export const VERSION = '0.6.84';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -155,12 +155,31 @@ function openChatApp() {
         a.injectPos === 'chat' ? sliderRow('离最新消息几层', { min: 0, max: 10, step: 1, value: a.injectDepth, onInput: v => { a.injectDepth = v; commit('inject'); } }) : null,
         sliderRow('新聊天默认注入条数', { min: 0, max: 40, step: 1, value: a.injectCount, onInput: v => { a.injectCount = v; commit('apps'); } }),
       ].filter(Boolean)),
-      group('', [item({ title: '清空聊天的全部数据', danger: true, onClick: async () => {
-        if (!(await dialog({ title: '清空聊天的全部数据？', text: '联系人、聊天记录、动态、收藏都会删掉。\n此操作无法撤销。', typed: '确认', confirm: '清空', danger: true }))) return;
+      // 每个酒馆聊天窗口一份手机数据
+      group('这个窗口的数据', [
+        item({ title: '当前窗口', value: win.label }),
+        item({ title: '从别的窗口继承', chevron: true, onClick: () => import('../chat/aiload.js').then(m => m.openInherit(re)) }),
+        item({ title: '所有窗口的数据', chevron: true, onClick: openWindows }),
+      ]),
+      group('', [item({ title: '清空这个窗口的聊天数据', danger: true, onClick: async () => {
+        if (!(await dialog({ title: '清空这个窗口的聊天数据？', text: '这个窗口的联系人、聊天记录、动态、收藏都会删掉，别的窗口不受影响。\n此操作无法撤销。', typed: '确认', confirm: '清空', danger: true }))) return;
         for (const c of state.chats) await clearMsgs(c.id);
         state.chats.splice(0); state.contacts.splice(0); state.moments.splice(0); state.favorites.splice(0);
         commit('all'); toast('聊天数据已清空'); re();
       } })]));
+  });
+}
+/** 别的窗口存着的手机数据：看看有多少，不要的删掉 */
+function openWindows() {
+  sub('windows', '所有窗口的数据', async body => {
+    const list = await windowList();
+    body.append(list.length ? group('', list.map(w => {
+      const row = item({ title: w.label, sub: `${w.people} 个联系人 · ${w.chats} 个聊天`, right: btn('删除', 'danger', async () => {
+        if (!(await dialog({ title: `删除「${w.label}」的手机数据？`, text: '联系人、聊天记录、动态都会删掉，不能恢复。', confirm: '删除', danger: true }))) return;
+        await deleteWindow(w.key); row.remove(); toast('删掉了');
+      }, { style: { padding: '6px 10px' } }) });
+      return row;
+    })) : empty('别的窗口还没有手机数据'));
   });
 }
 function openInjectTable() {

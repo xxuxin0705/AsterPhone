@@ -5,7 +5,7 @@ import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, 
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
-import { V, save, people, connFor, defaultConn, voiceOf, fallbackVoice } from '../../core/voice.js';
+import { V, save, people, connFor, defaultConn, voiceOf, fallbackVoice, pk } from '../../core/voice.js';
 
 const ttsList = () => state.connections.tts || [];
 const fmtOf = c => c.type === 'custom-tts' && c.fmt ? c.fmt : c.type;
@@ -104,7 +104,7 @@ export { withInfo } from '../../core/ui.js';
 
 /** 一个人的声音：（各自模式下）用哪个渠道 + 在那个渠道上存的几个音色，挑一个用。改完点保存 */
 export function openPerson(id, onDone = () => {}) {
-  const P = JSON.parse(JSON.stringify(V().people[id] || { conn: '', voices: {} }));
+  const P = JSON.parse(JSON.stringify(V().people[pk(id)] || { conn: '', voices: {} }));
   const p = people().find(x => x.id === id) || { name: '这个人' };
   const connOf = () => (V().mode === 'each' && P.conn && ttsList().find(c => c.id === P.conn)) || defaultConn();
   if (!connOf()) { toast('先添加一个语音接口'); return; }
@@ -155,5 +155,5 @@ export function openPerson(id, onDone = () => {}) {
   const s = sheet({ title: `${p.name}的声音`, cls: 'as-pbd', content: h('div.as-pbd__wrap',
     V().mode === 'each' ? row('声音渠道', connBtn) : null, box, row('读音', rbox),
     h('div.as-pbd__bar', h('button.as-pbd__cancel', { onclick: () => s.close() }, '取消'),
-      h('button.as-pbd__save', { onclick: () => { V().people[id] = P; V().readings = [...V().readings.filter(r => !names.includes(r.from)), ...reads.filter(r => r.from && r.to)]; save(); toast('保存好了'); s.close(); onDone(); } }, '保存'))) });
+      h('button.as-pbd__save', { onclick: () => { V().people[pk(id)] = P; V().readings = [...V().readings.filter(r => !names.includes(r.from)), ...reads.filter(r => r.from && r.to)]; save(); toast('保存好了'); s.close(); onDone(); } }, '保存'))) });
 }

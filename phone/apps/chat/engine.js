@@ -8,7 +8,7 @@ import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { compose, myName, myPersona, chatScheme } from '../../core/promptstore.js';
+import { compose, myName, myPersona, chatScheme, myAvatar } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
 import { translate } from '../../core/translate.js';
 
@@ -127,7 +127,7 @@ export function personaOf(c) {
   return '';
 }
 export function avatarOf(c, chat) { return (chat && chat.cfg.theirAvatar) || (c && c.avatar) || ''; }
-export function myAvatarIn(chat) { return (chat && chat.cfg.myAvatar) || state.me.avatar || ''; }
+export function myAvatarIn(chat) { return (chat && chat.cfg.myAvatar) || myAvatar(); }
 
 /** 一条消息在列表、通知里显示成什么 */
 export function preview(m) {

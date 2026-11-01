@@ -1,13 +1,13 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
 import { h, uid } from '../../core/util.js';
-import { state, commit, contact, chatForContact } from '../../core/store.js';
+import { state, commit, contact, chatForContact, windowList, inheritWindow } from '../../core/store.js';
 import { groupAvatar } from './group.js';
 import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, currentCharacter, inTavern, worldNames, worldEntries } from '../../core/bridge.js';
 import { storyText } from '../../core/context.js';
-import { compose, myPersona, myName } from '../../core/promptstore.js';
+import { compose, myPersona, myName, myAvatar } from '../../core/promptstore.js';
 import { log } from '../../core/log.js';
 import { blankContact, pickMany } from './people.js';
 import * as E from './engine.js';
@@ -118,7 +118,7 @@ export function openPreview(data, { after, lore, under } = {}) {
     const grid = h('div.as-chat-members');
     const paint = () => grid.replaceChildren(...[ME, ...x.members].map(m => {
       const s = h('span', nm(m)); labels.push([m, s]);
-      return h('button', { onclick: () => menu(m) }, avatar(m === ME ? state.me.avatar : m.avatar || '', nm(m), 48), s, h('em', x.owner === m ? '群主' : x.titles.get(m) || ''));
+      return h('button', { onclick: () => menu(m) }, avatar(m === ME ? myAvatar() : m.avatar || '', nm(m), 48), s, h('em', x.owner === m ? '群主' : x.titles.get(m) || ''));
     }), h('button', { onclick: invite }, h('span.as-chat-members__plus', icon('plus', 22, 1.8)), h('span', '邀请')));
     async function menu(m) {
       const v = await actionSheet(nm(m), [{ value: 'title', label: '设置群头衔', icon: 'star' }, x.owner !== m && { value: 'owner', label: '设为群主', icon: 'users' }, m !== ME && { value: 'kick', label: '移出群聊', icon: 'trash', danger: true }].filter(Boolean));
@@ -168,6 +168,20 @@ export function openPreview(data, { after, lore, under } = {}) {
     nav.pop(); if (under) nav.pop();   // 生成页还在下面就一起退
     after && after();
   }
+}
+
+/* ================= 从别的窗口继承 ================= */
+export async function openInherit(after) {
+  const list = await windowList();
+  if (!list.length) { toast('别的窗口还没有手机数据'); return; }
+  const key = await actionSheet('从哪个窗口继承', list.map(w => ({ value: w.key, label: `${w.label}（${w.people} 人 · ${w.chats} 个聊天）` })));
+  if (key == null) return;
+  const what = await actionSheet('要继承什么', [{ value: 'people', label: '只要联系人和群', icon: 'users' }, { value: 'all', label: '全部', icon: 'chat' }]);
+  if (!what) return;
+  if ((state.contacts.length || state.chats.length) && !(await dialog({ title: '换掉这个窗口的手机数据？', text: '这个窗口现在的联系人、聊天记录、动态这些，会全部换成继承来的。', confirm: '换掉', danger: true }))) return;
+  toast('正在继承…', true);
+  try { await inheritWindow(key, what === 'all'); toast('继承好了'); after && after(); }
+  catch (e) { log('error', '继承', e.message); toast('继承失败：' + e.message); }
 }
 
 /* ================= 从世界书添加 ================= */

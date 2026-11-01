@@ -4,7 +4,7 @@
 import { state, commit } from './store.js';
 import { DEFAULT_PROMPTS, PROMPT_CATS, fill } from './prompts.js';
 import { uid } from './util.js';
-import { userName as tavernUser, userPersona as tavernPersona } from './bridge.js';
+import { userName as tavernUser, userPersona as tavernPersona, userAvatar as tavernAvatar } from './bridge.js';
 
 export { PROMPT_CATS, fill };
 export const catInfo = id => PROMPT_CATS.flatMap(a => a.items).find(c => c.id === id);
@@ -68,4 +68,5 @@ export function migratePrompts() {
 /** 我在手机里的名字和人设：没改过就跟随酒馆 */
 export const myName = () => state.me.realName || tavernUser() || '我';
 export const myNick = () => state.me.nick || myName();
+export const myAvatar = () => state.me.avatar || tavernAvatar();   // 没换过就用酒馆里你当前的头像
 export const myPersona = () => (state.me.persona == null ? tavernPersona() : state.me.persona) || '';
