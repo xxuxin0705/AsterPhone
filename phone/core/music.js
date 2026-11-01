@@ -12,20 +12,27 @@ const src = k => (M().src && M().src[k]) || DEF_SRC[k];
 const q = (base, p) => base + (base.includes('?') ? '&' : '?') + new URLSearchParams(p);
 const https = u => String(u || '').replace(/^http:\/\//i, 'https://');
 const meting = (type, id) => q(src('meting'), { server: 'netease', type, id });
-async function get(url, as = 'json') {
-  const r = await xf(url);
+// 慢的那一步记进日志（超过 1.5 秒），好知道到底卡在哪：搜歌、读歌单、拿歌词，还是开始出声
+const slow = (what, t0) => { const s = (Date.now() - t0) / 1000; if (s > 1.5) log('warn', '音乐', `${what}用了 ${s.toFixed(1)} 秒`); };
+async function get(url, as = 'json', what = '读音源') {
+  const t0 = Date.now(), r = await xf(url);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return as === 'json' ? r.json() : r.text();
+  const out = await (as === 'json' ? r.json() : r.text()); slow(what, t0);
+  return out;
 }
 
 /* ---------- 找歌 ---------- */
 export async function search(word) {
-  const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }));
+  const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }), 'json', `搜「${word}」`);
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
+const lists = new Map();   // 这次打开手机读过的歌单 / 榜单，再点直接用
 export async function playlist(id) {
-  const j = await get(meting('playlist', id));
-  return (Array.isArray(j) ? j : []).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  if (lists.has(id)) return lists.get(id);
+  const j = await get(meting('playlist', id), 'json', '读歌单');
+  const out = (Array.isArray(j) ? j : []).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  lists.set(id, out);
+  return out;
 }
 /** 从网易云分享链接 / 一串数字里找出歌单编号 */
 export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || String(t).match(/[?&]id=(\d{5,})/) || String(t).trim().match(/^(\d{5,})$/)) || [])[1] || '';
@@ -54,6 +61,7 @@ export function playList(list, i = 0) { M().queue = list.slice(); M().idx = i; f
 function load(autoplay) {
   const s = current(); if (!s) return;
   restored = true; lyrics = []; tell('song');
+  const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50); commit('music');
   // 先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样）
   const urls = [meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
@@ -68,7 +76,7 @@ function load(autoplay) {
   };
   tryUrl(0);
   sysInfo(s);
-  get(meting('lrc', s.id), 'text').then(t => { if (current() === s) { lyrics = parseLrc(t); tell('lyrics'); } })
+  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { if (current() === s) { lyrics = parseLrc(t); tell('lyrics'); } })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
 }
 export function toggle() {
