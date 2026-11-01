@@ -423,3 +423,7 @@
 .as-chat-pv__head em { font-style: normal; font: 400 11px/1 var(--font-ui); padding: 2px 6px; border-radius: 999px; background: var(--as-color-surface-2); color: var(--as-color-text-2); }
 .as-chat-pv__f { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; font: 400 12px/1.2 var(--font-ui); color: var(--as-color-text-2); }
 .as-chat-pv__f .as-input, .as-chat-pv__f .as-textarea { padding: 7px 10px; font-size: 13px; min-height: 0; }
+
+/* 被删 / 被拉黑后发的消息：气泡左边一个红色感叹号 */
+.as-chat-bounced { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.as-chat-bounce { flex: none; width: 18px; height: 18px; border-radius: 50%; background: #f0605a; color: #fff; font: 700 12px/18px var(--font-ui); text-align: center; }

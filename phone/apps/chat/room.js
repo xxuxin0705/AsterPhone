@@ -89,7 +89,11 @@ export async function openRoom(chat) {
     if (solo(m)) {
       const mine = m.from === 'me';
       frag.push(h('div.as-chat-sys', { dataset: { id: m.id } }, m.recalled ? (mine ? '你撤回了一条消息' : `「${E.nameOf(c)}」撤回了一条消息`) : m.text,
-        m.recalled && mine && m.text ? h('button', { onclick: () => { inputEl.value = m.text; syncBtn(); inputEl.focus(); } }, '重新编辑') : null));
+        m.recalled && mine && m.text ? h('button', { onclick: () => { inputEl.value = m.text; syncBtn(); inputEl.focus(); } }, '重新编辑') : null,
+        m.verify && E.cutOf(chat) === 'deleted' ? h('button', { onclick: async () => {
+          const t = await dialog({ title: '发送朋友验证', input: { value: `我是${state.me.nick || '我'}` }, confirm: '发送' }); if (t == null) return;
+          try { await E.sendVerify(chat, t.trim() || `我是${state.me.nick || '我'}`); } catch (e) { toast('发送失败：' + e.message); }
+        } }, '发送朋友验证') : null));
       return frag;
     }
     const me = m.from === 'me', A = avatarCfg(chat.cfg);
@@ -118,12 +122,12 @@ export async function openRoom(chat) {
     if (lastOfRun) {
       const bits = [];
       if (chat.cfg.showTime !== false) bits.push(hm(m));
-      if (me && chat.cfg.showRead !== false) bits.unshift(m.read ? '已读' : '送达');
+      if (me && !m.bounced && chat.cfg.showRead !== false) bits.unshift(m.read ? '已读' : '送达');
       if (bits.length) meta.push(h('span', bits.join(' · ')));
     }
     const col = h('div.as-chat-msg__col', nameTag,
       !me && m.inner && chat.cfg.showThink ? h('button.as-chat-inner', { onclick: e => e.currentTarget.classList.toggle('is-open') }, '💭', h('span', `${E.nameOf(c)} 心里在想：${m.inner}`)) : null,
-      bubble,
+      m.bounced ? h('div.as-chat-bounced', h('span.as-chat-bounce', { 'aria-label': '没发出去' }, '!'), bubble) : bubble,
       m.tr ? h('div.as-chat-tr', h('span', '译'), m.tr) : null,
       m.orig ? h('div.as-chat-tr.is-orig', h('span', '原文'), m.orig) : null,
       rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,

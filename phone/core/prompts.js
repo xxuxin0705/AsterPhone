@@ -13,6 +13,7 @@ export const PROMPT_CATS = [
     { id: 'comment', name: '动态评论', vars: ['post', 'people', 'time', 'user'] },
     { id: 'proactive', name: '主动消息', vars: ['char', 'user'] },
     { id: 'catchup', name: '离开期间补发', vars: ['char', 'user', 'gap'] },
+    { id: 'verify', name: '好友验证', vars: ['char', 'user', 'persona', 'story', 'text'] },
     { id: 'aiLoad', name: 'AI 加载联系人', vars: ['user', 'cards', 'user_persona', 'story', 'existing', 'require', 'withGroups'] },
     { id: 'lore', name: '世界书拆人', vars: ['user', 'entries'] },
   ] },
@@ -32,7 +33,7 @@ export const DEFAULT_PROMPTS = {
   timeTag: { name: '时间标签', cats: ['tag'], on: true,
     text: '在每次回复的最后另起一行，用 <{{tag}}>YYYY年M月D日 · 地点 · HH:MM</{{tag}}> 写出故事此刻的日期、所在地点和时间（24 小时制），例如 <{{tag}}>2026年11月1日 · 东京 · 21:20</{{tag}}>。故事没写明年份或日期时，按剧情合理推定，并且前后保持一致。这一行不属于正文，不要解释它。' },
   msgTag: { name: '正文消息标签', cats: ['tag'], on: true,
-    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[语音通话] 或 [视频通话]（打电话过来）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）。' },
+    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[语音通话] 或 [视频通话]（打电话过来）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；把 {{user}} 删了 type="删好友"、拉黑 type="拉黑"、解除拉黑 type="取消拉黑"（内容空着）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）。' },
 
   // ---------- 聊天 App ----------
   reply: { name: '私聊回复', cats: ['dm'], on: true, main: true,
@@ -131,6 +132,8 @@ export const DEFAULT_PROMPTS = {
 不需要每个人都出现；只输出这些行。` },
   proactive: { name: '主动消息', cats: ['proactive'], on: true, main: true,
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
+  verify: { name: '好友验证', cats: ['verify'], on: true, main: true,
+    text: '{{char}} 之前把 {{user}} 的好友删了。现在 {{user}} 发来朋友验证：「{{text}}」\n\n【{{char}} 的人设】\n{{persona}}\n\n【正文里最近发生的事】\n{{story}}\n\n结合人设和剧情，{{char}} 会通过吗？只回答「通过」或「不通过」。' },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

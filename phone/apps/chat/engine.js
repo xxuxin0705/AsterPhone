@@ -26,7 +26,27 @@ const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 /
 const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3;
 const today = () => new Date().toDateString();
 const free = chat => (chat.type === 'dm' || chat.type === 'group') && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
-const canGo = chat => free(chat) && chat.cfg.linkMode === 'online';
+const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && !cutOf(chat);
+/** TA 把你删了（'deleted'）/ 拉黑了（'blocked'）：你发的消息带红色感叹号，TA 收不到也不会回 */
+export const cutOf = chat => !isGroup(chat) && (contact(chat.contactId) || {}).cut || '';
+async function bounce(chat, m) {
+  if (m.from !== 'me' || !cutOf(chat)) return;
+  m.bounced = true; m.noInject = true;
+  const c = contact(chat.contactId);
+  if (cutOf(chat) === 'deleted') await addSystem(chat, `「${nameOf(c)}」开启了朋友验证，你还不是 TA 的朋友。请先发送朋友验证请求，对方验证通过后，才能聊天。`, { verify: true });
+  else await addSystem(chat, '消息已发出，但被对方拒收了。');
+}
+/** 被删了以后发朋友验证：AI 按人设和剧情决定通不通过 */
+export async function sendVerify(chat, text) {
+  const c = contact(chat.contactId);
+  await addSystem(chat, `你发送了朋友验证：${text}`);
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', app: '好友验证', maxTokens: 20,
+    prompt: compose('verify', { char: c.name || nameOf(c), persona: charPersona(c), story: storyNow(), text }) });
+  if (/不通过|拒绝/.test(raw) || !/通过/.test(raw)) { await addSystem(chat, `「${nameOf(c)}」暂时没有通过你的朋友验证`); return false; }
+  c.cut = ''; commit('contacts');
+  await addSystem(chat, `「${nameOf(c)}」通过了你的朋友验证，现在可以开始聊天了`);
+  return true;
+}
 export function startEngine() {
   const last = state.lastSeen || 0;
   state.lastSeen = Date.now();
@@ -116,7 +136,7 @@ export async function send(chat, text, extra = {}) {
   const m = { id: uid('m'), from: 'me', type: 'text', text, ...time.stamp(), ...extra };
   msgs.push(m); touch(chat, m);
   saveMsgs(chat.id); commit('chats');
-  emit('msg', chat.id, m);
+  emit('msg', chat.id, m); await bounce(chat, m);
   return m;
 }
 export async function addSystem(chat, text, extra = {}) {
@@ -130,9 +150,9 @@ export async function sendSpecial(chat, fields) {
   const msgs = await getMsgs(chat.id);
   const m = { id: uid('m'), from: 'me', ...fields, ...time.stamp() };
   if ((m.type === 'transfer' || m.type === 'packet') && !m.status) m.status = 'pending';
-  if (m.type === 'transfer' || m.type === 'packet') ledger(-m.amount, `给 ${isGroup(chat) ? chat.name : nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
+  if ((m.type === 'transfer' || m.type === 'packet') && !(m.from === 'me' && cutOf(chat))) ledger(-m.amount, `给 ${isGroup(chat) ? chat.name : nameOf(contact(chat.contactId))} 的${m.type === 'packet' ? '红包' : '转账'}`);
   msgs.push(m); touch(chat, m);
-  saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
+  saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m); await bounce(chat, m);
   return m;
 }
 /** 钱包记一笔：正数是进账，负数是花出去 */
@@ -201,6 +221,7 @@ export function parseReply(raw, c) {
 export async function requestReply(chat, opts = {}) {
   if (isGroup(chat)) return requestGroupReply(chat, opts);
   if (busy.has(chat.id)) return;
+  if (cutOf(chat)) { emit('error', chat.id, cutOf(chat) === 'deleted' ? 'TA 把你删了，先发送朋友验证' : 'TA 把你拉黑了，收不到你的消息'); return; }
   const c = contact(chat.contactId);
   const conn = resolveConn('text', 'chat', chat.cfg.conn);
   busy.add(chat.id); emit('typing', chat.id, true);
@@ -351,7 +372,9 @@ export async function fromStory({ from, body = '', group = '', type = '' }) {
   const c = storyContact(from); if (!c) return;
   if (type === '动态') return momentFromStory(c.name, body);
   if (type === '点赞' || type === '评论') return reactFromStory(c, type, body);
-  if (type === '加好友') { const chat = chatForContact(c.id, true); await addSystem(chat, `你和「${nameOf(c)}」已经是好友了`); if (body.trim()) await deliverFromStory(c, body); return; }
+  if (type === '加好友') { c.cut = ''; commit('contacts'); const chat = chatForContact(c.id, true); await addSystem(chat, `你和「${nameOf(c)}」已经是好友了`); if (body.trim()) await deliverFromStory(c, body); return; }
+  if (type === '删好友' || type === '拉黑') { c.cut = type === '删好友' ? 'deleted' : 'blocked'; commit('contacts'); log('info', '聊天', `正文里「${nameOf(c)}」${type === '删好友' ? '把你删了' : '把你拉黑了'}`); return; }   // 和真的一样不提醒，你发消息时才知道
+  if (type === '取消拉黑') { if (c.cut === 'blocked') { c.cut = ''; commit('contacts'); } return; }
   if (type === '拉群') return groupFromStory(c, group, body);
   return deliverFromStory(c, body, group);
 }
@@ -418,6 +441,7 @@ export async function deliverFromStory(c, text, groupName = '') {
   const g = groupName && storyGroup(groupName, c);
   if (g && !g.members.includes(c.id)) { g.members.push(c.id); await addSystem(g, `「${nameOf(c)}」加入了群聊`); }
   const chat = g || chatForContact(c.id, true), msgs = await getMsgs(chat.id);
+  if (!g && c.cut) { c.cut = ''; commit('contacts'); }   // TA 又给你发消息了：说明加回来 / 解除拉黑了
   for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {
     const call = /^[\[【]\s*(语音|视频)通话\s*[\]】]/.exec(line);
     if (call) { const dm = chatForContact(c.id, true); import('./specials.js').then(S => S.ringIn(dm, c, call[1] === '视频' ? 'video' : 'voice')); continue; }
