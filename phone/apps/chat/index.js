@@ -23,6 +23,7 @@ export function open(opts = {}) {
     icon(t.icon, 23, 1.7), h('span', { dataset: { asLabel: '' } }, t.label))));
   applyTexts();
   P.el.appendChild(bar);
+  cur = null;   // 上次关掉时停在哪一页不算：新开的页面是空的，要重新画
   switchTab(opts.tab || 'messages');
   unsub && unsub();
   unsub = subscribe(what => { if (what === 'chats' || what === 'all') renderTabBadge(); });
