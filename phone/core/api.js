@@ -68,9 +68,15 @@ export function resolveConn(kind = 'text', app = 'chat', override = 'follow') {
   if (appSel && appSel !== 'follow' && pick(appSel)) return pick(appSel);
   return pick(state.connections.defaults[kind]) || list[0] || null;
 }
-/** 这根线断了改用的副 API（开了、也选了才有）。聊天的存在 retry.fallback / backup，生图、语音的存在 retry.fb[kind] */
+/** 每根线「断线了怎么办」：{ retry 失败了自动重试, max 最多几次, on 改用副 API, id 副 API 是哪个 }，存在 retry.fb[kind]。
+ *  聊天的以前直接存在 retry 上（on / max / fallback / backup），第一次读时搬过来 */
+export function failCfg(kind) {
+  const R = state.connections.retry, F = R.fb || (R.fb = {});
+  return F[kind] || (F[kind] = kind === 'text' ? { retry: R.on !== false, max: R.max || 1, on: !!R.fallback, id: R.backup || '' } : { retry: true, max: 1, on: false, id: '' });
+}
+/** 这根线断了改用的副 API（开了、也选了才有） */
 export function backupOf(kind) {
-  const R = state.connections.retry || {}, b = kind === 'text' ? { on: R.fallback, id: R.backup } : (R.fb || {})[kind] || {};
+  const b = failCfg(kind);
   return b.on ? (state.connections[kind] || []).find(c => c.id === b.id) || null : null;
 }
 export function connLabel(c) { return c ? c.name : '未设置'; }
@@ -91,6 +97,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isKeyErr = m => /^(401|403|429)\b/.test(m);
 const isRetryErr = m => /^(408|409|425|429|5\d\d)\b/.test(m) || /连不上|Failed to fetch|network|timeout/i.test(m);
 
+/** 按这根线的设置，网络出错、服务器忙时再试几次（密钥不对不白试） */
+async function withRetry(kind, app, fn) {
+  const F = failCfg(kind), tries = 1 + (F.retry !== false ? Math.max(0, F.max | 0 || 1) : 0);
+  for (let t = 0; ; t++) {
+    try { return await fn(); }
+    catch (e) { if (!isRetryErr(e.message) || t >= tries - 1) throw e; log('warn', app, `第 ${t + 1} 次失败，再试一次：${e.message}`); await sleep(800 * (t + 1)); }
+  }
+}
 /**
  * 生成文字。返回字符串。
  * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用选好的副 API。
@@ -98,12 +112,8 @@ const isRetryErr = m => /^(408|409|425|429|5\d\d)\b/.test(m) || /连不上|Faile
 export async function generate(opts) {
   const { conn, app = '聊天' } = opts;
   if (!conn) throw new Error('还没有设置可用的连接');
-  const R = state.connections.retry || {}, tries = 1 + (R.on ? Math.max(0, R.max | 0) : 0);
   let last = null;
-  for (let t = 0; t < tries; t++) {
-    try { return await generateOnce(opts); }
-    catch (e) { last = e; if (!isRetryErr(e.message) || t === tries - 1) break; log('warn', app, `第 ${t + 1} 次失败，${t + 1 < tries ? '再试一次' : ''}：${e.message}`); await sleep(800 * (t + 1)); }
-  }
+  try { return await withRetry('text', app, () => generateOnce(opts)); } catch (e) { last = e; }
   // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
   const bk = backupOf('text');
   if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
@@ -329,7 +339,7 @@ function imageInReply(j) {
 export async function generateImage(prompt, app = '聊天', connIn) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
-  try { return await imageOnce(prompt, app, conn); }
+  try { return await withRetry('image', app, () => imageOnce(prompt, app, conn)); }
   catch (e) {   // 生图线断了 → 改用选好的副 API（只换一次）
     const bk = backupOf('image'); if (!bk || bk.id === conn.id) throw e;
     log('warn', app, `「${conn.name}」生图失败，改用副 API「${bk.name}」`);
@@ -536,7 +546,7 @@ export async function speak(text, { voice, conn = resolveConn('tts', 'chat') } =
   stopSpeak();
   if (conn) {
     try {
-      const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
+      const a = new Audio(await withRetry('tts', '语音', () => synthesize(conn, text, { voice }))); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
       return new Promise(r => { a.onended = r; a.onerror = r; });
     } catch (e) {
       log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
