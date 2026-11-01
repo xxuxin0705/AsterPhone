@@ -19,7 +19,7 @@ function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); }
 
 export const busy = new Set();
 /* ---------- 自动行为（私聊、群聊都会，不用开开关；免打扰时段里不来） ----------
- * 两种模式：正文里刚发生了和 TA（群里的人 / 这个群）有关的事时，会来说两句。
+ * 两种模式：正文里写到有人用手机发消息、转账、发红包 → 正文 AI 留暗号，手机照着收（deliverFromStory，见 core/sync.js）。
  * 只有仅线上聊天：还会每隔几小时来找你（加早安晚安），离开期间会补发；隔几小时在每个聊天里能单独改，默认跟「联动方式与时间」。
  *   跟随正文不定时来：手机里的事会写进正文，你没顾上看时自己发一堆会把正文带跑。 */
 const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 / 多」换算成小时
@@ -69,19 +69,6 @@ export function pokeNow() {
   requestReply(chat, { extra: compose('proactive', { char: c.name || nameOf(c) }) });
   return nameOf(c);
 }
-/** 正文里刚发生了事：开了主动消息的私聊（正文提到 TA）、群聊（正文提到这个群或群里的人），有时会来手机上说两句。两种模式都会 */
-export function storyNudge(storyText) {
-  const cur = String(storyText || '');
-  const named = c => c && (cur.includes(c.name) || (c.charKey && characters().some(k => k.key === c.charKey && cur.includes(k.name))));
-  const cands = state.chats.filter(ch => free(ch) && (isGroup(ch) ? (ch.name && cur.includes(ch.name)) || ch.members.some(id => named(contact(id))) : named(contact(ch.contactId))));
-  if (!cands.length || Math.random() > .25) return;
-  const chat = cands[Math.floor(Math.random() * cands.length)], c = isGroup(chat) ? null : contact(chat.contactId);
-  setTimeout(() => {
-    if (!free(chat)) return;
-    requestReply(chat, { extra: c ? `（正文里刚发生的事让 ${nameOf(c)} 想到了 ${myName()}，于是拿起手机主动发了消息。）` : '（正文里刚发生的事被群里的人看到或聊起，大家在群里说了几句。）' });
-  }, 30000 + Math.random() * 60000);
-}
-
 /* ---------- 翻译 ---------- */
 const canTr = m => (m.type === 'text' || m.type === 'voice' || !m.type) && m.text;
 export async function translateMsg(chat, m, to) {
@@ -365,7 +352,9 @@ function bumpStreak(chat) {
 }
 
 /* ---------- 剧情里 TA 发来的消息（暗号 <asterphone>） ---------- */
-export async function deliverFromStory(name, text) {
+/** 正文里写到有人用手机给你发消息、转账、发红包（暗号 <asterphone from="谁" group="群名">…</asterphone>）：
+ *  一行一条，[转账] [红包] 这些写法和手机里一样；带 group 且找得到这个群就发在群里，否则发私聊 */
+export async function deliverFromStory(name, text, groupName = '') {
   const n = String(name || '').trim(); if (!n || !text) return;
   let c = state.contacts.find(p => [p.name, p.nick, p.remark].includes(n));
   if (!c) {
@@ -374,13 +363,18 @@ export async function deliverFromStory(name, text) {
     state.contacts.push(c); commit('contacts');
     log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
   }
-  const chat = chatForContact(c.id, true);
-  const msgs = await getMsgs(chat.id);
-  const m = { id: uid('m'), from: 'them', type: 'text', text: String(text).trim(), fromStory: true, ...time.stamp() };
-  msgs.push(m); touch(chat, m);
-  if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
-  saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
-  shell.notify({ chatId: chat.id, title: nameOf(c), text: m.text, avatarUrl: avatarOf(c, chat) });
+  const g = groupName && state.chats.find(x => isGroup(x) && x.name === groupName.trim());
+  if (g && !g.members.includes(c.id)) { g.members.push(c.id); await addSystem(g, `「${nameOf(c)}」加入了群聊`); }
+  const chat = g || chatForContact(c.id, true), msgs = await getMsgs(chat.id);
+  for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {
+    const m = { id: uid('m'), from: 'them', ...(g ? { who: c.id } : {}), ...parseLine(line), fromStory: true, ...time.stamp() };
+    if (['accept', 'return', 'poke-them'].includes(m.type)) continue;
+    msgs.push(m); touch(chat, m); if (g) chat.lastText = `${nameOf(c)}：${preview(m)}`;
+    if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
+    emit('msg', chat.id, m);
+    shell.notify({ chatId: chat.id, title: g ? g.name : nameOf(c), text: (g ? nameOf(c) + '：' : '') + preview(m), avatarUrl: g ? (g.avatar || c.avatar) : avatarOf(c, chat) });
+  }
+  saveMsgs(chat.id); commit('chats');
 }
 
 /* ---------- 动态 ---------- */

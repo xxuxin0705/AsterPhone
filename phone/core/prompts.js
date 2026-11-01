@@ -32,7 +32,7 @@ export const DEFAULT_PROMPTS = {
   timeTag: { name: '时间标签', cats: ['tag'], on: true,
     text: '在每次回复的最后另起一行，用 <{{tag}}>YYYY年M月D日 · 地点 · HH:MM</{{tag}}> 写出故事此刻的日期、所在地点和时间（24 小时制），例如 <{{tag}}>2026年11月1日 · 东京 · 21:20</{{tag}}>。故事没写明年份或日期时，按剧情合理推定，并且前后保持一致。这一行不属于正文，不要解释它。' },
   msgTag: { name: '正文消息标签', cats: ['tag'], on: true,
-    text: '如果正文里有角色用手机给 {{user}} 发了消息，在回复最后另起一行写 <asterphone from="角色名">消息内容</asterphone>，一条消息一个标签；没有就不写。' },
+    text: '如果正文里有角色用手机给 {{user}} 发消息、转账、发红包，在回复最后另起一行写 <asterphone from="角色名">内容</asterphone>，一个人一个标签，一行一条：普通消息直接写；转账写 [转账] 金额 | 备注；红包写 [红包] 金额 | 祝福语。发在群里的加上 group="群名"。没有就不写。' },
 
   // ---------- 聊天 App ----------
   reply: { name: '私聊回复', cats: ['dm'], on: true, main: true,

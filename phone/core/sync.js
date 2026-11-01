@@ -48,24 +48,23 @@ function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, d
 async function readMessage(id) {
   const m = chatMessage(id); if (!m || m.is_user || m.is_system) return;
   const text = String(m.mes || '');
-  import('../apps/chat/engine.js').then(E => E.storyNudge(text)).catch(() => {});
   const t = time.parseTimeTag(text);
   if (t) { const cur = time.story(), cd = cur.date ? `${cur.date.getFullYear()}-${String(cur.date.getMonth() + 1).padStart(2, '0')}-${String(cur.date.getDate()).padStart(2, '0')}` : null;
     if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd) || (t.place && t.place !== cur.place)) time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place || undefined); }
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {
-    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]);
+    const attr = /from\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]), grp = /group\s*=\s*["“']?([^"”'>]+)["”']?/.exec(r[1]);
     let from = attr ? attr[1].trim() : '', body = r[2].trim();
     if (!from) { const mm = /^([^:：\n]{1,20})[:：]\s*([\s\S]+)$/.exec(body); if (mm) { from = mm[1].trim(); body = mm[2].trim(); } }
-    if (from && body) found.push([from, body]);
+    if (from && body) found.push([from, body, grp ? grp[1].trim() : '']);
   }
   if (!found.length) return;
   const { deliverFromStory } = await import('../apps/chat/engine.js');
-  for (const [from, body] of found) {
-    const k = `${id}|${m.swipe_id ?? 0}|${from}|${body}`;
+  for (const [from, body, grp] of found) {
+    const k = `${id}|${m.swipe_id ?? 0}|${from}|${grp}|${body}`;
     if (seen.has(k)) continue; seen.add(k);
-    await deliverFromStory(from, body);
+    await deliverFromStory(from, body, grp);
   }
   hideTagsIn(id, tag());
 }
