@@ -11,6 +11,7 @@ import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 import { renderNotes, addNote, openNote } from './notes.js';
 import { pickMany } from '../chat/people.js';
+import { rain, isNight } from './rain.js';
 
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
@@ -264,7 +265,8 @@ export function openPlayer() {
   const arm = h('div.as-mp__arm'); arm.innerHTML = ARM;
   // 点唱片 ⇄ 全部歌词
   const lrc = h('div.as-mp__lrc'), stage = h('div.as-mp__stage', disc, arm);
-  const main = h('div.as-mp__main', { onclick: () => p.el.classList.toggle('is-lrc') }, stage, lrc);
+  const main = h('div.as-mp__main', { onclick: () => { p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, lrc);
+  const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   onLongPress(lrc, collectLyrics);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
   const name = h('div.as-mp__name'), artist = h('div.as-mp__artist');
@@ -281,15 +283,22 @@ export function openPlayer() {
   const mode = () => P.MODES.find(m => m[0] === M().mode) || P.MODES[0];
   const modeBtn = h('button', { 'aria-label': '播放顺序', onclick: () => { const m = P.cycleMode(); modeBtn.replaceChildren(icon(m[2], 24, 1.8)); toast(m[1]); } }, icon(mode()[2], 24, 1.8));
   const tool = (ic, label, fn) => h('button', { 'aria-label': label, onclick: fn }, icon(ic, 21, 1.6));
-  p.el.prepend(bg);
+  p.el.prepend(bg, cv);
   p.body.append(main,
     h('div.as-mp__info', h('div', name, artist), heart, h('button.as-mp__heart', { 'aria-label': '热评', onclick: hot }, icon('comment', 24, 1.8))),
     h('div.as-mp__prog', track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
-    h('div.as-mp__tools', tool('palette', '换唱片', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('note', '收进笔记', collectLyrics)));
+    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('note', '收进笔记', collectLyrics)));
 
-  const paintBg = () => { bg.style.backgroundImage = bgUrl(S.bg || (P.current() || {}).pic); bg.classList.toggle('is-custom', !!S.bg); };
+  // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
+  const paintBg = () => {
+    const wet = S.name === 'rain', day = wet && !S.bg && !isNight();
+    bg.style.backgroundImage = bgUrl(S.bg || (wet ? `assets/music/rain-${day ? 'day' : 'night'}.webp` : (P.current() || {}).pic));
+    bg.classList.toggle('is-custom', !!S.bg || wet); bg.classList.toggle('is-scene', wet && !S.bg);
+    p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
+  };
+  const paintSkin = () => { p.el.classList.toggle('is-rain', S.name === 'rain'); S.name === 'rain' && !p.el.classList.contains('is-lrc') ? R.start() : R.stop(); };
   let lines = [];
   const paintSong = () => {
     const s = P.current(); if (!s) return;
@@ -332,11 +341,14 @@ export function openPlayer() {
     toast('收进笔记了', { label: '去看看', fn: () => openNote(n) });
   }
   async function skin() {
-    const v = await actionSheet('唱片', [{ value: 'glass', label: '玻璃唱片', active: S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: S.disc === 'vinyl' }]);
-    if (v) { S.disc = v; disc.classList.toggle('is-vinyl', v === 'vinyl'); commit('music'); }
+    const rec = S.name !== 'rain';
+    const v = await actionSheet('样式', [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: !rec }]);
+    if (!v) return;
+    if (v === 'rain') S.name = 'rain'; else { S.name = 'record'; S.disc = v; disc.classList.toggle('is-vinyl', v === 'vinyl'); }
+    commit('music'); paintBg(); paintSkin();
   }
   async function background() {
-    const v = S.bg ? await actionSheet('背景', [{ value: 'pick', label: '换一张图', icon: 'image' }, { value: 'none', label: '跟着封面变色', icon: 'palette' }]) : 'pick';
+    const v = S.bg ? await actionSheet('背景', [{ value: 'pick', label: '换一张图', icon: 'image' }, { value: 'none', label: S.name === 'rain' ? '用雨景图' : '跟着封面变色', icon: 'palette' }]) : 'pick';
     if (v === 'pick') { const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100, has: !!S.bg }); if (img != null) { S.bg = img; commit('music'); paintBg(); } }
     if (v === 'none') { S.bg = ''; commit('music'); paintBg(); }
   }
@@ -355,10 +367,10 @@ export function openPlayer() {
       sheet({ title: '热评', content: h('div.as-mu-reviews.as-mu-hot', list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text))))) });
     } catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); toast('拿不到热评：' + e.message); }
   }
-  paintSong(); paintState();
+  paintSong(); paintState(); paintSkin();
   const off = P.onMusic(w => { if (w === 'song' || w === 'lyrics') paintSong(); if (w === 'state') paintState(); if (w === 'time' && !P.playing()) tick(); });
-  p.el._onShow = loop;
-  p.el._onLeave = () => { off(); cancelAnimationFrame(raf); };
+  p.el._onShow = () => { loop(); paintSkin(); };
+  p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); };
   nav.push(p.el);
 }
 function openQueue() {

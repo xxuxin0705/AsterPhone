@@ -121,10 +121,18 @@
 .as-mp__bg.is-custom { inset: 0; filter: none; transform: none; }
 .as-mp__bg.is-custom::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.25); }
 .as-mp > .as-navbar, .as-mp > .as-page__body { position: relative; z-index: 1; }
-.as-mp__top { display: grid; justify-items: center; gap: 3px; color: #fff; }
-.as-mp__top em { font: 400 14px/1.2 var(--font-ui); font-style: normal; color: rgba(255,255,255,.75); }
+.as-mp { --mp-ink: 255,255,255; }
+.as-mp .as-navbar__back { color: rgb(var(--mp-ink)) !important; }
+/* 下雨天：背景就是那张雨景图（不糊不压暗，只在最下面压一点让按钮清楚）；白天那张浅，字和按钮换深蓝 */
+.as-mp.is-day { --mp-ink: 26,56,110; }
+.as-mp__bg.is-scene::after { background: linear-gradient(transparent 62%, rgba(10,22,52,.35)); }
+.as-mp.is-day .as-mp__bg.is-scene::after { background: linear-gradient(rgba(255,255,255,.15), transparent 30%, transparent 70%, rgba(255,255,255,.35)); }
+.as-mp__rain { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
+.as-mp:not(.is-rain) .as-mp__rain, .as-mp.is-lrc .as-mp__rain, .as-mp.is-rain .as-mp__stage { display: none; }
+.as-mp__top { display: grid; justify-items: center; gap: 3px; color: rgb(var(--mp-ink)); }
+.as-mp__top em { font: 400 14px/1.2 var(--font-ui); font-style: normal; color: rgba(var(--mp-ink),.75); }
 .as-mp__top b { font: 500 15px/1.2 var(--font-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.as-mp__top span { font: 400 12px/1 var(--font-ui); color: rgba(255,255,255,.6); }
+.as-mp__top span { font: 400 12px/1 var(--font-ui); color: rgba(var(--mp-ink),.6); }
 .as-mp:not(.is-lrc) .as-mp__top b, .as-mp:not(.is-lrc) .as-mp__top span, .as-mp.is-lrc .as-mp__top em { display: none; }
 
 .as-mp__main { position: relative; flex: 1; min-height: 0; cursor: pointer; }
@@ -150,32 +158,32 @@
 .as-mp__lrc::-webkit-scrollbar { display: none; }
 .as-mp.is-lrc .as-mp__lrc { opacity: 1; visibility: visible; }
 .as-mp__lrc::before, .as-mp__lrc::after { content: ''; display: block; height: 45%; }
-.as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--font-ui); color: rgba(255,255,255,.42); transition: color 200ms; }
+.as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--font-ui); color: rgba(var(--mp-ink),.42); transition: color 200ms; }
 .as-mp__lrc small { display: block; margin-top: 4px; font-size: 14px; }
-.as-mp__lrc p.is-cur { font-size: 17.5px; font-weight: 600; color: #fff; }
-.as-mp__lrc p.is-cur > span { background: linear-gradient(90deg, #fff var(--p, 0%), rgba(255,255,255,.62) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.as-mp__lrc p.is-none { color: rgba(255,255,255,.6); }
+.as-mp__lrc p.is-cur { font-size: 17.5px; font-weight: 600; color: rgb(var(--mp-ink)); }
+.as-mp__lrc p.is-cur > span { background: linear-gradient(90deg, rgb(var(--mp-ink)) var(--p, 0%), rgba(var(--mp-ink),.62) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.as-mp__lrc p.is-none { color: rgba(var(--mp-ink),.6); }
 
 .as-mp__info { display: flex; align-items: center; gap: 14px; margin: 0 22px; padding-top: 10px; }
 .as-mp__info > div { flex: 1; min-width: 0; }
 .as-mp.is-lrc .as-mp__info > div { visibility: hidden; }
-.as-mp__name { font: 500 19px/1.3 var(--font-ui); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-mp__artist { margin-top: 4px; font: 400 13px/1.3 var(--font-ui); color: rgba(255,255,255,.6); }
-.as-mp__heart { border: 0; background: none; color: #fff; padding: 4px; cursor: pointer; display: grid; }
+.as-mp__name { font: 500 19px/1.3 var(--font-ui); color: rgb(var(--mp-ink)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mp__artist { margin-top: 4px; font: 400 13px/1.3 var(--font-ui); color: rgba(var(--mp-ink),.6); }
+.as-mp__heart { border: 0; background: none; color: rgb(var(--mp-ink)); padding: 4px; cursor: pointer; display: grid; }
 .as-mp__heart.is-on { color: var(--mu-red); }
 .as-mp__heart.is-on svg { fill: currentColor; }
 .as-mp__prog { margin: 14px 22px 0; }
 .as-mp__track { position: relative; height: 20px; cursor: pointer; touch-action: none; }
 .as-mp__track::before, .as-mp__track i { content: ''; position: absolute; left: 0; top: 9px; height: 2px; border-radius: 1px; }
-.as-mp__track::before { right: 0; background: rgba(255,255,255,.18); }
-.as-mp__track i { background: rgba(255,255,255,.5); }
-.as-mp__track b { position: absolute; top: 6.5px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: #fff; }
-.as-mp__times { display: flex; justify-content: space-between; font: 400 10px/1 var(--font-ui); color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; }
+.as-mp__track::before { right: 0; background: rgba(var(--mp-ink),.18); }
+.as-mp__track i { background: rgba(var(--mp-ink),.5); }
+.as-mp__track b { position: absolute; top: 6.5px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: rgb(var(--mp-ink)); }
+.as-mp__times { display: flex; justify-content: space-between; font: 400 10px/1 var(--font-ui); color: rgba(var(--mp-ink),.4); font-variant-numeric: tabular-nums; }
 .as-mp__ctrl { display: flex; align-items: center; justify-content: space-between; margin: 22px 18px 0; }
-.as-mp__ctrl button { border: 0; background: none; color: #fff; padding: 8px; cursor: pointer; display: grid; place-items: center; }
+.as-mp__ctrl button { border: 0; background: none; color: rgb(var(--mp-ink)); padding: 8px; cursor: pointer; display: grid; place-items: center; }
 .as-mp__ctrl button:nth-child(2) svg, .as-mp__ctrl button:nth-child(4) svg, .as-mp__play svg { fill: currentColor; }
 .as-mp__tools { display: flex; justify-content: space-around; margin: 22px 10px 0; }
-.as-mp__tools button { border: 0; background: none; color: rgba(255,255,255,.6); padding: 8px; cursor: pointer; display: grid; }
+.as-mp__tools button { border: 0; background: none; color: rgba(var(--mp-ink),.6); padding: 8px; cursor: pointer; display: grid; }
 
 .as-mu-queue { display: grid; max-height: 56vh; overflow: auto; }
 .as-mu-queue__row { display: flex; align-items: baseline; gap: 8px; padding: 11px 6px; border: 0; border-bottom: 1px solid var(--as-color-line, rgba(0,0,0,.06)); background: none; text-align: left; color: var(--as-color-text); cursor: pointer; }
