@@ -1,6 +1,6 @@
 // AI 调用：按「连接」的渠道类型拼请求。
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
-import { state } from './store.js';
+import { state, kvGet, kvSet } from './store.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
 import { log, startCall, orAbort, abortCall } from './log.js';
 
@@ -599,24 +599,33 @@ export async function testVoice(conn) {
   stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play().catch(() => {});
   return url;
 }
-/** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费） */
-export async function speak(text, { voice, conn = resolveConn('tts', 'chat') } = {}) {
-  stopSpeak();
+/** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费）。
+ *  cache：聊天里的语音消息传一个钥匙，合成好的声音存在这台设备上，以后再放不用再合成（不再花钱）；silent：只合成存起来，不放 */
+export async function speak(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent } = {}) {
+  if (!silent) stopSpeak();
+  const play = async (url, c) => {
+    if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));
+    if (silent) return;
+    const a = new Audio(url); a.volume = Math.min(1, (c && c.tts && c.tts.volume) ?? 1); playing = a; await a.play();
+    return new Promise(r => { a.onended = r; a.onerror = r; });
+  };
+  const saved = cache && await kvGet(cache).catch(() => null);
+  if (saved) { cache = null; return play(URL.createObjectURL(saved), conn); }
   if (conn) {
-    try {
-      const a = new Audio(await withRetry('tts', '语音', () => synthesize(conn, text, { voice }))); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
-      return new Promise(r => { a.onended = r; a.onerror = r; });
-    } catch (e) {
+    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice })), conn); }
+    catch (e) {
       log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
       const bk = backupOf('tts');   // 语音线断了 → 先换副 API（用它自己的音色），再不行才用浏览器朗读
       if (bk && bk.id !== conn.id) try {
-        const a = new Audio(await synthesize(bk, text)); a.volume = Math.min(1, (bk.tts && bk.tts.volume) ?? 1); playing = a; await a.play();
+        const r = await play(await synthesize(bk, text), bk);
         log('warn', '语音', `改用副 API「${bk.name}」`);
-        return new Promise(r => { a.onended = r; a.onerror = r; });
+        return r;
       } catch (e2) { log('warn', '语音', `副 API「${bk.name}」也失败了：${e2.message}`); }
+      if (silent) return;   // 只是先合成好：浏览器朗读存不下来，等点播放再说
       log('warn', '语音', '改用浏览器朗读');
     }
   }
+  if (silent) return;
   if (!('speechSynthesis' in window)) throw new Error('这个浏览器不能朗读');
   return new Promise(r => {
     const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = 1.02;

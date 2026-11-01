@@ -41,18 +41,17 @@ export function forAI(m) {
 }
 export const statusText = m => m.status === 'accepted' ? '已收下' : m.status === 'returned' ? '已退还' : '未领取';
 
-/** 告诉 AI 可以发哪些特殊消息（拼在系统提示后面） */
-export function specialsGuide() {
+/** 告诉 AI 可以发哪些特殊消息，和这次回几条、几条语音（拼在系统提示后面；rc 是这个聊天的回复设置） */
+export function specialsGuide(rc) {
   const names = (state.stickers || []).map(s => s.name).filter(Boolean).slice(0, 60);
   return `【可以发的特殊消息】需要时单独占一行，用下面的格式；不需要就只发普通文字：
-[语音]要说的话
-[图片]画面描述
+${rc.voice[1] ? '[语音]要说的话\n' : ''}[图片]画面描述
 ${names.length ? `[表情包]名字（只能从这些里选：${names.join('、')}）\n` : ''}[转账]金额|备注
 [红包]金额|祝福语
 [位置]地点名
 [名片]人名
-[拍一拍]
-如果对方刚给你转账或发红包，可以单独一行写 [收下] 或 [退还]。`;
+${rc.poke ? '[拍一拍]\n' : ''}如果对方刚给你转账或发红包，可以单独一行写 [收下] 或 [退还]。
+${rc.group ? `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，` : ''}${rc.voice[1] ? `其中 ${rc.voice[0]}–${rc.voice[1]} 条用 [语音] 发。` : '这次不要发语音。'}`;
 }
 
 /** 从 AI 的一行回复里认出特殊消息；认不出就当普通文字 */

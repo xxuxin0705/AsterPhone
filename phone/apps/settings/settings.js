@@ -1,7 +1,7 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.82';
+export const VERSION = '0.6.83';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -143,6 +143,11 @@ function openChatApp() {
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
       group('聊天默认设置（每个聊天还能单独改）', [
         toggleItem({ title: withInfo('角色配图真的生图', '角色发图片、发动态配图时：打开就真的用生图接口画出来；关着只显示一张写着画面的描述卡，点「生图」才画（省钱）。') }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
+        rangeRow('私聊回复条数', { min: 1, max: 10, value: a.defaults.lines, onInput: v => { a.defaults.lines = v; commit('apps'); } }),
+        rangeRow('群聊回复条数', { min: 1, max: 20, value: a.defaults.gLines, onInput: v => { a.defaults.gLines = v; commit('apps'); } }),
+        rangeRow('语音条数', { min: 0, max: 10, value: a.defaults.voice, onInput: v => { a.defaults.voice = v; commit('apps'); } }),
+        toggleItem({ title: withInfo('收到语音就合成', '打开：语音一到就合成好存着，点开直接放；关着：点了才合成。合成过的都会存着，再听不用再合成。') }, a.defaults.autoVoice, v => { a.defaults.autoVoice = v; commit('apps'); }),
+        toggleItem({ title: '允许拍一拍我' }, a.defaults.poke, v => { a.defaults.poke = v; commit('apps'); }),
       ].filter(Boolean)),
       group('注入正文', [
         item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),

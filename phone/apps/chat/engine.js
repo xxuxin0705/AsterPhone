@@ -102,6 +102,20 @@ async function autoTranslate(chat, m) {
   if (!chat.cfg.autoTr || !canTr(m)) return;
   try { await translateMsg(chat, m); } catch (e) { /* 日志里有 */ }
 }
+/** 回复设置：这个聊天自己改过就用自己的，没改过跟「设置 → 应用 → 聊天」里的默认。
+ *  以前的私聊有「最少 / 最多几句」照旧算；群以前没有这项（存着的 1/3 是建群时随手写的），只认新的 lines */
+export function replyCfg(chat) {
+  const d = state.apps.chat.defaults, c = chat.cfg, g = isGroup(chat);
+  return { group: g, lines: c.lines || (!g && c.minLines ? [c.minLines, c.maxLines || 4] : g ? d.gLines : d.lines), voice: c.voice || d.voice, autoVoice: c.autoVoice ?? d.autoVoice, poke: c.poke ?? d.poke };
+}
+export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
+/** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
+function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text } : p; }
+async function preVoice(chat, m, rc) {
+  if (m.type !== 'voice' || !rc.autoVoice) return;
+  const { speakAs } = await import('../../core/voice.js');
+  speakAs(m.who || chat.contactId, m.text, { cache: voiceKey(chat, m), silent: true }).catch(e => log('warn', '语音', '先合成语音失败：' + e.message));
+}
 
 /* ---------- 名字 / 头像 / 人设 ---------- */
 export const nameOf = c => (c && (c.remark || c.nick || c.name)) || '联系人';
@@ -195,10 +209,10 @@ const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正
 async function worldBlock(scan) { const w = await worldText(scan).catch(() => ''); return w ? `\n【世界书】\n${w}\n` : ''; }
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
-  const min = Math.max(1, cfg.minLines || 1), max = Math.max(min, cfg.maxLines || 4);
+  const rc = replyCfg(chat), [min, max] = rc.lines;
   const story = storyNow(), history = historyText(msgs, c);
   return {
-    system: specialsGuide(),
+    system: specialsGuide(rc),
     prompt: compose('dm', {
       char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
       story, world: await worldBlock(story + '\n' + history), time: time.forPrompt(), history, min, max,
@@ -235,14 +249,15 @@ export async function requestReply(chat, opts = {}) {
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     saveMsgs(chat.id); emit('read', chat.id);
-    const batch = uid('b'), cap = Math.max(chat.cfg.maxLines || 4, 1) + 2;
-    let shown = 0, first = true;
+    const batch = uid('b'), rc = replyCfg(chat);
+    let shown = 0, first = true, nv = 0;
     for (const line of lines) {
-      if (shown >= cap) break;
-      const p = parseLine(line);
+      if (shown >= rc.lines[1]) break;
+      let p = parseLine(line);
+      if (p.type === 'voice') p = voiceLimit(rc, p, ++nv);
       // 收下 / 退还我刚发的转账、红包
       if (p.type === 'accept' || p.type === 'return') { await settleMine(chat, msgs, c, p.type === 'accept'); continue; }
-      if (p.type === 'poke-them') { await addSystem(chat, `「${nameOf(c)}」拍了拍你${state.me.pokeSuffix || ''}`, { pokeMe: true }); continue; }
+      if (p.type === 'poke-them') { if (rc.poke) await addSystem(chat, `「${nameOf(c)}」拍了拍你${state.me.pokeSuffix || ''}`, { pokeMe: true }); continue; }
       if (!first) { emit('typing', chat.id, true); await sleep(Math.min(2400, 420 + String(p.text || '').length * 70)); }
       const m = { id: uid('m'), from: 'them', ...p, batch, ...time.stamp() };
       if (first && inner) m.inner = inner;
@@ -253,7 +268,7 @@ export async function requestReply(chat, opts = {}) {
       saveMsgs(chat.id); commit('chats');
       emit('msg', chat.id, m);
       shell.notify({ chatId: chat.id, title: nameOf(c), text: preview(m), avatarUrl: avatarOf(c, chat) });
-      autoTranslate(chat, m);
+      autoTranslate(chat, m); preVoice(chat, m, rc);
     }
     if (!shown) saveMsgs(chat.id);
   } catch (e) {
@@ -270,7 +285,7 @@ export function createGroup(memberIds, name) {
   const d = state.apps.chat.defaults;
   const g = { id: uid('g_'), type: 'group', name: name || memberIds.slice(0, 3).map(id => nameOf(contact(id))).join('、'), avatar: '', members: memberIds.slice(), owner: 'me', admins: [], titles: {}, intro: '', notice: '',
     pinned: false, muted: false, unread: 0, lastAt: Date.now(), lastText: '',
-    cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: false, showThink: false, conn: 'follow', temperature: null, maxSpeakers: 3, minLines: 1, maxLines: 3,
+    cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: false, showThink: false, conn: 'follow', temperature: null, maxSpeakers: 3,
       bg: '', myAvatar: '', avatarWho: 'both', streak: false, myNick: '', myTitle: '', dmMode: d.groupDm || 'inline' } };
   state.chats.push(g); commit('chats');
   return g;
@@ -296,19 +311,21 @@ export async function requestGroupReply(chat, opts = {}) {
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
       time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt));
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
+    const rc = replyCfg(chat);
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
-    const batch = uid('b'); let shown = 0;
+    const batch = uid('b'); let shown = 0, nv = 0;
     for (const raw of clean.split('\n').map(l => l.trim()).filter(Boolean)) {
       const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
       const mm = /^([^:：]{1,16})[:：]\s*(.+)$/.exec(raw); if (!mm) continue;
       const p = find(mm[1]); if (!p) continue;
-      const parsed = parseLine(mm[2].trim());
+      let parsed = parseLine(mm[2].trim());
+      if (parsed.type === 'voice') parsed = voiceLimit(rc, parsed, ++nv);
       if (['accept', 'return', 'poke-them'].includes(parsed.type)) {
-        if (parsed.type === 'poke-them') await addSystem(chat, `「${nameOf(p)}」拍了拍你${state.me.pokeSuffix || ''}`);
+        if (parsed.type === 'poke-them' && rc.poke) await addSystem(chat, `「${nameOf(p)}」拍了拍你${state.me.pokeSuffix || ''}`);
         continue;
       }
       if (shown) { emit('typing', chat.id, true); await sleep(Math.min(2200, 380 + String(parsed.text || '').length * 60)); }
@@ -317,8 +334,8 @@ export async function requestGroupReply(chat, opts = {}) {
       if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
       saveMsgs(chat.id); commit('chats'); emit('msg', chat.id, m);
       shell.notify({ chatId: chat.id, title: chat.name, text: `${nameOf(p)}：${preview(m)}`, avatarUrl: chat.avatar || p.avatar });
-      autoTranslate(chat, m);
-      if (shown >= (chat.cfg.maxSpeakers || 3) * 3) break;
+      autoTranslate(chat, m); preVoice(chat, m, rc);
+      if (shown >= rc.lines[1]) break;
     }
     if (!shown) await addSystem(chat, '大家好像都在忙，没人回');
   } catch (e) { emit('error', chat.id, e.message || String(e), e.logId); }
@@ -458,6 +475,7 @@ export async function deliverFromStory(c, text, groupName = '') {
     if (shell.activeChat !== chat.id || !shell.visible) chat.unread = (chat.unread || 0) + 1;
     emit('msg', chat.id, m);
     shell.notify({ chatId: chat.id, title: g ? g.name : nameOf(c), text: (g ? nameOf(c) + '：' : '') + preview(m), avatarUrl: g ? (g.avatar || c.avatar) : avatarOf(c, chat) });
+    preVoice(chat, m, replyCfg(chat));
   }
   saveMsgs(chat.id); commit('chats');
 }

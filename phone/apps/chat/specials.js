@@ -24,7 +24,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         if (!m.showText) { m.showText = true; saveMsgs(ctx.chat.id); ctx.redraw(true); }
         el.classList.add('is-playing');
-        try { await speakAs(mine ? 'me' : m.who || (ctx.c && ctx.c.id), m.text); } catch (err) { toast(err.message); }
+        try { await speakAs(mine ? 'me' : m.who || (ctx.c && ctx.c.id), m.text, { cache: E.voiceKey(ctx.chat, m) }); } catch (err) { toast(err.message); }
         el.classList.remove('is-playing');
       });
       return el;

@@ -45,7 +45,7 @@ export function readAloud(text) {
     .reduce((s, r) => s.split(r.from).join(r.to), String(text || ''));
 }
 /** 用某个人的声音念一段话 */
-export function speakAs(id, text) {
+export function speakAs(id, text, opts = {}) {
   const conn = connFor(id);
-  return speak(readAloud(text), conn ? { conn, voice: voiceOf(id, conn).voice } : {});
+  return speak(readAloud(text), conn ? { ...opts, conn, voice: voiceOf(id, conn).voice } : opts);
 }

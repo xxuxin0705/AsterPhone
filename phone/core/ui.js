@@ -88,6 +88,17 @@ export function slider({ min = 0, max = 1, step = .01, value = 0, onInput, id })
   s.addEventListener('input', () => onInput(parseFloat(s.value)));
   return s;
 }
+/** 一根滑条两个圆点，拖出一个范围（回复 1–5 条）。是两根叠在一起的滑条，只有圆点能按 */
+export function rangeRow(label, { min, max, value: [lo, hi], unit = '条', onInput }) {
+  const out = h('output'), box = h('div.as-range');
+  const a = h('input.as-slider', { type: 'range', min, max, step: 1, value: lo }), b = h('input.as-slider', { type: 'range', min, max, step: 1, value: hi });
+  const pct = v => (v - min) / (max - min) * 100 + '%';
+  const paint = () => { out.textContent = `${lo}–${hi} ${unit}`; box.style.setProperty('--lo', pct(lo)); box.style.setProperty('--hi', pct(hi)); a.style.zIndex = lo === max ? 2 : ''; };
+  a.addEventListener('input', () => { lo = Math.min(+a.value, hi); a.value = lo; paint(); onInput([lo, hi]); });
+  b.addEventListener('input', () => { hi = Math.max(+b.value, lo); b.value = hi; paint(); onInput([lo, hi]); });
+  box.append(a, b); paint();
+  return h('div.as-settings-slider-row', h('span', label), box, out);
+}
 export function input({ value = '', placeholder = '', type = 'text', onInput, id, cls = '' }) {
   const i = h('input.as-input' + (cls ? '.' + cls : ''), { value, placeholder, type, id, autocomplete: 'off', spellcheck: false });
   if (onInput) i.addEventListener('input', () => onInput(i.value));

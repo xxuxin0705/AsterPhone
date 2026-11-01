@@ -65,7 +65,7 @@ export function defaults() {
       chat: {
         conn: { text: 'follow', image: 'follow', tts: 'follow' },
         prompts: {},                      // 改过的提示词存这里；没改过就用默认
-        defaults: { linkMode: 'follow', proactiveEvery: 3, groupDm: 'inline', imageGen: false },
+        defaults: { linkMode: 'follow', proactiveEvery: 3, groupDm: 'inline', imageGen: false, lines: [1, 4], gLines: [1, 6], voice: [0, 1], autoVoice: false, poke: true },
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
@@ -124,7 +124,10 @@ export function saveMsgs(chatId) {
   savers.get(chatId)();
   listeners.forEach(f => { try { f('msgs:' + chatId); } catch (e) { console.error(e); } });
 }
-export async function clearMsgs(chatId) { msgCache.set(chatId, []); await kvDel('msgs:' + chatId); saveMsgs(chatId); }
+export async function clearMsgs(chatId) {
+  msgCache.set(chatId, []); await kvDel('msgs:' + chatId); saveMsgs(chatId);
+  for (const k of await kvKeys()) if (String(k).startsWith(`tts:${chatId}:`)) await kvDel(k);   // 合成好存着的语音
+}
 
 /* ---------- 便捷查找 ---------- */
 export const contact = id => state.contacts.find(c => c.id === id);
@@ -136,7 +139,7 @@ export function chatForContact(cid, create = true) {
     c = { id: uid('c_'), type: 'dm', contactId: cid, pinned: false, muted: false, unread: 0, lastAt: 0, lastText: '',
       cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: true, showThink: false, conn: 'follow', temperature: null,
         autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en',
-        minLines: 1, maxLines: 4, avatarShape: 'round', showAvatar: true, bg: '', myAvatar: '', theirAvatar: '', streak: true } };
+        avatarShape: 'round', showAvatar: true, bg: '', myAvatar: '', theirAvatar: '', streak: true } };
     state.chats.push(c); commit('chats');
   }
   return c;
@@ -169,9 +172,10 @@ export async function wipeAll() {
   commit('all');
 }
 export async function usage() {
-  const parts = { 聊天: 0, 动态: 0, 壁纸: 0, 设置: 0 };
+  const parts = { 聊天: 0, 语音: 0, 动态: 0, 壁纸: 0, 设置: 0 };
   for (const k of await kvKeys()) {
     const v = await kvGet(k);
+    if (String(k).startsWith('tts:')) { parts.语音 += (v && v.size) || 0; continue; }
     if (String(k).startsWith('wall:')) { parts.壁纸 += ((v && v.img && v.img.size) || 0) + ((v && v.video && v.video.size) || 0); continue; }
     const n = JSON.stringify(v || '').length * 2;
     if (String(k).startsWith('msgs:')) parts.聊天 += n; else parts.设置 += n;

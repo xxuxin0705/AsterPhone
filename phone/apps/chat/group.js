@@ -6,7 +6,7 @@ import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
 import * as P from '../../core/promptstore.js';
-import { trGroup } from './room.js';
+import { trGroup, replyGroup } from './room.js';
 
 /** 群头像：设置了就用；没设置就是群名第一个字 */
 export function groupAvatar(chat, size = 44) {
@@ -86,6 +86,7 @@ export function openGroupSettings(chat, redrawRoom) {
         sliderRow('每轮最多几个人说话', 1, 8, 1, cfg.maxSpeakers || 3, v => { cfg.maxSpeakers = v; save(); }),
         item({ title: '有人想私下找你时', value: '在群请求里顺便写好', sub: '「单独再生成一次」以后再加' }),
       ], '点「让大家回复」时，AI 一次决定谁说、说几条、谁转去私聊你、谁在忙不回。被 @ 的人优先。'),
+      replyGroup(chat, save),
       group('AI', [
         item({ title: '提示词方案', value: P.schemeLabel('group', cfg.prompt), chevron: true, onClick: async e => {
           const valEl = e.currentTarget.querySelector('.as-list-item__value');

@@ -1,7 +1,7 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
 import { h, onLongPress } from '../../core/util.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -375,10 +375,7 @@ function openSettings(chat, redrawRoom) {
         toggleItem({ title: '专属温度', sub: cfg.temperature == null ? '关着时跟随连接的设置' : null }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); draw(); }),
         cfg.temperature != null ? sliderRow('温度', 0, 1.5, .05, cfg.temperature, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)) : null,
       ].filter(Boolean)),
-      group('输出设定', [
-        sliderRow('最少几句', 1, 8, 1, cfg.minLines || 1, v => { cfg.minLines = v; if (cfg.maxLines < v) cfg.maxLines = v; save(); }),
-        sliderRow('最多几句', 1, 10, 1, cfg.maxLines || 4, v => { cfg.maxLines = v; if (cfg.minLines > v) cfg.minLines = v; save(); }),
-      ]),
+      replyGroup(chat, save),
       // 定时来找你只有仅线上才有；正文里提到 TA 就会来，不用设
       ...(cfg.linkMode === 'online' ? [group('主动消息', [sliderRow('多久来找你一次', 1, 24, 1, cfg.proactiveEvery || ({ low: 6, normal: 2, high: 1 })[cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时')])] : []),
       trGroup(cfg, save, draw));
@@ -407,6 +404,17 @@ function openSettings(chat, redrawRoom) {
   p.el._onShow = draw;
   p.el._onLeave = () => { redrawRoom && setTimeout(() => redrawRoom(true), 0); };
   nav.push(p.el);
+}
+
+/** 回复设置（私聊、群聊共用）：回几条、其中几条语音、收到语音先合成、能不能拍我 */
+export function replyGroup(chat, save) {
+  const rc = E.replyCfg(chat), cfg = chat.cfg, g = rc.group;
+  return group('回复设置', [
+    rangeRow('回复条数', { min: 1, max: g ? 20 : 10, value: rc.lines, onInput: v => { cfg.lines = v; save(); } }),
+    rangeRow('语音条数', { min: 0, max: 10, value: rc.voice, onInput: v => { cfg.voice = v; save(); } }),
+    toggleItem({ title: withInfo('收到语音就合成', '打开：语音一到就合成好存着，点开直接放；关着：点了才合成。合成过的都会存着，再听不用再合成。') }, rc.autoVoice, v => { cfg.autoVoice = v; save(); }),
+    toggleItem({ title: g ? '允许群成员拍一拍我' : '允许 TA 拍一拍我' }, rc.poke, v => { cfg.poke = v; save(); }),
+  ]);
 }
 
 /** 翻译设置（私聊、群聊共用） */
