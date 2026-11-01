@@ -57,6 +57,8 @@ export function parseLrc(text) {
   }
   return out.sort((a, b) => a.t - b.t);
 }
+/** 这一句大概唱多久：没有逐字时间，按到下一句的间隔和字数估（下雨天落字、歌词从左往右亮都用它） */
+export const lineDur = (L, i) => { const x = L[i], gap = (L[i + 1] ? L[i + 1].t : x.t + 6) - x.t; return Math.max(.3, Math.min(gap * .85, x.text.replace(/\s/g, '').length * .3 + .3)); };
 /** 网易云的热评：网页直连多半会被拦，能不能拿到要在真机上试 */
 export async function hotComments(id) {
   const j = await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
