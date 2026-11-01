@@ -87,10 +87,11 @@ async function openSearch(word) {
 }
 
 /* ---------- 播放页 ---------- */
-// 唱臂：照网易云那支画的（顶上小圆轴，细臂往右下弯，末端小方块唱头）
-const ARM = '<svg viewBox="0 0 130 130" aria-hidden="true"><circle cx="30" cy="20" r="17" fill="rgba(0,0,0,.12)"/><circle cx="30" cy="20" r="11" fill="#fff"/><circle cx="30" cy="20" r="4" fill="#d9d9d9"/>'
-  + '<path d="M30 30C30 62 55 86 100 98" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/>'
-  + '<g transform="rotate(-58 106 104)"><rect x="96" y="90" width="20" height="30" rx="4" fill="#fff"/><path d="M102 108v7M110 108v7" stroke="#c9c9c9" stroke-width="2" stroke-linecap="round"/></g></svg>';
+// 唱臂：照网易云那支——转轴在唱片正上方、离唱片有一段距离，长臂先直着往下、再往右弯，小方块唱头落在唱片右上那一圈。
+// 图的坐标以唱片直径为 100：这张图左边在唱片的 40、上边在 -36，转轴在图里的 (10, 8)
+const ARM = '<svg viewBox="0 0 50 66" aria-hidden="true"><circle cx="10" cy="8" r="4.4" fill="rgba(255,255,255,.28)"/><circle cx="10" cy="8" r="2.9" fill="#fff"/><circle cx="10" cy="8" r="1.1" fill="#cfcfcf"/>'
+  + '<path d="M10 11V22C10 34 18 44 32 51.5" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>'
+  + '<g transform="rotate(-52 36.5 55.5)"><rect x="34.2" y="51" width="4.6" height="9" rx="1" fill="#fff"/><path d="M35.8 56.5v2M37.3 56.5v2" stroke="#c8c8c8" stroke-width=".45" stroke-linecap="round"/></g></svg>';
 export function openPlayer() {
   if (!P.current()) { toast('还没有在放的歌'); return; }
   const S = M().skin;
