@@ -601,7 +601,14 @@ export async function testVoice(conn) {
 }
 /** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费）。
  *  cache：聊天里的语音消息传一个钥匙，合成好的声音存在这台设备上，以后再放不用再合成（不再花钱）；silent：只合成存起来，不放 */
-export async function speak(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent } = {}) {
+export async function speak(text, opts = {}) {
+  if (opts.silent) return speakRaw(text, opts);
+  // 开口前告诉别人（音乐会先停一下），说完再告诉一声
+  const say = d => { try { (window.parent || window).dispatchEvent(new CustomEvent('asterphone-voice', { detail: d })); } catch (e) { /* 拿不到酒馆页面就算了 */ } };
+  say('start');
+  try { return await speakRaw(text, opts); } finally { say('end'); }
+}
+async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent } = {}) {
   if (!silent) stopSpeak();
   const play = async (url, c) => {
     if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));

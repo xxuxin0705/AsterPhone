@@ -20,6 +20,7 @@ const APP_LOADERS = {
   chat: () => import('../apps/chat/index.js'),
   settings: () => import('../apps/settings/settings.js'),
   log: () => import('../apps/log/log.js'),
+  music: () => import('../apps/music/music.js'),
   library: () => import('../apps/library/library.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;

@@ -1,0 +1,59 @@
+/* 音乐 App。播放页照网易云：唱片在转、上方一支白唱臂；背景是封面放大模糊 + 一层雾，或者自己选的图 */
+.as-mu-cover { display: inline-block; flex: none; border-radius: 10px; background: var(--as-color-surface-2) center / cover; }
+.as-mu-row .as-list-item__icon { width: auto; height: auto; background: none !important; }
+.as-mu-gap { height: 84px; }
+.as-mu-playall { display: flex; align-items: center; gap: 6px; margin: 0 6px 12px; padding: 8px 14px; border: 0; border-radius: 999px; background: var(--as-color-accent); color: var(--as-color-on-accent); font: 600 14px/1 var(--font-ui); cursor: pointer; }
+
+/* 迷你播放条：浮在首页底部 */
+.as-mu-mini { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; border-radius: 22px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); box-shadow: var(--as-shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); cursor: pointer; }
+.as-mu-mini__cover { width: 40px; height: 40px; flex: none; border-radius: 50%; background: #222 center / cover; border: 3px solid rgba(20,20,20,.85); animation: as-mp-spin 20s linear infinite paused; }
+.as-mu-mini__cover.is-playing { animation-play-state: running; }
+.as-mu-mini__title { flex: 1; min-width: 0; font: 500 14px/1.2 var(--font-ui); color: var(--as-color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mu-mini__btn { border: 0; background: none; color: var(--as-color-text); padding: 6px; cursor: pointer; display: grid; place-items: center; }
+
+/* 播放页 */
+.as-mp .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.as-mp .as-page__body { display: flex; flex-direction: column; padding-bottom: 28px; }
+.as-mp__bg { position: absolute; inset: -40px; z-index: 0; background: var(--as-color-bg) center / cover; filter: blur(42px) saturate(1.3); transform: scale(1.15); }
+.as-mp__bg::after { content: ''; position: absolute; inset: 0; background: color-mix(in srgb, var(--as-color-surface-solid) 58%, transparent); }
+.as-mp__bg.is-custom { inset: 0; filter: none; transform: none; }
+.as-mp__bg.is-custom::after { background: rgba(0,0,0,.18); }
+.as-mp > .as-navbar, .as-mp > .as-page__body { position: relative; z-index: 1; }
+
+.as-mp__stage { position: relative; width: 82%; aspect-ratio: 1; margin: 34px auto 10px; flex: none; }
+.as-mp__disc { position: absolute; inset: 0; border-radius: 50%; animation: as-mp-spin 24s linear infinite paused;
+  background: repeating-radial-gradient(circle, rgba(255,255,255,.07) 0 1px, transparent 1px 7px), radial-gradient(circle, rgba(255,255,255,.28), rgba(255,255,255,.12) 70%, rgba(255,255,255,.22));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 0 0 14px rgba(255,255,255,.1), 0 18px 50px rgba(0,30,60,.18); }
+.as-mp__disc.is-vinyl { background: conic-gradient(from 30deg, rgba(255,255,255,0) 0 20%, rgba(255,255,255,.14) 25%, rgba(255,255,255,0) 30% 70%, rgba(255,255,255,.1) 75%, rgba(255,255,255,0) 80%), repeating-radial-gradient(circle, #151515 0 2px, #222 2px 4px);
+  box-shadow: 0 0 0 10px rgba(255,255,255,.12), 0 18px 50px rgba(0,0,0,.3); }
+.as-mp__disc.is-playing { animation-play-state: running; }
+.as-page.is-behind .as-mp__disc, .as-page.is-behind .as-mu-mini__cover { animation-play-state: paused; }   /* 被盖住就别转了 */
+.as-mp__cover { position: absolute; inset: 17%; border-radius: 50%; background: #ddd center / cover; box-shadow: 0 0 0 1px rgba(0,0,0,.06); }
+@keyframes as-mp-spin { to { transform: rotate(360deg); } }
+/* 唱臂：转轴在图的 (30, 20)，正对唱片中线；针落在唱片右上那圈；暂停时抬起来 */
+.as-mp__arm { position: absolute; width: 38%; top: -9.85%; left: 41.26%; transform-origin: 23% 15.4%; transition: transform 600ms var(--as-ease-spring); filter: drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
+.as-mp__arm svg { display: block; width: 100%; height: auto; }
+.as-mp__arm.is-up { transform: rotate(-24deg); }
+
+.as-mp__lyric { text-align: center; margin: 14px 24px 0; min-height: 54px; }
+.as-mp__l1 { font: 600 17px/1.5 var(--font-ui); background: linear-gradient(90deg, var(--as-color-accent) var(--p, 0%), color-mix(in srgb, var(--as-color-text) 55%, transparent) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.as-mp__l2 { margin-top: 4px; font: 400 14px/1.5 var(--font-ui); color: var(--as-color-text-2); }
+.as-mp__info { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: auto 26px 0; padding-top: 16px; }
+.as-mp__info > div { min-width: 0; }
+.as-mp__name { font: 600 22px/1.3 var(--font-ui); color: var(--as-color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mp__artist { margin-top: 2px; font: 400 14px/1.3 var(--font-ui); color: var(--as-color-text-2); }
+.as-mp__heart { border: 0; background: none; color: var(--as-color-text); padding: 6px; cursor: pointer; }
+.as-mp__heart.is-on { color: #ff4d6a; }
+.as-mp__heart.is-on svg { fill: currentColor; }
+.as-mp__prog { margin: 18px 26px 0; }
+.as-mp__bar { width: 100%; margin: 0; accent-color: var(--as-color-text); }
+.as-mp__times { display: flex; justify-content: space-between; margin-top: 2px; font: 400 11px/1 var(--font-ui); color: var(--as-color-text-2); font-variant-numeric: tabular-nums; }
+.as-mp__ctrl { display: flex; align-items: center; justify-content: space-between; margin: 20px 22px 0; }
+.as-mp__ctrl button { border: 0; background: none; color: var(--as-color-text); padding: 8px; cursor: pointer; display: grid; place-items: center; }
+.as-mp__ctrl .as-mp__play { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--as-color-surface-solid) 70%, transparent); box-shadow: var(--as-shadow); }
+
+.as-mu-queue { display: grid; max-height: 56vh; overflow: auto; }
+.as-mu-queue__row { display: flex; align-items: baseline; gap: 8px; padding: 11px 6px; border: 0; border-bottom: 1px solid var(--as-color-line, rgba(0,0,0,.06)); background: none; text-align: left; color: var(--as-color-text); cursor: pointer; }
+.as-mu-queue__row b { font: 500 15px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mu-queue__row span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; }
+.as-mu-queue__row.is-cur b, .as-mu-queue__row.is-cur span { color: var(--as-color-accent); }

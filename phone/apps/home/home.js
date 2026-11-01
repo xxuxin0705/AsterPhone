@@ -9,6 +9,7 @@ export const APPS = [
   { id: 'chat', name: '聊天', icon: 'chat' },
   { id: 'settings', name: '设置', icon: 'gear' },
   { id: 'library', name: '资源库', icon: 'box' },
+  { id: 'music', name: '音乐', icon: 'music' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 

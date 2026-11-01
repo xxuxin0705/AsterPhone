@@ -75,6 +75,8 @@ export function defaults() {
     me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520, ledger: [], pokeSuffix: '' },
     stickers: [], friendRequests: [], library: { theme: 'aero', skins: [] },
     contacts: [], chats: [], moments: [], favorites: [], groups: ['家人', '朋友'],
+    // 音乐（整部手机一份）：播放队列、放到哪、喜欢、最近、导入的歌单、皮肤、音源地址
+    music: { queue: [], idx: 0, mode: 'list', pos: 0, liked: [], recent: [], lists: [], skin: { name: 'record', disc: 'glass', bg: '' }, src: {} },
   };
 }
 
