@@ -496,7 +496,9 @@ export async function listVoices(conn) {
 }
 /** 试听：用这个接口、这个音色念一句 */
 export async function tryVoice(conn, voice, text = '你好呀，能听到我说话吗？') {
-  stopSpeak(); const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play().catch(() => {});
+  const url = await Promise.race([synthesize(conn, text, { voice }), new Promise((_, no) => setTimeout(() => no(new Error('等了 40 秒还没合成好')), 40000))]);
+  stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a;
+  await a.play().catch(e => { throw new Error(e.name === 'NotAllowedError' ? '浏览器没让出声，再点一次' : '合成好了但播不出来'); });
 }
 /** 测语音接口：说一句「你好呀」并播出来 */
 export async function testVoice(conn) {

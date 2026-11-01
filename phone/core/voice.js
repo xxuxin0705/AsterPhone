@@ -30,6 +30,10 @@ export const savedOn = (id, connId) => ((V().people[id] || {}).voices || {})[con
 export function voiceOf(id, conn) {
   const s = savedOn(id, conn.id), mine = s.list.find(x => x.id === s.cur);
   if (mine && mine.voice) return { voice: mine.voice, from: 'own', name: mine.name };
+  return fallbackVoice(id, conn);
+}
+/** 没挑自己的音色时用哪个：按性别用接口的男声 / 女声默认，否则接口的当前音色 */
+export function fallbackVoice(id, conn) {
   const T = conn.tts || {}, g = genderOf(id);
   if (V().useDefault && isMale(g) && T.male) return { voice: T.male, from: 'male' };
   if (V().useDefault && isFemale(g) && T.female) return { voice: T.female, from: 'female' };

@@ -472,7 +472,8 @@ export function openBoard({ list }) {
   function step(now) {
     if (!alive) return;
     raf = requestAnimationFrame(step);
-    if (!p.el.isConnected || (nav.top() && nav.top().el !== p.el)) { last = now; return; }
+    ocean.paused = !p.el.isConnected || (nav.top() && nav.top().el !== p.el);   // 被音色库、接口详情盖住时，海和线都不画，省得别的页面卡
+    if (ocean.paused) { last = now; return; }
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     if (!dens || cvs.width !== Math.round(W() * dpr) || cvs.height !== Math.round(H() * dpr)) { resize(); layoutLabels(); forceDraw = true; }
     for (const pl of plugs) {

@@ -44,7 +44,7 @@ export class AsciiOcean {
   frame(now) {
     if (!this.alive) return;
     requestAnimationFrame(this.frame);
-    if (!this.host.isConnected) return;
+    if (!this.host.isConnected || this.paused) return;
     const step = reduce ? 200 : 80;               // 一秒十来次就够有「字符」味道了
     if (now - this.last < step) return;
     const dt = Math.min(.25, (now - (this.last || now)) / 1000); this.last = now;

@@ -4,12 +4,20 @@ import { state, commit } from '../../core/store.js';
 import { toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
-import { V, save, people, connFor, defaultConn, voiceOf } from '../../core/voice.js';
+import { V, save, people, connFor, defaultConn, voiceOf, fallbackVoice } from '../../core/voice.js';
 
 const ttsList = () => state.connections.tts || [];
 const fmtOf = c => c.type === 'custom-tts' && c.fmt ? c.fmt : c.type;
 const PULL = new Set(['minimax-cn', 'minimax-intl', 'fish', 'elevenlabs']);
 const FROM = { male: '男声默认', female: '女声默认', base: '当前音色' };
+/** 试听：按钮转圈直到出声，出声了说「正在播放」，失败说原因 */
+async function listen(btn, conn, voice, text) {
+  if (btn.disabled) return;
+  btn.disabled = true; btn.replaceChildren(h('span.as-spin'));
+  try { await tryVoice(conn, voice, text); toast('正在播放'); } catch (e) { toast('试听失败：' + e.message); }
+  btn.disabled = false; btn.replaceChildren(icon('play', 16, 2));
+}
+const playBtn = (conn, voice, text) => h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => { e.stopPropagation(); listen(e.currentTarget, conn(), voice(), text); } }, icon('play', 16, 2));
 
 /** 音色输入：手填，旁边快选（这家常用的）、拉取（网上拉）、试听。getConn 每次现取，换了渠道也对 */
 export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') {
@@ -27,7 +35,7 @@ export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') 
         toast(`拉到 ${list.length} 个音色`); pick(`选择音色（${list.length}）`, list.map(x => [x.id, x.name]));
       } catch (e) { toast('拉取失败：' + e.message); }
     } }, '拉取') : null,
-    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async () => { toast('正在合成…'); try { await tryVoice(getConn(), inp.value); } catch (e) { toast('试听失败：' + e.message); } } }, icon('play', 16, 2)));
+    playBtn(getConn, () => inp.value));
 }
 const row = (label, ctrl) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl));
 
@@ -73,11 +81,12 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   const rbox = h('div');
   const R = () => V().readings;
   const paintReadings = () => rbox.replaceChildren(...R().map((r, i) => h('div.as-pbd__line.as-vl__reading',
-    input({ value: r.from, placeholder: '写法，如 銀時', onInput: v => { r.from = v.trim(); save(); } }), h('span.as-vl__arrow', '→'),
-    input({ value: r.to, placeholder: '读音，如 ぎんとき', onInput: v => { r.to = v.trim(); save(); } }),
-    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async () => {
+    input({ value: r.from, placeholder: '写法', onInput: v => { r.from = v.trim(); save(); } }), h('span.as-vl__arrow', '→'),
+    input({ value: r.to, placeholder: '读音', onInput: v => { r.to = v.trim(); save(); } }),
+    h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => {
       const c = defaultConn(); if (!c) { toast('先插一个语音接口'); return; }
-      toast('正在合成…'); try { await tryVoice(c, voiceOf('me', c).voice, r.to || r.from); } catch (e) { toast('试听失败：' + e.message); }
+      if (!(r.to || r.from)) { toast('先写上读音'); return; }
+      listen(e.currentTarget, c, voiceOf('me', c).voice, r.to || r.from);
     } }, icon('play', 16, 2)),
     h('button.as-pbd__ibtn', { 'aria-label': '删掉这一行', onclick: () => { R().splice(i, 1); save(); paintReadings(); } }, icon('close', 14, 2)))),
     h('button.as-pbd__dash', { onclick: () => { R().push({ from: '', to: '' }); save(); paintReadings(); } }, icon('plus', 15, 2), '加一行'));
@@ -104,21 +113,34 @@ export function openPerson(id, onDone = () => {}) {
     const v = await actionSheet('声音渠道', [{ value: '-', label: '跟随「语音」线', active: !P.conn }, ...ttsList().map(c => ({ value: c.id, label: c.name, active: P.conn === c.id }))]);
     if (v == null) return; P.conn = v === '-' ? '' : v; paintConn(); paint();
   };
+  // 平时只显示「当前音色」（下拉里换存过的、或选「新增音色」）；选了新增才展开填写的地方
+  let adding = false;
   const paint = () => {
     const c = connOf(), S = P.voices[c.id] || (P.voices[c.id] = { list: [], cur: '' });
+    const mine = S.list.find(x => x.id === S.cur), fb = fallbackVoice(id, c);
+    const defLabel = `默认（${fb.voice ? FROM[fb.from] : '接口自带'}）`;
+    const pick = h('button.as-pbd__select', { onclick: async () => {
+      const v = await actionSheet('当前音色', [{ value: '', label: defLabel, active: !mine },
+        ...S.list.map(x => ({ value: x.id, label: x.name !== x.voice ? `${x.name} · ${x.voice}` : x.name, active: x === mine })),
+        { value: '+', label: '＋ 新增音色' }]);
+      if (v == null) return;
+      if (v === '+') adding = true; else S.cur = v;
+      paint();
+    } }, h('span', mine ? mine.name : defLabel), icon('chevron', 14, 2));
+    const del = mine && h('button.as-pbd__ibtn', { 'aria-label': '删除这个音色', onclick: () => { S.list = S.list.filter(y => y !== mine); S.cur = ''; paint(); } }, icon('close', 14, 2));
     let name = '', voice = '';
-    const nameIn = input({ placeholder: '起个名字，比如「温柔」', onInput: v => { name = v.trim(); } });
+    const form = adding && h('div.as-vl__box',
+      input({ placeholder: '起个名字，比如「温柔」', onInput: v => { name = v.trim(); } }),
+      voiceInput(() => c, '', v => { voice = v; }),
+      h('div.as-pbd__line',
+        h('button.as-pbd__mini', { onclick: () => { adding = false; paint(); } }, '取消'),
+        h('button.as-pbd__dash', { onclick: () => {
+          if (!voice) { toast('先填或选一个音色'); return; }
+          const nv = { id: uid('v'), name: name || voice, voice }; S.list.push(nv); S.cur = nv.id; adding = false; paint();
+        } }, icon('plus', 15, 2), '加进来')));
     box.replaceChildren(
-      ...S.list.map(x => h('div.as-vl__voice' + (x.id === S.cur ? '.is-on' : ''), { onclick: () => { S.cur = x.id; paint(); } },
-        h('span.as-vl__radio', icon('check', 12, 3)), h('span.as-vl__name', x.name || x.voice), h('span.as-vl__sub', x.voice),
-        h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: async e => { e.stopPropagation(); toast('正在合成…'); try { await tryVoice(c, x.voice); } catch (err) { toast('试听失败：' + err.message); } } }, icon('play', 16, 2)),
-        h('button.as-pbd__ibtn', { 'aria-label': '删掉这个音色', onclick: e => { e.stopPropagation(); S.list = S.list.filter(y => y !== x); if (S.cur === x.id) S.cur = S.list[0] ? S.list[0].id : ''; paint(); } }, icon('close', 14, 2)))),
-      ...(S.list.length ? [] : [h('p.as-pbd__hint', `还没配，会用${(() => { const v = voiceOf(id, c); return v.voice ? FROM[v.from] : '接口默认的声音'; })()}`)]),
-      row('新增音色', h('div.as-vl__box', nameIn, voiceInput(() => c, '', v => { voice = v; }))),
-      h('button.as-pbd__dash', { onclick: () => {
-        if (!voice) { toast('先填或选一个音色'); return; }
-        const nv = { id: uid('v'), name: name || voice, voice }; S.list.push(nv); S.cur = nv.id; paint();
-      } }, icon('plus', 15, 2), '加进来'));
+      row('当前音色', h('div.as-pbd__line', pick, playBtn(() => c, () => (mine || fb).voice), del)),
+      ...(form ? [row('新增音色', form)] : []));
   };
   paintConn(); paint();
   const s = sheet({ title: `${p.name}的声音`, cls: 'as-pbd', content: h('div.as-pbd__wrap',

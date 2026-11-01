@@ -60,6 +60,7 @@ function build() {
 
     iframe.addEventListener('load', () => iframe.contentDocument.addEventListener('focusin', lift));
     window.addEventListener('resize', holdSize);
+    overlay.addEventListener('scroll', () => { overlay.scrollTop = 0; });   // 浏览器自己也会把输入框往上滚一次，再加上 lift() 就推过头了；只让 lift() 来推
     restorePos();
     makeDraggable();
     bindTripleTap();
