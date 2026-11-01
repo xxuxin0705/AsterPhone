@@ -257,7 +257,7 @@ export async function requestReply(chat, opts = {}) {
     }
     if (!shown) saveMsgs(chat.id);
   } catch (e) {
-    emit('error', chat.id, e.message || String(e));
+    emit('error', chat.id, e.message || String(e), e.logId);
   } finally {
     busy.delete(chat.id); emit('typing', chat.id, false);
   }
@@ -321,7 +321,7 @@ export async function requestGroupReply(chat, opts = {}) {
       if (shown >= (chat.cfg.maxSpeakers || 3) * 3) break;
     }
     if (!shown) await addSystem(chat, '大家好像都在忙，没人回');
-  } catch (e) { emit('error', chat.id, e.message || String(e)); }
+  } catch (e) { emit('error', chat.id, e.message || String(e), e.logId); }
   finally { busy.delete(chat.id); emit('typing', chat.id, false); }
 }
 /** 群里有人转去私聊你 */

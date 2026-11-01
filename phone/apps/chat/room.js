@@ -5,7 +5,6 @@ import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn,
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { log } from '../../core/log.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
 import * as P from '../../core/promptstore.js';
@@ -298,12 +297,11 @@ export async function openRoom(chat) {
     }),
     E.on('read', id => { if (id === chat.id) redraw(true); }),
     E.on('reload', id => { if (id === chat.id) redraw(true); }),
-    E.on('error', (id, msg) => {
+    E.on('error', (id, msg, logId) => {
       if (id !== chat.id) return;
       list.appendChild(h('div.as-chat-sys.is-error', `回复失败：${msg}`, h('button', { onclick: e => { e.currentTarget.parentNode.remove(); E.requestReply(chat); } }, '重试'),
-        h('button', { onclick: () => shell.openApp('log') }, '查看日志')));
+        h('button', { onclick: () => shell.openApp('log', { id: logId }) }, '查看日志')));
       list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-      log('warn', '聊天', `${E.nameOf(c)} 回复失败`);
     }),
   ];
   shell.activeChat = chat.id;

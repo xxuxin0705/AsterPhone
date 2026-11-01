@@ -780,15 +780,15 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
   // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
   const testBtn = h('button.as-pbd__test', { onclick: async () => {
     testBtn.disabled = true; status[orig.id] = 'test'; paintSt();
-    let r = {}, err = '';
-    try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; }
+    let r = {}, err = '', logId;
+    try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; logId = e.logId; }
     testBtn.disabled = false;
     if (r.cancel) { delete status[orig.id]; paintSt(); return; }
     status[orig.id] = err ? 'bad' : 'ok';
     if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
     paintSt();
     const t = tileOf(orig.id); if (t && !err) { t.joyUntil = performance.now() + 1100; t.mood = (t.mood || 0) + 1; }
-    if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log') });
+    if (err) toast(/^连不上/.test(err) ? err : `连不上：${err}`, { label: '查看日志', fn: () => shell.openApp('log', { id: logId }) });
     else toast(r.note ? `连上了，${r.note}` : dirty || isNew ? '连上了，记得保存' : '连上了');
     if (r.img) { card.parentNode.querySelector('.as-pbd__testimg')?.remove(); card.after(h('img.as-pbd__testimg', { src: r.img, alt: '测试画出来的图' })); }
   } }, icon('sparkle', 14, 2), '测试');

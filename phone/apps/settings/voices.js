@@ -3,6 +3,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
+import { shell } from '../../core/shell.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
 import { V, save, people, connFor, defaultConn, voiceOf, fallbackVoice } from '../../core/voice.js';
 
@@ -12,7 +13,7 @@ const PULL = new Set(['minimax-cn', 'minimax-intl', 'fish', 'elevenlabs']);
 const FROM = { male: '男声默认', female: '女声默认', base: '当前音色' };
 /** 试听：按钮转圈直到出声，出声了说「正在播放」，失败说原因 */
 const listen = (btn, conn, voice, text) => busy(btn, async () => {
-  try { await tryVoice(conn, voice, text); toast('正在播放'); } catch (e) { toast('试听失败：' + e.message); }
+  try { await tryVoice(conn, voice, text); toast('正在播放'); } catch (e) { toast('试听失败：' + e.message, { label: '查看日志', fn: () => shell.openApp('log', { id: e.logId }) }); }
 });
 const playBtn = (conn, voice, text) => h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => { e.stopPropagation(); listen(e.currentTarget, conn(), voice(), text); } }, icon('play', 16, 2));
 
