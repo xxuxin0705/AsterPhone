@@ -601,7 +601,7 @@ export function openBoard({ list }) {
   const detail = (c, k, isNew) => openDetail(c, k, isNew, hooks());
   const addNew = kind => newConn(kind || cur().kind, hooks());
   /* ================= 右上角菜单 ================= */
-  const menu = () => connMenu({ mode: 'board', schemes, add: () => addNew(), switchMode: list });
+  const menu = () => connMenu({ mode: 'board', kind: cur().kind, schemes, add: () => addNew(), switchMode: list });
   const voicePage = (conn, tab) => openVoicePage({ conn, tab, onChange: () => { paintVoices(); paintMode(); forceDraw = true; }, openConn: c => detail(c, 'tts') });
   const schemes = () => schemesSheet({ onChange: syncUses, onApply: () => {
     // 线一根根换过去：先拔下来，再飞到新接口
@@ -622,40 +622,43 @@ export function openBoard({ list }) {
 }
 
 /** 右上角「…」：插线板模式和列表模式共用，只有最后一项（换成另一个模式）不一样 */
-export async function connMenu({ mode, schemes, add, switchMode }) {
+export async function connMenu({ mode, kind, schemes, add, switchMode }) {
   const v = await actionSheet('连接', [
     { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
     { value: 'retry', label: '断线了怎么办' },
     { value: 'add', label: '添加接口' },
     { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);
   if (v === 'scheme') schemes();
-  if (v === 'retry') retrySheet();
+  if (v === 'retry') retrySheet(kind);
   if (v === 'add') add();
   if (v === 'mode') switchMode();
 }
-function retrySheet() {
+function retrySheet(kind = 'text') {
   const R = C().retry;
-  // 聊天线断了改用副 API：默认关；打开时要先选好副 API 是哪个，选了才显示是哪个
-  const bkOf = () => C().text.find(c => c.id === R.backup);
+  // 这根线断了改用副 API：默认关；打开时要先选好副 API（同一类接口里挑），选了才显示是哪个。「其他」线（向量）不换：换了模型，存过的记忆就对不上了
+  const F = kind === 'text' ? null : ((R.fb ||= {})[kind] ||= { on: false, id: '' });
+  const get = k => F ? F[k] : R[k === 'on' ? 'fallback' : 'backup'];
+  const put = (k, v) => { if (F) F[k] = v; else R[k === 'on' ? 'fallback' : 'backup'] = v; commit('connections'); };
+  const bkOf = () => C()[kind].find(c => c.id === get('id'));
   const bkName = h('span', (bkOf() || {}).name || '');
-  const bkRow = h('div.as-pbd__row', { hidden: !(R.fallback && bkOf()) }, h('span.as-pbd__label', '副 API'), h('button.as-pbd__select', { onclick: () => pickBk() }, bkName, icon('chevron', 14, 2)));
-  const sw = switchEl(!!(R.fallback && bkOf()), async v => {
+  const bkRow = h('div.as-pbd__row', { hidden: !(get('on') && bkOf()) }, h('span.as-pbd__label', '副 API'), h('button.as-pbd__select', { onclick: () => pickBk() }, bkName, icon('chevron', 14, 2)));
+  const sw = switchEl(!!(get('on') && bkOf()), async v => {
     if (v && !(await pickBk())) { sw.click(); return; }   // 没选副 API：拨回关
-    R.fallback = v; commit('connections'); bkRow.hidden = !v;
-  }, '聊天线断了改用副 API');
+    put('on', v); bkRow.hidden = !v;
+  }, '断线改用副 API');
   const pickBk = async () => {
-    const opts = C().text.filter(c => c.id !== C().defaults.text).map(c => ({ value: c.id, label: c.name, active: c.id === R.backup }));
-    if (!opts.length) { toast('先添加一个别的文字接口'); return false; }
+    const opts = C()[kind].filter(c => c.id !== C().defaults[kind]).map(c => ({ value: c.id, label: c.name, active: c.id === get('id') }));
+    if (!opts.length) { toast(`先添加一个别的${{ text: '文字', image: '生图', tts: '语音' }[kind]}接口`); return false; }
     const v = await actionSheet('副 API', opts); if (!v) return false;
-    R.backup = v; commit('connections'); bkName.textContent = bkOf().name;
+    put('id', v); bkName.textContent = bkOf().name;
     return true;
   };
-  const fbRow = h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '聊天线断了，改用副 API'), sw);
+  const label = { text: '聊天', image: '生图', tts: '语音' }[kind];
   const box = h('div.as-pbd__wrap',
     h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '失败了自动重试'), switchEl(R.on, v => { R.on = v; commit('connections'); }, '失败自动重试')),
     h('div.as-pbd__row', h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(R.max || 1), v => { R.max = +v; commit('connections'); }))),
     h('p.as-pbd__hint', '付费接口按字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
-    fbRow, bkRow);
+    ...(label ? [h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}线断了，改用副 API`), sw), bkRow] : []));
   sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
 }
 /** 接线方案：onApply = 换了方案之后（插线板要把线一根根挪过去），onChange = 方案增删之后 */

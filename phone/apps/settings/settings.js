@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.6.50';
+export const VERSION = '0.6.51';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -106,11 +106,11 @@ function openConnList() {
         title: c.name, sub: c.type === 'tavern' ? '跟着酒馆走，不用填密钥' : `${(CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
         right: c.id === def ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => import('./board.js').then(m => m.openDetail(c, connKind, false, hooks())) });
       return el;
-    }), '打勾的是全局默认。各个 App、各个聊天还能单独指定。'));
+    }), '打勾的是默认，App、聊天里还能单独换'));
     body.appendChild(btn('新建连接', 'secondary', () => add(), { style: { width: '100%' } }));
   }, { right: [mic, navBtn('more', '更多', async () => {
     const m = await import('./board.js');
-    m.connMenu({ mode: 'list', schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add,
+    m.connMenu({ mode: 'list', kind: connKind, schemes: () => m.schemesSheet({ onApply: () => p.el._onShow() }), add,
       switchMode: () => { S().connView = ''; commit('settings'); nav.pop(); openConnections(); } });
   })] });
 }

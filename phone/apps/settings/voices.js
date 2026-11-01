@@ -59,16 +59,17 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   const paintDefaults = () => {
     const T = cur.tts || (cur.tts = { voice: '', speed: 1, volume: 1 }), c = cur;
     const set = k => v => { T[k] = v; commit('connections'); changed(); };
+    // 男声 / 女声默认只在开了「用默认音色」时才有
+    const male = h('div.as-field', { hidden: !V().useDefault }, h('span.as-field__label', '男声默认'), voiceInput(() => c, T.male, set('male')));
+    const female = h('div.as-field', { hidden: !V().useDefault }, h('span.as-field__label', '女声默认'), voiceInput(() => c, T.female, set('female')));
     defBox.replaceChildren(group('', [
-      h('div.as-field', h('span.as-field__label', '当前音色'), voiceInput(() => c, T.voice, set('voice'))),
-      h('div.as-field', h('span.as-field__label', '男声默认'), voiceInput(() => c, T.male, set('male'))),
-      h('div.as-field', h('span.as-field__label', '女声默认'), voiceInput(() => c, T.female, set('female'))),
+      toggleItem({ title: '没配音色的联系人用默认音色' }, V().useDefault, v => { V().useDefault = v; save(); male.hidden = female.hidden = !v; changed(); }),
+      male, female,
       ...(openConn ? [item({ title: '接口设置（地址、密钥、模型…）', chevron: true, onClick: () => openConn(c) })] : [])]));
   };
   const connTab = h('div',
     group('每个人用哪个渠道', [h('div.as-field', segmented([['one', '统一一个渠道'], ['each', '每个人用自己的渠道']], V().mode, v => { V().mode = v; save(); changed(); }))]),
-    group('渠道', [h('div.as-field', chipBox)]), defBox,
-    group('', [toggleItem({ title: '没配音色的联系人用默认音色' }, V().useDefault, v => { V().useDefault = v; save(); changed(); })]));
+    group('渠道', [h('div.as-field', chipBox)]), defBox);
   /* 角色库 */
   const list = h('div.as-vl__people');
   const paintPeople = () => list.replaceChildren(...people().map(x => {

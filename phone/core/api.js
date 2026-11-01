@@ -68,6 +68,11 @@ export function resolveConn(kind = 'text', app = 'chat', override = 'follow') {
   if (appSel && appSel !== 'follow' && pick(appSel)) return pick(appSel);
   return pick(state.connections.defaults[kind]) || list[0] || null;
 }
+/** 这根线断了改用的副 API（开了、也选了才有）。聊天的存在 retry.fallback / backup，生图、语音的存在 retry.fb[kind] */
+export function backupOf(kind) {
+  const R = state.connections.retry || {}, b = kind === 'text' ? { on: R.fallback, id: R.backup } : (R.fb || {})[kind] || {};
+  return b.on ? (state.connections[kind] || []).find(c => c.id === b.id) || null : null;
+}
 export function connLabel(c) { return c ? c.name : '未设置'; }
 
 const trim = s => String(s || '').replace(/\/+$/, '');
@@ -100,7 +105,7 @@ export async function generate(opts) {
     catch (e) { last = e; if (!isRetryErr(e.message) || t === tries - 1) break; log('warn', app, `第 ${t + 1} 次失败，${t + 1 < tries ? '再试一次' : ''}：${e.message}`); await sleep(800 * (t + 1)); }
   }
   // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
-  const bk = R.fallback && (state.connections.text || []).find(c => c.id === R.backup);
+  const bk = backupOf('text');
   if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
     log('warn', app, `「${conn.name}」连不上，改用副 API「${bk.name}」`);
     return generateOnce({ ...opts, conn: bk, noFallback: true });
@@ -324,6 +329,14 @@ function imageInReply(j) {
 export async function generateImage(prompt, app = '聊天', connIn) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
+  try { return await imageOnce(prompt, app, conn); }
+  catch (e) {   // 生图线断了 → 改用选好的副 API（只换一次）
+    const bk = backupOf('image'); if (!bk || bk.id === conn.id) throw e;
+    log('warn', app, `「${conn.name}」生图失败，改用副 API「${bk.name}」`);
+    return imageOnce(prompt, app, bk);
+  }
+}
+async function imageOnce(prompt, app, conn) {
   const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
   const quality = I.quality ?? (conn.type === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '');
   const full = [I.tags, quality, prompt].filter(Boolean).join(', '), neg = I.neg || '';
@@ -525,7 +538,16 @@ export async function speak(text, { voice, conn = resolveConn('tts', 'chat') } =
     try {
       const a = new Audio(await synthesize(conn, text, { voice })); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a; await a.play();
       return new Promise(r => { a.onended = r; a.onerror = r; });
-    } catch (e) { log('warn', '语音', `「${conn.name}」朗读失败，改用浏览器朗读：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message)); }
+    } catch (e) {
+      log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
+      const bk = backupOf('tts');   // 语音线断了 → 先换副 API（用它自己的音色），再不行才用浏览器朗读
+      if (bk && bk.id !== conn.id) try {
+        const a = new Audio(await synthesize(bk, text)); a.volume = Math.min(1, (bk.tts && bk.tts.volume) ?? 1); playing = a; await a.play();
+        log('warn', '语音', `改用副 API「${bk.name}」`);
+        return new Promise(r => { a.onended = r; a.onerror = r; });
+      } catch (e2) { log('warn', '语音', `副 API「${bk.name}」也失败了：${e2.message}`); }
+      log('warn', '语音', '改用浏览器朗读');
+    }
   }
   if (!('speechSynthesis' in window)) throw new Error('这个浏览器不能朗读');
   return new Promise(r => {
