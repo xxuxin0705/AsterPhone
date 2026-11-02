@@ -455,13 +455,16 @@ export async function charPick(c, onStep, stop) {
     else if (/\s[-–—]\s/.test(a)) todo.push({ song: a.replace(/^(\d+[.、)）]|[-*•])\s*/, ''), thought: b, ...cur });
   }
   if (!todo.length) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
-  // 四首一起搜（一首一首搜太慢），搜完按 AI 给的顺序放进歌单
+  // 四首一起搜（一首一首搜太慢），没搜到的歇一下再搜一次（音源一下子收到好几个请求时会漏回）；搜完按 AI 给的顺序放进歌单
   const found = []; let k = 0, n = 0;
-  await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await findSong(todo[i].song); onStep && onStep(++n, todo.length); } }));
+  const find = async q => (await findSong(q)) || (await new Promise(r => setTimeout(r, 800)), await findSong(q));
+  await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await find(todo[i].song); onStep && onStep(++n, todo.length); } }));
+  const miss = todo.filter((x, i) => !found[i]).map(x => x.song);
+  if (miss.length) log('warn', '角色歌单', `${miss.length} 首在音源里没搜到：${miss.join('、')}`);
   if (!found.some(Boolean)) throw new Error('AI 挑的歌一首都没搜到');
-  const got = [];
-  for (const [i, s] of found.entries()) if (s && addToChar(c, s, todo[i].name, todo[i].intro)) { got.push(s); await songThought(c, s, todo[i].thought, todo[i].others); }
-  return got;
+  const got = []; let dup = 0;
+  for (const [i, s] of found.entries()) if (s) { if (addToChar(c, s, todo[i].name, todo[i].intro)) { got.push(s); await songThought(c, s, todo[i].thought, todo[i].others); } else dup++; }
+  return { got, miss: miss.length, dup };
 }
 /** TA 对歌单里这首歌的感想（还有路人评论）放进这首歌的评论区；写乐评重来时这些留着（fromList） */
 async function songThought(c, s, text, others) {
@@ -486,10 +489,10 @@ export function charLists(c) {
   return c.lists;
 }
 export const charSongs = c => charLists(c).flatMap(l => l.songs);
-/** 加一首进 TA 叫 name 的歌单，没有这个歌单就新开一个；已经在 TA 哪个歌单里了就不加 */
+/** 加一首进 TA 叫 name 的歌单，没有这个歌单就新开一个；这个歌单里已经有了就不加 */
 export function addToChar(c, s, name = '喜欢的音乐', intro = '') {
-  if (charSongs(c).some(x => x.id === s.id)) return false;
   const L = charLists(c); let l = L.find(x => x.name === name);
+  if (l && l.songs.some(x => x.id === s.id)) return false;   // 同一首歌能在 TA 好几个歌单里（真人也这样），同一个歌单里不重复
   if (!l) L[name === '喜欢的音乐' ? 'unshift' : 'push'](l = { id: uid('cl'), name, intro, songs: [] });
   l.songs.push(s); commit('contacts'); return true;
 }

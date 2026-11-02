@@ -188,7 +188,7 @@ function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
     if (picking[c.id]) { picking[c.id].abort(); return; }
     const ac = picking[c.id] = new AbortController(); ai.textContent = '取消'; toast(`${nameOf(c)}正在挑歌…`, true);
-    try { const got = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true), ac.signal); toast(got.length ? `加了 ${got.length} 首` : '挑的歌都已经在歌单里了'); }
+    try { const r = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true), ac.signal); toast([`加了 ${r.got.length} 首`, r.miss && `${r.miss} 首没搜到`, r.dup && `${r.dup} 首已经有了`].filter(Boolean).join('，')); }
     catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
     finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
@@ -406,11 +406,10 @@ async function toChar(s) {
   if (!state.contacts.length) { toast('还没有联系人'); return; }
   const c = await actionSheet('加到谁的歌单', state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: P.charSongs(c).some(x => x.id === s.id) })));
   const who = c && state.contacts.find(x => x.id === c); if (!who) return;
-  if (P.charSongs(who).some(x => x.id === s.id)) { toast(`${nameOf(who)}的歌单里已经有了`); return; }
   let name = await actionSheet(`加到${nameOf(who)}的哪个歌单`, [...P.charLists(who).map(l => ({ value: l.name, label: l.name })), { value: '+', label: '新建歌单', icon: 'plus' }]);
   if (name === '+') name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim();
   if (!name) return;
-  P.addToChar(who, s, name); toast(`加到${nameOf(who)}的「${name}」了`);
+  toast(P.addToChar(who, s, name) ? `加到${nameOf(who)}的「${name}」了` : `「${name}」里已经有了`);
 }
 /** 选一个聊天：先分私聊 / 群聊，再选是谁 */
 async function pickChat(title, skip) {
