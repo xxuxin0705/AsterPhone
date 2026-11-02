@@ -20,7 +20,7 @@ export async function loadLogs() {
   } catch (e) { /* 忽略 */ }
 }
 // 按应用分：音乐、设置，其余（私聊、群聊、动态、通话、语音、AI 智能加载…）都算聊天；原来那个细分的名字留成标签
-const APPS = { 音乐: ['乐评', '角色歌单', '心动模式', '音乐'], 设置: ['设置', '连接'] };
+const APPS = { 音乐: ['角色歌单', '心动模式', '音乐'], 设置: ['设置', '连接'] };
 const where = name => { const app = Object.keys(APPS).find(k => APPS[k].includes(name)) || '聊天'; return { app, tag: name === app ? '' : name }; };
 function push(entry) {
   Object.assign(entry, where(entry.app));

@@ -1,6 +1,6 @@
-// 音乐 App 外壳：底部四个标签（首页 / 搜索 / 笔记 / 我的）+ 浮着的迷你播放条；歌单页；播放页（唱片皮肤）。
-// 样子照网易云，不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
-// 整个 App 只有两处会找 AI：角色歌单右上角的「AI 挑歌」、笔记里的「生成乐评」，都是手动点的。
+// 音乐 App 外壳：底部四个标签（首页 / 搜索 / 电台 / 我的）+ 浮着的迷你播放条；歌单页；播放页（唱片皮肤）。
+// 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
+// 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar } from '../../core/ui.js';
@@ -9,8 +9,6 @@ import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
-import { renderNotes, addNote, openNote } from './notes.js';
-import { pickMany } from '../chat/people.js';
 import { rain, isNight } from './rain.js';
 
 const M = () => state.music;
@@ -21,7 +19,7 @@ const play = (list, i, from) => { P.playList(list, i, from); openPlayer(); };
 P.onMusic(w => { if (w === 'blocked') toast('点一下播放键开始放'); if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
 
 /* ================= 外壳：四个标签 ================= */
-const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['notes', '笔记', renderNotes], ['me', '我的', renderMe]];
+const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['radio', '电台', renderRadio], ['me', '我的', renderMe]];
 let cur = null;
 export function open() {
   const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root' });
@@ -157,6 +155,9 @@ function renderSearch(ctx) {
   }
 }
 
+/* ================= 电台（以后放哄睡故事） ================= */
+function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
+
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
@@ -164,7 +165,7 @@ function renderMe(ctx) {
   const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const paintHeard = () => { const [n, u] = heard(); hearEl.replaceChildren(h('b', String(n)), ' ' + u); };
   const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
-    const plays = Object.values(M().plays).reduce((n, x) => n + x.n, 0);
+    const plays = M().liked.reduce((n, s) => n + ((M().plays[s.id] || {}).n || 0), 0);   // 只算喜欢的这些歌放了几次
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
     const u = me();
     ctx.meBg.style.backgroundImage = bgUrl(u.bg); ctx.meBg.classList.toggle('has-img', !!u.bg);
@@ -235,7 +236,8 @@ async function neLogin(after) {
   let t = 0;
   const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('img.as-mu-login__qr', { src: q.img, alt: '登录二维码' });
   const s = sheet({ title: '登录网易云', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st,
-    h('div.as-mu-login__btns', P.ne.borrow ? btn('用「你自己的音乐源」的登录', 'secondary', borrow) : null, btn('手机号登录', 'secondary', byPhone))) });
+    h('div.as-mu-login__btns', P.ne.borrow ? btn('用别的插件已有的登录', 'secondary', borrow) : null, btn('手机号登录', 'secondary', byPhone)),
+    h('button.as-mu-login__more', { onclick: paste }, '粘贴登录凭证')) });
   const done = name => { clearInterval(t); s.close(); toast('登录了：' + name); after(); };
   t = setInterval(async () => {
     // 问不到、或者网易云回了别的（比如要验证）都写在二维码下面，不吞掉
@@ -246,6 +248,11 @@ async function neLogin(after) {
     else if (j.code === 803) done(j.me ? j.me.name : '');
     else { clearInterval(t); st.textContent = `网易云回：${j.message || j.code}`; log('error', '音乐', `扫码登录：网易云回 ${j.code} ${j.message}`); }
   }, 2000);
+  async function paste() {
+    const c = (await dialog({ title: '粘贴登录凭证', input: { placeholder: 'MUSIC_U' } }) || '').trim(); if (!c) return;
+    toast('正在登录…', true);
+    try { await P.neCookie(c); done(P.ne.me.name); } catch (e) { log('error', '音乐', '凭证登录失败：' + e.message); toast('登录失败：' + e.message); }
+  }
   async function borrow() {
     toast('正在登录…', true);
     try { await P.neBorrow(); done(P.ne.me.name); } catch (e) { log('error', '音乐', '借登录失败：' + e.message); toast('登录失败：' + e.message); }
@@ -371,7 +378,7 @@ async function openRemote(name, id, l) {
 }
 
 /* ================= 播放页 ================= */
-// 唱臂：照网易云那支——转轴在唱片正上方、离唱片有一段距离，长臂先直着往下、再往右弯，小方块唱头落在唱片右上那一圈。
+// 唱臂：转轴在唱片正上方、离唱片有一段距离，长臂先直着往下、再往右弯，小方块唱头落在唱片右上那一圈。
 // 图的坐标以唱片直径为 100：这张图左边在唱片的 40、上边在 -36，转轴在图里的 (10, 8)
 const ARM = '<svg viewBox="0 0 50 66" aria-hidden="true"><circle cx="10" cy="8" r="4.4" fill="rgba(255,255,255,.28)"/><circle cx="10" cy="8" r="2.9" fill="#fff"/><circle cx="10" cy="8" r="1.1" fill="#cfcfcf"/>'
   + '<path d="M10 11V22C10 34 18 44 32 51.5" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>'
@@ -393,7 +400,6 @@ export function openPlayer() {
   const tgEl = h('div.as-tg', h('div.as-tg__pair', half('l', 0), half('r', 1)), tgTime);
   const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
-  onLongPress(lrc, collectLyrics);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
   const name = h('div.as-mp__name'), artistName = h('span'), followBtn = h('button.as-mp__follow', { onclick: async e => {
     e.stopPropagation();
@@ -421,7 +427,7 @@ export function openPlayer() {
     h('div.as-mp__prog', { dataset: { noSwipe: '' } }, track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
-    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('headphones', '一起听', withWho), tool('note', '收进笔记', collectLyrics)));
+    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('headphones', '一起听', withWho)));
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
   const paintBg = () => {
@@ -472,15 +478,6 @@ export function openPlayer() {
     cancelAnimationFrame(raf);
     const go = () => { tick(); if (P.playing() && !p.el.classList.contains('is-behind')) raf = requestAnimationFrame(go); };
     go();
-  }
-  // 长按歌词：挑几句收进笔记
-  async function collectLyrics() {
-    const L = P.lyricsNow(); if (!L.length) { toast('这首没有歌词'); return; }
-    const picked = await pickMany('收进笔记', L.map((x, i) => ({ key: String(i), name: x.text })), { preselect: [String(Math.max(0, li))] });
-    if (!picked) return;
-    if (!picked.length) { toast('一句都没选'); return; }
-    const n = addNote(P.current(), picked.map(Number).sort((a, b) => a - b).map(i => L[i].text));
-    toast('收进笔记了', { label: '去看看', fn: () => openNote(n) });
   }
   async function skin() {
     const rec = S.name !== 'rain';

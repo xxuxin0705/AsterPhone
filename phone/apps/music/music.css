@@ -1,4 +1,4 @@
-/* 音乐 App：照网易云的样子，不跟手机主题走——颜色、字体在这里定死（笔记页先借这套颜色，样子以后再弄）。
+/* 音乐 App：不跟手机主题走——颜色、字体在这里定死。
  * 播放页：唱片在转、上方一支白唱臂；背景是封面放大糊开再压暗，或者自己选的图；点唱片换成全部歌词。 */
 .as-page[data-as-app="music"] { --font-ui: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --mu-red: #fc3d49; --mu-ink: #1d1d1f; --mu-gray: #8b8b91; --mu-bg: #f3f4f8;
@@ -82,7 +82,11 @@
 .as-mu-root.is-dark .as-page__body > div { display: flex; flex-direction: column; flex: 1 0 auto; }
 .as-mu-root > .as-mu-mebg { display: none; position: absolute; left: 0; right: 0; top: 0; height: 400px; z-index: 0; background: center / cover no-repeat; }
 .as-mu-root.is-dark > .as-mu-mebg { display: block; }
-.as-mu-mebg.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.25), rgba(0,0,0,.45) 60%, #3c3c3e); }
+.as-mu-mebg.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.25), rgba(0,0,0,.45) 280px, rgba(0,0,0,.15)); }
+/* 自己设了背景图：图铺满整页，下面的浅色底换成半透明磨砂，看得到图又不挡字 */
+.as-mu-root.is-dark > .as-mu-mebg.has-img { height: 100%; }
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { background: rgba(243,244,248,.74); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-dock { background: linear-gradient(rgba(243,244,248,0), rgba(243,244,248,.8) 32%); }
 .as-mu-me { display: grid; justify-items: center; padding: 6px 16px 22px; color: #fff; }
 .as-mu-me .as-avatar { box-shadow: 0 0 0 2.5px #fff; margin-bottom: 14px; }
 .as-mu-me > b { font: 600 19px/1.3 var(--font-ui); }
@@ -204,17 +208,6 @@
 .as-mu-queue__row span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; }
 .as-mu-queue__row.is-cur b, .as-mu-queue__row.is-cur span { color: var(--as-color-accent); }
 
-/* 笔记（样子以后再照网易云弄） */
-.as-mu-cover { display: inline-block; flex: none; border-radius: 10px; background: var(--as-color-surface-2) center / cover; }
-.as-mu-cover svg { display: block; margin: auto; height: 100%; color: var(--as-color-text-2); }
-.as-mu-row.as-list-item .as-list-item__icon { width: auto; height: auto; background: none !important; }
-.as-mu-root[data-tab="notes"] .as-page__body { padding: 4px 16px 150px; }
-.as-mu-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
-.as-mu-chips .as-mu-chip { border: 1px solid var(--as-color-glass-line); border-radius: 999px; padding: 7px 14px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 13px/1 var(--font-ui); }
-.as-mu-chips .as-mu-chip.is-on { background: var(--as-color-accent); border-color: var(--as-color-accent); color: var(--as-color-on-accent); }
-.as-mu-quote { margin: 4px 6px 14px; padding: 12px 16px; border-left: 3px solid var(--as-color-accent); background: var(--as-color-surface-2); border-radius: 0 14px 14px 0; }
-.as-mu-quote p { margin: 0; font: 500 15px/1.7 var(--font-ui); color: var(--as-color-text); }
-.as-mu-playone { color: var(--as-color-accent); display: grid; place-items: center; }
 .as-mu-reviews { display: grid; gap: 14px; padding: 12px 14px 4px; }
 .as-mu-reviews:empty { padding: 0; }
 .as-mu-hot { max-height: 60vh; overflow: auto; }
@@ -224,20 +217,7 @@
 .as-mu-review__name em { font: 400 10px/1 var(--font-ui); padding: 2px 6px; border-radius: 999px; background: var(--as-color-surface-2); color: var(--as-color-text-2); font-style: normal; }
 .as-mu-review__name span { margin-left: auto; font: 400 11px/1 var(--font-ui); color: var(--as-color-text-2); }
 .as-mu-review__text { margin-top: 3px; font: 400 14px/1.55 var(--font-ui); color: var(--as-color-text); white-space: pre-wrap; }
-.as-mu-review__btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 14px 14px; }
-.as-mu-review__btns > :only-child { grid-column: 1 / -1; }
-/* 生成乐评的抽屉 */
-.as-mu-rsheet { display: grid; gap: 8px; }
-.as-mu-rsheet__h { display: flex; align-items: baseline; gap: 8px; margin: 6px 4px 0; font: 600 14px/1.3 var(--font-ui); color: var(--as-color-text); }
-.as-mu-rsheet__h span { font: 400 12px/1 var(--font-ui); color: var(--as-color-text-2); }
-.as-mu-rsheet .as-mu-chips { padding: 0 4px; }
-.as-mu-faces { display: flex; gap: 10px; overflow-x: auto; padding: 4px 4px 6px; }
-.as-mu-face { flex: none; display: grid; justify-items: center; gap: 5px; width: 72px; padding: 8px 4px; border: 2px solid transparent; border-radius: 16px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 400 11px/1.2 var(--font-ui); cursor: pointer; }
-.as-mu-face span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-mu-face.is-on { border-color: var(--as-color-accent); background: color-mix(in srgb, var(--as-color-accent) 14%, transparent); }
 .as-mu-only { display: flex; align-items: center; gap: 8px; margin: 4px; font: 400 14px/1.3 var(--font-ui); color: var(--as-color-text); cursor: pointer; }
-.as-mu-sum { margin: 0 4px 4px; font: 400 12px/1.4 var(--font-ui); color: var(--as-color-accent); }
-.as-mu-rsheet .as-mu-review__btns { padding: 6px 0 0; }
 
 .as-mu-lcover.is-red { background: var(--mu-red); }
 .as-mu-login { display: grid; justify-items: center; gap: 10px; padding: 4px 16px 20px; }
@@ -245,6 +225,7 @@
 .as-mu-login__st { font-size: 14px; color: var(--mu-gray); }
 .as-mu-login__btns { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .as-mu-login__btns > * { flex: 1; }
+.as-mu-login__more { border: 0; background: none; padding: 2px; font: 400 12px/1.4 var(--font-ui); color: var(--mu-gray); text-decoration: underline; cursor: pointer; }
 
 /* 一起听：上面两个人的头像叠住一小块（TA 的压在上面），外侧各塞一只耳机（图左右切开往中间挤）；下面照旧是歌词 */
 .as-tg { display: none; }

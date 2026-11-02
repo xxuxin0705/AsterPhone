@@ -1,6 +1,6 @@
 // AsterPhone 的酒馆服务器插件（可选）：替手机去连网易云。
 // 只有本地酒馆装得上；Tauri Tavern 没有它，手机就照旧用公共音源。
-// 连网易云用开源库 NeteaseCloudMusicApi（照网易云网页版的方式发请求，裸接口扫码会被网易云拦）。
+// 连网易云用开源库 NeteaseCloudMusicApi（裸接口扫码会被网易云拦）。
 // 登录后的凭证只存在这个文件夹的 .netease_cred 里，只发给网易云。
 const fs = require('fs');
 const path = require('path');
@@ -42,7 +42,7 @@ const wrap = fn => async (req, res) => {
   catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); }
 };
 
-// 网易云最近常拦新的登录，但已经登录过的凭证还能用：酒馆里别的音乐插件（「你自己的音乐源」）登录过的话，借它存的那份
+// 网易云最近常拦新的登录，但已经登录过的凭证还能用：酒馆里别的音乐插件登录过的话，借它存的那份
 const other = () => {
   const dir = path.join(__dirname, '..');
   for (const d of fs.readdirSync(dir)) {
@@ -81,6 +81,13 @@ async function init(router) {
     if (!r.cookie) throw new Error(r.message || '没登录上');
     await save(r.cookie);
     if (!me) throw new Error('登录了，但读不到账号信息');
+    return { me };
+  }));
+  // 兜底：自己从网页版网易云复制登录凭证（整段 Cookie 或只有 MUSIC_U 那一串都行）
+  router.post('/cookie', wrap(async req => {
+    const c = String((await body(req)).cookie || '').trim();
+    await save(c.includes('=') ? c : 'MUSIC_U=' + c);
+    if (!me) { await save(''); throw new Error('这个凭证登录不上（可能过期了）'); }
     return { me };
   }));
   router.post('/logout', wrap(async () => { await api('logout').catch(() => {}); await save(''); return { me, borrow: !!other() }; }));   // 网易云那边退不掉也没关系，本地凭证删了就算退了

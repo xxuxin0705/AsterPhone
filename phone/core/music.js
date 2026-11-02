@@ -41,6 +41,7 @@ export const neReady = be('/status').then(j => { ne = j; tell('ne'); }, () => {}
 export const neQr = () => be('/qr');
 export const neQrCheck = key => be('/qr/check?key=' + encodeURIComponent(key)).then(j => { if (j.me) { ne.me = j.me; tell('ne'); } return j; });
 export const neSms = phone => be('/sms', { phone });
+export const neCookie = cookie => be('/cookie', { cookie }).then(j => { ne.me = j.me; tell('ne'); });
 export const neBorrow = () => be('/borrow', {}).then(j => { ne.me = j.me; tell('ne'); });
 export const nePhone = (phone, captcha) => be('/phone', { phone, captcha }).then(j => { ne.me = j.me; tell('ne'); });
 export const neLogout = () => be('/logout', {}).then(j => { ne.me = null; ne.borrow = j.borrow; tell('ne'); });
