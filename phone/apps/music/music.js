@@ -420,7 +420,7 @@ async function pickChat(title, skip) {
 /** 把歌分享到私聊或群聊（一张歌的卡片） */
 async function share(s) {
   if (s.local) { toast('本地的歌分享不了'); return; }
-  const to = await pickChat('分享给'); if (to) (await import('../chat/specials.js')).shareSong(to, s);
+  (await import('../chat/specials.js')).shareSong(s);
 }
 /* ---------- 一起听的悄悄话：一组两句，点一下用这组，⋯ 编辑 / 删除 ---------- */
 function openPairs() {
@@ -866,7 +866,9 @@ export function openPlayer() {
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
-      const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', colorWheel(S.color || '#7cc4ff', c => { S.color = c; commit('music'); paintColor(); }),
+      // 上面一条预览：垫着播放页的背景，正在唱的这句唱到一半（唱过的是选的颜色）
+      const pv = h('div.as-mu-lypv', { style: { '--ly': S.color || '#7cc4ff' } }, h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
+      const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', pv, colorWheel(S.color || '#7cc4ff', c => { S.color = c; pv.style.setProperty('--ly', c); commit('music'); paintColor(); }),
         btn('恢复默认', 'secondary', () => { S.color = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }

@@ -162,10 +162,25 @@ export async function inviteListen(c) {
   toast(`在和${E.nameOf(c)}一起听`);
 }
 
-/** 把一首歌分享到私聊或群聊：一张歌的卡片 */
-export async function shareSong(to, s) {
-  await E.sendSpecial(E.isGroup(to) ? to : chatForContact(to.id, true), { type: 'song', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
-  toast(`分享给${E.nameOf(to)}了`);
+/** 分享一首歌（照音乐软件分享到微信）：跳到「选择一个聊天」，最近聊过的在前、能搜；点谁先确认，发完问留在聊天还是返回 */
+export async function shareSong(s) {
+  const { groupAvatar } = await import('./group.js');
+  const p = page({ app: 'chat', id: 'chat-pick', title: '选择一个聊天', back: true });
+  const title = c => E.isGroup(c) ? c.name : E.nameOf(contact(c.contactId));
+  const rows = state.chats.filter(c => E.isGroup(c) || contact(c.contactId)).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0)).map(c => {
+    const el = h('div.as-chat-conv', { role: 'button', onclick: () => send(c) },
+      h('span.as-chat-conv__ava', E.isGroup(c) ? groupAvatar(c, 44) : avatar(E.avatarOf(contact(c.contactId), c), title(c), 44)),
+      h('div.as-chat-conv__main', h('div.as-chat-conv__top', h('span.as-chat-conv__name', E.isGroup(c) ? E.groupTitle(c) : title(c)))));
+    el._t = title(c); return el;
+  });
+  const q = h('input', { placeholder: '搜索', oninput: () => rows.forEach(el => { el.hidden = !el._t.includes(q.value.trim()); }) });   // 只藏起来，不重画（头像不重新解码）
+  async function send(c) {
+    if (!(await dialog({ title: `发送给 ${title(c)}`, text: `《${s.name}》- ${s.artist}`, confirm: '发送' }))) return;
+    await E.sendSpecial(c, { type: 'song', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
+    if (await dialog({ title: '已发送', confirm: '留在聊天', cancel: '返回音乐' })) shell.openApp('chat', { chat: c.id }); else nav.pop();
+  }
+  p.body.append(h('div.as-chat-search', icon('search', 17, 2), q), rows.length ? h('div.as-chat-convs', rows) : empty('还没有聊天'));
+  nav.push(p.el);
 }
 
 /* ================= 表情包面板 ================= */
