@@ -417,16 +417,18 @@ export async function heartPick() {
 
 /* ---------- 角色的歌单：AI 想 TA 有哪些歌单、每个里放什么歌（「歌名 - 歌手」）和 TA 的感想，手机再一首首去搜；onStep(搜了几首, 一共几首) 给界面报进度 ---------- */
 // 正文暗号一行「歌名 - 歌手｜歌单名｜感想｜简介」：歌单名没写就放进「喜欢的音乐」，简介只有新开的歌单才写
-const parts = t => { const [song, name, thought, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: name || '喜欢的音乐', thought: thought || '', intro: intro || '' }; };
+const parts = t => { const [song, name, thought, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: bare(name) || '喜欢的音乐', thought: thought || '', intro: intro || '' }; };
+// 歌单名前后被【】「」《》[] 包着的去掉（AI 有时会自己加）
+const bare = n => String(n || '').trim().replace(/^[【「『《\[]([^【】「」『』《》\[\]]+)[】」』》\]]$/, '$1').trim();
 export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  const existing = charLists(c).map(l => `【${l.name}】${l.intro}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
+  const existing = charLists(c).map(l => `歌单：${l.name}${l.intro ? '（' + l.intro + '）' : ''}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）' }) });
   let j = null; try { j = JSON.parse((String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').match(/\{[\s\S]*\}/) || [])[0]); } catch { /* 下面当成回的不对 */ }
   if (!j || !Array.isArray(j.lists)) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
-  const todo = j.lists.flatMap(l => (l.songs || []).filter(x => x && x.song).map(x => ({ ...x, name: String(l.name || '喜欢的音乐').trim(), intro: l.intro || '' })));
+  const todo = j.lists.flatMap(l => (l.songs || []).filter(x => x && x.song).map(x => ({ ...x, name: bare(l.name) || '喜欢的音乐', intro: l.intro || '' })));
   // 四首一起搜（一首一首搜太慢），搜完按 AI 给的顺序放进歌单
   const found = []; let k = 0, n = 0;
   await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await findSong(todo[i].song); onStep && onStep(++n, todo.length); } }));
@@ -447,6 +449,7 @@ async function songThought(c, s, text, others) {
 /** TA 的歌单：「喜欢的音乐」排第一，其他按心情、风格分：[{ id, name, intro, songs }]。以前每人只有一个 c.songs，第一次读时搬进「喜欢的音乐」 */
 export function charLists(c) {
   if (c.songs) { if (c.songs.length) (c.lists = c.lists || []).unshift({ id: uid('cl'), name: '喜欢的音乐', intro: '', songs: c.songs }); delete c.songs; }
+  (c.lists || []).forEach(l => { l.name = bare(l.name); });   // v0.8.37 生成的带括号的名字
   return c.lists || (c.lists = []);
 }
 export const charSongs = c => charLists(c).flatMap(l => l.songs);
@@ -461,7 +464,8 @@ export function addToChar(c, s, name = '喜欢的音乐', intro = '') {
 /* ---------- 一起听：和私聊里的一个人，或者一个群。M().together 是 TA 的联系人 id / 群聊 id；一起听了多少秒记在 M().tg[id] ---------- */
 export const together = () => contact(M().together) || state.chats.find(x => x.id === M().together && x.type === 'group') || null;
 const tgTimes = () => M().tg || (M().tg = {});
-export const togetherSec = c => (tgTimes()[c.id] || 0) + (M().together === c.id ? heard / 1000 : 0);   // 还没存进去的那几秒也算上，一秒一秒涨
+export const togetherSec = c => (tgTimes()[c.id] || 0) + (M().together === c.id ? heard / 1000 : 0);   // 一共一起听了多久（缘分报告）；还没存进去的那几秒也算上，一秒一秒涨
+export const sessionSec = c => (tgRec(c.id).sess || 0) + (M().together === c.id ? heard / 1000 : 0);   // 这一次一起听了多久（播放页上写的，断了再听从头算）
 export function listenWith(c) {
   if ((c ? c.id : '') !== M().together && c) { const r = tgRec(c.id); r.sess = 0; if (!r.first) r.first = stamp(); }   // 新开一次一起听：这次多久从 0 算；第一次一起听记下现实和剧情两个时间
   M().together = c ? c.id : ''; commit('music'); tell('together');

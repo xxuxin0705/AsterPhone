@@ -819,7 +819,7 @@ export function openPlayer() {
   // 对话式歌词每行照「歌词颜色」里这个人的设置上色
   const restyle = () => lines.forEach(r => r._ch && styleChoir(r, ...r._ch));
   let tgWho = '';
-  const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.togetherSec(c)); };
+  const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.sessionSec(c)); };
   const paintTg = () => {
     const c = P.together(); p.el.classList.toggle('is-tg', !!c); if (c) p.el.classList.remove('is-lrc'); paintSkin(); if (!c) return;
     // 头像只在换人时换（图片重新解码会闪）；气泡只改字
