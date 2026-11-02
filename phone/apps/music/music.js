@@ -69,7 +69,7 @@ function renderHome(ctx) {
   const paintRecent = keep(recent, () => M().recent.slice(0, 8).map(s => s.id).join(), () => M().recent.length ? [
     h('div.as-mu-h', '最近播放', h('button.as-mu-h__more', { onclick: () => openList('最近播放', M().recent) }, '全部')),
     h('div.as-mu-grid', M().recent.slice(0, 8).map((s, i) => songCard(s, () => play(M().recent, i, '最近播放'))))] : []);
-  const paintChars = keep(chars, () => JSON.stringify(state.contacts.map(c => [c.id, nameOf(c), (c.songs || []).length, firstPic(c.songs) || c.avatar])), () => state.contacts.length ? [
+  const paintChars = keep(chars, () => JSON.stringify(state.contacts.map(c => [c.id, nameOf(c), (c.songs || []).length, c.avatar])), () => state.contacts.length ? [
     h('div.as-mu-h', '角色的歌单', state.contacts.length > 8 ? h('button.as-mu-h__more', { onclick: openAllChars }, '全部') : null),
     h('div.as-mu-grid', state.contacts.slice(0, 8).map(charCard))] : []);
   paintRecent(); paintChars();
@@ -81,8 +81,9 @@ function renderHome(ctx) {
     recent, chars, h('div.as-mu-gap'));
   ctx.el._onShow = () => { paintRecent(); paintChars(); };
 }
-const songCard = (s, onclick) => h('button.as-mu-sq', { onclick }, h('span.as-mu-sq__cover', { style: { backgroundImage: bgUrl(s.pic) } }), h('b', s.name), h('span', s.sub || s.artist));
-const charCard = c => songCard({ pic: firstPic(c.songs) || c.avatar, name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c));
+const songCard = (s, onclick, face) => h('button.as-mu-sq', { onclick }, h('span.as-mu-sq__cover', { style: { backgroundImage: bgUrl(s.pic) } }, face), h('b', s.name), h('span', s.sub || s.artist));
+// 角色歌单的封面就是角色头像（没头像是名字的字）
+const charCard = c => songCard({ name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c), avatar(c.avatar, nameOf(c), 80, 'square'));
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
   p.body.append(h('div.as-mu-grid', state.contacts.map(charCard)));

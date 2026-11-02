@@ -103,7 +103,7 @@ export async function removeLocal(s) { M().local = M().local.filter(x => x.id !=
 /* ---------- 放 ---------- */
 export const audio = new Audio();
 audio.preload = 'auto';
-let lyrics = [], fails = 0, restored = false;
+let lyrics = [], fails = 0, restored = false, early = false;
 const subs = new Set();
 export const onMusic = f => { subs.add(f); return () => subs.delete(f); };
 const tell = what => subs.forEach(f => { try { f(what); } catch (e) { console.error(e); } });
@@ -115,7 +115,7 @@ export const playing = () => !audio.paused;
 export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
 async function load(autoplay) {
   const s = current(); if (!s) return;
-  restored = true; lyrics = []; tell('song');
+  restored = true; lyrics = []; early = false; tell('song');
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
   const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++; commit('music');
   const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
@@ -129,7 +129,8 @@ async function load(autoplay) {
         if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
       };
       audio.src = urls[i];
-      if (autoplay) audio.play().catch(() => tell('blocked'));
+      audio.loop = M().mode === 'one';
+      if (autoplay) audio.play().catch(blocked);
     };
     tryUrl(0);
   };
@@ -166,7 +167,7 @@ export const prev = () => audio.currentTime > 4 ? (audio.currentTime = 0) : next
 export function seek(t) { if (restored) audio.currentTime = t; }
 export function jump(i) { M().idx = i; load(true); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];
-export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); return MODES[(i + 1) % MODES.length]; }
+export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; audio.loop = M().mode === 'one'; commit('music'); return MODES[(i + 1) % MODES.length]; }
 export function like(s = current()) {
   if (!s) return false;
   const L = M().liked, i = L.findIndex(x => x.id === s.id);
@@ -180,10 +181,19 @@ let saveT = 0, lastT = 0, heard = 0;
 audio.addEventListener('timeupdate', () => {
   const now = Date.now(); if (now - lastT < 2000) heard += now - lastT; lastT = now;
   if (now - saveT > 5000) { saveT = now; M().pos = audio.currentTime; M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
+  // 切到后台时，一首放完再开下一首常被系统拦下（声音一停就不让再出声）：快放完时就先换下一首，声音不断
+  if (!audio.loop && !early && audio.duration - audio.currentTime < .4) { early = true; next(); }
   tell('time');
 });
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
-audio.addEventListener('ended', () => M().mode === 'one' ? (audio.currentTime = 0, audio.play()) : next());
+audio.addEventListener('ended', () => { if (!early) next(); });   // 单曲循环靠 audio.loop，不会走到这
+// 还是被拦下了：记进日志，回到页面时接着放
+let stuck = false;
+function blocked() {
+  tell('blocked');
+  if (document.hidden) { stuck = true; log('warn', '音乐', '在后台没能接着放下一首（被系统拦了），回到页面会接着放'); }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && stuck) { stuck = false; audio.play().catch(() => tell('blocked')); } });
 
 /* ---------- 系统的「正在播放」（锁屏、控制中心、灵动岛） ---------- */
 function sysInfo(s) {
