@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented } from '../../core/ui.js';
+import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -177,7 +177,7 @@ function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)));
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { if ((await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }])) === 'float') openFloat(); }));
   const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const paintHeard = () => { const [n, u] = heard(); hearEl.replaceChildren(h('b', String(n)), ' ' + u); };
   const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
@@ -291,6 +291,31 @@ async function openDaily() {
   toast('正在读每日推荐…', true);
   try { const L = await P.neDaily(); toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
   catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
+}
+/* ---------- 歌词悬浮窗的设置（显示在哪、字体、颜色、大小、固定） ---------- */
+async function openFloat() {
+  const F = await import('../../core/floatlyric.js'), fonts = await import('../../core/fonts.js'), c = F.cfg();
+  const save = () => { commit('music'); F.applyFloat(); };
+  const fontName = () => (F.FONTS.find(x => x[0] === c.font) || [0, fonts.fontName(c.font) || '默认'])[1];
+  const fontVal = h('span', fontName()), sizeOut = h('output', c.size + '');
+  // 颜色：几个常用的点一下就换，最后一个圆是自己调
+  const sw = h('div.as-mu-swatch', ['#ffffff', '#1d1d1f', '#fc3d49', '#ffd166', '#7cc4ff', '#ff9ec7', '#8ee3a1'].map(v => h('button', { style: { background: v }, dataset: { c: v }, 'aria-label': v, onclick: () => pick(v) })),
+    h('input', { type: 'color', value: c.color, 'aria-label': '自己调颜色', oninput: e => pick(e.target.value) }));
+  const pick = v => { c.color = v; [...sw.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === v)); save(); };
+  [...sw.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === c.color));
+  const more = group('', [
+    item({ title: '字体', right: fontVal, chevron: true, onClick: async () => {
+      const v = await actionSheet('字体', [...F.FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: c.font === k })), ...fonts.userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: c.font === 'u:' + u.id }))]);
+      if (v == null) return; c.font = v === 'def' ? '' : v; fontVal.textContent = fontName(); save();
+    } }),
+    h('div.as-field', h('span.as-field__label', '颜色'), sw),
+    h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 12, max: 36, step: 1, value: c.size, onInput: v => { c.size = v; sizeOut.textContent = v; save(); } }), sizeOut),
+    toggleItem({ title: '固定在屏幕上' }, c.lock, v => { c.lock = v; save(); }),
+  ]);
+  more.style.display = c.where === 'off' ? 'none' : '';
+  const p = page({ app: 'music', id: 'music-float', title: '歌词悬浮窗', back: true });
+  p.body.append(group('显示在', [h('div.as-field', segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; }))]), more);
+  nav.push(p.el);
 }
 /* ---------- 歌单导出 / 导入（小手机自己的文件） ---------- */
 function exportList(l) {

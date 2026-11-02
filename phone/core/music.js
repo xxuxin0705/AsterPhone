@@ -108,6 +108,22 @@ export function parseLrc(text) {
   }
   return out.sort((a, b) => a.t - b.t);
 }
+/** 社区逐字歌词库（AMLL TTML DB，CC0）：按网易云歌曲编号放的 .ttml，没有这首就是 404 */
+const TTML = 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/ncm-lyrics/';
+/** TTML 逐字歌词：<p> 是一句，里面带 begin 的 <span> 是一个字 / 词（词和词之间的空格接到前一个词后面），翻译是 role="x-translation" 的 span；和声（x-bg）不要 */
+export function parseTtml(text) {
+  const sec = v => String(v).split(':').reduce((a, b) => a * 60 + +b, 0);
+  return [...new DOMParser().parseFromString(text, 'application/xml').getElementsByTagName('p')].map(p => {
+    const w = []; let tr = '';
+    for (const n of p.childNodes) {
+      if (n.nodeType === 3) { if (w.length) w[w.length - 1].text += n.textContent; continue; }
+      const role = n.getAttribute('ttm:role');
+      if (role === 'x-translation') tr = n.textContent.trim();
+      else if (!role && n.getAttribute('begin')) w.push({ t: sec(n.getAttribute('begin')), d: sec(n.getAttribute('end')) - sec(n.getAttribute('begin')), text: n.textContent });
+    }
+    return w.length && { t: w[0].t, text: w.map(x => x.text).join('').trim(), tr, w: w.filter(x => x.text.trim()) };
+  }).filter(Boolean);
+}
 /** 网易云逐字歌词：[句开始,句时长](字开始,字时长,0)字(…)字…，单位毫秒 */
 export function parseYrc(text) {
   const out = [];
@@ -182,8 +198,10 @@ function enter(s) {
   sysInfo(s);
   if (s.local) return;
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
-  let base = [], yrc = [];
-  const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
+  // 最准的是社区逐字歌词库（AMLL，人工对过每个字的时间，带翻译），有就用它；其次网易云自己的逐字；都没有就是普通歌词
+  let base = [], yrc = [], ttml = [];
+  const done = () => { if (current() !== s) return; const w = ttml.length ? ttml : yrc; lyrics = w.length ? w.map(x => ({ ...x, tr: x.tr || (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
+  fetch(TTML + s.id + '.ttml').then(r => r.ok ? r.text() : '').then(t => { if (t) { ttml = parseTtml(t); done(); } }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词库没连上：${e.message}`));
   if (ne) be('/lyric?id=' + s.id).then(j => {
     const tr = parseLrc(j.tr);
     base = parseLrc(j.lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' }));
@@ -434,3 +452,5 @@ export async function storyAddSong(c, text) {
   if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${text}》，但没搜到`); return; }
   if (addToChar(c, s)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单`);
 }
+
+import('./floatlyric.js');   // 歌词悬浮窗跟着播放器一起起来

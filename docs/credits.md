@@ -30,9 +30,13 @@
 | `phone/assets/music/together-l.webp`、`together-r.webp` | 一起听的有线耳机 | 作者让 GPT 画的，去掉了黑底、切成两半 |
 | `phone/assets/wallpapers/*`、`phone/assets/fab/*` | 壁纸、悬浮按钮 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
 
+| 歌词悬浮窗的内置字体（从 jsDelivr 按需下载，不放进仓库） | 思源黑体 / 思源宋体（@fontsource，OFL）；霞鹜文楷、得意黑、汇文明朝体、朱雀仿宋（@chinese-fonts 中文网字计划打包，字体本身 OFL / 免费商用） | 可以免费商用 |
+
 ## 四、用到的外部服务（不是代码，写在说明里比较好）
 
 - 搜歌 / 歌词：vkeys（https://api.vkeys.cn）
 - 播放链接 / 歌单：Meting（默认 https://api.qijieya.cn/meting/）
 - 装了服务器插件后：网易云音乐自己的接口
+- 逐字歌词：AMLL TTML DB（https://github.com/amll-dev/amll-ttml-db，CC0，社区打轴），从 raw.githubusercontent.com 读
+- 悬浮窗字体：jsDelivr（https://cdn.jsdelivr.net）
 - 没装插件时解析歌单分享短链接：allorigins（https://api.allorigins.win）、corsproxy.io（https://corsproxy.io）、codetabs（https://api.codetabs.com），挨个试

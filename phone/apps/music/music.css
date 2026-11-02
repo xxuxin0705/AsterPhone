@@ -74,6 +74,11 @@
 .as-mu-cats b { font: 600 16px/1 var(--font-ui); }
 .as-mu-cats span { font: 400 11px/1 var(--font-ui); color: rgba(255,255,255,.72); }
 .as-mu-cats i { position: absolute; right: -4px; bottom: -14px; font: 700 58px/1 var(--font-ui); font-style: normal; color: rgba(255,255,255,.14); pointer-events: none; }   /* 右下角一个淡淡的大字当装饰 */
+.as-mu-swatch { display: flex; flex-wrap: wrap; gap: 10px; }
+.as-mu-swatch > * { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); padding: 0; cursor: pointer; }
+.as-mu-swatch .is-on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--mu-red); }
+.as-mu-swatch input { overflow: hidden; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); -webkit-appearance: none; appearance: none; }
+.as-mu-swatch input::-webkit-color-swatch-wrapper, .as-mu-swatch input::-webkit-color-swatch { opacity: 0; }
 .as-mu-seg { margin: 10px 0 6px; }
 .as-mu-sub { margin: 14px 2px 6px; font: 600 16px/1.2 var(--font-ui); color: var(--mu-ink); }
 .as-mu-morel { display: block; margin: 4px auto 0; border: 0; background: none; padding: 8px; font: 400 13px/1 var(--font-ui); color: var(--mu-gray); cursor: pointer; }
