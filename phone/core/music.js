@@ -67,6 +67,13 @@ export async function playlist(id) {
 }
 export const cachedList = id => kvGet('mulist:' + id).catch(() => null);
 /** 从网易云分享链接 / 一串数字里找出歌单编号 */
+/** 分享出来的短链接（163cn.tv）要先问出它跳到哪：网页自己问不了（跨域），装了酒馆插件才行 */
+export async function playlistIdOf(text) {
+  const id = playlistId(text), short = (String(text).match(/https?:\/\/163cn\.tv\/\w+/) || [])[0];
+  if (id || !short) return id;
+  if (!ne) throw new Error('分享的短链接要装了酒馆插件才认得，先在浏览器里打开它，把地址栏的链接复制过来');
+  return playlistId((await be('/resolve?url=' + encodeURIComponent(short))).url);
+}
 export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || String(t).match(/[?&]id=(\d{5,})/) || String(t).trim().match(/^(\d{5,})$/)) || [])[1] || '';
 export function parseLrc(text) {
   const out = [];

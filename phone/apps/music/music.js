@@ -211,7 +211,9 @@ function renderMe(ctx) {
   async function importList() {
     const link = await dialog({ title: '导入网易云歌单', text: '歌单要设成公开；「我喜欢的音乐」也可以。', input: { placeholder: '歌单链接' } });
     if (!link) return;
-    const id = P.playlistId(link); if (!id) { toast('没认出歌单，换成分享出来的链接试试'); return; }
+    let id;
+    try { id = await P.playlistIdOf(link); } catch (e) { log('error', '音乐', '认歌单链接失败：' + e.message); toast(e.message); return; }
+    if (!id) { toast('没认出歌单，换成分享出来的链接试试'); return; }
     if (M().lists.some(l => l.id === id)) { toast('这个歌单已经导入过了'); return; }
     const name = await dialog({ title: '给歌单起个名字', input: { value: '网易云歌单' } }); if (name == null) return;
     toast('正在读歌单…', true);

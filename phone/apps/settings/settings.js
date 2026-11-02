@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.1';
+export const VERSION = '0.8.2';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -583,19 +583,19 @@ function openNotify() {
           if (!v) return;
           n.tone = v; commit('settings'); valEl.textContent = TONE_LABEL[v]; shell.ding(v);
         } }) : null].filter(Boolean)),
-      dndGroup(),
+      group('免打扰', dndItems()),
       group('', [toggleItem({ title: '桌面图标未读红点' }, n.badge, v => { n.badge = v; commit('chats'); })]));
   });
 }
 
 /** 免打扰：通知页和「仅线上聊天」里各放一份，改的是同一个设置；开关只显示 / 藏起时间，不重画 */
-function dndGroup() {
+function dndItems() {
   // 时间选择器里点了「清除」：回到默认的 23:00 / 08:00，不留空
   const DEF = { dndFrom: '23:00', dndTo: '08:00' }, n = S().notify;
   const t = (v, k) => { if (!v) n[k] = v = DEF[k]; const el = input({ value: v, type: 'time', onInput: x => { n[k] = x || DEF[k]; if (!x) el.value = DEF[k]; commit('settings'); } }); return el; };
   const times = h('div.as-settings-time', field('开始', t(n.dndFrom, 'dndFrom')), field('结束', t(n.dndTo, 'dndTo')));
   times.style.display = n.dnd ? '' : 'none';
-  return group('免打扰', [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); times.style.display = v ? '' : 'none'; }), times]);
+  return [toggleItem({ title: withInfo('免打扰时段', '这段时间里不弹横幅、不响提示音；就算开了线上聊天、设了每几小时来找你，角色也不会主动发消息。') }, n.dnd, v => { n.dnd = v; commit('settings'); times.style.display = v ? '' : 'none'; }), times];
 }
 /* ================= 联动方式与时间 ================= */
 /** 标题旁边的小 i：点一下看简短说明 */
@@ -613,20 +613,22 @@ function openLinkTime() {
     // 仅线上聊天才有「定时来找你」；切换只显示 / 藏起这一块
     // 「TA 主动来找我」改了，所有聊天一起跟着改（每个聊天里还能单独再改）；关着就藏起「多久来找你一次」
     const every = sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } });
-    every.style.display = a.defaults.proactive !== false ? '' : 'none';
+    // 免打扰只管「TA 主动来找我」，所以放在它下面，关着就一起藏起来
+    const [quiet, quietTimes] = dndItems();
+    const showMore = on => { every.style.display = quiet.style.display = on ? '' : 'none'; quietTimes.style.display = on && S().notify.dnd ? '' : 'none'; };
+    showMore(a.defaults.proactive !== false);
     const online = group(withInfo('线上聊天', 'TA 会每隔这么久主动来找你一次（每个私聊、群聊里还能单独改），免打扰时段里不会来。'), [
-      toggleItem({ title: 'TA 主动来找我' }, a.defaults.proactive !== false, v => { a.defaults.proactive = v; state.chats.forEach(c => { c.cfg.proactive = v; }); commit('apps'); commit('chats'); every.style.display = v ? '' : 'none'; }),
-      every,
+      toggleItem({ title: 'TA 主动来找我' }, a.defaults.proactive !== false, v => { a.defaults.proactive = v; state.chats.forEach(c => { c.cfg.proactive = v; }); commit('apps'); commit('chats'); showMore(v); }),
+      every, quiet, quietTimes,
       item({ title: '让 TA 现在来找我', chevron: true, onClick: async () => {
         const name = (await import('../chat/engine.js')).pokeNow();
         toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「仅线上聊天」的私聊');
       } })]);
-    const dnd = dndGroup();
-    online.hidden = dnd.hidden = a.defaults.linkMode !== 'online';   // 定时来找你、免打扰都只有仅线上才有
+    online.hidden = a.defaults.linkMode !== 'online';   // 定时来找你、免打扰都只有仅线上才有
     body.append(
       group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
-        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; state.chats.forEach(c => { c.cfg.linkMode = v; }); commit('apps'); commit('chats'); commit('inject'); online.hidden = dnd.hidden = v !== 'online'; }))]),
-      online, dnd,
+        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; state.chats.forEach(c => { c.cfg.linkMode = v; }); commit('apps'); commit('chats'); commit('inject'); online.hidden = v !== 'online'; }))]),
+      online,
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),
         nowItem, manual]));

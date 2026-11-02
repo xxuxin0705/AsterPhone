@@ -78,6 +78,17 @@ async function init(router) {
     const d = await ne(`/api/song/detail?ids=[${ids}]`);   // 搜索结果里没有封面，再补一次
     return (d.j.songs || []).map(song);
   }));
+  // 分享出来的短链接（163cn.tv）：问出它跳到哪个网易云地址（只跟着网易云自己的地址走）
+  router.get('/resolve', wrap(async req => {
+    let u = String(req.query.url || '');
+    if (!/^https?:\/\/163cn\.tv\//.test(u)) throw new Error('不是网易云的分享链接');
+    for (let i = 0; i < 3 && /^https?:\/\/(163cn\.tv|([\w-]+\.)?music\.163\.com)\//.test(u); i++) {
+      const loc = (await fetch(u, { redirect: 'manual', headers: { 'User-Agent': UA } })).headers.get('location');
+      if (!loc) break;
+      u = new URL(loc, u).href;
+    }
+    return { url: u };
+  }));
   router.get('/playlist', wrap(async req => (((await ne(`/api/v6/playlist/detail?id=${+req.query.id}&n=1000&s=0`)).j.playlist || {}).tracks || []).map(song)));
   router.get('/daily', wrap(async () => (((await ne('/api/v3/discovery/recommend/songs')).j.data || {}).dailySongs || []).map(song)));
   router.get('/playlists', wrap(async () => {
