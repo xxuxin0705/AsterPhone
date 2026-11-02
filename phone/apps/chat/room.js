@@ -384,7 +384,11 @@ function openSettings(chat, redrawRoom) {
       ].filter(Boolean)),
       replyGroup(chat, save),
       // 定时来找你只有仅线上才有；正文里提到 TA 就会来，不用设
-      ...(cfg.linkMode === 'online' ? [group('主动消息', [sliderRow('多久来找你一次', 1, 24, 1, cfg.proactiveEvery || ({ low: 6, normal: 2, high: 1 })[cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时')])] : []),
+      ...(cfg.linkMode === 'online' ? (() => {
+        const every = sliderRow('多久来找你一次', 1, 24, 1, cfg.proactiveEvery || ({ low: 6, normal: 2, high: 1 })[cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时');
+        every.style.display = E.proactiveOn(cfg) ? '' : 'none';
+        return [group('主动消息', [toggleItem({ title: 'TA 主动来找我' }, E.proactiveOn(cfg), v => { cfg.proactive = v; save(); every.style.display = v ? '' : 'none'; }), every])];
+      })() : []),
       trGroup(cfg, save, draw));
     if (lastTab === 'mem') box.append(
       group('剧情关联', [

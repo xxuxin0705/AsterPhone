@@ -26,7 +26,9 @@ const OLD_FREQ = { low: 6, normal: 2, high: 1 };   // 以前的「少 / 正常 /
 const everyH = chat => chat.cfg.proactiveEvery || OLD_FREQ[chat.cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3;
 const today = () => new Date().toDateString();
 const free = chat => (chat.type === 'dm' || chat.type === 'group') && !busy.has(chat.id) && !(shell.inDnd && shell.inDnd());
-const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && !cutOf(chat);
+/** 仅线上聊天里「TA 主动来找我」开没开（没单独设过就跟总设置，默认开） */
+export const proactiveOn = cfg => (cfg.proactive ?? state.apps.chat.defaults.proactive) !== false;
+const canGo = chat => free(chat) && chat.cfg.linkMode === 'online' && proactiveOn(chat.cfg) && !cutOf(chat);
 /** TA 把你删了（'deleted'）/ 拉黑了（'blocked'）：你发的消息带红色感叹号，TA 收不到也不会回 */
 export const cutOf = chat => !isGroup(chat) && (contact(chat.contactId) || {}).cut || '';
 async function bounce(chat, m) {

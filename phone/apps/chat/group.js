@@ -100,7 +100,11 @@ export function openGroupSettings(chat, redrawRoom) {
         toggleItem({ title: '专属温度' }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); draw(); }),
         cfg.temperature != null ? sliderRow('温度', 0, 1.5, .05, cfg.temperature, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)) : null,
       ].filter(Boolean)),
-      ...(cfg.linkMode === 'online' ? [group('主动消息', [sliderRow('多久热闹一次', 1, 24, 1, cfg.proactiveEvery || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时')])] : []),
+      ...(cfg.linkMode === 'online' ? (() => {
+        const every = sliderRow('多久热闹一次', 1, 24, 1, cfg.proactiveEvery || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时');
+        every.style.display = E.proactiveOn(cfg) ? '' : 'none';
+        return [group('主动消息', [toggleItem({ title: '群里自己聊起来' }, E.proactiveOn(cfg), v => { cfg.proactive = v; save(); every.style.display = v ? '' : 'none'; }), every])];
+      })() : []),
       group('剧情关联', [
         h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
