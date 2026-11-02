@@ -11,6 +11,7 @@ import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 import { rain, isNight } from './rain.js';
 import { lyricFx } from './lyricfx.js';
+import { look, styleChoir, styleTop } from './tglook.js';
 
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
@@ -355,11 +356,7 @@ function openPairs() {
         commit('music'); sh.close(); paint();
       }))) });
   }
-  // 气泡颜色：默认跟着背景，也能自己选（选了才出两个色轮）
-  const B = M().bub || (M().bub = { custom: false, bg: '#ffffff', ink: '#222222' });
-  const wheels = h('div', field('气泡', colorWheel(B.bg, v => { B.bg = v; commit('music'); })), field('字', colorWheel(B.ink, v => { B.ink = v; commit('music'); })));
-  wheels.hidden = !B.custom;
-  paint(); p.body.append(group('气泡颜色', [h('div.as-field', segmented([['auto', '跟着背景'], ['custom', '自己选']], B.custom ? 'custom' : 'auto', v => { B.custom = v === 'custom'; commit('music'); wheels.hidden = !B.custom; })), wheels]), box);
+  paint(); p.body.append(box);
   nav.push(p.el);
 }
 /** 一张图的平均颜色 [r, g, b]；读不了（别的网站的图不让读）就是 null */
@@ -568,8 +565,11 @@ export function openPlayer() {
   // 一起听：上面一小块是两个人的头像（外侧各塞一只耳机），头像上方的气泡是一组悄悄话（点一下去改）；群里只写一起听了多久。下面是歌词
   // 两个气泡排成一行、整行居中（一长一短也不会偏到一边）
   const tgAv = [h('div.as-tg__av'), h('div.as-tg__av')], tgBub = [h('div.as-tg__bub.is-l', h('span')), h('div.as-tg__bub.is-r', h('span'))], tgTime = h('div.as-tg__time');
-  const half = (side, i) => h('div.as-tg__half.is-' + side, h('div.as-tg__who', tgAv[i]), h('img', { src: `assets/music/together-${side}.webp`, alt: '' }));
-  const tgEl = h('div.as-tg', h('div.as-tg__pair', { onclick: e => { e.stopPropagation(); openPairs(); } }, h('div.as-tg__bubs', ...tgBub), half('l', 0), half('r', 1)), tgTime);
+  // 耳机换颜色：同一张图当遮罩，上面叠一层颜色「正片叠底」，明暗还在
+  const half = (side, i) => h('div.as-tg__half.is-' + side, h('div.as-tg__who', tgAv[i]), h('img', { src: `assets/music/together-${side}.webp`, alt: '' }),
+    h('i.as-tg__tint', { style: { webkitMaskImage: `url(assets/music/together-${side}.webp)`, maskImage: `url(assets/music/together-${side}.webp)` } }));
+  const tgBubs = h('div.as-tg__bubs', ...tgBub);
+  const tgEl = h('div.as-tg', h('div.as-tg__pair', { onclick: e => { e.stopPropagation(); openPairs(); } }, tgBubs, half('l', 0), half('r', 1)), tgTime);
   const fx = h('div.as-mp__fx');
   const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, fx, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
@@ -606,6 +606,8 @@ export function openPlayer() {
   // 自己的背景图不压暗，字照旧是白的；气泡颜色跟着背景的平均色
   // 自己的图默认就是原图；模糊、亮度能自己调。有图时字加一层淡阴影，亮的图上也看得清
   let tone = null, toneOf = '';
+  const blurSvg = h('div', { hidden: true }); blurSvg.innerHTML = '<svg width="0" height="0"><filter id="as-mp-blur" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0" edgeMode="duplicate"/></filter></svg>';
+  const blurF = blurSvg.querySelector('feGaussianBlur'); p.el.append(blurSvg);
   // 以前只存一张（skin.bg 里直接是图）：挪进背景库
   if (S.bg) bgAdd(S.bg).then(id => { S.bgId = id; delete S.bg; commit('music'); paintBg(); });
   const paintBg = () => {
@@ -614,7 +616,8 @@ export function openPlayer() {
     const has = !!(cur || S.bg), wet = S.name === 'rain', src = has ? mine || '' : wet ? `assets/music/rain-${!isNight() ? 'day' : 'night'}.webp` : (P.current() || {}).pic;
     const day = wet && !has && !isNight();
     bg.style.backgroundImage = bgUrl(src);
-    bg.style.filter = cur ? `blur(${cur.blur}px) brightness(${cur.bright})` : ''; bg.style.inset = cur && cur.blur ? -cur.blur * 2 + 'px' : '';
+    // 模糊用 SVG 的（边上照原图延伸），CSS 的 blur 边上会透出来，只能把图放大盖住
+    blurF.setAttribute('stdDeviation', cur ? cur.blur : 0); bg.style.filter = cur ? `${cur.blur ? 'url(#as-mp-blur) ' : ''}brightness(${cur.bright})` : '';
     bg.classList.toggle('is-custom', has || wet); bg.classList.toggle('is-scene', wet && !has);
     p.el.classList.toggle('has-bg', has); p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
     if (!src) return;
@@ -627,9 +630,9 @@ export function openPlayer() {
   };
   // 气泡：自己选了颜色就用；不然跟着背景（亮的背景配浅色气泡深色字，暗的反过来）；背景读不到颜色时按白天 / 夜里
   const paintBub = () => {
-    const B = M().bub || {}, m = tone && (lum(tone) > .5 ? 255 : 0), c = tone && tone.map(v => Math.round(v * .45 + m * .55));   // 背景色往白 / 黑靠一半
-    const [bgc, ink] = B.custom ? [B.bg, B.ink] : c ? [`rgb(${c})`, lum(c) > .55 ? '#222' : '#f4f4f4'] : isNight() ? ['#1c1c1e', '#f2f2f2'] : ['#fff', '#222'];
-    tgEl.style.setProperty('--bub-bg', bgc); tgEl.style.setProperty('--bub-ink', ink);
+    const G = look().pair, m = tone && (lum(tone) > .5 ? 255 : 0), c = tone && tone.map(v => Math.round(v * .45 + m * .55));   // 背景色往白 / 黑靠一半
+    const [bgc, ink] = c ? [`rgb(${c})`, lum(c) > .55 ? '#222' : '#f4f4f4'] : isNight() ? ['#1c1c1e', '#f2f2f2'] : ['#fff', '#222'];
+    tgEl.style.setProperty('--bub-bg', G.bg || bgc); tgEl.style.setProperty('--bub-ink', G.ink || ink);
   };
   // 碎语：唱片那块换成散开的字
   let F = null;
@@ -642,7 +645,9 @@ export function openPlayer() {
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); R.color(S.color); };
   // 群唱：一起听时歌词一人一句，像聊天一样一条条冒出来（我的在右边）
   const choir = () => !!P.together() && S.tg !== 'plain';
-  const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x)]) : [[c.avatar, nameOf(c)]];
+  const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x), x.id]) : [[c.avatar, nameOf(c), c.id]];
+  // 群唱每行照「一起听的样子」里这个角色的设置上色（我那行用私聊对象的设置，群里用默认）
+  const restyle = () => lines.forEach(r => r._ch && styleChoir(r, ...r._ch));
   let tgWho = '';
   const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.togetherSec(c)); };
   const paintTg = () => {
@@ -653,7 +658,7 @@ export function openPlayer() {
     if (!grp && tgWho !== c.id) { tgWho = c.id; tgAv[0].replaceChildren(avatar(me().avatar, me().nick, 84)); tgAv[1].replaceChildren(avatar(c.avatar, nameOf(c), 84)); }
     const x = grp ? null : P.pairNow();
     [x && x.a, x && x.b].forEach((t, i) => { tgBub[i].hidden = !t; tgBub[i].firstChild.textContent = t || ''; });
-    paintTgTime(c);
+    paintTgTime(c); styleTop(tgEl, tgTime, tgBubs);
   };
   let lines = [];
   const paintSong = () => {
@@ -666,10 +671,11 @@ export function openPlayer() {
     lines = L.map((x, k) => {
       const ly = h('p', h('span', x.text), x.tr ? h('small', h('span', x.tr)) : null);
       if (!tc) return ly;
-      const mine = k % (who.length + 1) === who.length, [a, n] = mine ? my : who[k % (who.length + 1)];
-      return h('div.as-ch' + (mine ? '.is-me' : ''), avatar(a, n, 32), ly);
+      const mine = k % (who.length + 1) === who.length, [a, n, id] = mine ? my : who[k % (who.length + 1)];
+      const row = h('div.as-ch' + (mine ? '.is-me' : ''), avatar(a, n, 32), ly);
+      row._ch = [mine ? (tc.type === 'group' ? '' : tc.id) : id, mine]; return row;
     });
-    lrc.classList.toggle('is-choir', !!tc);
+    lrc.classList.toggle('is-choir', !!tc); restyle();
     lrc.replaceChildren(...(L.length ? lines : [h('p.is-none', s.local ? '本地的歌没有歌词' : '纯音乐，或者没找到歌词')]));
     li = -2; tick();
   };
@@ -699,10 +705,11 @@ export function openPlayer() {
   async function skin() {
     const tc = P.together(), rec = !/^(rain|cad)$/.test(S.name), color = { value: 'color', label: '歌词颜色', icon: 'palette' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
-    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '群唱', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color]
+    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '群唱', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
         { value: 'cad', label: '碎语', active: S.name === 'cad' }, color]);
     if (!v) return;
+    if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
       const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', colorWheel(S.color || '#7cc4ff', c => { S.color = c; commit('music'); paintColor(); }),
         btn('恢复默认', 'secondary', () => { S.color = ''; commit('music'); paintColor(); sh.close(); })) });
@@ -729,9 +736,11 @@ export function openPlayer() {
     const mark = () => {
       [...grid.children].forEach(x => x.classList.toggle('is-on', x.dataset.id === (S.bgId || '')));
       const cur = bgs().find(b => b.id === S.bgId);
+      const row = (label, k, o) => { const out = h('output', o.fmt(cur[k])); return h('div.as-settings-slider-row', h('span', label), slider({ ...o, value: cur[k], onInput: v => { cur[k] = v; out.textContent = o.fmt(v); paintBg(); commit('music'); } }), out); };
       adj.replaceChildren(...(cur ? [
-        h('div.as-settings-slider-row', h('span', '模糊'), slider({ min: 0, max: 20, step: 1, value: cur.blur, onInput: v => { cur.blur = v; paintBg(); commit('music'); } })),
-        h('div.as-settings-slider-row', h('span', '亮度'), slider({ min: .3, max: 1.5, step: .05, value: cur.bright, onInput: v => { cur.bright = v; paintBg(); commit('music'); } })),
+        row('模糊', 'blur', { min: 0, max: 20, step: 1, fmt: v => v ? v + '' : '不模糊' }),
+        row('亮度', 'bright', { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }),
+        btn('恢复原图', 'secondary', () => { cur.blur = 0; cur.bright = 1; commit('music'); paintBg(); mark(); }),
       ] : []));
     };
     const use = id => { if (S.bgId !== id) { S.bgId = id; commit('music'); paintBg(); } mark(); };
@@ -788,7 +797,7 @@ export function openPlayer() {
     if (w === 'state') paintState();
     if (w === 'time') { if (!P.playing()) tick(); const c = P.together(); if (c) paintTgTime(c); }
   });
-  p.el._onShow = () => { loop(); paintTg(); paintBub(); };   // 从悄悄话页回来：换了哪组、气泡颜色马上变
+  p.el._onShow = () => { loop(); paintTg(); paintBub(); restyle(); };   // 从悄悄话页、一起听的样子回来：马上变
   p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); };
   nav.push(p.el);
 }

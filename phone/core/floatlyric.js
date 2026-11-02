@@ -20,7 +20,7 @@ let el = null, li = -2, grip = null, lockBtn = null;
 const host = () => ({ phone: document, tavern: parent.document })[cfg().where] || null;
 
 /** 字体装进悬浮窗所在的那一页：内置的挂一个 CSS；字体库里的从存着的文件装（酒馆页面那边没装过） */
-async function useFont(doc, f) {
+export async function useFont(doc, f) {
   const b = FONTS.find(x => x[0] === f);
   if (b) { if (b[2] && !doc.querySelector(`link[data-aster-font="${b[2]}"]`)) doc.head.append(Object.assign(doc.createElement('link'), { rel: 'stylesheet', href: CDN + b[2], dataset: { asterFont: b[2] } })); return f ? `"${f}"` : ''; }
   const id = f.slice(2), fam = 'AsterUser-' + id;

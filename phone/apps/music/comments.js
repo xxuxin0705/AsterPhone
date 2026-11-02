@@ -31,11 +31,11 @@ async function load(s) {
 /** s：这首歌；me：{ nick, avatar } */
 export async function openComments(s, me) {
   const d = await load(s);
-  let real = [];
+  let real = [], why = s.local ? '本地的歌没有热评。' : '';
   if (!s.local) {
     toast('正在拿热评…', true);
     try { real = (await P.hotComments(s.id)).map(x => ({ ...x, id: 'n' + uid(''), real: true, replies: [] })); toast(`${real.length} 条热评`); }
-    catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); toast('拿不到网易云的热评'); }
+    catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); why = e.message.replace(/（[^）]*）/g, '') + '。'; toast('拿不到网易云的热评'); }
   }
   const save = () => kvSet('aicmt:' + s.id, d).catch(e => toast('没存上：' + e.message));
   const all = () => [...d.list, ...real.filter(x => !d.list.some(y => y.real && y.name === x.name && y.text === x.text))];
@@ -104,7 +104,7 @@ export async function openComments(s, me) {
   // 让 AI 写：联系人每人至少一条、剧情里没加的人各一条、再加一些路人；写过的再点就是重新写（你自己写的评论留着）
   async function write() {
     const again = d.ai;
-    if (!(await dialog({ title: again ? '重新写一批？' : '让 AI 写乐评？', text: again ? '会再用一次 API，写好后换掉 AI 写的这些（你写的评论留着）。' : '会用一次 API：联系人每人一条，剧情里的人各一条，再加一些路人。', confirm: again ? '重新写' : '生成' }))) return;
+    if (!(await dialog({ title: again ? '重新写一批？' : '让 AI 写乐评？', text: again ? '会再用一次 API，写好后换掉 AI 写的这些（你写的评论留着）。' : (why ? why + '\n' : '') + '会用一次 API：联系人每人一条，剧情里的人各一条，再加一些路人。', confirm: again ? '重新写' : '生成' }))) return;
     toast('AI 正在写乐评…', true);
     try {
       const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', maxTokens: 6000,
