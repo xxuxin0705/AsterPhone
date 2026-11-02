@@ -56,3 +56,4 @@ SOFTWARE.
 - 搜歌 / 歌词：vkeys（https://api.vkeys.cn）
 - 播放链接 / 歌单：Meting（默认 https://api.qijieya.cn/meting/）
 - 装了服务器插件后：网易云音乐自己的接口
+- 没装插件时解析歌单分享短链接：allorigins（https://api.allorigins.win）
