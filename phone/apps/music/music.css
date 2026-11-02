@@ -150,6 +150,7 @@
 .as-mu-lp__head { display: flex; align-items: center; gap: 16px; padding: 10px 16px 26px; color: #fff; }
 .as-mu-lp__head > div { min-width: 0; display: grid; gap: 8px; }
 .as-mu-lp__head b { font: 600 18px/1.4 var(--font-ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.as-mu-lp__head b.is-even { text-wrap: balance; }
 .as-mu-lp__head span { font: 400 12px/1.4 var(--font-ui); color: rgba(255,255,255,.65); }
 .as-mu-lcover.is-thumb { width: 40px; height: 40px; border-radius: 6px; }
 .as-mu-lcover.is-big { width: 112px; height: 112px; border-radius: 12px; background-color: rgba(255,255,255,.15); }

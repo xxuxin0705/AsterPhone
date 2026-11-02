@@ -594,6 +594,14 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
     nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
     subEl.textContent = (info && info.intro) || sub || ''; subEl.hidden = !subEl.textContent;
     if (info) { cov.style.backgroundImage = bgUrl(info.pic || firstPic(list)); bg.style.backgroundImage = bgUrl(info.bg || info.pic || firstPic(list)); }   // 背景没单独设就用封面
+    if (nameEl.isConnected) fit();
+  };
+  // 名字折成两行、第二行没几个字：字缩小一点（最小 15px）挤成一行；实在挤不下就用原来的大小，两行排匀（第二行不会只剩一两个字）
+  const fit = () => {
+    nameEl.style.fontSize = ''; nameEl.classList.remove('is-even');
+    const one = () => nameEl.offsetHeight < parseFloat(getComputedStyle(nameEl).lineHeight) * 1.5;
+    for (let f = 18; !one() && f > 15;) nameEl.style.fontSize = --f + 'px';
+    if (!one()) { nameEl.style.fontSize = ''; nameEl.classList.add('is-even'); }
   };
   p.body.append(h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)),
     actions || null,
@@ -664,7 +672,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
     rows.replaceChildren(...(L.length ? L.map(row) : [empty('这里还没有歌')]));
   };
   fill(list); head();
-  nav.push(p.el);
+  nav.push(p.el); fit();
   if (more) keepGoing();
   return { fill, head };
 }
