@@ -115,7 +115,7 @@ export const playing = () => !audio.paused;
 export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
 async function load(autoplay) {
   const s = current(); if (!s) return;
-  restored = true; lyrics = []; early = false; tell('song');
+  restored = true; lyrics = []; early = false; pulls = 0; tell('song');
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
   const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++; commit('music');
   const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
@@ -156,7 +156,7 @@ async function load(autoplay) {
 export function toggle() {
   if (!current()) return;
   if (!restored) { const pos = M().pos || 0; load(true); audio.addEventListener('loadedmetadata', () => { audio.currentTime = pos; }, { once: true }); return; }   // 刚打开手机：接着上次的地方
-  audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
+  audio.paused ? audio.play().catch(() => tell('blocked')) : pauseMe();
 }
 export function next(step = 1) {
   const n = M().queue.length; if (!n) return;
@@ -204,7 +204,16 @@ document.addEventListener('visibilitychange', () => {
 let bgTicks = 0, bgLogged = false;
 function bg(what) { if (document.hidden) { bgLogged = true; log('info', '音乐', '后台：' + what); } }
 audio.addEventListener('playing', () => bg('开始出声了'));
-audio.addEventListener('pause', () => { if (!audio.ended && audio.currentTime > .5 && audio.duration - audio.currentTime > .5) bg('被暂停了（可能是别的应用在出声，把声音抢走了）'); });
+// 在后台换到下一首后，手机过一两秒会把它暂停（作者的日志：开始出声 → 2 秒后被暂停，不是我们停的）。
+// 不是自己点的暂停，就在后台接着放（每首最多拉回 3 次，免得和别的应用抢个没完）
+let meant = false, pulls = 0;
+const pauseMe = () => { meant = true; audio.pause(); };
+audio.addEventListener('playing', () => { meant = false; });
+audio.addEventListener('pause', () => {
+  if (meant || audio.ended || !document.hidden) return;
+  bg('被暂停了（不是自己点的）');
+  if (pulls++ < 3) setTimeout(() => { if (audio.paused && !meant) audio.play().catch(blocked); }, 600);
+});
 audio.addEventListener('error', () => bg('这首放不出来（音源出错）'));
 
 /* ---------- 系统的「正在播放」（锁屏、控制中心、灵动岛） ---------- */
@@ -214,7 +223,7 @@ function sysInfo(s) {
 }
 if (navigator.mediaSession) {
   const ms = navigator.mediaSession, set = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) { /* 这个浏览器不支持这一项 */ } };
-  set('play', () => toggle()); set('pause', () => audio.pause());
+  set('play', () => toggle()); set('pause', pauseMe);
   set('previoustrack', () => prev()); set('nexttrack', () => next());
   set('seekto', d => seek(d.seekTime));
 }
@@ -224,7 +233,7 @@ if (navigator.mediaSession) {
  * 音乐先停、记住位置，念完接着放。 */
 let ducked = false;
 function duck(e) {
-  if (e.detail === 'start' && !audio.paused) { ducked = true; audio.pause(); }
+  if (e.detail === 'start' && !audio.paused) { ducked = true; pauseMe(); }
   else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(() => tell('blocked')); }
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }

@@ -1,5 +1,5 @@
-// 日志 App：调用（进行中蓝、成功绿、失败红）和事件（报错红、警告黄、信息绿）。
-// 上面一排按状态筛、下面一排按应用筛；每条能复制、删除，进行中的能中止；发出去的内容默认折起来。
+// 日志 App：只有找 API 的调用（进行中蓝、成功绿、失败红）和调用旁边的事件（报错红、警告黄、信息绿）。
+// 上面一排按状态筛、下面一排按应用筛（聊天、音乐、设置；细分的写成标签）；每条能复制、删除，进行中的能中止；发出去的内容默认折起来。
 // 来一条新的只插一张卡、状态变了只改那一张、筛选只是藏起 / 显示：不重画整页（不闪）。
 import { h } from '../../core/util.js';
 import { logs, onLog, clearLogs, removeLog, abortCall } from '../../core/log.js';
@@ -32,7 +32,7 @@ export function open(opts = {}) {
   function fill(c, e) {
     c.dataset.tone = e.run ? 'run' : e.level;
     c.replaceChildren(
-      h('div.as-log-item__head', h('b', tagOf(e)), h('span', e.app), e.src ? h('span', e.src + (e.model ? ` · ${e.model}` : '')) : null,
+      h('div.as-log-item__head', h('b', tagOf(e)), h('span', e.app), e.tag ? h('span.as-log-item__tag', e.tag) : null, e.src ? h('span', e.src + (e.model ? ` · ${e.model}` : '')) : null,
         h('span.as-log-item__time', e.run ? `已等 ${secs(Date.now() - e.at)}` : when(e.at) + (e.ms != null ? ` · ${secs(e.ms)}` : ''))),
       h('div.as-log-item__msg', e.msg),
       e.res ? fold(e, 'res', '收回来的', e.res, e.run) : null,
@@ -40,7 +40,7 @@ export function open(opts = {}) {
       e.detail ? fold(e, 'det', '细节', e.detail, false) : null,
       h('div.as-log-item__acts',
         e.run ? h('button.as-log-btn', { onclick: () => abortCall(e.id) }, '中止') : null,
-        h('button.as-log-btn', { onclick: () => copy([`${when(e.at)} ${tagOf(e)} · ${e.app}${e.src ? ' · ' + e.src + (e.model ? ' · ' + e.model : '') : ''}`, e.msg, e.detail,
+        h('button.as-log-btn', { onclick: () => copy([`${when(e.at)} ${tagOf(e)} · ${e.app}${e.tag ? ' · ' + e.tag : ''}${e.src ? ' · ' + e.src + (e.model ? ' · ' + e.model : '') : ''}`, e.msg, e.detail,
           e.req && '【发出去的】\n' + e.req, e.res && '【收回来的】\n' + e.res].filter(Boolean).join('\n\n'), '这一条') }, '复制'),
         h('button.as-log-btn.is-danger', { onclick: () => removeLog(e.id) }, '删除')));
   }

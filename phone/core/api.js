@@ -2,7 +2,7 @@
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state, kvGet, kvSet } from './store.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
-import { log, startCall, orAbort, abortCall } from './log.js';
+import { apiLog as log, startCall, orAbort, abortCall } from './log.js';
 
 /** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
  *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
