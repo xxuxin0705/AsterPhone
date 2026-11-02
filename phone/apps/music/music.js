@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit, contact, kvGet, kvSet, kvDel } from '../../core/store.js';
-import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -197,6 +197,21 @@ function openCharOne(c, l) {
       v.fill(l.songs); toast(`加进「${l.name}」了`);
     })) });
 }
+/** 长按进多选：每行左边出勾，底下「全选 · 删除（几个）· 取消」，全勾上时「全选」变「全不选」。
+ *  host 是这一页，all() 是能勾的那些，del(勾上的) 确认删了返回 true；返回的函数套在每一行上（行要带 _it） */
+function multiPick(host, box, all, del) {
+  let sel = null, just = false;
+  const n = h('span'), allBtn = h('button', { onclick: () => { sel = new Set(sel.size < all().length ? all() : []); mark(); } }, '全选');
+  const bar = h('div.as-mu-pickbar', allBtn, h('button.is-main', { onclick: async () => { if (!sel.size) { toast('先勾几个'); return; } if (await del([...sel])) on(false); } }, '删除', n), h('button', { onclick: () => on(false) }, '取消'));
+  const mark = () => { box.querySelectorAll('.as-mu-li').forEach(el => el._ck && el._ck.classList.toggle('is-active', sel.has(el._it))); n.textContent = sel.size ? `（${sel.size}）` : ''; allBtn.textContent = sel.size && sel.size === all().length ? '全不选' : '全选'; };
+  const on = v => { sel = v ? new Set() : null; host.classList.toggle('is-picking', v); if (v) { host.append(bar); mark(); } else bar.remove(); };
+  return el => {
+    el._ck = h('span.as-chat-check', icon('check', 14, 2.6)); el.prepend(el._ck);
+    onLongPress(el, () => { if (sel) return; on(true); sel.add(el._it); mark(); just = true; setTimeout(() => { just = false; }, 600); });
+    el.addEventListener('click', e => { if (!sel) return; e.stopImmediatePropagation(); if (just) { just = false; return; } sel.has(el._it) ? sel.delete(el._it) : sel.add(el._it); mark(); }, true);   // 长按松手那一下不算点
+    return el;
+  };
+}
 // 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
 const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
 function openCharList(c) {
@@ -207,25 +222,15 @@ function openCharList(c) {
     catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
     finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
-  const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai, cls: 'as-mu-cl' });
+  const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai });
   const box = h('div.as-mu-sheet');
-  // 长按进多选：勾几个（全选 / 全不选），一起删
-  let sel = null;
-  const row = l => { const ck = h('span.as-chat-check', icon('check', 14, 2.6));
-    const el = h('div.as-mu-li', { role: 'button', onclick: () => { if (!sel) return openCharOne(c, l); sel.has(l) ? sel.delete(l) : sel.add(l); ck.classList.toggle('is-active', sel.has(l)); paintBar(); } },
-      ck, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
-    el._l = l; el._ck = ck;
-    onLongPress(el, () => { if (!sel) { pick(true); el.click(); } });
-    return el; };
-  const nSel = h('span'), allBtn = h('button', { onclick: () => { const all = sel.size < P.charLists(c).length; sel = new Set(all ? P.charLists(c) : []); mark(); } }, '全选');
-  const bar = h('div.as-mu-pickbar', allBtn, h('button.is-main', { onclick: async () => {
-    if (!sel.size) { toast('先勾几个'); return; }
-    if (!(await dialog({ title: `删除 ${sel.size} 个歌单？`, text: `里面的歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return;
-    c.lists = P.charLists(c).filter(l => !sel.has(l)); commit('contacts'); toast(`删了 ${sel.size} 个`); pick(false); paint();
-  } }, '删除', nSel), h('button', { onclick: () => pick(false) }, '取消'));
-  const paintBar = () => { nSel.textContent = sel.size ? `（${sel.size}）` : ''; allBtn.textContent = sel.size && sel.size === P.charLists(c).length ? '全不选' : '全选'; };
-  const mark = () => { box.querySelectorAll('.as-mu-li').forEach(el => el._ck.classList.toggle('is-active', sel.has(el._l))); paintBar(); };
-  function pick(on) { sel = on ? new Set() : null; p.el.classList.toggle('is-picking', on); if (on) { p.el.append(bar); mark(); } else bar.remove(); }
+  const pickable = multiPick(p.el, box, () => P.charLists(c), async L => {
+    if (!(await dialog({ title: `删除 ${L.length} 个歌单？`, text: `里面的歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return false;
+    c.lists = P.charLists(c).filter(l => !L.includes(l)); commit('contacts'); toast(`删了 ${L.length} 个`); paint(); return true;
+  });
+  const row = l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openCharOne(c, l) },
+    h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
+    el._it = l; return pickable(el); };
   const paint = keep(box, () => JSON.stringify(P.charLists(c).map(l => [l.id, l.name, l.intro, l.songs.length, firstPic(l.songs)])), () => P.charLists(c).length ? P.charLists(c).map(row) : [empty('还没有歌单', h('button.as-mu-morel', { onclick: () => ai.click() }, '让 TA 挑几首（用一次 API）'))]);
   paint(); p.body.append(box); p.el._onShow = paint; charViews[c.id] = { ai, paint };
   nav.push(p.el);
@@ -297,9 +302,14 @@ function renderMe(ctx) {
         ...M().lists.map(l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, l) }, cover(listPic(l)),
           h('div', h('b', l.name), h('span', `歌单 · ${(l.songs || []).length} 首`)),
           h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); delList(l); } }, icon('more', 18, 3)));
-          onLongPress(el, () => delList(l)); return el; }),
+          el._it = l; return pickable(el); }),
         h('div.as-mu-gap')),
     ];
+  });
+  // 长按自己的歌单进多选，一起删（⋯ 里还是编辑 / 导出 / 删除）
+  const pickable = multiPick(ctx.el, box, () => M().lists, async L => {
+    if (!(await dialog({ title: `删除 ${L.length} 个歌单？`, text: '只是从这里拿掉，网易云里的歌单不受影响。', confirm: '删除', danger: true }))) return false;
+    M().lists = M().lists.filter(l => !L.includes(l)); commit('music'); toast(`删了 ${L.length} 个`); paint(); return true;
   });
   const paint = () => { paintAll(); paintHeard(); };
   paint();
@@ -493,21 +503,15 @@ function openLiked() {
     actions: h('div.as-mu-lp__acts', h('button', { onclick: () => editList(likedInfo(), () => v.head(), M().liked) }, icon('edit', 17, 2), '编辑')) });
 }
 function editList(l, after, songs = l.songs) {
-  const d = { pic: l.pic || '', bg: l.bg || '', name: l.name, intro: l.intro || '', tags: (l.tags || []).slice() };
+  const d = { pic: l.pic || '', bg: l.bg || '', name: l.name, intro: l.intro || '' };
   const p = page({ app: 'music', id: 'music-listedit', title: '编辑歌单信息', back: true });
   const thumb = h('span.as-mu-lcover.is-thumb', { style: { backgroundImage: bgUrl(d.pic || firstPic(songs)) } }), bgThumb = h('span.as-mu-lcover.is-thumb', { style: { backgroundImage: bgUrl(d.bg) } });
-  const tags = h('div.as-mu-tags'), tagIn = input({ placeholder: '标签' });
-  const addTag = () => { const t = tagIn.value.trim(); tagIn.value = ''; if (t && !d.tags.includes(t)) { d.tags.push(t); paintTags(); } };
-  const paintTags = () => tags.replaceChildren(...d.tags.map(t => h('button.as-mu-tag', { 'aria-label': '删掉标签 ' + t, onclick: () => { d.tags = d.tags.filter(x => x !== t); paintTags(); } }, t, icon('close', 11, 2.4))));
-  tagIn.addEventListener('keydown', e => { if (e.key === 'Enter') addTag(); });
-  paintTags();
   p.body.append(
     group('', [item({ title: '封面', right: thumb, chevron: true, onClick: async () => { const v = await pickImage('歌单封面', { ratio: 1, size: 600, has: !!d.pic }); if (v != null) { d.pic = v; thumb.style.backgroundImage = bgUrl(v || firstPic(songs)); } } }),
       item({ title: '背景', right: bgThumb, chevron: true, onClick: async () => { const v = await pickImage('歌单背景', { ratio: 1, size: 900, has: !!d.bg }); if (v != null) { d.bg = v; bgThumb.style.backgroundImage = bgUrl(v); } } })]),
-    group('', [l === M().likedInfo || l.name === '喜欢的音乐' ? null : field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', input({ value: d.intro, placeholder: '一句话介绍', onInput: v => { d.intro = v.trim(); } }))]),
-    group('标签', [h('div.as-field', tags, h('div.as-mu-tagadd', tagIn, btn('添加', 'secondary', addTag)))]),
+    group('', [l === M().likedInfo || l.name === '喜欢的音乐' ? null : field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', Object.assign(textarea({ value: d.intro, placeholder: '一句话介绍', rows: 1, onInput: v => { d.intro = v.trim(); } }), { className: 'as-textarea as-mu-intro' }))]),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
-      addTag(); Object.assign(l, { ...d, name: d.name || l.name }); commit('music'); nav.pop(); after && after();
+      Object.assign(l, { ...d, name: d.name || l.name }); commit('music'); nav.pop(); after && after();
     })));
   nav.push(p.el);
 }
@@ -616,7 +620,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
   const nameEl = h('b'), subEl = h('span');
   const head = () => {
-    nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
+    nameEl.textContent = (info && info.name) || title;
     subEl.textContent = (info && info.intro) || sub || ''; subEl.hidden = !subEl.textContent;
     if (info) { cov.style.backgroundImage = bgUrl(info.pic || firstPic(list)); bg.style.backgroundImage = bgUrl(info.bg || info.pic || firstPic(list)); }   // 背景没单独设就用封面
     if (nameEl.isConnected) fit();

@@ -320,15 +320,10 @@
 .as-mu-pair__on { visibility: hidden; color: var(--mu-red); }
 .as-mu-pair.is-on .as-mu-pair__on { visibility: visible; }
 .as-mu-pairedit { display: grid; gap: 12px; padding: 4px 16px 16px; }
-/* 歌单页：标签、收藏 / 编辑 / 导出两个按钮；编辑歌单信息里的标签 */
-.as-mu-tag { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 2px 8px; border: 0; border-radius: 10px; vertical-align: 3px; font: 400 11px/1.4 var(--font-ui); font-style: normal; background: rgba(255,255,255,.22); color: inherit; }
+/* 歌单页：收藏 / 编辑 / 导出两个按钮 */
 .as-mu-lp__acts { display: flex; gap: 12px; padding: 0 16px 18px; }
 .as-mu-lp__acts button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; border: 0; border-radius: 22px; background: rgba(255,255,255,.18); color: #fff; font: 500 14px/1 var(--font-ui); cursor: pointer; }
-.as-mu-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.as-mu-tags:empty { display: none; }
-.as-mu-tags .as-mu-tag { margin: 0; padding: 5px 10px; background: var(--as-color-surface-2); color: var(--as-color-text); cursor: pointer; }
-.as-mu-tagadd { display: flex; gap: 8px; margin-top: 8px; }
-.as-mu-tagadd .as-input { flex: 1; }
+.as-mu-intro { min-height: 0; font-size: 1em; }   /* 编辑歌单的一句话介绍：跟着字数变高，一行就一行高 */
 .as-mu-color { display: grid; gap: 12px; padding: 0 16px 16px; }
 /* 换背景：一格格小图 + 模糊 / 亮度 */
 .as-mp-bgsheet { padding: 0 14px 12px; }
@@ -402,8 +397,8 @@
 .as-mu-swacts .is-next { background: #7c97bd; } .as-mu-swacts .is-fav { background: #d39aa0; } .as-mu-swacts .is-share { background: #8fa786; } .as-mu-swacts .is-rm { background: #e0646b; }   /* 和分类卡片同一套柔和的颜色 */
 .as-mu-all .as-mu-chip { margin-left: auto; }
 .as-mu-li > .as-chat-check { display: none; flex: none; }
-.as-mu-lp.is-picking .as-mu-li > .as-chat-check, .as-mu-cl.is-picking .as-mu-li > .as-chat-check { display: grid; }
-.as-mu-lp.is-picking .as-mu-li .as-mu-more { display: none; }
+.is-picking .as-mu-li > .as-chat-check { display: grid; }
+.is-picking .as-mu-li .as-mu-more { display: none; }
 .as-mu-pickbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 10px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--mu-card); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
 .as-mu-pickbar button { flex: 1; border: 0; border-radius: 20px; padding: 11px 0; background: var(--mu-fill); color: var(--mu-ink); font: 500 14px/1 var(--font-ui); cursor: pointer; white-space: nowrap; }
 .as-mu-pickbar .is-main { flex: 1.6; background: var(--mu-red); color: #fff; }
