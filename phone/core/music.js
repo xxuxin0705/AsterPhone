@@ -141,6 +141,7 @@ async function load(autoplay) {
     return;
   }
   go([meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`]);
+  probe(s);
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
   let base = [], yrc = [];
   const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
@@ -152,6 +153,17 @@ async function load(autoplay) {
     log('info', '音乐', yrc.length ? `《${s.name}》拿到了逐字歌词` : `《${s.name}》没有逐字歌词，按句子估时间`);
     if (yrc.length) done();
   }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词没拿到：${e.message}`));
+}
+/* 临时测试（作者手机上看结果用，测完删）：后台想接着放下一首，得把下一首接在同一条声音后面，
+ * 前提是网页能直接读到歌曲文件、浏览器支持往一条声音里续内容。每次打开手机只测一次，结果弹出来 */
+let probed = false;
+function probe(s) {
+  if (probed) return; probed = true;
+  const ms = !!(window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')), ac = new AbortController();
+  const say = t => import('./ui.js').then(m => m.toast(`（测试）${t}；续接：${ms ? '支持' : '不支持'}`));
+  fetch(meting('url', s.id), { signal: ac.signal })
+    .then(r => { ac.abort(); say(r.ok ? `歌曲文件能读（${r.headers.get('content-type') || '不知道类型'}）` : `歌曲文件回了 ${r.status}`); },
+      e => say('歌曲文件读不到：' + e.message));
 }
 export function toggle() {
   if (!current()) return;
