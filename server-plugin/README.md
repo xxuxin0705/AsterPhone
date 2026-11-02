@@ -3,6 +3,13 @@
 装了以后，小手机的音乐会通过它去连网易云：登录后会员歌也能放，红心同步到网易云，「我的」里多出每日推荐和你网易云里的歌单。不装也能用，照旧走公共音源；Tauri Tavern 装不了，也照旧。
 
 ## 安装（一次）
+**Termux**：复制这一整行进去回车，看到「装好了」后重启酒馆。以后插件更新了，再跑一遍就行（登录不会掉）。
+
+```
+cd ~/SillyTavern && mkdir -p plugins/asterphone && for f in index.js qrcode.js; do curl -fsSL https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/server-plugin/$f -o plugins/asterphone/$f || exit 1; done && sed -i "s/enableServerPlugins: false/enableServerPlugins: true/" config.yaml && echo 装好了，重启酒馆就行
+```
+
+**电脑上手动装**：
 1. 把这个 `server-plugin` 文件夹复制到 `SillyTavern/plugins/` 下面，改名叫 `asterphone`。
 2. 打开 `SillyTavern/config.yaml`，把 `enableServerPlugins: false` 改成 `true`。
 3. 重启酒馆。
