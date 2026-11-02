@@ -50,9 +50,9 @@ export const neDaily = () => be('/daily');
 export const neLists = () => be('/playlists');
 
 /* ---------- 找歌 ---------- */
-export async function search(word) {
-  if (ne) try { return await be('/search?word=' + encodeURIComponent(word)); } catch (e) { log('warn', '音乐', '插件搜歌失败，改用公共音源：' + e.message); }
-  const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }), 'json', `搜「${word}」`);
+export async function search(word, page = 1) {
+  if (ne) try { return await be(`/search?word=${encodeURIComponent(word)}&page=${page}`); } catch (e) { log('warn', '音乐', '插件搜歌失败，改用公共音源：' + e.message); }
+  const j = await get(q(src('vkeys'), { word, page, num: 30 }), 'json', `搜「${word}」`);
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
@@ -465,6 +465,7 @@ export async function storyTogether(c, text) {
   return s;
 }
 export async function storyAddSong(c, text) {
+  if (M().storyWho && !M().storyWho.includes(c.id)) return;   // 没勾上的人不加
   const s = await findSong(text);
   if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${text}》，但没搜到`); return; }
   if (addToChar(c, s)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单`);

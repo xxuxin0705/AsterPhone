@@ -102,28 +102,59 @@ const songCard = (s, onclick, face) => h('button.as-mu-sq', { onclick }, h('span
 const charCard = c => songCard({ name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c), avatar(c.avatar, nameOf(c), 80, 'square'));
 /** 角色歌单的顺序：拖过的按拖好的排（存在联系人身上 songOrder），没拖过的接在后面 */
 const charList = () => state.contacts.map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+// 随剧情每楼加一首歌：打开了旁边出「给谁加」，勾哪些人（M().storyWho，空 = 所有人）
 const storySongsRow = () => {
   const ck = h('span.as-chat-check' + (M().storySongs ? '.is-active' : ''), icon('check', 14, 2.6));
-  return h('label.as-mu-only', { onclick: () => { M().storySongs = !M().storySongs; ck.classList.toggle('is-active', M().storySongs); commit('music'); commit('inject'); } }, ck, '随剧情每楼加一首歌');
+  const whoLabel = () => M().storyWho ? `${M().storyWho.length} 个人` : '所有人';
+  const who = h('button.as-mu-chip', { hidden: !M().storySongs, onclick: e => { e.preventDefault(); pickWho(); } }, whoLabel(), icon('chevron', 12, 2));
+  function pickWho() {
+    const on = new Set(M().storyWho || state.contacts.map(c => c.id));
+    const rows = state.contacts.map(c => { const b = h('span.as-chat-check' + (on.has(c.id) ? '.is-active' : ''), icon('check', 14, 2.6));
+      return h('label.as-mu-only', { onclick: e => { e.preventDefault(); on.has(c.id) ? on.delete(c.id) : on.add(c.id); b.classList.toggle('is-active', on.has(c.id)); } }, b, nameOf(c)); });
+    sheet({ title: '给谁加', content: h('div.as-mu-who', ...rows), onClose: () => {
+      M().storyWho = on.size === state.contacts.length ? null : state.contacts.filter(c => on.has(c.id)).map(c => c.id);
+      who.firstChild.textContent = whoLabel(); commit('music'); commit('inject');
+    } });
+  }
+  return h('div.as-mu-story', h('label.as-mu-only', { onclick: () => { M().storySongs = !M().storySongs; ck.classList.toggle('is-active', M().storySongs); who.hidden = !M().storySongs; commit('music'); commit('inject'); } }, ck, '随剧情每楼加一首歌'), who);
 };
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
   const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el); return el; }));
   p.body.append(storySongsRow(), grid);
   nav.push(p.el);
-  // 长按一个拿起来，拖到别的格子上就换到那儿，松手存顺序
+  // 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的格子就让位，别的格子滑过去；松手落回空位，存顺序
   function sortable(el) {
-    onLongPress(el, () => {
-      el.classList.add('is-dragging');
+    onLongPress(el, e0 => {
+      let x0 = e0.clientX, y0 = e0.clientY, px = x0, py = y0;
+      const place = () => { el.style.transform = `translate(${px - x0}px, ${py - y0}px) scale(1.08)`; };
+      el.classList.add('is-dragging'); el.style.transition = 'transform 150ms ease, box-shadow 150ms'; place();
+      setTimeout(() => { if (el.classList.contains('is-dragging')) el.style.transition = 'box-shadow 150ms'; }, 150);
+      navigator.vibrate && navigator.vibrate(10);
       const move = e => {
         e.stopPropagation();   // 别让「右滑返回」也收到
-        const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom; });
-        if (over) { const r = over.getBoundingClientRect(); grid.insertBefore(el, e.clientX > r.left + r.width / 2 ? over.nextSibling : over); }
+        px = e.clientX; py = e.clientY; place();
+        const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return px > r.left && px < r.right && py > r.top && py < r.bottom; });
+        if (!over) return;
+        const r = over.getBoundingClientRect(), ref = px > r.left + r.width / 2 ? over.nextSibling : over;
+        if (ref === el || ref === el.nextSibling) return;   // 本来就在那儿
+        // 先记下每格的位置，挪完再让它们从旧位置滑到新位置
+        const kids = [...grid.children], was = new Map(kids.map(k => [k, k.getBoundingClientRect()]));
+        grid.insertBefore(el, ref);
+        kids.forEach(k => {
+          if (k === el) return;
+          const a = was.get(k), b = k.getBoundingClientRect(); if (a.left === b.left && a.top === b.top) return;
+          k.style.transition = 'none'; k.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
+          requestAnimationFrame(() => { k.style.transition = 'transform 220ms ease'; k.style.transform = ''; });
+        });
+        // 自己换了格子：起点跟着挪，还是在手指底下
+        const a = was.get(el), b = el.getBoundingClientRect(); x0 += b.left - a.left; y0 += b.top - a.top; place();
       };
       const noScroll = e => e.preventDefault();
       const up = () => {
         removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
-        el.classList.remove('is-dragging');
+        el.style.transition = 'transform 200ms ease, box-shadow 200ms'; el.style.transform = ''; el.classList.remove('is-dragging');
+        setTimeout(() => { el.style.transition = ''; }, 220);
         [...grid.children].forEach((x, i) => { state.contacts.find(c => c.id === x.dataset.id).songOrder = i; });
         commit('contacts');
       };
@@ -170,9 +201,12 @@ function renderSearch(ctx) {
     M().history = [word, ...M().history.filter(x => x !== word)].slice(0, 10); commit('music'); paintHist();
     toast('正在搜…', true);
     try {
-      const [songs, lists] = await Promise.all([P.search(word), P.searchLists(word)]);
+      // 一次先搜 3 页；最下面「再多搜一些」接着往后翻 3 页，搜到的和前面重复的不要
+      let page = 0, all = [];
+      const batch = async () => { const got = (await Promise.all([1, 2, 3].map(k => P.search(word, page + k).catch(() => [])))).flat(); page += 3; const fresh = got.filter(s => !all.some(x => x.id === s.id) && (all.push(s), true)); return fresh; };
+      const [songs, lists] = await Promise.all([batch(), P.searchLists(word)]);
       toast(songs.length || lists.length ? `找到${lists.length ? ` ${lists.length} 个歌单、` : ' '}${songs.length} 首` : '没搜到');
-      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null });
+      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null, more: batch });
     }
     catch (e) { log('error', '音乐', `搜「${word}」失败：${e.message}`); toast('搜索失败：' + e.message); }
   }
@@ -474,11 +508,18 @@ function openLocal() {
 }
 
 /* ================= 歌单页：上面是封面和名字（背景是封面糊开），下面白底列表 ================= */
-function openList(title, list, { right, onRemove, count, sub, top, info, actions } = {}) {
+function openList(title, list, { right, onRemove, count, sub, top, info, actions, more } = {}) {
   const p = page({ app: 'music', id: 'music-list', back: true, right, cls: 'as-mu-lp.is-dark' });
   const bg = h('div.as-mu-lp__bg'), cov = h('span.as-mu-lcover.is-big'), n = h('span'), rows = h('div');
   p.el.prepend(bg);
   // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
+  // 搜索结果：最下面「再多搜一些」，搜到的新歌接在后面（只加新的那几行，不重画）
+  const moreBtn = h('button.as-mu-morel', { onclick: async () => {
+    moreBtn.disabled = true; toast('正在多搜一些…', true);
+    try { const L = await more(); if (!L.length) { toast('没有更多了'); moreBtn.remove(); return; } list.push(...L); rows.append(...L.map(row)); n.textContent = `${list.length} 首`; toast(`又找到 ${L.length} 首`); }
+    catch (e) { log('warn', '音乐', '多搜失败：' + e.message); toast('没搜到更多：' + e.message); }
+    moreBtn.disabled = false;
+  } }, '再多搜一些');
   const nameEl = h('b'), subEl = h('span');
   const head = () => {
     nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
@@ -487,7 +528,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   };
   p.body.append(h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)),
     actions || null,
-    h('div.as-mu-sheet', top, h('div.as-mu-all', { role: 'button', onclick: () => list.length && play(list, 0, title) }, h('i', icon('play', 15, 0)), h('div', h('b', '播放全部'), n)), rows, h('div.as-mu-gap')));
+    h('div.as-mu-sheet', top, h('div.as-mu-all', { role: 'button', onclick: () => list.length && play(list, 0, title) }, h('i', icon('play', 15, 0)), h('div', h('b', '播放全部'), n)), rows, more ? moreBtn : null, h('div.as-mu-gap')));
   const row = s => {
     const el = h('div.as-mu-li.is-song', { role: 'button', onclick: () => play(list, list.indexOf(s), title) }, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(s.pic) } }, s.local ? icon('music', 18, 1.8) : null),
       h('div', h('b', s.name), h('span', s.artist)),

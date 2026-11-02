@@ -88,7 +88,7 @@ export function openChoirLook({ bgImage, bgFilter, c, me }) {
   let who = people[0].id;
   const rows = people.map((x, k) => {
     const l = L[k] || { text: '在某个平行世界', tr: '' };
-    const r = h('div.as-ch.is-said' + (x.mine ? '.is-me' : ''), { role: 'button', style: { '--p': '55%' }, onclick: () => pick(x.id) }, avatar(x.avatar, x.name, 32), h('p', h('span', l.text), l.tr ? h('small', h('span', l.tr)) : null));
+    const r = h('div.as-ch.is-said.is-cur' + (x.mine ? '.is-me' : ''), { role: 'button', style: { '--p': '55%' }, onclick: () => pick(x.id) }, avatar(x.avatar, x.name, 32), h('p', h('span', l.text), l.tr ? h('small', h('span', l.tr)) : null));
     r._who = x; return r;
   });
   const restyle = () => rows.forEach(r => styleChoir(r, r._who.id, r._who.mine));
@@ -96,7 +96,7 @@ export function openChoirLook({ bgImage, bgFilter, c, me }) {
   const save = () => { commit('music'); restyle(); };
   function pick(id) {
     who = id;
-    rows.forEach(r => r.classList.toggle('is-cur', r._who.id === who || who === 'def'));
+    rows.forEach(r => r.classList.toggle('is-sel', r._who.id === who || who === 'def'));   // 选中只在整行后面垫一层，气泡和头像照原样（头像以后要加头像框）
     const x = people.find(y => y.id === who), o = C[who] || (C[who] = {});
     box.replaceChildren(group('', [
       item({ title: '给谁调', right: h('span', who === 'def' ? '所有人（没单独调过的）' : x.name), chevron: true, onClick: async () => {

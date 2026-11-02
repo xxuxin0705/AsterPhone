@@ -54,9 +54,12 @@
 .as-mu-sq__cover .as-avatar { width: 100% !important; height: 100% !important; border-radius: inherit; font-size: 28px !important; }
 .as-mu-sq__cover { overflow: hidden; }
 .as-page[data-as-page="music-chars"] .as-mu-grid { padding: 8px 0; }
-.as-page[data-as-page="music-chars"] .as-mu-only { margin: 4px 0 14px; }
-.as-mu-sq.is-dragging { transform: scale(1.08); opacity: .85; transition: transform 150ms; z-index: 2; position: relative; }
-.as-mu-sheet > .as-mu-only { margin: 14px 0 4px; }
+.as-mu-story { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+.as-mu-story .as-mu-only { margin: 4px 0; }
+.as-mu-chip[hidden] { display: none; }
+.as-mu-who { display: grid; gap: 16px; padding: 4px 20px 18px; max-height: 60vh; overflow: auto; }
+.as-mu-sq.is-dragging { position: relative; z-index: 3; border-radius: 14px; box-shadow: 0 12px 28px rgba(0,0,0,.2); }   /* 位置和放大在 JS 里跟着手指改 */
+.as-mu-sheet > .as-mu-story { margin: 14px 0 4px; }
 .as-mu-sq { flex: none; width: 29%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; display: grid; gap: 3px; }
 .as-mu-sq__cover { display: block; aspect-ratio: 1; margin-bottom: 5px; border-radius: 10px; background: #e2e3e8 center / cover; }
 .as-mu-sq b, .as-mu-sq > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -367,10 +370,12 @@
 .as-tgl__bg { position: absolute; inset: 0; background: #5a2a3a center / cover; }
 .as-tgl__pv .as-tg { display: block; position: relative; padding: 64px 0 24px; }
 /* 歌词颜色的预览：每人一行，人多就在框里上下滑 */
-.as-tgl__list { position: relative; max-height: 330px; overflow-y: auto; padding: 14px; display: grid; gap: 12px; }
+.as-tgl__list { position: relative; max-height: 330px; overflow-y: auto; padding: 10px; display: grid; gap: 6px; }
 .as-tgl__list .as-ch { margin: 0; cursor: pointer; }
 .as-tgl__list .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
 .as-tgl__list .as-ch.is-me p { border-radius: 16px 16px 4px 16px; }
-.as-tgl__list .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.as-tgl__list .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); }
+.as-tgl__list .as-ch { padding: 6px; border-radius: 16px; transition: background 200ms; }
+.as-tgl__list .as-ch.is-sel { background: rgba(255,255,255,.22); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); }
 .as-tgl__list .as-ch small { display: block; margin-top: 4px; font-size: 12.5px; }
 .as-tgl__dot { display: inline-block; width: 22px; height: 22px; border-radius: 50%; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0,0,0,.12); }

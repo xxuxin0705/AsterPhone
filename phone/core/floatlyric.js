@@ -22,7 +22,10 @@ const host = () => ({ phone: document, tavern: parent.document })[cfg().where] |
 /** 字体装进悬浮窗所在的那一页：内置的挂一个 CSS；字体库里的从存着的文件装（酒馆页面那边没装过） */
 export async function useFont(doc, f) {
   const b = FONTS.find(x => x[0] === f);
-  if (b) { if (b[2] && !doc.querySelector(`link[data-aster-font="${b[2]}"]`)) doc.head.append(Object.assign(doc.createElement('link'), { rel: 'stylesheet', href: CDN + b[2], dataset: { asterFont: b[2] } })); return f ? `"${f}"` : ''; }
+  if (b) {
+    if (b[2] && !doc.querySelector(`link[data-aster-font="${b[2]}"]`)) { const l = Object.assign(doc.createElement('link'), { rel: 'stylesheet', href: CDN + b[2] }); l.dataset.asterFont = b[2]; doc.head.append(l); }
+    return f ? `"${f}"` : '';
+  }
   const id = f.slice(2), fam = 'AsterUser-' + id;
   if (doc !== document && ![...doc.fonts].some(x => x.family === fam)) {
     const r = ((await kvGet('fonts:clock').catch(() => null)) || []).find(x => x.id === id); if (!r) return '';
