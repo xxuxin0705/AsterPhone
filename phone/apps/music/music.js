@@ -646,7 +646,7 @@ export function openPlayer() {
   // 群唱：一起听时歌词一人一句，像聊天一样一条条冒出来（我的在右边）
   const choir = () => !!P.together() && S.tg !== 'plain';
   const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x), x.id]) : [[c.avatar, nameOf(c), c.id]];
-  // 群唱每行照「一起听的样子」里这个角色的设置上色（我那行用私聊对象的设置，群里用默认）
+  // 对话式歌词每行照「歌词颜色」里这个人的设置上色
   const restyle = () => lines.forEach(r => r._ch && styleChoir(r, ...r._ch));
   let tgWho = '';
   const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.togetherSec(c)); };
@@ -673,7 +673,7 @@ export function openPlayer() {
       if (!tc) return ly;
       const mine = k % (who.length + 1) === who.length, [a, n, id] = mine ? my : who[k % (who.length + 1)];
       const row = h('div.as-ch' + (mine ? '.is-me' : ''), avatar(a, n, 32), ly);
-      row._ch = [mine ? (tc.type === 'group' ? '' : tc.id) : id, mine]; return row;
+      row._ch = [id, mine]; return row;
     });
     lrc.classList.toggle('is-choir', !!tc); restyle();
     lrc.replaceChildren(...(L.length ? lines : [h('p.is-none', s.local ? '本地的歌没有歌词' : '纯音乐，或者没找到歌词')]));
@@ -705,11 +705,12 @@ export function openPlayer() {
   async function skin() {
     const tc = P.together(), rec = !/^(rain|cad)$/.test(S.name), color = { value: 'color', label: '歌词颜色', icon: 'palette' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
-    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '群唱', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
+    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
         { value: 'cad', label: '碎语', active: S.name === 'cad' }, color]);
     if (!v) return;
     if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
+    if (v === 'color' && tc) { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
       const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', colorWheel(S.color || '#7cc4ff', c => { S.color = c; commit('music'); paintColor(); }),
         btn('恢复默认', 'secondary', () => { S.color = ''; commit('music'); paintColor(); sh.close(); })) });

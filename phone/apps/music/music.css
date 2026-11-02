@@ -277,10 +277,10 @@
 .as-ch.is-said { display: flex; animation: as-ch-in 350ms ease-out; }
 .as-ch.is-me { flex-direction: row-reverse; }
 .as-ch > .as-avatar { flex: none; }
-.as-mp__lrc .as-ch p, .as-tgl__ch .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
+.as-mp__lrc .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
 .as-mp__lrc .as-ch.is-me p { border-radius: 16px 16px 4px 16px; }
 .as-mp__lrc .as-ch small { font-size: 12.5px; }
-.as-mp__lrc .as-ch.is-cur p, .as-tgl__ch .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); }
+.as-mp__lrc .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); }
 .as-ch.is-cur p > span, .as-ch.is-cur small > span { background: linear-gradient(90deg, var(--ly, #7cc4ff) var(--p, 0%), var(--ch-ink, rgb(var(--mp-ink))) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @keyframes as-ch-in { from { opacity: 0; transform: translateY(12px) scale(.96); } }
 /* 碎语：唱片那块换成散开的字（翻译也散开、小一点），唱到哪个字亮哪个字 */
@@ -363,9 +363,14 @@
 .as-tg.has-ear .as-tg__tint { display: block; }
 .as-tg__half { isolation: isolate; }
 /* 一起听的样子：上面的预览 */
-.as-tgl__pv { position: sticky; top: 0; z-index: 2; margin: 0 -16px 12px; height: 390px; overflow: hidden; --mp-ink: 255,255,255; }
+.as-tgl__pv { position: sticky; top: 0; z-index: 2; margin: 0 -16px 12px; overflow: hidden; --mp-ink: 255,255,255; }
 .as-tgl__bg { position: absolute; inset: 0; background: #5a2a3a center / cover; }
-.as-tgl__pv .as-tg { display: block; position: absolute; left: 0; right: 0; top: 64px; }
-.as-tgl__ch { position: absolute; left: 14px; right: 14px; bottom: 12px; display: grid; gap: 10px; }
-.as-tgl__ch .as-ch small { display: block; margin-top: 4px; font-size: 12.5px; }
+.as-tgl__pv .as-tg { display: block; position: relative; padding: 64px 0 24px; }
+/* 歌词颜色的预览：每人一行，人多就在框里上下滑 */
+.as-tgl__list { position: relative; max-height: 330px; overflow-y: auto; padding: 14px; display: grid; gap: 12px; }
+.as-tgl__list .as-ch { margin: 0; cursor: pointer; }
+.as-tgl__list .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
+.as-tgl__list .as-ch.is-me p { border-radius: 16px 16px 4px 16px; }
+.as-tgl__list .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.as-tgl__list .as-ch small { display: block; margin-top: 4px; font-size: 12.5px; }
 .as-tgl__dot { display: inline-block; width: 22px; height: 22px; border-radius: 50%; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0,0,0,.12); }
