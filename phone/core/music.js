@@ -447,28 +447,36 @@ export async function charPick(c, onStep, stop) {
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）',
       existing: (existing || '（还没有歌单）') + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）') }) });   // AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
-  // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）
+  // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）；「备选：」开头的是这个歌单的备选
   let cur = { name: '喜欢的音乐', intro: '' }; const todo = [];
   for (const t of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(x => x.trim())) {
-    const m = t.match(/^(歌单|路人)[:：]\s*(.+)$/), [a, b = ''] = (m ? m[2] : t).split(/[|｜]/).map(x => x.trim());
+    const m = t.match(/^(歌单|路人|备选)[:：]\s*(.+)$/), [a, b = ''] = (m ? m[2] : t).split(/[|｜]/).map(x => x.trim());
     if (m && m[1] === '歌单') cur = { name: bare(a) || '喜欢的音乐', intro: b };
-    else if (m) { if (todo.length && b) (todo.at(-1).others = todo.at(-1).others || []).push({ name: a, text: b }); }
-    else if (/\s[-–—]\s/.test(a)) todo.push({ song: a.replace(/^(\d+[.、)）]|[-*•])\s*/, ''), thought: b, ...cur });
+    else if (m && m[1] === '路人') { if (todo.length && b) (todo.at(-1).others = todo.at(-1).others || []).push({ name: a, text: b }); }
+    else if (/\s[-–—]\s/.test(a)) todo.push({ song: a.replace(/^(\d+[.、)）]|[-*•])\s*/, ''), thought: b, spare: !!m, ...cur });
   }
   if (!todo.length) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
-  // AI 还是抄了已有的：歌单里已经有同名的歌就不去搜了，直接算「已经有了」
+  const find = async q => (await findSong(q)) || (await new Promise(r => setTimeout(r, 800)), await findSong(q));   // 没搜到的歇一下再搜一次（音源一下子收到好几个请求时会漏回）
+  // AI 抄了已有的：歌单里已经有同名的歌就不去搜了
   const has = x => (charLists(c).find(l => l.name === x.name)?.songs || []).some(s => s.name.toLowerCase() === x.song.split(/\s[-–—]\s/)[0].trim().toLowerCase());
-  let dup = todo.length; todo.splice(0, todo.length, ...todo.filter(x => !has(x))); dup -= todo.length;
-  // 四首一起搜（一首一首搜太慢），没搜到的歇一下再搜一次（音源一下子收到好几个请求时会漏回）；搜完按 AI 给的顺序放进歌单
-  const found = []; let k = 0, n = 0;
-  const find = async q => (await findSong(q)) || (await new Promise(r => setTimeout(r, 800)), await findSong(q));
-  await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await find(todo[i].song); onStep && onStep(++n, todo.length); } }));
-  const miss = todo.filter((x, i) => !found[i]).map(x => x.song);
+  const main = todo.filter(x => !x.spare), spare = todo.filter(x => x.spare), miss = [], got = [], need = {};
+  let dup = 0, used = 0, n = 0;
+  const lack = x => { need[x.name] = (need[x.name] || 0) + 1; };
+  const put = async (x, s) => { if (!addToChar(c, s, x.name, x.intro)) return false; got.push(s); await songThought(c, s, x.thought, x.others); return true; };
+  // 先搜正选：四首一起搜（一首一首搜太慢），搜完按 AI 给的顺序放进歌单；没搜到的、重复的记下这个歌单还差几首
+  const go = main.filter(x => has(x) ? (dup++, lack(x), false) : true), found = []; let k = 0;
+  await Promise.all(Array.from({ length: 4 }, async () => { while (k < go.length) { const i = k++; found[i] = await find(go[i].song); onStep && onStep(++n, go.length); } }));
+  for (const [i, x] of go.entries()) { if (!found[i]) { miss.push(x.song); lack(x); } else if (!(await put(x, found[i]))) { dup++; lack(x); } }
+  // 再用备选补：哪个歌单差几首，就按顺序拿它的备选去搜，补够为止
+  for (const x of spare) {
+    if (!need[x.name] || has(x)) continue;
+    onStep && onStep(n, go.length, true);
+    const s = await find(x.song);
+    if (s && await put(x, s)) { need[x.name]--; used++; }
+  }
   if (miss.length) log('warn', '角色歌单', `${miss.length} 首在音源里没搜到：${miss.join('、')}`);
-  if (todo.length && !dup && !found.some(Boolean)) throw new Error('AI 挑的歌一首都没搜到');
-  const got = [];
-  for (const [i, s] of found.entries()) if (s) { if (addToChar(c, s, todo[i].name, todo[i].intro)) { got.push(s); await songThought(c, s, todo[i].thought, todo[i].others); } else dup++; }
-  return { got, miss: miss.length, dup };
+  if (!got.length && !dup) throw new Error('AI 挑的歌一首都没搜到');
+  return { got, miss: miss.length, dup, used, short: Object.values(need).reduce((a, b) => a + b, 0) };
 }
 /** TA 对歌单里这首歌的感想（还有路人评论）放进这首歌的评论区；写乐评重来时这些留着（fromList） */
 async function songThought(c, s, text, others) {

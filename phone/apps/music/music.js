@@ -218,7 +218,7 @@ function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
     if (picking[c.id]) { picking[c.id].abort(); return; }
     const ac = picking[c.id] = new AbortController(); ai.textContent = '取消'; toast(`${nameOf(c)}正在挑歌…`, true);
-    try { const r = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true), ac.signal); toast([`加了 ${r.got.length} 首`, r.miss && `${r.miss} 首没搜到`, r.dup && `${r.dup} 首已经有了`].filter(Boolean).join('，')); }
+    try { const r = await P.charPick(c, (n, all, sp) => toast(sp ? '正在用备选补…' : `正在找歌 ${n} / ${all}`, true), ac.signal); toast([`加了 ${r.got.length} 首`, r.used && `其中 ${r.used} 首是备选补的`, r.short && `还差 ${r.short} 首没补上`].filter(Boolean).join('，')); }
     catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
     finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
