@@ -56,12 +56,13 @@ async function init(router) {
   }));
   router.get('/qr/check', wrap(async req => {
     const { j, r } = await ne('/api/login/qrcode/client/login', { key: req.query.key, type: 3 }, false);
+    if (j.code !== 801) console.log('[AsterPhone] 扫码登录：', j.code, j.message || '');   // 801 是还在等扫，太多不打
     if (j.code === 803) {
       const m = (r.headers.getSetCookie?.() || [r.headers.get('set-cookie') || '']).join(';').match(/MUSIC_U=([^;]+)/);
       if (!m) throw new Error('登录成功了，但网易云没给登录凭证');
       await save(m[1]);
     }
-    return { code: j.code, me };
+    return { code: j.code, message: j.message || '', me };
   }));
   router.post('/cookie', wrap(async req => {
     const c = String((await body(req)).cookie || '').trim().replace(/^.*MUSIC_U=/, '').replace(/;.*$/, '');

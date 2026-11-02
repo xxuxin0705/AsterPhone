@@ -236,13 +236,16 @@ async function neLogin(after) {
   const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('div.as-mu-login__qr');
   qr.innerHTML = q.svg;
   const s = sheet({ title: '登录网易云', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st,
-    h('div.as-mu-login__btns', btn('在网易云打开', 'secondary', () => window.open(q.link)), btn('粘贴 MUSIC_U', 'secondary', paste))) });
+    h('div.as-mu-login__btns', btn('粘贴 MUSIC_U', 'secondary', paste))) });
   const done = name => { clearInterval(t); s.close(); toast('登录了：' + name); after(); };
   t = setInterval(async () => {
-    const j = await P.neQrCheck(q.key).catch(() => null); if (!j) return;
+    // 问不到、或者网易云回了别的（比如要验证）都写在二维码下面，不吞掉
+    const j = await P.neQrCheck(q.key).catch(e => { log('error', '音乐', '扫码登录出错：' + e.message); st.textContent = '出错了：' + e.message; return null; }); if (!j) return;
+    if (j.code === 801) return;
     if (j.code === 802) st.textContent = '扫好了，在手机上点确认';
-    if (j.code === 800) { clearInterval(t); st.textContent = '二维码过期了，关掉再开一次'; }
-    if (j.code === 803) done(j.me ? j.me.name : '');
+    else if (j.code === 800) { clearInterval(t); st.textContent = '二维码过期了，关掉再开一次'; }
+    else if (j.code === 803) done(j.me ? j.me.name : '');
+    else { clearInterval(t); st.textContent = `网易云回：${j.message || j.code}`; log('error', '音乐', `扫码登录：网易云回 ${j.code} ${j.message}`); }
   }, 2000);
   async function paste() {
     const c = await dialog({ title: '粘贴 MUSIC_U', input: { placeholder: 'MUSIC_U' } }); if (!c) return;
