@@ -277,7 +277,7 @@
 
 /* 群里一起听：不放头像，只写一起听了多久 */
 .as-tg.is-group .as-tg__pair { display: none; }
-.as-tg.is-group .as-tg__time { margin-top: -38px; }   /* 左上角返回键下面一点 */
+.as-mp__top .as-tg__time { margin: 0; }
 .as-mp.is-tg .as-tg.is-group ~ .as-mp__lrc { top: 22px; }
 /* 群唱：一人一句，像聊天一样冒出来，我的在右边 */
 .as-mp__lrc.is-choir { padding: 0 16px; }
@@ -295,8 +295,9 @@
 .as-mp__fx { display: none; position: absolute; inset: 0; flex-direction: column; justify-content: center; align-items: center; padding: 0 26px; text-align: center; pointer-events: none; }
 .as-mp.is-cad:not(.is-lrc):not(.is-tg) .as-mp__fx { display: flex; }
 .as-mp.is-cad .as-mp__stage { display: none; }
-.as-fx__cur { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 3px; font: 600 28px/1.35 var(--font-ui); }
-.as-fx__cur.is-tr { margin-top: 30px; gap: 3px 1px; font: 400 16px/1.4 var(--font-ui); }
+.as-fx__cur { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 7px; font: 600 28px/1.35 var(--font-ui); }   /* 字之间留够空，歪了也不粘在一起 */
+.as-fx__cur.is-tr { margin-top: 22px; gap: 4px 3px; font: 400 16px/1.4 var(--font-ui); }
+.as-fx__cur.is-next { margin-top: 44px; font-size: 22px; opacity: .8; }
 .as-fx__cur span { display: inline-block; min-width: .3em; color: rgba(var(--mp-ink),.3); transform: translateY(var(--y)) rotate(var(--r)) scale(var(--s)); transition: color 250ms, text-shadow 250ms; }
 .as-fx__cur.is-in span { animation: as-cad-in 700ms var(--d) both ease-out; }
 @keyframes as-cad-in { from { opacity: 0; transform: translateY(calc(var(--y) * 3)) rotate(calc(var(--r) * 3)) scale(.4); filter: blur(6px); } }

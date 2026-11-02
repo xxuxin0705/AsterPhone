@@ -779,6 +779,7 @@ export function openPlayer() {
     // 头像只在换人时换（图片重新解码会闪）；气泡只改字
     const grp = c.type === 'group';
     tgEl.classList.toggle('is-group', grp);
+    const home = grp ? top : tgEl; if (tgTime.parentNode !== home) home.append(tgTime);   // 群里「一起听了多久」放到顶栏，和返回键同一行
     if (!grp && tgWho !== c.id) { tgWho = c.id; tgAv[0].replaceChildren(avatar(me().avatar, me().nick, 84)); tgAv[1].replaceChildren(avatar(c.avatar, nameOf(c), 84)); }
     const x = grp ? null : P.pairNow();
     [x && x.a, x && x.b].forEach((t, i) => { tgBub[i].hidden = !t; tgBub[i].firstChild.textContent = t || ''; });
