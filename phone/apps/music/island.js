@@ -1,5 +1,5 @@
 // 放歌时：小手机顶上的灵动岛（小封面 + 跳动的音波，音波是歌词颜色），点一下展开成小播放器（点封面进播放页，点别处收回去）；
-// 锁屏上的播放卡片（封面、歌名、进度、红心 / 上一首 / 暂停 / 下一首），通知往下让。
+// 锁屏上的播放卡片（封面、歌名、进度、红心 / 上一首 / 暂停 / 下一首）：在放歌才有，往左划能划掉（歌照放）。
 import { h } from '../../core/util.js';
 import { state } from '../../core/store.js';
 import { icon } from '../../core/ui.js';
@@ -35,6 +35,18 @@ function build() {
     h('div.as-lmc__prog', t0, h('div.as-lmc__bar', lb), t1),
     h('div.as-lmc__ctrl', heart, btn('prev', '上一首', () => P.prev(), 30), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, lp), btn('next', '下一首', () => P.next(), 30), h('span')));
   lock.querySelector('.as-lock__head').after(c);
+  // 往左划掉卡片：歌照放，下一首或者暂停后再放时回来
+  let x0 = null, dx = 0;
+  c.addEventListener('pointerdown', e => { e.stopPropagation(); x0 = e.clientX; dx = 0; });   // 不让锁屏当成上滑解锁
+  addEventListener('pointermove', e => { if (x0 == null) return; dx = Math.min(0, e.clientX - x0); c.style.transform = `translateX(${dx}px)`; c.style.opacity = 1 + dx / 300; });
+  addEventListener('pointerup', () => {
+    if (x0 == null) return; x0 = null;
+    if (dx < -8) c.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });   // 划完松手那一下不算点按钮
+    if (dx > -90) { c.style.transform = c.style.opacity = ''; return; }
+    c.style.transition = 'transform 220ms, opacity 220ms'; c.style.transform = 'translateX(-110%)'; c.style.opacity = '0';
+    setTimeout(() => { gone = true; c.style.transition = c.style.transform = c.style.opacity = ''; paint(); }, 220);
+  });
+  new MutationObserver(paint).observe(sb.closest('.as-phone'), { attributes: true, attributeFilter: ['class'] });   // 锁上 / 解锁时看卡片该不该在
   card = { el: c, lock, cov: lc, name: ln, artist: la, bar: lb, t0, t1, play: lp, heart };
   return true;
 }
@@ -48,12 +60,16 @@ export function burst(btn) {
   btn.append(...bits);
   setTimeout(() => bits.forEach(b => b.remove()), 1100);
 }
-let songId = '';
+let songId = '', gone = false, stay = false, wasOn = false;
 function paint() {
   if (!isl && !build()) return;
-  const s = P.current(), on = P.playing(), ly = (state.music.skin || {}).color || '';
+  const s = P.current(), on = P.playing(), ly = (state.music.skin || {}).color || '', locked = card.lock.closest('.as-phone').classList.contains('is-locked');
   isl.el.hidden = !s || (!on && !isl.el.classList.contains('is-open'));
-  card.el.hidden = !s; card.lock.classList.toggle('has-music', !!s);
+  // 卡片：在放歌才有。锁着时在卡片上点了暂停，先留着（不然按钮一点就没了），解锁后就收起来；划掉的换歌或重新放起来时回来
+  if ((on && !wasOn) || (s && songId !== s.id + s.pic)) gone = false;
+  wasOn = on; stay = locked && (on || stay);
+  const show = !!s && !gone && (on || stay);
+  card.el.hidden = !show; card.lock.classList.toggle('has-music', show);
   if (!s) return;
   isl.el.style.setProperty('--isl', ly); card.el.style.setProperty('--isl', ly);
   isl.el.classList.toggle('is-playing', on); card.el.classList.toggle('is-playing', on);
@@ -63,7 +79,7 @@ function paint() {
     isl.name.textContent = card.name.textContent = s.name; isl.artist.textContent = card.artist.textContent = s.artist;
   }
   card.heart.classList.toggle('is-on', P.liked(s));
-  isl.play.replaceChildren(icon(on ? 'pause' : 'play', 24, 2.4)); card.play.replaceChildren(icon(on ? 'pause' : 'play', 30, 2.4));
+  if (card.play.dataset.on !== String(on)) { card.play.dataset.on = on; isl.play.replaceChildren(icon(on ? 'pause' : 'play', 24, 2.4)); card.play.replaceChildren(icon(on ? 'pause' : 'play', 30, 2.4)); }
   time();
 }
 // 进度：只在看得见的时候改（锁着看卡片、灵动岛展开着）

@@ -48,8 +48,11 @@ export function tagInstruction() {
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
-  return `[AsterPhone 格式说明]\n${text}` + (state.music.storySongs ? `\n每一楼都要有一位角色把一首歌加进自己歌单（这一楼里听到、想起、想推荐给别人的歌，贴合情节和 TA 的性格；别重复加同一首）：type="加歌"，内容写 歌名 - 歌手。${state.music.storyWho ? `只有这几个人加：${state.contacts.filter(c => state.music.storyWho.includes(c.id)).map(c => c.name).join('、') || '（没有人）'}。` : ''}` : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+  return `[AsterPhone 格式说明]\n${text}` + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
+// 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
+const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))
+  .map(c => `- ${c.name}：${[...(c.songs && c.songs.length ? ['常听'] : []), ...(c.lists || []).map(l => l.name)].join('、') || '（还没有歌单）'}`).join('\n') || '（没有人）';   // c.songs 是还没搬的老歌单（见 core/music.js 的 charLists）
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 
 /* ---------- 2. 读正文暗号 ---------- */

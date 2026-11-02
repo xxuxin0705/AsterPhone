@@ -23,7 +23,7 @@ export function openReport(who) {
   const mine = avatar(me.avatar || myAvatar(), me.nick || myNick(), 64), theirs = grp ? groupAvatar(who, 64) : avatar(who.avatar, nameOf(who), 64);
   theirs.style.borderRadius = '50%';
   // 共同红心：我喜欢的 ∩ TA 歌单里的（群就是群里所有人的歌单）
-  const theirSongs = new Set((grp ? who.members.map(contact).filter(Boolean) : [who]).flatMap(c => (c.songs || []).map(s => s.id)));
+  const theirSongs = new Set((grp ? who.members.map(contact).filter(Boolean) : [who]).flatMap(c => P.charSongs(c).map(s => s.id)));
   const both = state.music.liked.filter(s => theirSongs.has(s.id)).length;
   const songs = Object.values(r.songs), top = songs.sort((a, b) => b.n - a.n)[0];
   const stat = (k, v, unit) => h('div', h('span', k), h('b', v, h('small', unit)));

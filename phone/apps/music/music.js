@@ -86,7 +86,7 @@ function renderHome(ctx) {
   const paintRecent = keep(recent, () => M().recent.slice(0, 8).map(s => s.id).join(), () => M().recent.length ? [
     h('div.as-mu-h', '最近播放', h('button.as-mu-h__more', { onclick: () => openList('最近播放', M().recent) }, '全部')),
     h('div.as-mu-grid', M().recent.slice(0, 8).map((s, i) => songCard(s, () => play(M().recent, i, '最近播放'))))] : []);
-  const paintChars = keep(chars, () => JSON.stringify(charList().map(c => [c.id, nameOf(c), (c.songs || []).length, c.avatar])), () => state.contacts.length ? [
+  const paintChars = keep(chars, () => JSON.stringify(charList().map(c => [c.id, nameOf(c), P.charSongs(c).length, P.charLists(c).length, c.avatar, storyOn(c)])), () => state.contacts.length ? [
     h('div.as-mu-h', '角色的歌单', h('button.as-mu-h__more', { onclick: openAllChars }, '全部')),
     h('div.as-mu-grid', charList().slice(0, 8).map(charCard))] : []);
   paintRecent(); paintChars();
@@ -100,29 +100,42 @@ function renderHome(ctx) {
 }
 const songCard = (s, onclick, face) => h('button.as-mu-sq', { onclick }, h('span.as-mu-sq__cover', { style: { backgroundImage: bgUrl(s.pic) } }, face), h('b', s.name), h('span', s.sub || s.artist));
 // 角色歌单的封面就是角色头像（没头像是名字的字）
-const charCard = c => songCard({ name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c), avatar(c.avatar, nameOf(c), 80, 'square'));
+// 右上角红色小音符 = TA 随剧情加歌开着；选人时左上角出勾选圈
+const storyOn = c => !!M().storySongs && (!M().storyWho || M().storyWho.includes(c.id));
+const charCard = c => { const n = P.charSongs(c).length; return songCard({ name: `${nameOf(c)}的歌单`, sub: n ? `${P.charLists(c).length} 个歌单 · ${n} 首` : '还没有歌' }, () => openCharList(c), [avatar(c.avatar, nameOf(c), 80, 'square'), h('i.as-mu-badge', { hidden: !storyOn(c) }, icon('music', 11, 2.4))]); };
 /** 角色歌单的顺序：拖过的按拖好的排（存在联系人身上 songOrder），没拖过的接在后面 */
 const charList = () => state.contacts.map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
-// 随剧情每楼加一首歌：打开了旁边出「给谁加」，勾哪些人（M().storyWho，空 = 所有人）
-const storySongsRow = () => {
-  const ck = h('span.as-chat-check' + (M().storySongs ? '.is-active' : ''), icon('check', 14, 2.6));
-  const whoLabel = () => M().storyWho ? `${M().storyWho.length} 个人` : '所有人';
-  const who = h('button.as-mu-chip', { hidden: !M().storySongs, onclick: e => { e.preventDefault(); pickWho(); } }, whoLabel(), icon('chevron', 12, 2));
-  function pickWho() {
-    const on = new Set(M().storyWho || state.contacts.map(c => c.id));
-    const rows = state.contacts.map(c => { const b = h('span.as-chat-check' + (on.has(c.id) ? '.is-active' : ''), icon('check', 14, 2.6));
-      return h('label.as-mu-only', { onclick: e => { e.preventDefault(); on.has(c.id) ? on.delete(c.id) : on.add(c.id); b.classList.toggle('is-active', on.has(c.id)); } }, b, nameOf(c)); });
-    sheet({ title: '给谁加', content: h('div.as-mu-who', ...rows), onClose: () => {
-      M().storyWho = on.size === state.contacts.length ? null : state.contacts.filter(c => on.has(c.id)).map(c => c.id);
-      who.firstChild.textContent = whoLabel(); commit('music'); commit('inject');
-    } });
-  }
-  return h('div.as-mu-story', h('label.as-mu-only', { onclick: () => { M().storySongs = !M().storySongs; ck.classList.toggle('is-active', M().storySongs); who.hidden = !M().storySongs; commit('music'); commit('inject'); } }, ck, '随剧情每楼加一首歌'), who);
-};
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
   const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el); return el; }));
-  p.body.append(storySongsRow(), grid);
+  // 随剧情加歌：上面一行写着现在是谁、多久加一首；点「选择」→ 卡片左上角出勾，底下「全选 · 随剧情加歌 · 取消」，勾上的人就是会加歌的人
+  const label = h('span'), freq = h('button.as-mu-chip', { onclick: async () => {
+    const v = await actionSheet('多久加一首', [{ value: 'every', label: '每楼都加', active: M().songFreq !== 'maybe' }, { value: 'maybe', label: '想到才加', active: M().songFreq === 'maybe' }]);
+    if (v) { M().songFreq = v; commit('music'); commit('inject'); paintBar(); }
+  } });
+  const paintBar = () => {
+    label.textContent = '随剧情加歌 · ' + (!M().storySongs ? '关着' : !M().storyWho ? '所有人' : `${state.contacts.filter(storyOn).length} 人`);
+    freq.hidden = !M().storySongs; freq.replaceChildren(M().songFreq === 'maybe' ? '想到才加' : '每楼都加', icon('chevron', 12, 2));
+    grid.querySelectorAll('.as-mu-sq').forEach(el => { el.querySelector('.as-mu-badge').hidden = !storyOn(contact(el.dataset.id)); });
+  };
+  let picked = null;
+  const cards = () => grid.querySelectorAll('.as-mu-sq');
+  const mark = () => cards().forEach(el => el.classList.toggle('is-picked', picked.has(el.dataset.id)));
+  const bar = h('div.as-mu-pickbar',
+    h('button', { onclick: () => { picked = new Set(picked.size < state.contacts.length ? state.contacts.map(c => c.id) : []); mark(); } }, '全选'),
+    h('button.is-main', { onclick: () => {
+      const ids = [...picked];
+      M().storySongs = ids.length > 0; M().storyWho = ids.length === state.contacts.length ? null : ids; commit('music'); commit('inject');
+      toast(ids.length ? `${ids.length} 人会随剧情加歌` : '关掉了随剧情加歌'); pick(false); paintBar();
+    } }, '随剧情加歌'),
+    h('button', { onclick: () => pick(false) }, '取消'));
+  function pick(on) {
+    picked = on ? new Set(state.contacts.filter(storyOn).map(c => c.id)) : null;
+    grid.classList.toggle('is-picking', on); if (on) { mark(); p.el.append(bar); } else bar.remove();
+  }
+  grid.addEventListener('click', e => { const el = picked && e.target.closest('.as-mu-sq'); if (!el) return; e.stopPropagation(); picked.has(el.dataset.id) ? picked.delete(el.dataset.id) : picked.add(el.dataset.id); mark(); }, true);
+  p.body.append(h('div.as-mu-story', label, h('span.as-mu-story__r', freq, h('button.as-mu-chip', { onclick: () => pick(!picked) }, '选择'))), grid);
+  paintBar();
   nav.push(p.el);
   // 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的格子就让位，别的格子滑过去；松手落回空位，存顺序
   function sortable(el) {
@@ -168,17 +181,28 @@ async function heartMode() {
   try { const songs = await P.heartPick(); toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }
   catch (e) { log('error', '心动模式', e.message); toast(e.message); }
 }
+// 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
+const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
 function openCharList(c) {
-  const v = openList(`${nameOf(c)}的歌单`, c.songs || [], {
-    right: [navBtn('sparkle', 'AI 挑歌', async e => {
-      const b = e.currentTarget; b.disabled = true; toast(`${nameOf(c)}正在挑歌…`, true);
-      try { const songs = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true)); toast(`加了 ${songs.length} 首`); v.fill(c.songs); }
-      catch (err) { log('error', '角色歌单', err.message, err); toast(err.message); }
-      finally { b.disabled = false; }
-    })],
-    top: storySongsRow(),
-    onRemove: s => { c.songs = c.songs.filter(x => x.id !== s.id); commit('contacts'); },
+  const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
+    if (picking[c.id]) { picking[c.id].abort(); return; }
+    const ac = picking[c.id] = new AbortController(); ai.textContent = '取消'; toast(`${nameOf(c)}正在挑歌…`, true);
+    try { const got = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true), ac.signal); toast(got.length ? `加了 ${got.length} 首` : '挑的歌都已经在歌单里了'); }
+    catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
+    finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
+  const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai });
+  const box = h('div.as-mu-sheet');
+  const row = l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openList(l.name, l.songs, { info: l, onRemove: s => { l.songs = l.songs.filter(x => x.id !== s.id); commit('contacts'); } }) },
+    h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
+    onLongPress(el, async () => {
+      if (!(await dialog({ title: `删除「${l.name}」？`, text: `里面的 ${l.songs.length} 首歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return;
+      P.charLists(c).splice(P.charLists(c).indexOf(l), 1); commit('contacts'); paint();
+    });
+    return el; };
+  const paint = keep(box, () => JSON.stringify(P.charLists(c).map(l => [l.id, l.name, l.intro, l.songs.length, firstPic(l.songs)])), () => P.charLists(c).length ? P.charLists(c).map(row) : [empty('还没有歌单', h('button.as-mu-morel', { onclick: () => ai.click() }, '让 TA 挑几首（用一次 API）'))]);
+  paint(); p.body.append(box); p.el._onShow = paint; charViews[c.id] = { ai, paint };
+  nav.push(p.el);
 }
 
 /* ================= 搜索：搜索历史、试试这些（语种风格 + 常听的歌手） ================= */
@@ -377,9 +401,13 @@ function collectTo(s, onLike) {
 }
 async function toChar(s) {
   if (!state.contacts.length) { toast('还没有联系人'); return; }
-  const c = await actionSheet('加到谁的歌单', state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: (c.songs || []).some(x => x.id === s.id) })));
+  const c = await actionSheet('加到谁的歌单', state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: P.charSongs(c).some(x => x.id === s.id) })));
   const who = c && state.contacts.find(x => x.id === c); if (!who) return;
-  toast(P.addToChar(who, s) ? `加到${nameOf(who)}的歌单了` : `${nameOf(who)}的歌单里已经有了`);
+  if (P.charSongs(who).some(x => x.id === s.id)) { toast(`${nameOf(who)}的歌单里已经有了`); return; }
+  let name = await actionSheet(`加到${nameOf(who)}的哪个歌单`, [...P.charLists(who).map(l => ({ value: l.name, label: l.name })), { value: '+', label: '新建歌单', icon: 'plus' }]);
+  if (name === '+') name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim();
+  if (!name) return;
+  P.addToChar(who, s, name); toast(`加到${nameOf(who)}的「${name}」了`);
 }
 /** 选一个聊天：先分私聊 / 群聊，再选是谁 */
 async function pickChat(title, skip) {

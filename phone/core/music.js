@@ -1,7 +1,7 @@
 // 音乐的播放器本体：关掉音乐 App、收起手机都接着放。
 // 音源（照旧插件）：vkeys 搜歌；Meting 取播放链接、歌词、歌单。地址在 state.music.src 里能改。
 // 播放链接直接塞给 <audio>（放别人家的音乐文件不会被跨域拦）；只有搜歌、歌词、歌单要读内容，走 xf（被拦时借酒馆代理）。
-// 角色的歌单存在联系人身上（c.songs，跟着聊天窗口走）；笔记在 state.musicNotes（也跟窗口走）。
+// 角色的歌单存在联系人身上（c.lists，每人好几个，跟着聊天窗口走）；笔记在 state.musicNotes（也跟窗口走）。
 import { state, commit, kvGet, kvSet, kvDel, contact } from './store.js';
 import { xf, generate, resolveConn } from './api.js';
 import { log } from './log.js';
@@ -417,25 +417,35 @@ export async function heartPick() {
 
 /* ---------- 角色的歌单：AI 只给「歌名 - 歌手」，手机再一首首去搜；onStep(找到几首, 一共几首) 给界面报进度 ---------- */
 const aiLines = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(l => l.replace(/^\d+[.、)）]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l && l.includes('-'));
+// 一行「歌名 - 歌手｜歌单名｜简介」：歌单名没写就放进「常听」，简介只有新开的歌单才写
+const parts = t => { const [song, name, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: name || '常听', intro: intro || '' }; };
 async function lookup(lines, onStep) {
   const out = [];
-  for (const l of lines) { const s = await findSong(l); if (s && !out.some(x => x.id === s.id)) out.push(s); onStep && onStep(out.length, lines.length); }
+  for (const l of lines) { const x = parts(l), s = await findSong(x.song); if (s && !out.some(y => y.s.id === s.id)) out.push({ ...x, s }); onStep && onStep(out.length, lines.length); }
   return out;
 }
-export async function charPick(c, onStep) {
+export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 500,
-    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: (c.songs || []).map(label).join('\n') || '（无）', count: 8 }) });
-  const songs = (await lookup(aiLines(raw), onStep)).filter(s => !(c.songs || []).some(x => x.id === s.id));
-  if (!songs.length) throw new Error('AI 挑的歌一首都没搜到');
-  c.songs = [...(c.songs || []), ...songs]; commit('contacts');
-  return songs;
+  const existing = charLists(c).map(l => `【${l.name}】${l.intro}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 800, stop,
+    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）', count: 8 }) });
+  const found = await lookup(aiLines(raw), onStep);
+  if (!found.length) throw new Error('AI 挑的歌一首都没搜到');
+  return found.filter(x => addToChar(c, x.s, x.name, x.intro));
 }
-export function addToChar(c, s) {
-  c.songs = c.songs || [];
-  if (c.songs.some(x => x.id === s.id)) return false;
-  c.songs.push(s); commit('contacts'); return true;
+/** TA 的歌单（按心情、风格分）：[{ id, name, intro, songs }]。以前每人只有一个 c.songs，第一次读时搬进「常听」 */
+export function charLists(c) {
+  if (c.songs) { if (c.songs.length) (c.lists = c.lists || []).unshift({ id: uid('cl'), name: '常听', intro: '', songs: c.songs }); delete c.songs; }
+  return c.lists || (c.lists = []);
+}
+export const charSongs = c => charLists(c).flatMap(l => l.songs);
+/** 加一首进 TA 叫 name 的歌单，没有这个歌单就新开一个；已经在 TA 哪个歌单里了就不加 */
+export function addToChar(c, s, name = '常听', intro = '') {
+  if (charSongs(c).some(x => x.id === s.id)) return false;
+  const L = charLists(c); let l = L.find(x => x.name === name);
+  if (!l) L.push(l = { id: uid('cl'), name, intro, songs: [] });
+  l.songs.push(s); commit('contacts'); return true;
 }
 /** 正文暗号 type="加歌"：TA 把某首歌加进了自己的歌单 */
 /* ---------- 一起听：和私聊里的一个人，或者一个群。M().together 是 TA 的联系人 id / 群聊 id；一起听了多少秒记在 M().tg[id] ---------- */
@@ -482,9 +492,9 @@ export async function storyTogether(c, text) {
 }
 export async function storyAddSong(c, text) {
   if (M().storyWho && !M().storyWho.includes(c.id)) return;   // 没勾上的人不加
-  const s = await findSong(text);
-  if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${text}》，但没搜到`); return; }
-  if (addToChar(c, s)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单`);
+  const x = parts(text), s = await findSong(x.song);
+  if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${x.song}》，但没搜到`); return; }
+  if (addToChar(c, s, x.name, x.intro)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单「${x.name}」`);
 }
 
 import('./floatlyric.js');   // 歌词悬浮窗跟着播放器一起起来
