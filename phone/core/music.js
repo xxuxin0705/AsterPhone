@@ -182,18 +182,30 @@ audio.addEventListener('timeupdate', () => {
   const now = Date.now(); if (now - lastT < 2000) heard += now - lastT; lastT = now;
   if (now - saveT > 5000) { saveT = now; M().pos = audio.currentTime; M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
   // 切到后台时，一首放完再开下一首常被系统拦下（声音一停就不让再出声）：快放完时就先换下一首，声音不断
-  if (!audio.loop && !early && audio.duration - audio.currentTime < .4) { early = true; next(); }
+  if (document.hidden) bgTicks++;
+  if (!audio.loop && !early && audio.duration - audio.currentTime < .4) { early = true; bg('快放完了，先换下一首'); next(); }
   tell('time');
 });
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
-audio.addEventListener('ended', () => { if (!early) next(); });   // 单曲循环靠 audio.loop，不会走到这
+audio.addEventListener('ended', () => { bg('一首放完了'); if (!early) next(); });   // 单曲循环靠 audio.loop，不会走到这
 // 还是被拦下了：记进日志，回到页面时接着放
 let stuck = false;
-function blocked() {
-  tell('blocked');
+function blocked(e) {
+  tell('blocked'); bg(`开始放被拦了：${e && e.name} ${e && e.message}`);
   if (document.hidden) { stuck = true; log('warn', '音乐', '在后台没能接着放下一首（被系统拦了），回到页面会接着放'); }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && stuck) { stuck = false; audio.play().catch(() => tell('blocked')); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { bgTicks = 0; return; }
+  if (bgLogged) log('info', '音乐', `后台：回到页面，在后台时播放进度报了 ${bgTicks} 次（0 次说明后台时手机没让页面跑）`);
+  bgLogged = false;
+  if (stuck) { stuck = false; audio.play().catch(() => tell('blocked')); }
+});
+// 后台放歌排查：切到别的应用时发生了什么都记进日志（作者那边后台放完一首会停，得看是哪一步断的）
+let bgTicks = 0, bgLogged = false;
+function bg(what) { if (document.hidden) { bgLogged = true; log('info', '音乐', '后台：' + what); } }
+audio.addEventListener('playing', () => bg('开始出声了'));
+audio.addEventListener('pause', () => { if (!audio.ended && audio.currentTime > .5 && audio.duration - audio.currentTime > .5) bg('被暂停了（可能是别的应用在出声，把声音抢走了）'); });
+audio.addEventListener('error', () => bg('这首放不出来（音源出错）'));
 
 /* ---------- 系统的「正在播放」（锁屏、控制中心、灵动岛） ---------- */
 function sysInfo(s) {

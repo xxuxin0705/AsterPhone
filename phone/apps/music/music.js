@@ -211,7 +211,7 @@ function renderMe(ctx) {
 /** 「我的」资料：昵称、头像没改过就跟着「我」 */
 const me = () => { const u = M().profile || {}; return { nick: u.nick || myNick(), avatar: u.avatar || myAvatar(), sign: u.sign || '', bg: u.bg || '', fans: u.fans || 0, lv: u.lv || 1 }; };
 /** 990000 → 990k */
-const big = n => n < 1000 ? String(n) : n < 1e6 ? +(n / 1000).toFixed(n < 1e4 ? 1 : 0) + 'k' : +(n / 1e6).toFixed(n < 1e7 ? 1 : 0) + 'M';
+const big = n => n < 1000 ? String(n) : n < 1e6 ? +(n / 1000).toFixed(n < 1e4 ? 1 : 0) + 'k' : n < 1e9 ? +(n / 1e6).toFixed(n < 1e7 ? 1 : 0) + 'M' : +(n / 1e9).toFixed(n < 1e10 ? 1 : 0) + 'B';
 /** 听歌时长：不到一分钟写秒，不到一小时写分钟，再往上写小时 */
 const heard = () => { const s = Math.floor(M().heard || 0); return s < 60 ? [s, '秒'] : s < 3600 ? [Math.floor(s / 60), '分钟'] : [Math.floor(s / 3600), '小时']; };
 const follows = () => M().follows || (M().follows = []);
