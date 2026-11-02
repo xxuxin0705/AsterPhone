@@ -59,7 +59,8 @@ function keep(box, sig, draw) { let last = ''; return () => { const k = sig(); i
 
 /* ================= 首页：顶上搜索框、排行榜四块、按语种和风格、最近播放、角色的歌单 ================= */
 const RANK_COLORS = ['teal', 'blue', 'red', 'purple'];
-const CATS = [['华语', 'huayu'], ['欧美', 'oumei'], ['日语', 'riyu'], ['韩语', 'hanyu'], ['粤语', 'yueyu'], ['二次元', 'erciyuan'], ['古风', 'gufeng'], ['说唱', 'shuochang'], ['电子', 'dianzi'], ['轻音乐', 'qingyinyue']];
+const CATS = [['华语', 'Mandarin', '#c2876e'], ['欧美', 'Western', '#6f8fb0'], ['日语', 'J-Pop', '#d39aa0'], ['韩语', 'K-Pop', '#a08cc2'], ['粤语', 'Cantonese', '#b5584f'],
+  ['二次元', 'ACG', '#77a2c6'], ['古风', 'Gufeng', '#86977a'], ['说唱', 'Hip-Hop', '#4b4f58'], ['电子', 'Electronic', '#5b68b8'], ['轻音乐', 'Light Music', '#bfa97e']];
 const STYLES = ['日语', '韩语', '英语', '粤语', '二次元', '古风', '说唱', '小甜歌'];
 function renderHome(ctx) {
   ctx.title.append(h('button.as-mu-search', { onclick: () => { ctx.go('search'); ctx.title.querySelector('input')?.focus(); } }, icon('search', 16, 2), h('span', '搜索歌曲、歌手、语种')));
@@ -145,7 +146,7 @@ function renderSearch(ctx) {
   const count = {}; M().liked.forEach(s => { const a = s.artist.split(/[/、,，&]/)[0].trim(); if (a && !s.local) count[a] = (count[a] || 0) + 1; });
   const words = [...STYLES, '治愈', '伤感', ...Object.keys(count).sort((a, b) => count[b] - count[a]), '民谣', '摇滚'].filter(w => !CATS.some(c => c[0] === w)).slice(0, 12);   // 下面分类卡片里有的不重复
   ctx.body.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))),
-    h('div.as-mu-h', '分类'), h('div.as-mu-cats', CATS.map(([w, f]) => h('button', { style: { backgroundImage: `url("assets/music/cat/${f}.webp")` }, onclick: () => find(w) }, h('b', w)))), h('div.as-mu-gap'));
+    h('div.as-mu-h', '分类'), h('div.as-mu-cats', CATS.map(([w, en, c]) => h('button', { style: { background: c }, onclick: () => find(w) }, h('b', w), h('span', en), h('i', w[0])))), h('div.as-mu-gap'));
   ctx.find = find;
   async function find(word) {
     if (!word) return;

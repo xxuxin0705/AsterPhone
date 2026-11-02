@@ -28,7 +28,6 @@
 | `phone/assets/fonts/SFProDisplay-Bold.woff2` | 苹果 SF Pro Display Bold（锁屏时钟） | 苹果的字体，许可只让在苹果设备上用，**不允许拿去分发**。作者决定放进来、自己承担风险（`design-system.md` 里也记了）。公开发布前最好换成免费可商用的字体 |
 | `phone/assets/music/rain-day.webp`、`rain-night.webp` | 下雨天皮肤的背景 | 作者给的图，裁掉了 AI 水印。发布前确认是谁画的、能不能用 |
 | `phone/assets/music/together-l.webp`、`together-r.webp` | 一起听的有线耳机 | 作者让 GPT 画的，去掉了黑底、切成两半 |
-| `phone/assets/music/cat/*.webp` | 搜索页的 10 张分类卡片 | 作者让豆包 AI 画的一整张图，切开用（图外的「豆包AI生成」水印没带进来）。**「说唱」那张的球鞋上有个像耐克的钩子标志**，公开发布前最好重画这张或把标志修掉 |
 | `phone/assets/wallpapers/*`、`phone/assets/fab/*` | 壁纸、悬浮按钮 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
 
 ## 四、用到的外部服务（不是代码，写在说明里比较好）
