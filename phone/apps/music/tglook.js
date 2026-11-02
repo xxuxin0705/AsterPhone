@@ -1,5 +1,5 @@
 // 一起听的样子（播放页一起听时「换样式」→「一起听的样子」）：耳机颜色、「一起听了多久」的颜色和字体、头像上那两句话的气泡颜色 / 字颜色 / 字体。
-// 对话式歌词的颜色（「换样式」→「歌词颜色」）：每个人一套（气泡、歌词唱到的颜色、字的颜色、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
+// 对话式歌词的颜色（「换样式」→「歌词颜色」）：每个人一套（气泡、唱到的字、没唱的字、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
 // 空着的项 = 用原来的样子。两页上面都是预览，调什么马上看到。
 import { h } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
@@ -107,7 +107,7 @@ export function openChoirLook({ bgImage, bgFilter, c, me }) {
         const v = await actionSheet('给谁调', [{ value: 'def', label: '所有人', active: who === 'def' }, ...people.map(y => ({ value: y.id, label: y.name, active: who === y.id }))]);
         if (v) pick(v);
       } }),
-      color('气泡颜色', ...set('bg'), save, true), color('歌词颜色', ...set('ly'), save), color('字的颜色', ...set('ink'), save), font(...set('font'), save),
+      color('气泡颜色', ...set('bg'), save, true), color('唱到的字', ...set('ly'), save), color('没唱的字', ...set('ink'), save), font(...set('font'), save),
     ]));
   }
   p.body.append(pvBox(bgImage, bgFilter, h('div.as-tgl__list', { style: M().skin.color ? { '--ly': M().skin.color } : {} }, rows)), box,

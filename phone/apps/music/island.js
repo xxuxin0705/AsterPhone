@@ -51,7 +51,7 @@ export function burst(btn) {
 let songId = '';
 function paint() {
   if (!isl && !build()) return;
-  const s = P.current(), on = P.playing(), ly = (state.music.skin || {}).color || '#ffffff';
+  const s = P.current(), on = P.playing(), ly = (state.music.skin || {}).color || '';
   isl.el.hidden = !s || (!on && !isl.el.classList.contains('is-open'));
   card.el.hidden = !s; card.lock.classList.toggle('has-music', !!s);
   if (!s) return;
@@ -69,7 +69,7 @@ function paint() {
 // 进度：只在看得见的时候改（锁着看卡片、灵动岛展开着）
 function time() {
   if (!isl) return;
-  const t = P.now(), d = P.dur() || 0, r = d ? Math.min(1, t / d) * 100 + '%' : '0%', ly = (state.music.skin || {}).color || '#ffffff';
+  const t = P.now(), d = P.dur() || 0, r = d ? Math.min(1, t / d) * 100 + '%' : '0%', ly = (state.music.skin || {}).color || '';
   isl.el.style.setProperty('--isl', ly); card.el.style.setProperty('--isl', ly);   // 播放页改了歌词颜色，这里跟着变
   if (isl.el.classList.contains('is-open')) isl.bar.style.width = r;
   if (document.querySelector('.as-phone.is-locked')) { card.bar.style.width = r; card.t0.textContent = fmt(t); card.t1.textContent = '-' + fmt(Math.max(0, d - t)); }
