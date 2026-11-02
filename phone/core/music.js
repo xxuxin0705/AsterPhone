@@ -100,48 +100,35 @@ export async function addLocal(file) {
 }
 export async function removeLocal(s) { M().local = M().local.filter(x => x.id !== s.id); commit('music'); await kvDel('mufile:' + s.id); }
 
-/* ---------- 放 ---------- */
+/* ---------- 放 ----------
+ * 后台接着放：夸克 / UC / Via、Tauri Tavern 这些，切到别的应用后不让「新开始」的声音出声，放完一首就停了。
+ * 所以把歌的内容边下边续进同一条声音（MediaSource）：这首快放完时把下一首接在后面，声音从头到尾没断过，整首都放完。
+ * 读不到文件、浏览器不支持、或者不是 mp3，就退回普通放法（直接把地址给播放器）。 */
 export const audio = new Audio();
 audio.preload = 'auto';
-let lyrics = [], fails = 0, restored = false, early = false;
+const CHAIN = !!(window.MediaSource && MediaSource.isTypeSupported('audio/mpeg'));
+let lyrics = [], fails = 0, restored = false;
+let chain = null;   // { ms, sb, ops, segs: [{ i: 队列里第几首, s: 歌, start, end }], ac, nexting }
 const subs = new Set();
 export const onMusic = f => { subs.add(f); return () => subs.delete(f); };
 const tell = what => subs.forEach(f => { try { f(what); } catch (e) { console.error(e); } });
 export const current = () => M().queue[M().idx] || null;
 export const lyricsNow = () => lyrics;
 export const playing = () => !audio.paused;
+// 续接时一条声音里有好几首：这首歌自己的时间 = 整条的时间 - 这首开始的地方
+const seg = () => chain && chain.segs.find(g => g.i === M().idx && g.s === current());
+export const now = () => Math.max(0, (audio.currentTime || 0) - (seg()?.start || 0));
+export const dur = () => { const g = seg(); return g ? (g.end || audio.duration || 0) - (g.start || 0) : audio.duration || 0; };   // 还在下的那首，先按已经下到的算
 
 /** 放一组歌，从第 i 首开始；from 是从哪个歌单放的（播放页顶上显示） */
 export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
-async function load(autoplay) {
-  const s = current(); if (!s) return;
-  restored = true; lyrics = []; early = false; pulls = 0; tell('song');
+/** 换到一首歌（不管声音怎么来）：记最近、次数，系统的正在播放，拿歌词 */
+function enter(s) {
+  lyrics = []; tell('song');
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
   const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++; commit('music');
-  const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
   sysInfo(s);
-  const go = urls => {
-    // 先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样）
-    const tryUrl = i => {
-      audio.onerror = () => {
-        if (i + 1 < urls.length) return tryUrl(i + 1);
-        log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error');
-        if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
-      };
-      audio.src = urls[i];
-      audio.loop = M().mode === 'one';
-      if (autoplay) audio.play().catch(blocked);
-    };
-    tryUrl(0);
-  };
-  if (s.local) {
-    const f = await kvGet('mufile:' + s.id).catch(() => null);
-    if (!f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
-    if (current() === s) go([URL.createObjectURL(f)]);
-    return;
-  }
-  go([meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`]);
-  probe(s);
+  if (s.local) return;
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
   let base = [], yrc = [];
   const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
@@ -150,36 +137,114 @@ async function load(autoplay) {
   get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
     const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc;
     yrc = typeof y === 'string' ? parseYrc(y) : [];
-    log('info', '音乐', yrc.length ? `《${s.name}》拿到了逐字歌词` : `《${s.name}》没有逐字歌词，按句子估时间`);
     if (yrc.length) done();
   }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词没拿到：${e.message}`));
 }
-/* 临时测试（作者手机上看结果用，测完删）：后台想接着放下一首，得把下一首接在同一条声音后面，
- * 前提是网页能直接读到歌曲文件、浏览器支持往一条声音里续内容。每次打开手机只测一次，结果弹出来 */
-let probed = false;
-function probe(s) {
-  if (probed) return; probed = true;
-  const ms = !!(window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')), ac = new AbortController();
-  const say = t => import('./ui.js').then(m => m.toast(`（测试）${t}；续接：${ms ? '支持' : '不支持'}`));
-  fetch(meting('url', s.id), { signal: ac.signal })
-    .then(r => { ac.abort(); say(r.ok ? `歌曲文件能读（${r.headers.get('content-type') || '不知道类型'}）` : `歌曲文件回了 ${r.status}`); },
-      e => say('歌曲文件读不到：' + e.message));
+async function load(autoplay) {
+  const s = current(); if (!s) return;
+  restored = true; enter(s);
+  const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
+  if (chain) { chain.ac.abort(); chain = null; }
+  const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
+  if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
+  if (current() !== s) return;
+  if (CHAIN && (!s.local || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
+  plain(s, f, autoplay);
 }
+/** 普通放法：先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样） */
+function plain(s, f, autoplay) {
+  const urls = f ? [URL.createObjectURL(f)] : [meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
+  const tryUrl = i => {
+    audio.onerror = () => {
+      if (i + 1 < urls.length) return tryUrl(i + 1);
+      log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error');
+      if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
+    };
+    audio.src = urls[i];
+    if (autoplay) audio.play().catch(blocked);
+  };
+  tryUrl(0);
+}
+/** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
+async function startChain(s, f, autoplay) {
+  const ms = new MediaSource(), ac = new AbortController();
+  const c = { ms, ac, segs: [], ops: [], nexting: false };
+  const body = await songBody(s, f, ac.signal).catch(() => null);
+  if (!body || current() !== s) return false;
+  chain = c; audio.onerror = null;
+  audio.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, { once: true }));
+  try { c.sb = ms.addSourceBuffer('audio/mpeg'); c.sb.mode = 'sequence'; }
+  catch (e) { log('warn', '音乐', '这个浏览器续接不了：' + e.message); chain = null; ac.abort(); return false; }
+  c.sb.addEventListener('updateend', () => run(c));
+  feed(c, M().idx, s, body, () => { if (autoplay) audio.play().catch(blocked); });
+  return true;
+}
+/** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
+async function songBody(s, f, signal) {
+  if (f) return f.stream();
+  const r = await fetch(meting('url', s.id), { signal });
+  if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
+  return r.body;
+}
+// 往同一条声音里续东西要一件一件来（上一件没弄完不能动）
+function op(c, fn) { c.ops.push(fn); run(c); }
+function run(c) { if (c === chain && !c.sb.updating && c.ops.length) c.ops.shift()(); }
+/** 把一首歌的内容一段段续进去；记下它在整条声音里从哪到哪 */
+async function feed(c, i, s, body, first) {
+  const g = { i, s, start: null, end: 0 };
+  c.segs.push(g);
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (c !== chain) return reader.cancel();
+      if (done) break;
+      op(c, () => { if (g.start == null) g.start = c.sb.timestampOffset; c.sb.appendBuffer(value); });
+      if (first) { const f0 = first; first = null; op(c, () => { f0(); run(c); }); }
+    }
+    op(c, () => { g.end = c.sb.timestampOffset; tell('time'); run(c); });
+  } catch (e) {
+    if (c !== chain) return;
+    log('warn', '音乐', `《${s.name}》读到一半断了：${e.message}`);
+    op(c, () => { g.end = c.sb.timestampOffset; run(c); });
+  }
+}
+/** 这首快放完了：把下一首续在后面。下一首读不到就封口，放完走普通放法 */
+async function chainNext(c) {
+  c.nexting = true;
+  let i = pick(M().idx, true);
+  for (let k = 0; k < 3; k++, i = pick(i, true)) {
+    const s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
+    if (s.local && (!f || f.type !== 'audio/mpeg')) continue;
+    const body = await songBody(s, f, c.ac.signal).catch(() => null);
+    if (c !== chain) return;
+    if (body) return feed(c, i, s, body);
+  }
+  op(c, () => { if (c.ms.readyState === 'open') c.ms.endOfStream(); });
+}
+/** 下一首是第几首；auto = 放完自动换（单曲循环就还是这首） */
+function pick(i, auto) {
+  const n = M().queue.length;
+  if (auto && M().mode === 'one') return i;
+  return M().mode === 'shuffle' && n > 1 ? (i + 1 + Math.floor(Math.random() * (n - 1))) % n : (i + 1) % n;
+}
+
 export function toggle() {
   if (!current()) return;
-  if (!restored) { const pos = M().pos || 0; load(true); audio.addEventListener('loadedmetadata', () => { audio.currentTime = pos; }, { once: true }); return; }   // 刚打开手机：接着上次的地方
-  audio.paused ? audio.play().catch(() => tell('blocked')) : pauseMe();
+  if (!restored) { const pos = M().pos || 0; load(true); audio.addEventListener('loadedmetadata', () => seek(pos), { once: true }); return; }   // 刚打开手机：接着上次的地方
+  audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
 }
 export function next(step = 1) {
   const n = M().queue.length; if (!n) return;
-  M().idx = M().mode === 'shuffle' && n > 1 ? (M().idx + 1 + Math.floor(Math.random() * (n - 1))) % n : (M().idx + step + n) % n;
+  M().idx = step === 1 ? pick(M().idx, false) : (M().idx + step + n) % n;
   load(true);
 }
-export const prev = () => audio.currentTime > 4 ? (audio.currentTime = 0) : next(-1);
-export function seek(t) { if (restored) audio.currentTime = t; }
+export const prev = () => now() > 4 ? seek(0) : next(-1);
+export function seek(t) { if (restored) audio.currentTime = (seg()?.start || 0) + t; }
 export function jump(i) { M().idx = i; load(true); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];
-export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; audio.loop = M().mode === 'one'; commit('music'); return MODES[(i + 1) % MODES.length]; }
+export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); return MODES[(i + 1) % MODES.length]; }
 export function like(s = current()) {
   if (!s) return false;
   const L = M().liked, i = L.findIndex(x => x.id === s.id);
@@ -191,42 +256,27 @@ export const liked = s => !!s && M().liked.some(x => x.id === s.id);
 // 听歌时长（「我的」里的小时数）：两次 timeupdate 之间真的在放才算
 let saveT = 0, lastT = 0, heard = 0;
 audio.addEventListener('timeupdate', () => {
-  const now = Date.now(); if (now - lastT < 2000) heard += now - lastT; lastT = now;
-  if (now - saveT > 5000) { saveT = now; M().pos = audio.currentTime; M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
-  // 切到后台时，一首放完再开下一首常被系统拦下（声音一停就不让再出声）：快放完时就先换下一首，声音不断
-  if (document.hidden) bgTicks++;
-  if (!audio.loop && !early && audio.duration - audio.currentTime < .4) { early = true; bg('快放完了，先换下一首'); next(); }
+  const t = Date.now(); if (t - lastT < 2000) heard += t - lastT; lastT = t;
+  if (t - saveT > 5000) { saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
+  const c = chain, g = seg();
+  if (c && g) {
+    // 还剩 40 秒：去把下一首续上（读文件要时间）
+    if (!c.nexting && g.end && g.end - audio.currentTime < 40) chainNext(c);
+    // 放进了下一首：换歌名、歌词，把前一首的内容从这条声音里清掉（省内存）
+    const nx = c.segs[c.segs.indexOf(g) + 1];
+    if (nx && nx.start != null && audio.currentTime >= nx.start) {
+      M().idx = nx.i; c.nexting = false; fails = 0; c.segs.splice(0, c.segs.indexOf(nx)); enter(nx.s);
+      op(c, () => { if (nx.start > 2) c.sb.remove(0, nx.start - 1); else run(c); });
+    }
+  }
   tell('time');
 });
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
-audio.addEventListener('ended', () => { bg('一首放完了'); if (!early) next(); });   // 单曲循环靠 audio.loop，不会走到这
-// 还是被拦下了：记进日志，回到页面时接着放
+audio.addEventListener('ended', () => next());
+// 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
 let stuck = false;
-function blocked(e) {
-  tell('blocked'); bg(`开始放被拦了：${e && e.name} ${e && e.message}`);
-  if (document.hidden) { stuck = true; log('warn', '音乐', '在后台没能接着放下一首（被系统拦了），回到页面会接着放'); }
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { bgTicks = 0; return; }
-  if (bgLogged) log('info', '音乐', `后台：回到页面，在后台时播放进度报了 ${bgTicks} 次（0 次说明后台时手机没让页面跑）`);
-  bgLogged = false;
-  if (stuck) { stuck = false; audio.play().catch(() => tell('blocked')); }
-});
-// 后台放歌排查：切到别的应用时发生了什么都记进日志（作者那边后台放完一首会停，得看是哪一步断的）
-let bgTicks = 0, bgLogged = false;
-function bg(what) { if (document.hidden) { bgLogged = true; log('info', '音乐', '后台：' + what); } }
-audio.addEventListener('playing', () => bg('开始出声了'));
-// 在后台换到下一首后，手机过一两秒会把它暂停（作者的日志：开始出声 → 2 秒后被暂停，不是我们停的）。
-// 不是自己点的暂停，就在后台接着放（每首最多拉回 3 次，免得和别的应用抢个没完）
-let meant = false, pulls = 0;
-const pauseMe = () => { meant = true; audio.pause(); };
-audio.addEventListener('playing', () => { meant = false; });
-audio.addEventListener('pause', () => {
-  if (meant || audio.ended || !document.hidden) return;
-  bg('被暂停了（不是自己点的）');
-  if (pulls++ < 3) setTimeout(() => { if (audio.paused && !meant) audio.play().catch(blocked); }, 600);
-});
-audio.addEventListener('error', () => bg('这首放不出来（音源出错）'));
+function blocked() { tell('blocked'); if (document.hidden) stuck = true; }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && stuck) { stuck = false; audio.play().catch(() => tell('blocked')); } });
 
 /* ---------- 系统的「正在播放」（锁屏、控制中心、灵动岛） ---------- */
 function sysInfo(s) {
@@ -235,7 +285,7 @@ function sysInfo(s) {
 }
 if (navigator.mediaSession) {
   const ms = navigator.mediaSession, set = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) { /* 这个浏览器不支持这一项 */ } };
-  set('play', () => toggle()); set('pause', pauseMe);
+  set('play', () => toggle()); set('pause', () => audio.pause());
   set('previoustrack', () => prev()); set('nexttrack', () => next());
   set('seekto', d => seek(d.seekTime));
 }
@@ -245,7 +295,7 @@ if (navigator.mediaSession) {
  * 音乐先停、记住位置，念完接着放。 */
 let ducked = false;
 function duck(e) {
-  if (e.detail === 'start' && !audio.paused) { ducked = true; pauseMe(); }
+  if (e.detail === 'start' && !audio.paused) { ducked = true; audio.pause(); }
   else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(() => tell('blocked')); }
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }

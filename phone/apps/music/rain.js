@@ -71,7 +71,7 @@ export function rain(cv, page) {
       const b = bits[i]; b.l -= dt; if (b.l <= 0) { bits.splice(i, 1); continue; }
       b.vy += 600 * dt; b.x += b.vx * dt; b.y += b.vy * dt; ctx.fillRect(b.x, b.y, 1.3, 1.3);
     }
-    words(P.audio.currentTime || 0, now / 1000);
+    words(P.now(), now / 1000);
     raf = requestAnimationFrame(frame);
   }
 

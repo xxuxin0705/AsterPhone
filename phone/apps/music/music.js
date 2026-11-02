@@ -346,9 +346,9 @@ export function openPlayer() {
   let dragging = false;
   const setBar = r => { fillEl.style.width = dot.style.left = r * 100 + '%'; };
   const at = e => { const b = track.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - b.left) / b.width)); };
-  track.addEventListener('pointerdown', e => { dragging = true; track.setPointerCapture(e.pointerId); setBar(at(e)); t0.textContent = fmt(at(e) * P.audio.duration); });
-  track.addEventListener('pointermove', e => { if (dragging) { setBar(at(e)); t0.textContent = fmt(at(e) * P.audio.duration); } });
-  track.addEventListener('pointerup', e => { if (dragging) { dragging = false; P.seek(at(e) * P.audio.duration); } });
+  track.addEventListener('pointerdown', e => { dragging = true; track.setPointerCapture(e.pointerId); setBar(at(e)); t0.textContent = fmt(at(e) * P.dur()); });
+  track.addEventListener('pointermove', e => { if (dragging) { setBar(at(e)); t0.textContent = fmt(at(e) * P.dur()); } });
+  track.addEventListener('pointerup', e => { if (dragging) { dragging = false; P.seek(at(e) * P.dur()); } });
   const playBtn = h('button.as-mp__play', { 'aria-label': '播放 / 暂停', onclick: () => P.toggle() });
   const mode = () => P.MODES.find(m => m[0] === M().mode) || P.MODES[0];
   const modeBtn = h('button', { 'aria-label': '播放顺序', onclick: () => { const m = P.cycleMode(); modeBtn.replaceChildren(icon(m[2], 24, 1.8)); toast(m[1]); } }, icon(mode()[2], 24, 1.8));
@@ -384,7 +384,7 @@ export function openPlayer() {
   // 歌词：唱到哪一句、这一句唱了几成（有逐字时间以前，按这句的长短估一个，从左往右亮起来）
   let li = -2, raf = 0;
   function tick() {
-    const a = P.audio, t = a.currentTime || 0, d = a.duration || 0, L = P.lyricsNow();
+    const t = P.now(), d = P.dur(), L = P.lyricsNow();
     if (!dragging) { setBar(d ? t / d : 0); t0.textContent = fmt(t); }
     t1.textContent = fmt(d);
     let i = -1; while (i + 1 < L.length && L[i + 1].t <= t) i++;
