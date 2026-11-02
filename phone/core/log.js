@@ -1,5 +1,6 @@
-// 日志：只收找 API（插线板上的接口）有关的，两种条目。
-// - 事件：调用旁边的一句话（重试、换副 API、拉取模型失败…，只有 core/api.js 用 apiLog 写）；别处的 log() 只打到控制台，不进日志。
+// 日志：三种条目。
+// - 事件：找 API 时旁边的一句话（重试、换副 API、拉取模型失败…，只有 core/api.js 用 apiLog 写）。
+// - 警告：不找 AI 的事出错了（连不上网站、读不到歌词…），别处的 log('warn' / 'error') 写；找 AI 失败的调用记录里已经有了，不重复记。
 // - 调用：每次找 AI（文字、生图、语音）一条。开始就出现（进行中、实时计时、流式收到的字边收边显示、能中止），
 //   结束后原地变成功 / 失败；记着用的哪个接口和模型、发出去的内容、收回来的内容。
 // 只留最近 300 条；发出去 / 收回来的内容只有最近 50 次调用留着（每条最多 2 万字），再早的只剩一句话，免得占内存。
@@ -16,11 +17,11 @@ const tell = (e, how) => subs.forEach(f => f(e, how));
 export async function loadLogs() {
   try {
     const l = await kvGet('logs');
-    if (Array.isArray(l)) logs.splice(0, logs.length, ...l.filter(e => e.kind === 'call' || e.api).map(e => ({ ...e, ...where(e.tag || e.app) })).map(e => e.run ? { ...e, run: false, level: 'warn', msg: e.msg + '（页面关掉了，没等到结果）' } : e));
+    if (Array.isArray(l)) logs.splice(0, logs.length, ...l.filter(e => e.kind === 'call' || e.kind === 'note' || e.api).map(e => ({ ...e, ...where(e.tag || e.app) })).map(e => e.run ? { ...e, run: false, level: 'warn', msg: e.msg + '（页面关掉了，没等到结果）' } : e));
   } catch (e) { /* 忽略 */ }
 }
 // 按应用分：音乐、设置，其余（私聊、群聊、动态、通话、语音、AI 智能加载…）都算聊天；原来那个细分的名字留成标签
-const APPS = { 音乐: ['角色歌单', '心动模式', '音乐'], 设置: ['设置', '连接'] };
+const APPS = { 音乐: ['角色歌单', '心动模式', '音乐', '乐评'], 设置: ['设置', '连接'] };
 const where = name => { const app = Object.keys(APPS).find(k => APPS[k].includes(name)) || '聊天'; return { app, tag: name === app ? '' : name }; };
 function push(entry) {
   Object.assign(entry, where(entry.app));
@@ -29,13 +30,15 @@ function push(entry) {
   save(); tell(entry, 'add');
   return entry;
 }
-/** 不找 API 的事：只打到控制台 */
+const con = (level, app, msg, detail) => (level === 'error' ? console.error : level === 'warn' ? console.warn : console.log)('[AsterPhone]', app, msg, detail ?? '');
+/** 不找 AI 的事：出错的进日志的「警告」，其余只打到控制台。detail 是找 AI 失败的那个错误（带 logId）时不进，调用记录里已经有了 */
 export function log(level, app, msg, detail) {
-  (level === 'error' ? console.error : level === 'warn' ? console.warn : console.log)('[AsterPhone]', app, msg, detail ?? '');
+  con(level, app, msg, detail);
+  if ((level === 'warn' || level === 'error') && !(detail && detail.logId)) push({ id: Date.now() + Math.random(), at: Date.now(), kind: 'note', level: 'warn', app, msg: String(msg), detail: detail == null ? '' : (typeof detail === 'string' ? detail : safe(detail)) });
 }
 /** 找 API 时的一句话（重试、换副 API、拉取失败…）：进日志 */
 export function apiLog(level, app, msg, detail) {
-  log(level, app, msg, detail);
+  con(level, app, msg, detail);
   return push({ id: Date.now() + Math.random(), at: Date.now(), api: true, level, app, msg: String(msg), detail: detail == null ? '' : (typeof detail === 'string' ? detail : safe(detail)) });
 }
 function safe(o) { try { return o instanceof Error ? (o.stack || o.message) : JSON.stringify(o, null, 2); } catch (e) { return String(o); } }

@@ -2,7 +2,7 @@
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state, kvGet, kvSet } from './store.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
-import { apiLog as log, startCall, orAbort, abortCall } from './log.js';
+import { apiLog as log, log as note, startCall, orAbort, abortCall } from './log.js';
 
 /** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
  *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
@@ -17,9 +17,11 @@ export async function xf(url, o = {}) {
     try { const c = ctx(); r = await fetch('/proxy/' + url, { ...o, headers: { ...(c && c.getRequestHeaders ? c.getRequestHeaders() : {}), ...o.headers } }); } catch (e2) { /* 代理也连不上 */ }
     // 本地酒馆没开代理回 404；Tauri Tavern 根本没有 /proxy/，回 200 + 酒馆首页。两种都算「没有代理」
     if (r && (r.status === 404 || /text\/html/i.test(r.headers.get('content-type') || ''))) { const t = await r.clone().text(); if (/proxy is disabled|Cannot (GET|POST)/i.test(t) || t.trim().startsWith('<')) r = null; }
-    if (!r) throw new Error(top.__TAURI__ || top.__TAURI_INTERNALS__
-      ? `连不上 ${new URL(url).host}（多半是这家不让网页直接连，Tauri Tavern 又没有转发代理）`
-      : `连不上 ${new URL(url).host}（网络不通或被跨域拦截）。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试`);
+    if (!r) {   // 提示只说连不上哪儿；为什么、怎么办写进日志的警告
+      const host = new URL(url).host;
+      note('warn', '连接', `连不上 ${host}`, top.__TAURI__ || top.__TAURI_INTERNALS__ ? '多半是这家不让网页直接连，Tauri Tavern 又没有转发代理' : '网络不通或被跨域拦截。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试');
+      throw new Error(`连不上 ${host}`);
+    }
     return r;
   }
 }

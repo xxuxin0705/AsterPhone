@@ -141,7 +141,7 @@ function openCharList(c) {
     right: [navBtn('sparkle', 'AI 挑歌', async e => {
       const b = e.currentTarget; b.disabled = true; toast(`${nameOf(c)}正在挑歌…`, true);
       try { const songs = await P.charPick(c, (n, all) => toast(`正在找歌 ${n} / ${all}`, true)); toast(`加了 ${songs.length} 首`); v.fill(c.songs); }
-      catch (err) { log('error', '角色歌单', err.message); toast(err.message); }
+      catch (err) { log('error', '角色歌单', err.message, err); toast(err.message); }
       finally { b.disabled = false; }
     })],
     top: storySongsRow(),

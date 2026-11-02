@@ -5,7 +5,7 @@ import { h } from '../../core/util.js';
 import { logs, onLog, clearLogs, removeLog, abortCall } from '../../core/log.js';
 import { page, segmented, navBtn, empty, toast, dialog } from '../../core/ui.js';
 
-const LV = { error: '报错', warn: '警告', info: '信息' };
+const LV = { error: '报错', warn: '警告', info: '成功' };
 const when = t => new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const secs = ms => ms < 1000 ? `${ms} 毫秒` : `${(ms / 1000).toFixed(1)} 秒`;
 const tagOf = e => e.kind !== 'call' ? LV[e.level] : e.run ? '进行中' : e.level === 'error' ? '失败' : '成功';
@@ -58,7 +58,7 @@ export function open(opts = {}) {
   const tick = setInterval(() => { for (const e of logs) if (e.run) { const t = cards.get(e.id)?.querySelector('.as-log-item__time'); if (t) t.textContent = `已等 ${secs(Date.now() - e.at)}`; } }, 1000);
   p.el._onLeave = () => { off(); clearInterval(tick); };
 
-  p.body.append(h('div.as-log-filter', segmented([['all', '全部'], ['run', '进行中'], ['error', '报错'], ['warn', '警告']], want, v => { want = v; filter(); }), apps), none, list);
+  p.body.append(h('div.as-log-filter', segmented([['all', '全部'], ['run', '进行中'], ['info', '成功'], ['error', '报错'], ['warn', '警告']], want, v => { want = v; filter(); }), apps), none, list);
   paintApps(); filter();
   p.el._focus = focus;
   if (opts.id) setTimeout(() => focus(opts.id), 400);

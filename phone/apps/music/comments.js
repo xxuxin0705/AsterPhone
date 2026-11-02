@@ -35,7 +35,7 @@ export async function openComments(s, me) {
   if (!s.local) {
     toast('正在拿热评…', true);
     try { real = (await P.hotComments(s.id)).map(x => ({ ...x, id: 'n' + uid(''), real: true, replies: [] })); toast(`${real.length} 条热评`); }
-    catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); why = e.message.replace(/（[^）]*）/g, '') + '。'; toast('拿不到网易云的热评'); }
+    catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); why = e.message + '。'; toast('拿不到网易云的热评'); }
   }
   const save = () => kvSet('aicmt:' + s.id, d).catch(e => toast('没存上：' + e.message));
   const all = () => [...d.list, ...real.filter(x => !d.list.some(y => y.real && y.name === x.name && y.text === x.text))];
@@ -114,7 +114,7 @@ export async function openComments(s, me) {
       d.list = [...d.list.filter(x => x.mine || x.real), ...j.comments.filter(x => x && x.text).map(x => ({ id: uid('c'), who: findWho(x.who, x.name), kind: x.kind || '', name: x.name || '网友', text: x.text,
         likes: +x.likes || 0, time: x.time || '', place: x.place || '', replies: (x.replies || []).filter(r => r && r.text).map(r => rep(r)) }))];
       d.ai = true; await save(); paint(); toast(`写好了，${j.comments.length} 条`);
-    } catch (e) { log('error', '音乐', 'AI 写乐评失败：' + e.message); toast('没写成：' + e.message); }
+    } catch (e) { log('error', '音乐', 'AI 写乐评失败：' + e.message, e); toast('没写成：' + e.message); }
   }
   // 让大家看到：被你回的人一定回你；别人想回就回，也可能顺便多几条路人评论
   async function answer() {
@@ -135,7 +135,7 @@ export async function openComments(s, me) {
       await save(); paint(); toast(n ? `有 ${n} 条新回复` : '大家都没理你');
       d.list.forEach(x => x.replies.forEach(r => { delete r.new; }));   // 这次展开着、标着新，下次打开就是普通的
       save();
-    } catch (e) { log('error', '音乐', '让大家回复失败：' + e.message); toast('没回成：' + e.message); }
+    } catch (e) { log('error', '音乐', '让大家回复失败：' + e.message, e); toast('没回成：' + e.message); }
   }
 
   paint();

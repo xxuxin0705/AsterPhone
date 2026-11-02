@@ -79,7 +79,7 @@ export function openAiLoad(after) {
       const data = pickJSON(raw);
       if (!keep) { state.contacts.splice(0); commit('contacts'); }
       openPreview(data, { after, under: !!goBtn });
-    } catch (e) { if (e.message === '已中止') toast('取消了'); else { log('error', 'AI 智能加载', e.message); toast('生成失败：' + e.message); } }
+    } catch (e) { if (e.message === '已中止') toast('取消了'); else { log('error', 'AI 智能加载', e.message, e); toast('生成失败：' + e.message); } }
     finally { clearInterval(tick); loading = null; paintBar(); if (goBtn) { goBtn.classList.replace('as-btn--secondary', 'as-btn--primary'); goBtn.textContent = '开始生成'; } }
   }
 }
@@ -189,7 +189,7 @@ export async function openLoreAdd(after) {
       prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
     const data = pickJSON(raw); toast(`拆出 ${(data.people || []).length} 个人`);
     openPreview(data, { after, lore: { world, entries: chosen } });
-  } catch (e) { log('error', '世界书拆人', e.message); toast('拆人失败：' + e.message); }
+  } catch (e) { log('error', '世界书拆人', e.message, e); toast('拆人失败：' + e.message); }
 }
 
 /** 聊天前把连到世界书的人设刷新一下（世界书改了，手机跟着变） */
