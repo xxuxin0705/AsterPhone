@@ -17,13 +17,10 @@ const src = k => (M().src && M().src[k]) || DEF_SRC[k];
 const q = (base, p) => base + (base.includes('?') ? '&' : '?') + new URLSearchParams(p);
 const https = u => String(u || '').replace(/^http:\/\//i, 'https://');
 const meting = (type, id) => q(src('meting'), { server: 'netease', type, id });
-// 慢的那一步记进日志（超过 1.5 秒），好知道到底卡在哪：搜歌、读歌单、拿歌词，还是开始出声
-const slow = (what, t0) => { const s = (Date.now() - t0) / 1000; if (s > 1.5) log('warn', '音乐', `${what}用了 ${s.toFixed(1)} 秒`); };
-async function get(url, as = 'json', what = '读音源') {
-  const t0 = Date.now(), r = await xf(url);
+async function get(url, as = 'json') {
+  const r = await xf(url);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  const out = await (as === 'json' ? r.json() : r.text()); slow(what, t0);
-  return out;
+  return as === 'json' ? r.json() : r.text();
 }
 export const WEEK = 7 * 864e5;
 export const label = s => `${s.name} - ${s.artist}`;
@@ -53,7 +50,7 @@ export const neLists = () => be('/playlists');
 /* ---------- 找歌 ---------- */
 export async function search(word, page = 1) {
   if (ne) try { return await be(`/search?word=${encodeURIComponent(word)}&page=${page}`); } catch (e) { log('warn', '音乐', '插件搜歌失败，改用公共音源：' + e.message); }
-  const j = await get(q(src('vkeys'), { word, page, num: 30 }), 'json', `搜「${word}」`);
+  const j = await get(q(src('vkeys'), { word, page, num: 30 }), 'json');
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
@@ -68,7 +65,7 @@ export async function findSong(text) {
 /** 歌单 / 榜单：读过的存在这台设备上，下次先给存的（马上出来），再去读新的 */
 export async function playlist(id) {
   const j = ne ? await be('/playlist?id=' + id).catch(() => null) : null;
-  const out = j && j.length ? j : (await get(meting('playlist', id), 'json', '读歌单').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  const out = j && j.length ? j : (await get(meting('playlist', id), 'json').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
   if (out.length) kvSet('mulist:' + id, out).catch(() => {});
   return out;
 }
@@ -154,7 +151,7 @@ export function sung(L, i, t) {
 }
 /** 网易云的热评：网页直连多半会被拦，能不能拿到要在真机上试 */
 export async function hotComments(id) {
-  const j = ne ? await be('/comments?id=' + id) : await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
+  const j = ne ? await be('/comments?id=' + id) : await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json');
   return (j.hotComments || j.comments || []).map(c => ({ name: (c.user || {}).nickname || '网友', avatar: ((c.user || {}).avatarUrl || '').replace(/^http:/, 'https:'), text: c.content, likes: c.likedCount || 0,
     time: c.timeStr || (c.time ? new Date(c.time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '-') : ''), place: (c.ipLocation || {}).location || '' }));
 }
@@ -210,9 +207,9 @@ function enter(s) {
     base = parseLrc(j.lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' }));
     yrc = parseYrc(j.yrc); done();
   }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
-  else get(meting('lrc', s.id), 'text', '拿歌词').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
+  else get(meting('lrc', s.id), 'text').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
-  if (!ne) get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
+  if (!ne) get(q(src('vkeys') + '/lyric', { id: s.id }), 'json').then(j => {
     const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc, l = (d.lrc && d.lrc.lyric) || d.lrc;
     yrc = typeof y === 'string' ? parseYrc(y) : [];
     // 有的歌 Meting 给的歌词只有作词作曲那几行：vkeys 这份更全就用它
@@ -224,7 +221,6 @@ function enter(s) {
 async function load(autoplay) {
   const s = current(); if (!s) return;
   restored = true; enter(s);
-  const t0 = Date.now(); audio.addEventListener('playing', () => slow(`《${s.name}》从点下去到出声`, t0), { once: true });
   if (chain) { chain.ac.abort(); chain = null; }
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
