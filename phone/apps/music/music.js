@@ -2,7 +2,7 @@
 // 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
-import { state, commit, contact } from '../../core/store.js';
+import { state, commit, contact, kvGet, kvSet, kvDel } from '../../core/store.js';
 import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -15,6 +15,11 @@ import { lyricFx } from './lyricfx.js';
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
 const bgUrl = pic => pic ? `url("${pic}")` : '';
+// 播放页背景：用过的图都留着。图本身存在 kv 的 mubg:id（太大，不放进每几秒就存一次的音乐数据里），M().bgs 只记 id、模糊、亮度；skin.bgId 是正在用的
+const bgCache = new Map();
+const bgs = () => M().bgs || (M().bgs = []);
+async function bgLoad(id) { if (!bgCache.has(id)) bgCache.set(id, (await kvGet('mubg:' + id).catch(() => null)) || ''); return bgCache.get(id); }
+async function bgAdd(src) { const id = uid('bg'); await kvSet('mubg:' + id, src); bgCache.set(id, src); bgs().unshift({ id, blur: 0, bright: 1 }); return id; }
 /** 一行放不下的字：两份首尾相接慢慢往左走（长歌名） */
 function marquee(el, text) {
   el.classList.remove('is-scroll'); el.replaceChildren(text);
@@ -599,13 +604,20 @@ export function openPlayer() {
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
   // 自己的背景图不压暗，字照旧是白的；气泡颜色跟着背景的平均色
+  // 自己的图默认就是原图；模糊、亮度能自己调。有图时字加一层淡阴影，亮的图上也看得清
   let tone = null, toneOf = '';
+  // 以前只存一张（skin.bg 里直接是图）：挪进背景库
+  if (S.bg) bgAdd(S.bg).then(id => { S.bgId = id; delete S.bg; commit('music'); paintBg(); });
   const paintBg = () => {
-    const wet = S.name === 'rain', src = S.bg || (wet ? `assets/music/rain-${!isNight() ? 'day' : 'night'}.webp` : (P.current() || {}).pic);
-    const day = wet && !S.bg && !isNight();
+    const cur = bgs().find(b => b.id === S.bgId), mine = cur ? bgCache.get(cur.id) : S.bg;
+    if (cur && mine === undefined) bgLoad(cur.id).then(paintBg);   // 第一次打开：图从存储里读出来再放
+    const has = !!(cur || S.bg), wet = S.name === 'rain', src = has ? mine || '' : wet ? `assets/music/rain-${!isNight() ? 'day' : 'night'}.webp` : (P.current() || {}).pic;
+    const day = wet && !has && !isNight();
     bg.style.backgroundImage = bgUrl(src);
-    bg.classList.toggle('is-custom', !!S.bg || wet); bg.classList.toggle('is-scene', wet && !S.bg);
-    p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
+    bg.style.filter = cur ? `blur(${cur.blur}px) brightness(${cur.bright})` : ''; bg.style.inset = cur && cur.blur ? -cur.blur * 2 + 'px' : '';
+    bg.classList.toggle('is-custom', has || wet); bg.classList.toggle('is-scene', wet && !has);
+    p.el.classList.toggle('has-bg', has); p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
+    if (!src) return;
     if (src === toneOf) return;
     toneOf = src; tone = null; paintBub();
     avgColor(src).then(c => {
@@ -700,10 +712,36 @@ export function openPlayer() {
     if (v === 'glass' || v === 'vinyl') { S.name = 'record'; S.disc = v; disc.classList.toggle('is-vinyl', v === 'vinyl'); } else S.name = v;
     commit('music'); paintBg(); paintSkin();
   }
-  async function background() {
-    const v = S.bg ? await actionSheet('背景', [{ value: 'pick', label: '换一张图', icon: 'image' }, { value: 'none', label: S.name === 'rain' ? '用雨景图' : '跟着封面变色', icon: 'palette' }]) : 'pick';
-    if (v === 'pick') { const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100, has: !!S.bg }); if (img != null) { S.bg = img; commit('music'); paintBg(); } }
-    if (v === 'none') { S.bg = ''; commit('music'); paintBg(); }
+  // 换背景：一格一格的小图（第一格是不用图），点一下就换、播放页马上变；右上角 × 删掉；选了图下面出模糊、亮度
+  function background() {
+    const grid = h('div.as-mp-bgs'), adj = h('div');
+    const tile = b => {
+      const el = h('button.as-mp-bgs__i', { dataset: { id: b ? b.id : '' }, onclick: () => use(b ? b.id : '') },
+        b ? h('i', { role: 'button', 'aria-label': '删除', onclick: e => { e.stopPropagation(); del(b, el); } }, icon('close', 11, 2.6)) : h('span', S.name === 'rain' ? '雨景' : '封面色'));
+      if (b) bgLoad(b.id).then(s => { el.style.backgroundImage = bgUrl(s); });
+      return el;
+    };
+    const add = h('button.as-mp-bgs__i.is-add', { 'aria-label': '加一张', onclick: async () => {
+      const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100 }); if (!img) return;
+      const id = await bgAdd(img); grid.children[0].after(tile(bgs()[0])); use(id);
+    } }, icon('plus', 22, 2));
+    grid.append(tile(null), ...bgs().map(tile), add);
+    const mark = () => {
+      [...grid.children].forEach(x => x.classList.toggle('is-on', x.dataset.id === (S.bgId || '')));
+      const cur = bgs().find(b => b.id === S.bgId);
+      adj.replaceChildren(...(cur ? [
+        h('div.as-settings-slider-row', h('span', '模糊'), slider({ min: 0, max: 20, step: 1, value: cur.blur, onInput: v => { cur.blur = v; paintBg(); commit('music'); } })),
+        h('div.as-settings-slider-row', h('span', '亮度'), slider({ min: .3, max: 1.5, step: .05, value: cur.bright, onInput: v => { cur.bright = v; paintBg(); commit('music'); } })),
+      ] : []));
+    };
+    const use = id => { if (S.bgId !== id) { S.bgId = id; commit('music'); paintBg(); } mark(); };
+    async function del(b, el) {
+      if (!(await dialog({ title: '删除这张背景？', confirm: '删除', danger: true }))) return;
+      bgs().splice(bgs().indexOf(b), 1); bgCache.delete(b.id); kvDel('mubg:' + b.id).catch(e => log('warn', '音乐', '删背景图失败：' + e.message));
+      el.remove(); if (S.bgId === b.id) use(''); else commit('music');
+    }
+    mark();
+    sheet({ title: '背景', content: h('div.as-mp-bgsheet', grid, adj) });
   }
   // 收藏：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单
   function collect() {
