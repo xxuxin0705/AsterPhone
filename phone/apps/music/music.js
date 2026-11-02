@@ -245,9 +245,9 @@ function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
 function renderMe(ctx) {
   const box = h('div');
   ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'pairs') openPairs(); }));
-  const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
+  const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const en = () => clockCfg().lang === 'en';   // 关注、粉丝、听歌时长跟着锁屏时间的语言
-  const paintHeard = () => hearEl.replaceChildren(h('b', heard(en())), en() ? ' listened' : ' 听歌');
+  const paintHeard = () => { hearEl.textContent = heard(en()); };
   const paintAll = keep(box, () => JSON.stringify([en(), M().likedInfo, me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
     const plays = M().liked.reduce((n, s) => n + ((M().plays[s.id] || {}).n || 0), 0);   // 只算喜欢的这些歌放了几次
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
@@ -255,7 +255,8 @@ function renderMe(ctx) {
     ctx.meBg.style.backgroundImage = bgUrl(u.bg); ctx.meBg.classList.toggle('has-img', !!u.bg);
     return [
       h('div.as-mu-me', avatar(u.avatar, u.nick, 78), h('b', u.nick), u.sign ? h('div.as-mu-me__sign', u.sign) : null,
-        h('div.as-mu-me__stat', h('button', { onclick: openFollows }, h('b', String(follows().length)), en() ? ' Following' : ' 关注'), h('span', h('b', big(u.fans)), en() ? (+u.fans === 1 ? ' Follower' : ' Followers') : ' 粉丝'), h('b', 'Lv.' + u.lv), hearEl)),
+        h('div.as-mu-me__stat', h('button', { onclick: openFollows }, h('b', String(follows().length)), en() ? 'Following' : '关注'), h('div', h('b', big(u.fans)), en() ? (+u.fans === 1 ? 'Follower' : 'Followers') : '粉丝'),
+          h('div', h('b', String(u.lv)), en() ? 'Level' : '等级'), h('div', hearEl, en() ? 'Listened' : '听歌时长'))),   // 四格一样宽：上面数字，下面是什么
       h('div.as-mu-pills', [['最近', 'moments', () => openList('最近播放', M().recent)], ['本地', 'box', openLocal], ['排行', 'flame', openRank], ['导入', 'plus', importList]]
         .map(([t, ic, fn]) => h('button', { onclick: fn }, icon(ic, 16, 2), t))),
       h('div.as-mu-sheet',

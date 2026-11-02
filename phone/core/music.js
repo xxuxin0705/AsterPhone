@@ -278,7 +278,7 @@ async function feed(c, i, s, body, first) {
       const { done, value } = await reader.read();
       if (c !== chain) return reader.cancel();
       if (done) break;
-      op(c, () => { if (g.start == null) g.start = c.sb.timestampOffset; c.sb.appendBuffer(value); });
+      await put(c, g, value);
       if (first) { const f0 = first; first = null; op(c, () => { f0(); run(c); }); }
     }
     op(c, () => { g.end = c.sb.timestampOffset; tell('time'); run(c); });
@@ -287,6 +287,23 @@ async function feed(c, i, s, body, first) {
     log('warn', '音乐', `《${s.name}》读到一半断了：${e.message}`);
     op(c, () => { g.end = c.sb.timestampOffset; run(c); });
   }
+}
+/** 续一段进去（上一段续完才续下一段，不会一口气全塞进去）。
+ *  缓冲满了（浏览器给一条声音的地方有限，长歌、高音质，或者正好在续下一首时会满）：把 30 秒以前已经放过的清掉再续；还没放到能清的地方就等一会儿再试 */
+function put(c, g, value) {
+  return new Promise((ok, no) => {
+    c.ac.signal.addEventListener('abort', ok, { once: true });   // 换歌了：别等了
+    const go = () => {
+      try { if (g.start == null) g.start = c.sb.timestampOffset; c.sb.appendBuffer(value); ok(); }
+      catch (e) {
+        if (e.name !== 'QuotaExceededError') return no(e);
+        const b = c.sb.buffered, t = audio.currentTime - 30;
+        if (b.length && b.start(0) < t - 1) { c.ops.unshift(go); c.sb.remove(b.start(0), t); }   // 清完 updateend 会接着跑 go
+        else setTimeout(() => op(c, go), 1500);
+      }
+    };
+    op(c, go);
+  });
 }
 /** 这首快放完了：把下一首续在后面。下一首读不到就封口，放完走普通放法 */
 async function chainNext(c) {
@@ -319,7 +336,13 @@ export function next(step = 1) {
   load(true);
 }
 export const prev = () => now() > 4 ? seek(0) : next(-1);
-export function seek(t) { if (restored) audio.currentTime = (seg()?.start || 0) + t; }
+export function seek(t) {
+  if (!restored) return;
+  const at = (seg()?.start || 0) + t, b = chain && chain.sb.buffered;
+  // 往回拖到已经清掉的地方（缓冲满时清了 30 秒以前的）：这首重新读，读好了跳过去
+  if (b && b.length && at < b.start(0) - .5) { load(true); audio.addEventListener('loadedmetadata', () => seek(t), { once: true }); return; }
+  audio.currentTime = at;
+}
 export function jump(i) { M().idx = i; load(true); }
 /** 播放列表改顺序：正在放的不动，已经续上的那几首重新对一下是第几首 */
 function requeue(Q) { const c = current(); M().queue = Q; M().idx = Q.indexOf(c); if (chain) chain.segs.forEach(g => { g.i = Q.indexOf(g.s); }); commit('music'); }
@@ -419,12 +442,18 @@ const bare = n => String(n || '').trim().replace(/^[【「『《\[]([^【】「�
 export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  const existing = charLists(c).map(l => `歌单：${l.name}${l.intro ? '（' + l.intro + '）' : ''}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
+  const existing = charLists(c).map(l => `歌单：${l.name}${l.intro ? '｜' + l.intro : ''}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）' }) });
-  let j = null; try { j = JSON.parse((String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').match(/\{[\s\S]*\}/) || [])[0]); } catch { /* 下面当成回的不对 */ }
-  if (!j || !Array.isArray(j.lists)) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
-  const todo = j.lists.flatMap(l => (l.songs || []).filter(x => x && x.song).map(x => ({ ...x, name: bare(l.name) || '喜欢的音乐', intro: l.intro || '' })));
+  // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）
+  let cur = { name: '喜欢的音乐', intro: '' }; const todo = [];
+  for (const t of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(x => x.trim())) {
+    const m = t.match(/^(歌单|路人)[:：]\s*(.+)$/), [a, b = ''] = (m ? m[2] : t).split(/[|｜]/).map(x => x.trim());
+    if (m && m[1] === '歌单') cur = { name: bare(a) || '喜欢的音乐', intro: b };
+    else if (m) { if (todo.length && b) (todo.at(-1).others = todo.at(-1).others || []).push({ name: a, text: b }); }
+    else if (/\s[-–—]\s/.test(a)) todo.push({ song: a.replace(/^(\d+[.、)）]|[-*•])\s*/, ''), thought: b, ...cur });
+  }
+  if (!todo.length) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
   // 四首一起搜（一首一首搜太慢），搜完按 AI 给的顺序放进歌单
   const found = []; let k = 0, n = 0;
   await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await findSong(todo[i].song); onStep && onStep(++n, todo.length); } }));
