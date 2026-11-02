@@ -145,7 +145,7 @@ export const DEFAULT_PROMPTS = {
 【最近的事】
 {{story}}
 
-【你现在的歌单】
+【你现在的歌单（只是告诉你有哪些，别再写一遍；往已有的歌单里加歌，只写新加的）】
 {{existing}}
 
 要求：

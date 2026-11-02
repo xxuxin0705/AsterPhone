@@ -442,7 +442,8 @@ const bare = n => { const x = String(n || '').trim().replace(/^[【「『《\[](
 export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  const existing = charLists(c).map(l => `歌单：${l.name}${l.intro ? '｜' + l.intro : ''}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
+  // 已有的歌单写成一行一个（不写成和要它回的一样的格式，不然 AI 会把已有的整个抄一遍）
+  const existing = charLists(c).map(l => `「${l.name}」已有 ${l.songs.length} 首：${l.songs.slice(-15).map(label).join('；')}`).join('\n');
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）',
       existing: (existing || '（还没有歌单）') + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）') }) });   // AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
@@ -455,14 +456,17 @@ export async function charPick(c, onStep, stop) {
     else if (/\s[-–—]\s/.test(a)) todo.push({ song: a.replace(/^(\d+[.、)）]|[-*•])\s*/, ''), thought: b, ...cur });
   }
   if (!todo.length) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
+  // AI 还是抄了已有的：歌单里已经有同名的歌就不去搜了，直接算「已经有了」
+  const has = x => (charLists(c).find(l => l.name === x.name)?.songs || []).some(s => s.name.toLowerCase() === x.song.split(/\s[-–—]\s/)[0].trim().toLowerCase());
+  let dup = todo.length; todo.splice(0, todo.length, ...todo.filter(x => !has(x))); dup -= todo.length;
   // 四首一起搜（一首一首搜太慢），没搜到的歇一下再搜一次（音源一下子收到好几个请求时会漏回）；搜完按 AI 给的顺序放进歌单
   const found = []; let k = 0, n = 0;
   const find = async q => (await findSong(q)) || (await new Promise(r => setTimeout(r, 800)), await findSong(q));
   await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await find(todo[i].song); onStep && onStep(++n, todo.length); } }));
   const miss = todo.filter((x, i) => !found[i]).map(x => x.song);
   if (miss.length) log('warn', '角色歌单', `${miss.length} 首在音源里没搜到：${miss.join('、')}`);
-  if (!found.some(Boolean)) throw new Error('AI 挑的歌一首都没搜到');
-  const got = []; let dup = 0;
+  if (todo.length && !dup && !found.some(Boolean)) throw new Error('AI 挑的歌一首都没搜到');
+  const got = [];
   for (const [i, s] of found.entries()) if (s) { if (addToChar(c, s, todo[i].name, todo[i].intro)) { got.push(s); await songThought(c, s, todo[i].thought, todo[i].others); } else dup++; }
   return { got, miss: miss.length, dup };
 }
