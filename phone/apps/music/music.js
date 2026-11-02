@@ -31,6 +31,7 @@ export function open() {
   p.el.prepend(meBg);
   p.el.append(h('div.as-mu-dock', mini.el, tabs));
   p.el._onLeave = P.onMusic(() => mini.paint());
+  const ctx = { body: p.body, el: p.el, title: titleEl, right: rightEl, meBg, go };
   cur = null; go('home');
   return p.el;
 
@@ -40,7 +41,7 @@ export function open() {
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.tab === id));
     p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me');
     titleEl.replaceChildren(); rightEl.replaceChildren(); p.body.innerHTML = ''; p.body.scrollTop = 0; p.el._onShow = null;
-    TABS.find(t => t[0] === id)[2]({ body: p.body, el: p.el, title: titleEl, right: rightEl, meBg, go });
+    TABS.find(t => t[0] === id)[2](ctx);
   }
 }
 function miniBar() {
@@ -58,26 +59,27 @@ function miniBar() {
 /** 横着滑的一排；数据没变就不重画（返回时不闪） */
 function keep(box, sig, draw) { let last = ''; return () => { const k = sig(); if (k !== last) { last = k; box.replaceChildren(...draw()); } }; }
 
-/* ================= 首页 ================= */
+/* ================= 首页：顶上搜索框、排行榜四块、按语种和风格、最近播放、角色的歌单 ================= */
+const RANK_COLORS = ['teal', 'blue', 'red', 'purple'];
+const STYLES = ['日语', '韩语', '英语', '粤语', '二次元', '古风', '说唱', '小甜歌'];
 function renderHome(ctx) {
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')));
-  const big = h('div.as-mu-big');
-  const paintBig = keep(big, () => JSON.stringify([firstPic(M().liked), state.contacts.map(c => [c.id, nameOf(c), (c.songs || []).length, firstPic(c.songs) || c.avatar])]), () => [
-    bigCard(firstPic(M().liked) || firstPic(M().recent), '心动模式', '红心歌曲和相似推荐', heartMode, 0),
-    ...state.contacts.map((c, i) => bigCard(firstPic(c.songs) || c.avatar, `${nameOf(c)}的歌单`, (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌', () => openCharList(c), i + 1)),
-  ]);
-  paintBig();
-  const tops = h('div.as-mu-hrow', P.TOPLISTS.map(([id, name]) => {
-    const cov = h('span.as-mu-sq__cover', icon('play', 12, 0));
-    P.cachedList(id).then(L => L ? L : P.playlist(id)).then(L => { cov.style.backgroundImage = bgUrl(firstPic(L)); }).catch(() => {});
-    return h('button.as-mu-sq', { onclick: () => openRemote(name, id) }, cov, h('span', name));
-  }));
-  ctx.body.append(big, h('div.as-mu-h', '排行榜', icon('chevron', 15, 2.4)), tops);
-  ctx.el._onShow = paintBig;
-}
-function bigCard(pic, title, sub, onclick, i) {
-  return h('button.as-mu-big__card', { style: { backgroundImage: bgUrl(pic), backgroundColor: ['#d0687c', '#5d9c92', '#8a6e5c', '#6d7fb0'][i % 4] }, onclick },
-    h('b', title), h('span', sub), i ? null : h('i', icon('play', 18, 0)));
+  ctx.title.append(h('button.as-mu-search', { onclick: () => { ctx.go('search'); ctx.title.querySelector('input')?.focus(); } }, icon('search', 16, 2), h('span', '搜索歌曲、歌手、语种')));
+  const songCard = (s, onclick) => h('button.as-mu-sq', { onclick }, h('span.as-mu-sq__cover', { style: { backgroundImage: bgUrl(s.pic) } }), h('b', s.name), h('span', s.sub || s.artist));
+  const recent = h('div'), chars = h('div');
+  const paintRecent = keep(recent, () => M().recent.slice(0, 10).map(s => s.id).join(), () => M().recent.length ? [
+    h('div.as-mu-h', '最近播放', h('button.as-mu-h__more', { onclick: () => openList('最近播放', M().recent) }, '全部')),
+    h('div.as-mu-hrow', M().recent.slice(0, 10).map((s, i) => songCard(s, () => play(M().recent, i, '最近播放'))))] : []);
+  const paintChars = keep(chars, () => JSON.stringify(state.contacts.map(c => [c.id, nameOf(c), (c.songs || []).length, firstPic(c.songs) || c.avatar])), () => state.contacts.length ? [
+    h('div.as-mu-h', '角色的歌单'),
+    h('div.as-mu-hrow', state.contacts.map(c => songCard({ pic: firstPic(c.songs) || c.avatar, name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c))))] : []);
+  paintRecent(); paintChars();
+  ctx.body.append(
+    h('div.as-mu-h', '排行榜'),
+    h('div.as-mu-ranks', P.TOPLISTS.map(([id, name], i) => h('button.is-' + RANK_COLORS[i], { onclick: () => openRemote(name, id) }, h('b', name), h('span', '网易云音乐')))),
+    h('div.as-mu-h', '按语种和风格'),
+    h('div.as-mu-tags', STYLES.map(w => h('button', { onclick: () => { ctx.go('search'); ctx.find(w); } }, w))),
+    recent, chars, h('div.as-mu-gap'));
+  ctx.el._onShow = () => { paintRecent(); paintChars(); };
 }
 async function heartMode() {
   toast('正在开启心动模式…', true);
@@ -97,24 +99,20 @@ function openCharList(c) {
   });
 }
 
-/* ================= 搜索 ================= */
+/* ================= 搜索：搜索历史、试试这些（语种风格 + 常听的歌手） ================= */
 function renderSearch(ctx) {
-  const input = h('input', { placeholder: '搜歌、歌手', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); } });
+  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); } });
   ctx.title.append(h('label.as-mu-search', icon('search', 16, 2), input));
-  ctx.right.append(h('button.as-navbar__text', { onclick: () => find(input.value.trim()) }, '搜索'));
   const hist = h('div');
   const paintHist = () => hist.replaceChildren(...(M().history.length ? [
-    h('div.as-mu-h', '搜索历史', h('button.as-mu-h__btn', { 'aria-label': '清空搜索历史', onclick: () => { M().history = []; commit('music'); paintHist(); } }, icon('trash', 17, 1.8))),
-    h('div.as-mu-hrow.as-mu-hist', M().history.map(w => h('button', { onclick: () => find(w) }, w)))] : []));
+    h('div.as-mu-h', '搜索历史', h('button.as-mu-h__btn', { 'aria-label': '清空搜索历史', onclick: () => { M().history = []; commit('music'); paintHist(); } }, icon('trash', 18, 1.8))),
+    h('div.as-mu-tags.is-gray', M().history.map(w => h('button', { onclick: () => find(w) }, w)))] : []));
   paintHist();
-  const boards = h('div.as-mu-hrow.as-mu-boards', [P.TOPLISTS[2], P.TOPLISTS[0], P.TOPLISTS[1], P.TOPLISTS[3]].map(([id, name]) => {
-    const ol = h('ol');
-    let L = [];
-    const fill = list => { L = list; ol.replaceChildren(...L.slice(0, 10).map((s, i) => h('li', { onclick: () => play(L, i, name) }, h('em', String(i + 1)), h('span', s.name)))); };
-    P.cachedList(id).then(c => { if (c) fill(c); return P.playlist(id); }).then(fill).catch(e => { if (!L.length) ol.replaceChildren(h('li.as-muted', '读不到：' + e.message)); });
-    return h('div.as-mu-board', h('div.as-mu-board__h', name, h('button', { onclick: () => L.length && play(L, 0, name) }, icon('play', 10, 0), '播放')), ol);
-  }));
-  ctx.body.append(hist, boards);
+  // 喜欢的歌里出现最多的两位歌手接在后面，没有就补两个风格
+  const count = {}; M().liked.forEach(s => { const a = s.artist.split(/[/、,，&]/)[0].trim(); if (a && !s.local) count[a] = (count[a] || 0) + 1; });
+  const words = [...STYLES, '治愈', '伤感', ...Object.keys(count).sort((a, b) => count[b] - count[a]), '民谣', '摇滚'].slice(0, 12);
+  ctx.body.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))), h('div.as-mu-gap'));
+  ctx.find = find;
   async function find(word) {
     if (!word) return;
     input.value = word; input.blur();
