@@ -402,7 +402,7 @@
 .as-mu-swacts .is-next { background: #7c97bd; } .as-mu-swacts .is-fav { background: #d39aa0; } .as-mu-swacts .is-share { background: #8fa786; } .as-mu-swacts .is-rm { background: #e0646b; }   /* 和分类卡片同一套柔和的颜色 */
 .as-mu-all .as-mu-chip { margin-left: auto; }
 .as-mu-li > .as-chat-check { display: none; flex: none; }
-.as-mu-lp.is-picking .as-mu-li > .as-chat-check { display: grid; }
+.as-mu-lp.is-picking .as-mu-li > .as-chat-check, .as-mu-cl.is-picking .as-mu-li > .as-chat-check { display: grid; }
 .as-mu-lp.is-picking .as-mu-li .as-mu-more { display: none; }
 .as-mu-pickbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 10px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--mu-card); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
 .as-mu-pickbar button { flex: 1; border: 0; border-radius: 20px; padding: 11px 0; background: var(--mu-fill); color: var(--mu-ink); font: 500 14px/1 var(--font-ui); cursor: pointer; white-space: nowrap; }

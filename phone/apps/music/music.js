@@ -207,15 +207,25 @@ function openCharList(c) {
     catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
     finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
-  const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai });
+  const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai, cls: 'as-mu-cl' });
   const box = h('div.as-mu-sheet');
-  const row = l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openCharOne(c, l) },
-    h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
-    onLongPress(el, async () => {
-      if (!(await dialog({ title: `删除「${l.name}」？`, text: `里面的 ${l.songs.length} 首歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return;
-      P.charLists(c).splice(P.charLists(c).indexOf(l), 1); commit('contacts'); paint();
-    });
+  // 长按进多选：勾几个（全选 / 全不选），一起删
+  let sel = null;
+  const row = l => { const ck = h('span.as-chat-check', icon('check', 14, 2.6));
+    const el = h('div.as-mu-li', { role: 'button', onclick: () => { if (!sel) return openCharOne(c, l); sel.has(l) ? sel.delete(l) : sel.add(l); ck.classList.toggle('is-active', sel.has(l)); paintBar(); } },
+      ck, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
+    el._l = l; el._ck = ck;
+    onLongPress(el, () => { if (!sel) { pick(true); el.click(); } });
     return el; };
+  const nSel = h('span'), allBtn = h('button', { onclick: () => { const all = sel.size < P.charLists(c).length; sel = new Set(all ? P.charLists(c) : []); mark(); } }, '全选');
+  const bar = h('div.as-mu-pickbar', allBtn, h('button.is-main', { onclick: async () => {
+    if (!sel.size) { toast('先勾几个'); return; }
+    if (!(await dialog({ title: `删除 ${sel.size} 个歌单？`, text: `里面的歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return;
+    c.lists = P.charLists(c).filter(l => !sel.has(l)); commit('contacts'); toast(`删了 ${sel.size} 个`); pick(false); paint();
+  } }, '删除', nSel), h('button', { onclick: () => pick(false) }, '取消'));
+  const paintBar = () => { nSel.textContent = sel.size ? `（${sel.size}）` : ''; allBtn.textContent = sel.size && sel.size === P.charLists(c).length ? '全不选' : '全选'; };
+  const mark = () => { box.querySelectorAll('.as-mu-li').forEach(el => el._ck.classList.toggle('is-active', sel.has(el._l))); paintBar(); };
+  function pick(on) { sel = on ? new Set() : null; p.el.classList.toggle('is-picking', on); if (on) { p.el.append(bar); mark(); } else bar.remove(); }
   const paint = keep(box, () => JSON.stringify(P.charLists(c).map(l => [l.id, l.name, l.intro, l.songs.length, firstPic(l.songs)])), () => P.charLists(c).length ? P.charLists(c).map(row) : [empty('还没有歌单', h('button.as-mu-morel', { onclick: () => ai.click() }, '让 TA 挑几首（用一次 API）'))]);
   paint(); p.body.append(box); p.el._onShow = paint; charViews[c.id] = { ai, paint };
   nav.push(p.el);

@@ -1,5 +1,5 @@
 // 下雨天皮肤：竖直的雨丝落进水里，落点闪一下、溅起几粒水花、荡开两圈水纹（远处小、近处大）；
-// 当前这句跟着唱一个字一个字掉下来，刚好在唱到时落到水面排成一行，水里有倒影；
+// 当前这句跟着唱一个字一个字掉下来，刚好在唱到时落到水面排成一行（太长分两行），水里有倒影；
 // 下一句开始往下掉时，上一句从左到右像水珠一样「啪」地碎掉化开。字的位置全按播放时间算，拖进度、暂停都对得上。
 import * as P from '../../core/music.js';
 
@@ -34,10 +34,17 @@ export function rain(cv, page) {
     let fs = SIZE; ctx.font = `500 ${fs}px ${FONT}`;
     const toks = x.w ? x.w.map(w => w.text) : x.text.match(TOK) || [];   // 有逐字时间就按它分块
     let ws = toks.map(t => ctx.measureText(t).width), sum = ws.reduce((a, b) => a + b, 0);
-    if (sum > W - 40) { fs = Math.max(13, fs * (W - 40) / sum); ctx.font = `500 ${fs}px ${FONT}`; ws = toks.map(t => ctx.measureText(t).width); sum = ws.reduce((a, b) => a + b, 0); }
-    let at = (W - sum) / 2;
+    // 一行放不下：分成差不多长的两行（上一行浮在水面上方，下一行落在水面），不把字缩得挤成一团；两行还放不下才缩
+    let cut = toks.length;
+    if (sum > W - 40) { let acc = 0; cut = ws.findIndex(w => (acc += w) > sum / 2); if (cut < 1) cut = 1; }
+    const rowW = () => [ws.slice(0, cut).reduce((a, b) => a + b, 0), ws.slice(cut).reduce((a, b) => a + b, 0)];
+    const widest = Math.max(...rowW());
+    if (widest > W - 40) { fs = Math.max(13, fs * (W - 40) / widest); ctx.font = `500 ${fs}px ${FONT}`; ws = toks.map(t => ctx.measureText(t).width); }
+    const [w0, w1] = rowW(), two = cut < toks.length;
+    let at = (W - w0) / 2;
     const out = { fs, tr: x.tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
-    toks.forEach((t, k) => { if (t.trim()) out.toks.push({ t: t.trim(), at: when[out.toks.length], x: at, w: ws[k], jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
+    toks.forEach((t, k) => { if (k === cut) at = (W - w1) / 2;
+      if (t.trim()) out.toks.push({ t: t.trim(), at: when[out.toks.length], x: at, w: ws[k], dy: two && k < cut ? -fs * 1.45 : 0, jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
       sp: Array.from({ length: 5 }, () => [(Math.random() - .5) * 2.4, .6 + Math.random() * .8]) }); at += ws[k]; });
     lines.set(x, out);
     return out;
@@ -97,16 +104,16 @@ export function rain(cv, page) {
     let landed = 0;
     lay.toks.forEach((k, j) => {
       const q = (t - (k.at - FALL)) / FALL; if (q <= 0) return;   // 提前 FALL 秒开始掉，唱到时刚好落地
-      let y, rot, a = 1;
-      if (q < 1) { y = -20 + (ground + 20) * q * q; rot = k.r0 * (1 - q) + k.r1 * q; a = Math.min(1, q * 3); }
-      else { const b = Math.min(1, (q - 1) * FALL / .3); y = ground - Math.sin(b * Math.PI) * 6 * (1 - b); rot = k.r1; landed++; }
+      let y, rot, a = 1; const g = ground + k.dy;   // 两行时上一行停在水面上方
+      if (q < 1) { y = -20 + (g + 20) * q * q; rot = k.r0 * (1 - q) + k.r1 * q; a = Math.min(1, q * 3); }
+      else { const b = Math.min(1, (q - 1) * FALL / .3); y = g - Math.sin(b * Math.PI) * 6 * (1 - b); rot = k.r1; landed++; }
       const cx = k.x + k.jx * Math.max(0, 1 - q) + k.w / 2;
       const d = pop < 0 ? 0 : Math.max(0, Math.min(1, (pop - j * GAP) / POP));
       if (q >= 1 && pop < 0) {   // 刚落地那一下的水圈
-        const b = (q - 1) * FALL; if (b < 1) { const rx = k.w * .4 + b * 30; ctx.strokeStyle = ringC((1 - b) * .5); ctx.beginPath(); ctx.ellipse(cx, ground + 4, rx, rx * .22, 0, 0, Math.PI * 2); ctx.stroke(); }
+        const b = (q - 1) * FALL; if (b < 1 && !k.dy) { const rx = k.w * .4 + b * 30; ctx.strokeStyle = ringC((1 - b) * .5); ctx.beginPath(); ctx.ellipse(cx, ground + 4, rx, rx * .22, 0, 0, Math.PI * 2); ctx.stroke(); }
       }
       if (d > 0) burst(k, cx, d, lay.fs);
-      if (d < 1) glyph(k.t, cx, y, rot, a, d, q >= 1, clock);
+      if (d < 1) glyph(k.t, cx, y, rot, a, d, q >= 1 && !k.dy, clock);
     });
     if (lay.tr && landed) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
@@ -123,9 +130,9 @@ export function rain(cv, page) {
   }
   // 碎开：字往下一压扁就没了，原地溅起几粒水珠落回水面，荡一圈小水纹
   function burst(k, cx, d, fs) {
-    const top = ground - fs * .45;
+    const top = ground + k.dy - fs * .45;
     ctx.fillStyle = spark(.95 * (1 - d * .7)); if (night) { ctx.shadowColor = glow(.9); ctx.shadowBlur = 6; }
-    for (const [vx, vy] of k.sp) { const x = cx + vx * d * fs * .8, y = top - vy * fs * .9 * d + fs * 1.6 * d * d; ctx.beginPath(); ctx.arc(x, Math.min(y, ground + 2), 2.3 * (1 - d * .4), 0, 7); ctx.fill(); }
+    for (const [vx, vy] of k.sp) { const x = cx + vx * d * fs * .8, y = top - vy * fs * .9 * d + fs * 1.6 * d * d; ctx.beginPath(); ctx.arc(x, Math.min(y, ground + k.dy + 2), 2.3 * (1 - d * .4), 0, 7); ctx.fill(); }
     ctx.shadowBlur = 0;
     const rx = k.w * .3 + d * 22; ctx.strokeStyle = ringC((1 - d) * .5); ctx.beginPath(); ctx.ellipse(cx, ground + 4, rx, rx * .22, 0, 0, Math.PI * 2); ctx.stroke();
   }
