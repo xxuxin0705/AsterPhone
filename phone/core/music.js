@@ -24,6 +24,7 @@ async function get(url, as = 'json', what = '读音源') {
   const out = await (as === 'json' ? r.json() : r.text()); slow(what, t0);
   return out;
 }
+export const WEEK = 7 * 864e5;
 export const label = s => `${s.name} - ${s.artist}`;
 
 /* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云，登录后会员歌也能放 ----------
@@ -176,7 +177,8 @@ export function playList(list, i = 0, from = '') { M().queue = list.slice(); M()
 function enter(s) {
   lyrics = []; tell('song');
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
-  const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++; commit('music');
+  const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++;
+  pl.t = [...(pl.t || []).filter(t => Date.now() - t < WEEK), Date.now()]; commit('music');   // 最近一周每次放的时间，听歌排行用
   sysInfo(s);
   if (s.local) return;
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去

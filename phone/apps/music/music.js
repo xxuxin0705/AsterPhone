@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar } from '../../core/ui.js';
+import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -14,6 +14,15 @@ import { rain, isNight } from './rain.js';
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
 const bgUrl = pic => pic ? `url("${pic}")` : '';
+/** 一行放不下的字：两份首尾相接慢慢往左走（长歌名） */
+function marquee(el, text) {
+  el.classList.remove('is-scroll'); el.replaceChildren(text);
+  requestAnimationFrame(() => {
+    if (el.scrollWidth <= el.clientWidth) return;
+    el.replaceChildren(h('span', `${text}\u3000\u3000\u3000${text}\u3000\u3000\u3000`)); el.classList.add('is-scroll');
+    el.style.setProperty('--t', el.firstChild.scrollWidth / 60 + 's');   // 一秒走 30px
+  });
+}
 const firstPic = L => ((L || []).find(s => s.pic) || {}).pic || '';
 const play = (list, i, from) => { P.playList(list, i, from); openPlayer(); };
 P.onMusic(w => { if (w === 'blocked') toast('点一下播放键开始放'); if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
@@ -212,11 +221,16 @@ function renderMe(ctx) {
   }
 
   async function delList(l) {
-    if ((await actionSheet(l.name, [{ value: 'rm', label: '删除', icon: 'trash', danger: true }])) !== 'rm') return;
+    const v = await actionSheet(l.name, [{ value: 'out', label: '导出', icon: 'send' }, { value: 'rm', label: '删除', icon: 'trash', danger: true }]);
+    if (v === 'out') { exportList(l); return; }
+    if (v !== 'rm') return;
     if (!(await dialog({ title: `删除「${l.name}」？`, text: '只是从这里拿掉，网易云里的歌单不受影响。', confirm: '删除', danger: true }))) return;
     M().lists.splice(M().lists.indexOf(l), 1); commit('music'); paint();
   }
   async function importList() {
+    const how = await actionSheet('导入歌单', [{ value: 'ne', label: '网易云歌单链接', icon: 'link' }, { value: 'file', label: '小手机导出的歌单文件', icon: 'box' }]);
+    if (how === 'file') { await importFile(); paint(); return; }
+    if (how !== 'ne') return;
     const link = await dialog({ title: '导入网易云歌单', text: '歌单要设成公开；「我喜欢的音乐」也可以。', input: { placeholder: '歌单链接' } });
     if (!link) return;
     let id;
@@ -278,6 +292,20 @@ async function openDaily() {
   try { const L = await P.neDaily(); toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
   catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
 }
+/* ---------- 歌单导出 / 导入（小手机自己的文件） ---------- */
+function exportList(l) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify({ app: 'AsterPhone', kind: 'musicList', list: { name: l.name, songs: l.songs || [] } })], { type: 'application/json' })), download: `AsterPhone-歌单-${l.name}.json` });
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`导出了「${l.name}」`);
+}
+async function importFile() {
+  const f = await pickFile('.json,application/json'); if (!f) return;
+  let d; try { d = JSON.parse(await f.text()); } catch (e) { toast('这个文件读不出来'); return; }
+  const l = d && d.app === 'AsterPhone' && d.kind === 'musicList' && d.list;
+  if (!l || !Array.isArray(l.songs)) { toast('这不是小手机导出的歌单'); return; }
+  M().lists.unshift({ id: uid('my'), name: l.name || '导入的歌单', songs: l.songs, own: true }); commit('music');
+  toast(`导入了「${l.name}」，${l.songs.length} 首`);
+}
 /** 「我的」资料：昵称、头像没改过就跟着「我」 */
 const me = () => { const u = M().profile || {}; return { nick: u.nick || myNick(), avatar: u.avatar || myAvatar(), sign: u.sign || '', bg: u.bg || '', fans: u.fans || 0, lv: u.lv || 1 }; };
 /** 990000 → 990k */
@@ -285,8 +313,8 @@ const big = n => n < 1000 ? String(n) : n < 1e6 ? +(n / 1000).toFixed(n < 1e4 ? 
 /** 听歌时长：不到一分钟写秒，不到一小时写分钟，再往上写小时 */
 const heard = () => { const s = Math.floor(M().heard || 0); return s < 60 ? [s, '秒'] : s < 3600 ? [Math.floor(s / 60), '分钟'] : [Math.floor(s / 3600), '小时']; };
 const follows = () => M().follows || (M().follows = []);
-/** 一起听了多久：不到一分钟写秒，不到一小时写分钟，再往上写几小时几分钟 */
-const span = sec => { const s = Math.floor(sec); return s < 60 ? `${s} 秒` : s < 3600 ? `${Math.floor(s / 60)} 分钟` : `${Math.floor(s / 3600)} 小时${s % 3600 >= 60 ? ` ${Math.floor(s % 3600 / 60)} 分钟` : ''}`; };
+/** 一起听了多久：几小时几分钟几秒，是 0 的那一节不写 */
+const span = sec => { const s = Math.floor(sec), p = [[Math.floor(s / 3600), '小时'], [Math.floor(s % 3600 / 60), '分钟'], [s % 60, '秒']].filter(x => x[0]); return p.length ? p.map(x => x.join(' ')).join(' ') : '0 秒'; };
 function editMe(after) {
   const d = { ...(M().profile || {}) };
   const p = page({ app: 'music', id: 'music-edit', title: '编辑资料', back: true });
@@ -330,7 +358,13 @@ function follow(a) {
   toast(i < 0 ? `关注了${a}` : `取消关注${a}`);
   return i < 0;
 }
-const openRank = () => openList('听歌排行', Object.values(M().plays).sort((a, b) => b.n - a.n).map(x => x.s), { count: s => `${M().plays[s.id].n} 次` });
+/** 听歌排行：最近一周 / 所有时间 */
+function openRank() {
+  let week = true;
+  const n = s => week ? (M().plays[s.id].t || []).filter(t => Date.now() - t < P.WEEK).length : M().plays[s.id].n;
+  const list = () => Object.values(M().plays).map(x => x.s).filter(s => n(s)).sort((a, b) => n(b) - n(a));
+  const v = openList('听歌排行', list(), { count: s => `${n(s)} 次`, top: h('div.as-mu-seg', segmented([['week', '最近一周'], ['all', '所有时间']], 'week', k => { week = k === 'week'; v.fill(list()); })) });
+}
 function openLocal() {
   const v = openList('本地', M().local, {
     right: [navBtn('plus', '上传', async () => {
@@ -465,7 +499,7 @@ export function openPlayer() {
   let lines = [];
   const paintSong = () => {
     const s = P.current(); if (!s) return;
-    name.textContent = topName.textContent = s.name; artistName.textContent = topArtist.textContent = s.artist; paintFollow(); cov.style.backgroundImage = bgUrl(s.pic);
+    topName.textContent = s.name; marquee(name, s.name); artistName.textContent = topArtist.textContent = s.artist; paintFollow(); cov.style.backgroundImage = bgUrl(s.pic);
     top.replaceChildren(topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();

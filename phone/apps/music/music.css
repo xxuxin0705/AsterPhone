@@ -74,6 +74,7 @@
 .as-mu-cats b { font: 600 16px/1 var(--font-ui); }
 .as-mu-cats span { font: 400 11px/1 var(--font-ui); color: rgba(255,255,255,.72); }
 .as-mu-cats i { position: absolute; right: -4px; bottom: -14px; font: 700 58px/1 var(--font-ui); font-style: normal; color: rgba(255,255,255,.14); pointer-events: none; }   /* 右下角一个淡淡的大字当装饰 */
+.as-mu-seg { margin: 10px 0 6px; }
 .as-mu-sub { margin: 14px 2px 6px; font: 600 16px/1.2 var(--font-ui); color: var(--mu-ink); }
 .as-mu-morel { display: block; margin: 4px auto 0; border: 0; background: none; padding: 8px; font: 400 13px/1 var(--font-ui); color: var(--mu-gray); cursor: pointer; }
 .as-mu-try li { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 12px; font: 400 16px/1 var(--font-ui); color: var(--mu-ink); cursor: pointer; white-space: nowrap; overflow: hidden; }
@@ -90,9 +91,9 @@
 .as-mu-root > .as-mu-mebg { display: none; position: absolute; left: 0; right: 0; top: 0; height: 400px; z-index: 0; background: center / cover no-repeat; }
 .as-mu-root.is-dark > .as-mu-mebg { display: block; }
 .as-mu-mebg.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.25), rgba(0,0,0,.45) 280px, rgba(0,0,0,.15)); }
-/* 自己设了背景图：图铺满整页，下面的歌单是一张浮着的毛玻璃卡片——磨砂、细白亮边、一点高光，不是灰色的半透明罩子 */
+/* 自己设了背景图：图铺满整页，下面的歌单换成毛玻璃（左右照旧填满）——磨砂、细白亮边、一点高光，不是灰色的半透明罩子 */
 .as-mu-root.is-dark > .as-mu-mebg.has-img { height: 100%; }
-.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { margin: 0 12px; border-radius: 26px; background: rgba(255,255,255,.3);
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { border-radius: 26px 26px 0 0; background: rgba(255,255,255,.3);
   border: 1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -10px 30px rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.18);
   -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); }
 .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red) { background-color: rgba(255,255,255,.45); }
@@ -194,8 +195,12 @@
 
 .as-mp__info { display: flex; align-items: center; gap: 14px; margin: 0 22px; padding-top: 10px; }
 .as-mp__info > div { flex: 1; min-width: 0; }
-.as-mp.is-lrc .as-mp__info > div { visibility: hidden; }
+.as-mp.is-lrc .as-mp__info > div { display: none; }   /* 看全部歌词时歌名那块不占地方，歌词区往下多出一截 */
+.as-mp.is-lrc .as-mp__info { justify-content: flex-end; }
 .as-mp__name { font: 500 19px/1.3 var(--font-ui); color: rgb(var(--mp-ink)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mp__name.is-scroll { text-overflow: clip; }
+.as-mp__name.is-scroll span { display: inline-block; animation: as-mp-marq var(--t, 10s) linear infinite; }   /* 歌名太长：两份首尾相接往左走 */
+@keyframes as-mp-marq { to { transform: translateX(-50%); } }
 .as-mp__artist { margin-top: 4px; font: 400 13px/1.3 var(--font-ui); color: rgba(var(--mp-ink),.6); }
 .as-mp__follow { margin-left: 8px; padding: 3px 8px; border: 0; border-radius: 10px; background: rgba(var(--mp-ink),.14); color: rgba(var(--mp-ink),.85); font: 400 11px/1.2 var(--font-ui); cursor: pointer; vertical-align: 1px; }
 .as-mp__follow.is-on { color: rgba(var(--mp-ink),.55); }
