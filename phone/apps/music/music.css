@@ -243,7 +243,7 @@
 .as-mu-login { display: grid; justify-items: center; gap: 10px; padding: 4px 16px 20px; }
 .as-mu-login__qr { width: 200px; height: 200px; background: #fff; border-radius: 12px; display: block; }
 .as-mu-login__st { font-size: 14px; color: var(--mu-gray); }
-.as-mu-login__btns { display: flex; gap: 8px; width: 100%; }
+.as-mu-login__btns { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .as-mu-login__btns > * { flex: 1; }
 
 /* 一起听：上面两个人的头像叠住一小块（TA 的压在上面），外侧各塞一只耳机（图左右切开往中间挤）；下面照旧是歌词 */

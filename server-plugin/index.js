@@ -42,9 +42,25 @@ const wrap = fn => async (req, res) => {
   catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); }
 };
 
+// 网易云最近常拦新的登录，但已经登录过的凭证还能用：酒馆里别的音乐插件（「你自己的音乐源」）登录过的话，借它存的那份
+const other = () => {
+  const dir = path.join(__dirname, '..');
+  for (const d of fs.readdirSync(dir)) {
+    const f = path.join(dir, d, 'backend', 'data', 'cookie.txt');
+    if (d !== path.basename(__dirname) && fs.existsSync(f)) return f;
+  }
+  return '';
+};
+
 async function init(router) {
   whoami().catch(() => {});
-  router.get('/status', wrap(() => ({ ok: true, me })));
+  router.get('/status', wrap(() => ({ ok: true, me, borrow: !me && !!other() })));
+  router.post('/borrow', wrap(async () => {
+    const f = other(); if (!f) throw new Error('没找到别的插件存的登录');
+    await save(fs.readFileSync(f, 'utf8').trim());
+    if (!me) { await save(''); throw new Error('那份登录已经过期了'); }
+    return { me };
+  }));
 
   // 扫码登录：要一个 key 生成二维码图 → 前端每两秒问一次 → 803 就把网易云给的登录凭证存下
   router.get('/qr', wrap(async () => {
@@ -67,7 +83,7 @@ async function init(router) {
     if (!me) throw new Error('登录了，但读不到账号信息');
     return { me };
   }));
-  router.post('/logout', wrap(async () => { await api('logout').catch(() => {}); await save(''); return { me }; }));   // 网易云那边退不掉也没关系，本地凭证删了就算退了
+  router.post('/logout', wrap(async () => { await api('logout').catch(() => {}); await save(''); return { me, borrow: !!other() }; }));   // 网易云那边退不掉也没关系，本地凭证删了就算退了
 
   router.get('/search', wrap(async req => (((await api('cloudsearch', { keywords: req.query.word, limit: 30 })).result || {}).songs || []).map(song)));
   // 分享出来的短链接（163cn.tv）：问出它跳到哪个网易云地址（只跟着网易云自己的地址走）
