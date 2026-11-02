@@ -444,7 +444,8 @@ export async function charPick(c, onStep, stop) {
   const { storyText } = await import('./context.js');
   const existing = charLists(c).map(l => `歌单：${l.name}${l.intro ? '｜' + l.intro : ''}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
-    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）' }) });
+    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）',
+      existing: (existing || '（还没有歌单）') + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）') }) });   // AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
   // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）
   let cur = { name: '喜欢的音乐', intro: '' }; const todo = [];
   for (const t of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(x => x.trim())) {
