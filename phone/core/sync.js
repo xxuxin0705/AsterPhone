@@ -48,7 +48,7 @@ export function tagInstruction() {
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
-  return `[AsterPhone 格式说明]\n${text}` + (state.music.storySongs ? '\n角色把一首歌加进自己歌单（听到、想起、推荐给别人的歌）：type="加歌"，内容写 歌名 - 歌手。' : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+  return `[AsterPhone 格式说明]\n${text}` + (state.music.storySongs ? '\n每一楼都要有一位角色把一首歌加进自己歌单（这一楼里听到、想起、想推荐给别人的歌，贴合情节和 TA 的性格；别重复加同一首）：type="加歌"，内容写 歌名 - 歌手。' : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 

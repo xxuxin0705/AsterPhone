@@ -54,6 +54,9 @@
 .as-mu-sq__cover .as-avatar { width: 100% !important; height: 100% !important; border-radius: inherit; font-size: 28px !important; }
 .as-mu-sq__cover { overflow: hidden; }
 .as-page[data-as-page="music-chars"] .as-mu-grid { padding: 8px 0; }
+.as-page[data-as-page="music-chars"] .as-mu-only { margin: 4px 0 14px; }
+.as-mu-sq.is-dragging { transform: scale(1.08); opacity: .85; transition: transform 150ms; z-index: 2; position: relative; }
+.as-mu-sheet > .as-mu-only { margin: 14px 0 4px; }
 .as-mu-sq { flex: none; width: 29%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; display: grid; gap: 3px; }
 .as-mu-sq__cover { display: block; aspect-ratio: 1; margin-bottom: 5px; border-radius: 10px; background: #e2e3e8 center / cover; }
 .as-mu-sq b, .as-mu-sq > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -121,7 +124,6 @@
 .as-mu-all > div { display: grid; gap: 5px; }
 .as-mu-all b { font: 600 17px/1 var(--font-ui); color: var(--mu-ink); }
 .as-mu-all span { font: 400 12px/1 var(--font-ui); color: var(--mu-gray); }
-.as-mu-opt { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 2px; font: 400 14px/1 var(--font-ui); color: var(--mu-ink); }
 
 /* 播放页 */
 .as-mp .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }

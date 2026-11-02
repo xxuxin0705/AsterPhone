@@ -3,7 +3,7 @@
 // 整个 App 只有两处会找 AI：角色歌单右上角的「AI 挑歌」、笔记里的「生成乐评」，都是手动点的。
 import { h, onLongPress, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, switchEl } from '../../core/ui.js';
+import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -69,9 +69,9 @@ function renderHome(ctx) {
   const paintRecent = keep(recent, () => M().recent.slice(0, 8).map(s => s.id).join(), () => M().recent.length ? [
     h('div.as-mu-h', '最近播放', h('button.as-mu-h__more', { onclick: () => openList('最近播放', M().recent) }, '全部')),
     h('div.as-mu-grid', M().recent.slice(0, 8).map((s, i) => songCard(s, () => play(M().recent, i, '最近播放'))))] : []);
-  const paintChars = keep(chars, () => JSON.stringify(state.contacts.map(c => [c.id, nameOf(c), (c.songs || []).length, c.avatar])), () => state.contacts.length ? [
-    h('div.as-mu-h', '角色的歌单', state.contacts.length > 8 ? h('button.as-mu-h__more', { onclick: openAllChars }, '全部') : null),
-    h('div.as-mu-grid', state.contacts.slice(0, 8).map(charCard))] : []);
+  const paintChars = keep(chars, () => JSON.stringify(charList().map(c => [c.id, nameOf(c), (c.songs || []).length, c.avatar])), () => state.contacts.length ? [
+    h('div.as-mu-h', '角色的歌单', h('button.as-mu-h__more', { onclick: openAllChars }, '全部')),
+    h('div.as-mu-grid', charList().slice(0, 8).map(charCard))] : []);
   paintRecent(); paintChars();
   ctx.body.append(
     h('div.as-mu-h', '排行榜'),
@@ -84,10 +84,36 @@ function renderHome(ctx) {
 const songCard = (s, onclick, face) => h('button.as-mu-sq', { onclick }, h('span.as-mu-sq__cover', { style: { backgroundImage: bgUrl(s.pic) } }, face), h('b', s.name), h('span', s.sub || s.artist));
 // 角色歌单的封面就是角色头像（没头像是名字的字）
 const charCard = c => songCard({ name: `${nameOf(c)}的歌单`, sub: (c.songs || []).length ? `${c.songs.length} 首` : '还没有歌' }, () => openCharList(c), avatar(c.avatar, nameOf(c), 80, 'square'));
+/** 角色歌单的顺序：拖过的按拖好的排（存在联系人身上 songOrder），没拖过的接在后面 */
+const charList = () => state.contacts.map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+const storySongsRow = () => {
+  const ck = h('span.as-chat-check' + (M().storySongs ? '.is-active' : ''), icon('check', 14, 2.6));
+  return h('label.as-mu-only', { onclick: () => { M().storySongs = !M().storySongs; ck.classList.toggle('is-active', M().storySongs); commit('music'); commit('inject'); } }, ck, '随剧情每楼加一首歌');
+};
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
-  p.body.append(h('div.as-mu-grid', state.contacts.map(charCard)));
+  const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el); return el; }));
+  p.body.append(storySongsRow(), grid);
   nav.push(p.el);
+  // 长按一个拿起来，拖到别的格子上就换到那儿，松手存顺序
+  function sortable(el) {
+    onLongPress(el, () => {
+      el.classList.add('is-dragging');
+      const move = e => {
+        e.stopPropagation();   // 别让「右滑返回」也收到
+        const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom; });
+        if (over) { const r = over.getBoundingClientRect(); grid.insertBefore(el, e.clientX > r.left + r.width / 2 ? over.nextSibling : over); }
+      };
+      const noScroll = e => e.preventDefault();
+      const up = () => {
+        removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
+        el.classList.remove('is-dragging');
+        [...grid.children].forEach((x, i) => { state.contacts.find(c => c.id === x.dataset.id).songOrder = i; });
+        commit('contacts');
+      };
+      addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true); addEventListener('touchmove', noScroll, { passive: false });
+    });
+  }
 }
 async function heartMode() {
   toast('正在开启心动模式…', true);
@@ -102,7 +128,7 @@ function openCharList(c) {
       catch (err) { log('error', '角色歌单', err.message); toast(err.message); }
       finally { b.disabled = false; }
     })],
-    top: h('label.as-mu-opt', '随剧情加歌', switchEl(M().storySongs, on => { M().storySongs = on; commit('music'); commit('inject'); }, '随剧情加歌')),
+    top: storySongsRow(),
     onRemove: s => { c.songs = c.songs.filter(x => x.id !== s.id); commit('contacts'); },
   });
 }
