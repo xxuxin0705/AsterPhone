@@ -917,7 +917,7 @@ export function openPlayer() {
       if (v !== 'swap') return;
     }
     const who = await pickChat('和谁一起听', c); if (!who) return;
-    (await import('../chat/specials.js')).inviteListen(who);
+    P.listenWith(who); toast(`在和${nameOf(who)}一起听`);   // 播放页里发起一起听不涉及聊天，不发卡片（聊天「+」里发起的才发）
   }
   async function hot() { (await import('./comments.js')).openComments(P.current(), me()); }
   paintColor(); paintSong(); paintState(); paintTg();

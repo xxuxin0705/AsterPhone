@@ -154,7 +154,7 @@ export async function plusAction(k, chat, c, { poke }) {
   }
 }
 
-/** 和 TA（或一个群）一起听正在放的歌：在你们的聊天里发一张卡片（聊天「+」和播放页都走这里） */
+/** 聊天「+」里发起一起听：在你们的聊天里发一张卡片（播放页里发起的不发卡片） */
 export async function inviteListen(c) {
   const Mu = await import('../../core/music.js'), s = Mu.current();
   Mu.listenWith(c);

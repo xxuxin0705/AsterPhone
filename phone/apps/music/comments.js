@@ -23,7 +23,7 @@ const rep = (r, at) => ({ id: uid('r'), who: findWho(r.who, r.name), name: r.nam
 // 正在跑的请求（写乐评 / 让大家看到）：每首歌每种同时只有一个。退出再进来按钮还是「取消」，写好了填到现在开着的这页
 const busy = {}, live = {};
 
-async function load(s) {
+export async function load(s) {
   const d = await kvGet('aicmt:' + s.id).catch(() => null);
   if (d && d.list) return d;
   if (d) return { ai: true, list: [   // v0.8.17 存的老样子：角色感受 + 网友乐评
@@ -120,13 +120,13 @@ export async function openComments(s, me) {
   async function write() {
     if (busy['w' + s.id]) return;   // 已经在写了（点取消才能重来）
     const again = d.ai;
-    if (!(await dialog({ title: again ? '重新写一批？' : '让 AI 写乐评？', text: again ? '会再用一次 API，写好后换掉 AI 写的这些（你写的评论留着）。' : (why ? why + '\n' : '') + '会用一次 API：联系人每人一条，剧情里的人各一条，再加一些路人。', confirm: again ? '重新写' : '生成' }))) return;
+    if (!(await dialog({ title: again ? '重新写一批？' : '让 AI 写乐评？', text: again ? '会再用一次 API，写好后换掉 AI 写的这些（你写的、角色歌单里的感想留着）。' : (why ? why + '\n' : '') + '会用一次 API：联系人每人一条，剧情里的人各一条，再加一些路人。', confirm: again ? '重新写' : '生成' }))) return;
     await run('w', 'AI 正在写乐评…', async stop => {
       const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', maxTokens: 6000, stop,
         prompt: compose('songTalk', { song: s.name, artist: s.artist, lyrics: P.lyricsNow().slice(0, 12).map(x => x.text).join('\n') || '（没有歌词）', contacts: people(), story: storyText(8) || '（暂无）' }) });
       const j = json(raw);
       if (!j || !Array.isArray(j.comments)) throw new Error('AI 回的不是乐评：' + String(raw).slice(0, 60));
-      d.list = [...d.list.filter(x => x.mine || x.real), ...j.comments.filter(x => x && x.text).map(x => ({ id: uid('c'), who: findWho(x.who, x.name), kind: x.kind || '', name: x.name || '网友', text: x.text,
+      d.list = [...d.list.filter(x => x.mine || x.real || x.fromList), ...j.comments.filter(x => x && x.text).map(x => ({ id: uid('c'), who: findWho(x.who, x.name), kind: x.kind || '', name: x.name || '网友', text: x.text,
         likes: +x.likes || 0, time: x.time || '', place: x.place || '', replies: (x.replies || []).filter(r => r && r.text).map(r => rep(r)) }))];
       d.ai = true; await save(); live[s.id].paint(); toast(`写好了，${j.comments.length} 条`);
     });

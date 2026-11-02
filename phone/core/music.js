@@ -415,36 +415,46 @@ export async function heartPick() {
   return out;
 }
 
-/* ---------- 角色的歌单：AI 只给「歌名 - 歌手」，手机再一首首去搜；onStep(找到几首, 一共几首) 给界面报进度 ---------- */
-const aiLines = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(l => l.replace(/^\d+[.、)）]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l && l.includes('-'));
-// 一行「歌名 - 歌手｜歌单名｜简介」：歌单名没写就放进「常听」，简介只有新开的歌单才写
-const parts = t => { const [song, name, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: name || '常听', intro: intro || '' }; };
-async function lookup(lines, onStep) {
-  const out = [];
-  for (const l of lines) { const x = parts(l), s = await findSong(x.song); if (s && !out.some(y => y.s.id === s.id)) out.push({ ...x, s }); onStep && onStep(out.length, lines.length); }
-  return out;
-}
+/* ---------- 角色的歌单：AI 想 TA 有哪些歌单、每个里放什么歌（「歌名 - 歌手」）和 TA 的感想，手机再一首首去搜；onStep(搜了几首, 一共几首) 给界面报进度 ---------- */
+// 正文暗号一行「歌名 - 歌手｜歌单名｜感想｜简介」：歌单名没写就放进「喜欢的音乐」，简介只有新开的歌单才写
+const parts = t => { const [song, name, thought, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: name || '喜欢的音乐', thought: thought || '', intro: intro || '' }; };
 export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
   const existing = charLists(c).map(l => `【${l.name}】${l.intro}\n` + l.songs.slice(-15).map(label).join('\n')).join('\n\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 800, stop,
-    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）', count: 8 }) });
-  const found = await lookup(aiLines(raw), onStep);
-  if (!found.length) throw new Error('AI 挑的歌一首都没搜到');
-  return found.filter(x => addToChar(c, x.s, x.name, x.intro));
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
+    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existing || '（还没有歌单）' }) });
+  let j = null; try { j = JSON.parse((String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').match(/\{[\s\S]*\}/) || [])[0]); } catch { /* 下面当成回的不对 */ }
+  if (!j || !Array.isArray(j.lists)) throw new Error('AI 回的不是歌单：' + String(raw).slice(0, 60));
+  const todo = j.lists.flatMap(l => (l.songs || []).filter(x => x && x.song).map(x => ({ ...x, name: String(l.name || '喜欢的音乐').trim(), intro: l.intro || '' })));
+  // 四首一起搜（一首一首搜太慢），搜完按 AI 给的顺序放进歌单
+  const found = []; let k = 0, n = 0;
+  await Promise.all(Array.from({ length: 4 }, async () => { while (k < todo.length) { const i = k++; found[i] = await findSong(todo[i].song); onStep && onStep(++n, todo.length); } }));
+  if (!found.some(Boolean)) throw new Error('AI 挑的歌一首都没搜到');
+  const got = [];
+  for (const [i, s] of found.entries()) if (s && addToChar(c, s, todo[i].name, todo[i].intro)) { got.push(s); await songThought(c, s, todo[i].thought, todo[i].others); }
+  return got;
 }
-/** TA 的歌单（按心情、风格分）：[{ id, name, intro, songs }]。以前每人只有一个 c.songs，第一次读时搬进「常听」 */
+/** TA 对歌单里这首歌的感想（还有路人评论）放进这首歌的评论区；写乐评重来时这些留着（fromList） */
+async function songThought(c, s, text, others) {
+  const L = [...(text ? [{ who: c.id, kind: '联系人', name: c.nick || c.name, text, likes: 1000 + Math.floor(Math.random() * 9000) }] : []),
+    ...(Array.isArray(others) ? others : []).filter(o => o && o.text).map(o => ({ name: o.name || '网友', text: o.text, likes: +o.likes || 0 }))];
+  if (!L.length) return;
+  const { load } = await import('../apps/music/comments.js'), d = await load(s);
+  d.list.push(...L.map(x => ({ id: uid('c'), ...x, at: Date.now(), fromList: true, replies: [] })));
+  await kvSet('aicmt:' + s.id, d).catch(e => log('warn', '音乐', `《${s.name}》的感想没存上：${e.message}`));
+}
+/** TA 的歌单：「喜欢的音乐」排第一，其他按心情、风格分：[{ id, name, intro, songs }]。以前每人只有一个 c.songs，第一次读时搬进「喜欢的音乐」 */
 export function charLists(c) {
-  if (c.songs) { if (c.songs.length) (c.lists = c.lists || []).unshift({ id: uid('cl'), name: '常听', intro: '', songs: c.songs }); delete c.songs; }
+  if (c.songs) { if (c.songs.length) (c.lists = c.lists || []).unshift({ id: uid('cl'), name: '喜欢的音乐', intro: '', songs: c.songs }); delete c.songs; }
   return c.lists || (c.lists = []);
 }
 export const charSongs = c => charLists(c).flatMap(l => l.songs);
 /** 加一首进 TA 叫 name 的歌单，没有这个歌单就新开一个；已经在 TA 哪个歌单里了就不加 */
-export function addToChar(c, s, name = '常听', intro = '') {
+export function addToChar(c, s, name = '喜欢的音乐', intro = '') {
   if (charSongs(c).some(x => x.id === s.id)) return false;
   const L = charLists(c); let l = L.find(x => x.name === name);
-  if (!l) L.push(l = { id: uid('cl'), name, intro, songs: [] });
+  if (!l) L[name === '喜欢的音乐' ? 'unshift' : 'push'](l = { id: uid('cl'), name, intro, songs: [] });
   l.songs.push(s); commit('contacts'); return true;
 }
 /** 正文暗号 type="加歌"：TA 把某首歌加进了自己的歌单 */
@@ -494,7 +504,7 @@ export async function storyAddSong(c, text) {
   if (M().storyWho && !M().storyWho.includes(c.id)) return;   // 没勾上的人不加
   const x = parts(text), s = await findSong(x.song);
   if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${x.song}》，但没搜到`); return; }
-  if (addToChar(c, s, x.name, x.intro)) log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单「${x.name}」`);
+  if (addToChar(c, s, x.name, x.intro)) { log('info', '音乐', `正文里「${c.name}」把《${s.name}》加进了歌单「${x.name}」`); await songThought(c, s, x.thought); }
 }
 
 import('./floatlyric.js');   // 歌词悬浮窗跟着播放器一起起来
