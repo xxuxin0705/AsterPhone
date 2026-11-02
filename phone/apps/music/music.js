@@ -598,11 +598,11 @@ export function openPlayer() {
     h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('plus', '收藏到歌单', collect), tool('send', '分享', () => share(P.current())), tool('headphones', '一起听', withWho)));
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
-  // 自己的背景图不压暗：图亮就换深色的字（亮不亮算一次记在 S.bgLight）；气泡颜色跟着背景的平均色
+  // 自己的背景图不压暗，字照旧是白的；气泡颜色跟着背景的平均色
   let tone = null, toneOf = '';
   const paintBg = () => {
     const wet = S.name === 'rain', src = S.bg || (wet ? `assets/music/rain-${!isNight() ? 'day' : 'night'}.webp` : (P.current() || {}).pic);
-    const day = S.bg ? !!S.bgLight : wet && !isNight();
+    const day = wet && !S.bg && !isNight();
     bg.style.backgroundImage = bgUrl(src);
     bg.classList.toggle('is-custom', !!S.bg || wet); bg.classList.toggle('is-scene', wet && !S.bg);
     p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
@@ -611,7 +611,6 @@ export function openPlayer() {
     avgColor(src).then(c => {
       if (src !== toneOf || !c) return;
       tone = c; paintBub();
-      if (S.bg && S.bgLight !== lum(c) > .6) { S.bgLight = lum(c) > .6; commit('music'); paintBg(); }
     });
   };
   // 气泡：自己选了颜色就用；不然跟着背景（亮的背景配浅色气泡深色字，暗的反过来）；背景读不到颜色时按白天 / 夜里
@@ -703,7 +702,7 @@ export function openPlayer() {
   }
   async function background() {
     const v = S.bg ? await actionSheet('背景', [{ value: 'pick', label: '换一张图', icon: 'image' }, { value: 'none', label: S.name === 'rain' ? '用雨景图' : '跟着封面变色', icon: 'palette' }]) : 'pick';
-    if (v === 'pick') { const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100, has: !!S.bg }); if (img != null) { S.bg = img; delete S.bgLight; commit('music'); paintBg(); } }
+    if (v === 'pick') { const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100, has: !!S.bg }); if (img != null) { S.bg = img; commit('music'); paintBg(); } }
     if (v === 'none') { S.bg = ''; commit('music'); paintBg(); }
   }
   // 收藏：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单
