@@ -438,7 +438,7 @@ export async function heartPick() {
 // 正文暗号一行「歌名 - 歌手｜歌单名｜感想｜简介」：歌单名没写就放进「喜欢的音乐」，简介只有新开的歌单才写
 const parts = t => { const [song, name, thought, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: bare(name) || '喜欢的音乐', thought: thought || '', intro: intro || '' }; };
 // 歌单名前后被【】「」《》[] 包着的去掉（AI 有时会自己加）
-const bare = n => String(n || '').trim().replace(/^[【「『《\[]([^【】「」『』《》\[\]]+)[】」』》\]]$/, '$1').trim();
+const bare = n => { const x = String(n || '').trim().replace(/^[【「『《\[]([^【】「」『』《》\[\]]+)[】」』》\]]$/, '$1').trim(); return x.startsWith('喜欢的音乐') ? '喜欢的音乐' : x; };
 export async function charPick(c, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
@@ -475,8 +475,15 @@ async function songThought(c, s, text, others) {
 /** TA 的歌单：「喜欢的音乐」排第一，其他按心情、风格分：[{ id, name, intro, songs }]。以前每人只有一个 c.songs，第一次读时搬进「喜欢的音乐」 */
 export function charLists(c) {
   if (c.songs) { if (c.songs.length) (c.lists = c.lists || []).unshift({ id: uid('cl'), name: '喜欢的音乐', intro: '', songs: c.songs }); delete c.songs; }
-  (c.lists || []).forEach(l => { l.name = bare(l.name); });   // v0.8.37 生成的带括号的名字
-  return c.lists || (c.lists = []);
+  const L = c.lists || (c.lists = []);
+  L.forEach(l => { l.name = bare(l.name); });   // v0.8.37 生成的带括号的名字
+  // 「喜欢的音乐」永远排第一；AI 起成「喜欢的音乐(つдC)」也算它，有两个就并成一个
+  const fav = L.filter(l => l.name === '喜欢的音乐');
+  if (fav.length && (L[0] !== fav[0] || fav.length > 1)) {
+    fav.slice(1).forEach(x => x.songs.forEach(s => { if (!fav[0].songs.some(y => y.id === s.id)) fav[0].songs.push(s); }));
+    c.lists = [fav[0], ...L.filter(l => !fav.includes(l))];
+  }
+  return c.lists;
 }
 export const charSongs = c => charLists(c).flatMap(l => l.songs);
 /** 加一首进 TA 叫 name 的歌单，没有这个歌单就新开一个；已经在 TA 哪个歌单里了就不加 */
