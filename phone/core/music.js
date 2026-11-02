@@ -326,7 +326,11 @@ export function jump(i) { M().idx = i; load(true); }
 /** 播放列表改顺序：正在放的不动，已经续上的那几首重新对一下是第几首 */
 function requeue(Q) { const c = current(); M().queue = Q; M().idx = Q.indexOf(c); if (chain) chain.segs.forEach(g => { g.i = Q.indexOf(g.s); }); commit('music'); }
 /** 置顶：放到正在放的这首后面，下一首就是它 */
-export function queueNext(s) { const Q = M().queue.filter(x => x !== s); Q.splice(Q.indexOf(current()) + 1, 0, s); requeue(Q); }
+export function queueNext(s) {
+  const c = current(); if (!c) { playList([s]); return; }
+  if (s.id === c.id) return;
+  const Q = M().queue.filter(x => x.id !== s.id); Q.splice(Q.indexOf(c) + 1, 0, s); requeue(Q);   // 不在播放列表里的歌（搜出来的）也能插进来
+}
 /** 从播放列表里删掉；删的是正在放的就先切到下一首 */
 export function queueDel(s) { if (s === current()) next(); requeue(M().queue.filter(x => x !== s)); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];

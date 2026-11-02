@@ -206,7 +206,7 @@ function renderSearch(ctx) {
       const batch = async () => { const got = (await Promise.all([1, 2, 3].map(k => P.search(word, page + k).catch(() => [])))).flat(); page += 3; const fresh = got.filter(s => !all.some(x => x.id === s.id) && (all.push(s), true)); return fresh; };
       const [songs, lists] = await Promise.all([batch(), P.searchLists(word)]);
       toast(songs.length || lists.length ? `找到${lists.length ? ` ${lists.length} 个歌单、` : ' '}${songs.length} 首` : '没搜到');
-      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null, more: batch });
+      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null, more: batch, tools: true });
     }
     catch (e) { log('error', '音乐', `搜「${word}」失败：${e.message}`); toast('搜索失败：' + e.message); }
   }
@@ -354,6 +354,31 @@ async function openFloat() {
   const p = page({ app: 'music', id: 'music-float', title: '歌词悬浮窗', back: true });
   p.body.append(group('显示在', [h('div.as-field', segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; }))]), more);
   nav.push(p.el);
+}
+/* ---------- 收藏一首歌：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单；onLike：加进我喜欢之后（播放页点亮红心） ---------- */
+function collectTo(s, onLike) {
+  const row = (cov, name, sub, fn) => h('div.as-mu-li', { role: 'button', onclick: () => { sh.close(); fn(); } }, cov, h('div', h('b', name), h('span', sub)));
+  const cov = pic => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } });
+  const sh = sheet({ title: '收藏到歌单', content: h('div.as-mu-collect',
+    row(h('span.as-mu-lcover.is-plus', icon('plus', 22, 2)), '新建歌单', '', async () => {
+      const name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim(); if (!name) return;
+      M().lists.unshift({ id: uid('my'), name, songs: [s], own: true }); commit('music'); toast(`收藏到「${name}」了`);
+    }),
+    row(h('span.as-mu-lcover', icon('heart', 26, 0)), '我喜欢的音乐', `${M().liked.length} 首`, () => {
+      if (P.liked(s)) { toast('已经在我喜欢的音乐里了'); return; }
+      P.like(s); onLike && onLike(); toast('收藏到我喜欢的音乐了');
+    }),
+    ...M().lists.map(l => row(cov(listPic(l)), l.name, `${(l.songs || []).length} 首`, () => {
+      if ((l.songs || []).some(x => x.id === s.id)) { toast(`「${l.name}」里已经有了`); return; }
+      (l.songs = l.songs || []).unshift(s); commit('music'); toast(`收藏到「${l.name}」了`);
+    })),
+    h('button.as-mu-morel', { onclick: () => { sh.close(); toChar(s); } }, '加到角色的歌单')) });
+}
+async function toChar(s) {
+  if (!state.contacts.length) { toast('还没有联系人'); return; }
+  const c = await actionSheet('加到谁的歌单', state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: (c.songs || []).some(x => x.id === s.id) })));
+  const who = c && state.contacts.find(x => x.id === c); if (!who) return;
+  toast(P.addToChar(who, s) ? `加到${nameOf(who)}的歌单了` : `${nameOf(who)}的歌单里已经有了`);
 }
 /** 选一个聊天：先分私聊 / 群聊，再选是谁 */
 async function pickChat(title, skip) {
@@ -508,11 +533,11 @@ function openLocal() {
 }
 
 /* ================= 歌单页：上面是封面和名字（背景是封面糊开），下面白底列表 ================= */
-function openList(title, list, { right, onRemove, count, sub, top, info, actions, more } = {}) {
+// tools：搜索结果用——每行往左滑出「下一首 / 收藏 / 分享 / 去掉」（点 ⋯ 也是），上面「多选」勾几首直接建歌单
+function openList(title, list, { right, onRemove, count, sub, top, info, actions, more, tools } = {}) {
   const p = page({ app: 'music', id: 'music-list', back: true, right, cls: 'as-mu-lp.is-dark' });
   const bg = h('div.as-mu-lp__bg'), cov = h('span.as-mu-lcover.is-big'), n = h('span'), rows = h('div');
   p.el.prepend(bg);
-  // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
   // 搜索结果：先放第一批，后面自己接着一批批往下搜，搜不到新的（或到 500 首）就停；搜到的接在后面（只加新的那几行，不重画）；离开这页就不搜了
   const moreBtn = h('div.as-mu-morel');
   const keepGoing = async () => {
@@ -524,6 +549,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
     }
     moreBtn.textContent = `一共 ${list.length} 首`;
   };
+  // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
   const nameEl = h('b'), subEl = h('span');
   const head = () => {
     nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
@@ -532,19 +558,71 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   };
   p.body.append(h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)),
     actions || null,
-    h('div.as-mu-sheet', top, h('div.as-mu-all', { role: 'button', onclick: () => list.length && play(list, 0, title) }, h('i', icon('play', 15, 0)), h('div', h('b', '播放全部'), n)), rows, more ? moreBtn : null, h('div.as-mu-gap')));
+    h('div.as-mu-sheet', top, h('div.as-mu-all', { role: 'button', onclick: () => list.length && play(list, 0, title) }, h('i', icon('play', 15, 0)), h('div', h('b', '播放全部'), n),
+      tools ? h('button.as-mu-chip', { onclick: e => { e.stopPropagation(); pickMode(true); } }, icon('check', 13, 2.4), '多选') : null), rows, more ? moreBtn : null, h('div.as-mu-gap')));
+  // 多选：勾上的歌；滑开的那一行（同时只开一行）
+  const picked = new Set(); let picking = false, opened = null;
+  const close = () => { if (opened) { opened.style.transform = ''; opened = null; } };
   const row = s => {
-    const el = h('div.as-mu-li.is-song', { role: 'button', onclick: () => play(list, list.indexOf(s), title) }, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(s.pic) } }, s.local ? icon('music', 18, 1.8) : null),
+    const ck = tools ? h('span.as-chat-check', icon('check', 14, 2.6)) : null;
+    const el = h('div.as-mu-li.is-song', { role: 'button', onclick: () => {
+      if (picking) { picked.has(s) ? picked.delete(s) : picked.add(s); ck.classList.toggle('is-active', picked.has(s)); paintPick(); return; }
+      if (opened) { close(); return; }
+      play(list, list.indexOf(s), title);
+    } }, ck, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(s.pic) } }, s.local ? icon('music', 18, 1.8) : null),
       h('div', h('b', s.name), h('span', s.artist)),
       count ? h('em', count(s)) : h('button.as-mu-more', { 'aria-label': '更多', onclick: async e => {
         e.stopPropagation();
+        if (tools) { const was = opened === el; close(); if (!was) { el.style.transform = `translateX(${-acts.offsetWidth}px)`; opened = el; } return; }
         const v = await actionSheet(P.label(s), [{ value: 'share', label: '分享', icon: 'send' }, ...(onRemove ? [{ value: 'rm', label: '移除', icon: 'trash', danger: true }] : [])]);
         if (v === 'share') share(s);
         if (v !== 'rm') return;
         onRemove(s); list = list.filter(x => x !== s); el.remove(); n.textContent = `${list.length} 首`;
       } }, icon('more', 18, 3)));
-    return el;
+    if (!tools) return el;
+    const act = (t, cls, fn) => h('button.is-' + cls, { onclick: () => { close(); fn(); } }, t);
+    const acts = h('div.as-mu-swacts', act('下一首', 'next', () => { P.queueNext(s); toast('下一首放它'); }), act('收藏', 'fav', () => collectTo(s)), act('分享', 'share', () => share(s)),
+      act('去掉', 'rm', () => { list.splice(list.indexOf(s), 1); picked.delete(s); wrap.remove(); n.textContent = `${list.length} 首`; }));
+    const wrap = h('div.as-mu-sw', acts, el);
+    slide(el, () => acts.offsetWidth);
+    return wrap;
   };
+  // 往左滑：跟着手指拉开，过一半就停在打开，不然收回；横着拉的时候不让「右滑返回」也收到
+  function slide(el, W) {
+    let x0 = 0, y0 = 0, base = 0, dx = 0, on = false, drag = false;
+    el.addEventListener('pointerdown', e => { if (picking) return; on = true; drag = false; x0 = e.clientX; y0 = e.clientY; base = opened === el ? -W() : 0; });
+    el.addEventListener('pointermove', e => {
+      if (!on) return;
+      const mx = e.clientX - x0, my = e.clientY - y0;
+      if (!drag) {
+        if (Math.abs(my) > 10) { on = false; return; }
+        if (Math.abs(mx) < 8 || (mx > 0 && !base)) return;   // 关着的时候往右滑是返回，不管
+        drag = true; el.setPointerCapture(e.pointerId); el.style.transition = 'none'; if (opened && opened !== el) close();
+      }
+      e.stopPropagation(); dx = Math.min(0, Math.max(-W() - 24, base + mx)); el.style.transform = `translateX(${dx}px)`;
+    });
+    const end = () => {
+      if (!on) return; on = false; if (!drag) return;
+      el.style.transition = ''; if (dx < -W() / 2) { el.style.transform = `translateX(${-W()}px)`; opened = el; } else { el.style.transform = ''; if (opened === el) opened = null; }
+      el.addEventListener('click', e => e.stopImmediatePropagation(), { capture: true, once: true });   // 拉完松手那一下不算点
+    };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  }
+  // 多选：底下一条「全选 · 新建歌单（N）· 取消」
+  const nPick = h('span'), pickBar = h('div.as-mu-pickbar',
+    h('button', { onclick: () => { const all = picked.size < list.length; rows.querySelectorAll('.as-mu-sw').forEach((w, i) => { const s = list[i]; all ? picked.add(s) : picked.delete(s); w.querySelector('.as-chat-check').classList.toggle('is-active', all); }); paintPick(); } }, '全选'),
+    h('button.is-main', { onclick: async () => {
+      if (!picked.size) { toast('先勾几首'); return; }
+      const name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim(); if (!name) return;
+      M().lists.unshift({ id: uid('my'), name, songs: list.filter(x => picked.has(x)), own: true }); commit('music'); toast(`建好了「${name}」，${picked.size} 首`); pickMode(false);
+    } }, '新建歌单', nPick),
+    h('button', { onclick: () => pickMode(false) }, '取消'));
+  const paintPick = () => { nPick.textContent = picked.size ? `（${picked.size}）` : ''; };
+  function pickMode(on) {
+    picking = on; close(); p.el.classList.toggle('is-picking', on);
+    if (on) p.el.append(pickBar); else { pickBar.remove(); picked.clear(); rows.querySelectorAll('.as-chat-check').forEach(c => c.classList.remove('is-active')); }
+    paintPick();
+  }
   const fill = L => {
     list = L.slice(); const pic = (info && info.pic) || firstPic(L);
     bg.style.backgroundImage = cov.style.backgroundImage = bgUrl(pic); n.textContent = `${L.length} 首`;
@@ -645,7 +723,7 @@ export function openPlayer() {
     h('div.as-mp__prog', { dataset: { noSwipe: '' } }, track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
-    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('plus', '收藏到歌单', collect), tool('send', '分享', () => share(P.current())), tool('headphones', '一起听', withWho)));
+    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('plus', '收藏到歌单', () => collectTo(P.current(), () => heart.classList.add('is-on'))), tool('send', '分享', () => share(P.current())), tool('headphones', '一起听', withWho)));
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
   // 自己的背景图不压暗，字照旧是白的；气泡颜色跟着背景的平均色
@@ -797,33 +875,6 @@ export function openPlayer() {
     }
     mark();
     sheet({ title: '背景', content: h('div.as-mp-bgsheet', grid, adj) });
-  }
-  // 收藏：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单
-  function collect() {
-    const s = P.current();
-    const row = (cov, name, sub, fn) => h('div.as-mu-li', { role: 'button', onclick: () => { sh.close(); fn(); } }, cov, h('div', h('b', name), h('span', sub)));
-    const cov = pic => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } });
-    const sh = sheet({ title: '收藏到歌单', content: h('div.as-mu-collect',
-      row(h('span.as-mu-lcover.is-plus', icon('plus', 22, 2)), '新建歌单', '', async () => {
-        const name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim(); if (!name) return;
-        M().lists.unshift({ id: uid('my'), name, songs: [s], own: true }); commit('music'); toast(`收藏到「${name}」了`);
-      }),
-      row(h('span.as-mu-lcover', icon('heart', 26, 0)), '我喜欢的音乐', `${M().liked.length} 首`, () => {
-        if (P.liked(s)) { toast('已经在我喜欢的音乐里了'); return; }
-        P.like(s); heart.classList.add('is-on'); toast('收藏到我喜欢的音乐了');
-      }),
-      ...M().lists.map(l => row(cov(listPic(l)), l.name, `${(l.songs || []).length} 首`, () => {
-        if ((l.songs || []).some(x => x.id === s.id)) { toast(`「${l.name}」里已经有了`); return; }
-        (l.songs = l.songs || []).unshift(s); commit('music'); toast(`收藏到「${l.name}」了`);
-      })),
-      h('button.as-mu-morel', { onclick: () => { sh.close(); toChar(); } }, '加到角色的歌单')) });
-  }
-  async function toChar() {
-    const s = P.current();
-    if (!state.contacts.length) { toast('还没有联系人'); return; }
-    const c = await actionSheet('加到谁的歌单', state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: (c.songs || []).some(x => x.id === s.id) })));
-    const who = c && state.contacts.find(x => x.id === c); if (!who) return;
-    toast(P.addToChar(who, s) ? `加到${nameOf(who)}的歌单了` : `${nameOf(who)}的歌单里已经有了`);
   }
   async function withWho() {
     const c = P.together();
