@@ -182,6 +182,21 @@ async function heartMode() {
   try { const songs = await P.heartPick(); toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }
   catch (e) { log('error', '心动模式', e.message); toast(e.message); }
 }
+// 角色的一个歌单：能编辑（名字、封面、背景、简介、标签）、加歌（搜一下挑一首）；左滑「移除」删歌
+function openCharOne(c, l) {
+  const pill = (ic, t, fn) => h('button', { onclick: fn }, icon(ic, 17, 2), t);
+  const v = openList(l.name, l.songs, { info: l, onRemove: s => { l.songs = l.songs.filter(x => x.id !== s.id); commit('contacts'); },
+    actions: h('div.as-mu-lp__acts', pill('edit', '编辑', () => editList(l, () => { commit('contacts'); v.head(); })), pill('plus', '加歌', async () => {
+      const w = ((await dialog({ title: '加歌', input: { placeholder: '歌名或歌手' }, confirm: '搜' })) || '').trim(); if (!w) return;
+      toast(`正在搜「${w}」…`, true);
+      let L; try { L = (await P.search(w)).slice(0, 12); } catch (e) { log('warn', '音乐', `搜「${w}」失败：${e.message}`); toast(`没搜成：${e.message}`); return; }
+      if (!L.length) { toast('没搜到'); return; }
+      toast(`${L.length} 首`);
+      const id = await actionSheet('挑一首', L.map(s => ({ value: s.id, label: P.label(s) }))); const s = L.find(x => x.id === id); if (!s) return;
+      if (!P.addToChar(c, s, l.name)) { toast('这个歌单里已经有了'); return; }
+      v.fill(l.songs); toast(`加进「${l.name}」了`);
+    })) });
+}
 // 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
 const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
 function openCharList(c) {
@@ -194,7 +209,7 @@ function openCharList(c) {
   });
   const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai });
   const box = h('div.as-mu-sheet');
-  const row = l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openList(l.name, l.songs, { info: l, onRemove: s => { l.songs = l.songs.filter(x => x.id !== s.id); commit('contacts'); } }) },
+  const row = l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openCharOne(c, l) },
     h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(firstPic(l.songs)) } }), h('div', h('b', l.name), h('span', `${l.songs.length} 首${l.intro ? ' · ' + l.intro : ''}`)));
     onLongPress(el, async () => {
       if (!(await dialog({ title: `删除「${l.name}」？`, text: `里面的 ${l.songs.length} 首歌会一起从${nameOf(c)}的歌单里拿掉。`, confirm: '删除', danger: true }))) return;
@@ -479,7 +494,7 @@ function editList(l, after, songs = l.songs) {
   p.body.append(
     group('', [item({ title: '封面', right: thumb, chevron: true, onClick: async () => { const v = await pickImage('歌单封面', { ratio: 1, size: 600, has: !!d.pic }); if (v != null) { d.pic = v; thumb.style.backgroundImage = bgUrl(v || firstPic(songs)); } } }),
       item({ title: '背景', right: bgThumb, chevron: true, onClick: async () => { const v = await pickImage('歌单背景', { ratio: 1, size: 900, has: !!d.bg }); if (v != null) { d.bg = v; bgThumb.style.backgroundImage = bgUrl(v); } } })]),
-    group('', [l === M().likedInfo ? null : field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', input({ value: d.intro, placeholder: '一句话介绍', onInput: v => { d.intro = v.trim(); } }))]),
+    group('', [l === M().likedInfo || l.name === '喜欢的音乐' ? null : field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', input({ value: d.intro, placeholder: '一句话介绍', onInput: v => { d.intro = v.trim(); } }))]),
     group('标签', [h('div.as-field', tags, h('div.as-mu-tagadd', tagIn, btn('添加', 'secondary', addTag)))]),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
       addTag(); Object.assign(l, { ...d, name: d.name || l.name }); commit('music'); nav.pop(); after && after();
