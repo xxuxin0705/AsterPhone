@@ -8,6 +8,7 @@ import { log } from './log.js';
 import { compose } from './promptstore.js';
 import { uid } from './util.js';
 import { ctx } from './bridge.js';
+import { stamp } from './time.js';
 
 export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
@@ -195,6 +196,7 @@ function enter(s) {
   lyrics = []; tell('song');
   M().recent = [s, ...M().recent.filter(x => x.id !== s.id)].slice(0, 50);
   const pl = M().plays[s.id] || (M().plays[s.id] = { n: 0, s }); pl.n++;
+  tgSong(s);
   pl.t = [...(pl.t || []).filter(t => Date.now() - t < WEEK), Date.now()]; commit('music');   // 最近一周每次放的时间，听歌排行用
   sysInfo(s);
   if (s.local) return;
@@ -351,7 +353,7 @@ audio.addEventListener('timeupdate', () => {
   const t = Date.now(); if (t - lastT < 2000) heard += t - lastT; lastT = t;
   if (t - saveT > 5000) {
     saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000;
-    const tc = together(); if (tc) tgTimes()[tc.id] = (tgTimes()[tc.id] || 0) + heard / 1000;
+    const tc = together(); if (tc) { tgTimes()[tc.id] = (tgTimes()[tc.id] || 0) + heard / 1000; const r = tgRec(tc.id); r.sess = (r.sess || 0) + heard / 1000; r.best = Math.max(r.best || 0, r.sess); }
     heard = 0; commit('music');
   }
   const c = chain, g = seg();
@@ -440,7 +442,17 @@ export function addToChar(c, s) {
 export const together = () => contact(M().together) || state.chats.find(x => x.id === M().together && x.type === 'group') || null;
 const tgTimes = () => M().tg || (M().tg = {});
 export const togetherSec = c => (tgTimes()[c.id] || 0) + (M().together === c.id ? heard / 1000 : 0);   // 还没存进去的那几秒也算上，一秒一秒涨
-export function listenWith(c) { M().together = c ? c.id : ''; commit('music'); tell('together'); }
+export function listenWith(c) {
+  if ((c ? c.id : '') !== M().together && c) { const r = tgRec(c.id); r.sess = 0; if (!r.first) r.first = stamp(); }   // 新开一次一起听：这次多久从 0 算；第一次一起听记下现实和剧情两个时间
+  M().together = c ? c.id : ''; commit('music'); tell('together');
+  if (c) tgSong(current());
+}
+/** 缘分报告要的：第一次一起听（现实 + 剧情）、一起听过的歌和次数、单次最长。M().tgr[id]，id 是联系人或群 */
+export const tgRec = id => (M().tgr || (M().tgr = {}))[id] || (M().tgr[id] = { first: null, songs: {}, best: 0, sess: 0 });
+function tgSong(s) {
+  const c = together(); if (!c || !s) return;
+  const x = tgRec(c.id).songs; (x[s.id] = x[s.id] || { n: 0, name: s.name, artist: s.artist }).n++;
+}
 /** 一起听时两个头像上的气泡：一组两句（左边我、右边 TA）。第一次用时把内置的抄一份，之后随便改；M().pair 是选中的那组，空 = 每首歌换一组 */
 const PAIRS = [
   ['这首歌好像在说我们', '那就多听几遍'], ['耳机分你一半', '心也分你一半'], ['你那边听得清吗', '清楚，像你在耳边'], ['循环第几遍了', '没数，不想停'],
@@ -476,3 +488,4 @@ export async function storyAddSong(c, text) {
 }
 
 import('./floatlyric.js');   // 歌词悬浮窗跟着播放器一起起来
+import('../apps/music/island.js');   // 灵动岛、锁屏播放卡片

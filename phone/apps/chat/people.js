@@ -93,6 +93,7 @@ export function openProfile(cid, { onMessage } = {}) {
       item({ title: '动态', right: thumbs, chevron: true, onClick: () => import('./moments.js').then(m => m.openUserMoments(c.id)) }),
       // 声音：和设置 → 连接 → 音色库里的是同一份
       item({ title: '声音', chevron: true, onClick: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }),
+      item({ title: '和 TA 的缘分报告', chevron: true, onClick: () => import('../music/report.js').then(m => m.openReport(c)) }),
     ]),
     ...contactFields(c, changed),
     h('div.as-chat-profile__btns', starBtn, btn('删除联系人', 'danger', async () => {

@@ -533,7 +533,7 @@ function openLocal() {
 }
 
 /* ================= 歌单页：上面是封面和名字（背景是封面糊开），下面白底列表 ================= */
-// tools：搜索结果用——每行往左滑出「下一首 / 收藏 / 分享 / 去掉」（点 ⋯ 也是），上面「多选」勾几首直接建歌单
+// 每行往左滑（或点 ⋯）出「下一首 / 收藏 / 分享 / 移除」；tools：搜索结果——「移除」叫「去掉」（只从这次搜到的里拿掉），上面多一个「多选」勾几首直接建歌单
 function openList(title, list, { right, onRemove, count, sub, top, info, actions, more, tools } = {}) {
   const p = page({ app: 'music', id: 'music-list', back: true, right, cls: 'as-mu-lp.is-dark' });
   const bg = h('div.as-mu-lp__bg'), cov = h('span.as-mu-lcover.is-big'), n = h('span'), rows = h('div');
@@ -571,18 +571,14 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
       play(list, list.indexOf(s), title);
     } }, ck, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(s.pic) } }, s.local ? icon('music', 18, 1.8) : null),
       h('div', h('b', s.name), h('span', s.artist)),
-      count ? h('em', count(s)) : h('button.as-mu-more', { 'aria-label': '更多', onclick: async e => {
+      count ? h('em', count(s)) : h('button.as-mu-more', { 'aria-label': '更多', onclick: e => {
         e.stopPropagation();
-        if (tools) { const was = opened === el; close(); if (!was) { el.style.transform = `translateX(${-acts.offsetWidth}px)`; opened = el; } return; }
-        const v = await actionSheet(P.label(s), [{ value: 'share', label: '分享', icon: 'send' }, ...(onRemove ? [{ value: 'rm', label: '移除', icon: 'trash', danger: true }] : [])]);
-        if (v === 'share') share(s);
-        if (v !== 'rm') return;
-        onRemove(s); list = list.filter(x => x !== s); el.remove(); n.textContent = `${list.length} 首`;
+        const was = opened === el; close(); if (!was) { el.style.transform = `translateX(${-acts.offsetWidth}px)`; opened = el; }
       } }, icon('more', 18, 3)));
-    if (!tools) return el;
+    if (count) return el;
     const act = (t, cls, fn) => h('button.is-' + cls, { onclick: () => { close(); fn(); } }, t);
     const acts = h('div.as-mu-swacts', act('下一首', 'next', () => { P.queueNext(s); toast('下一首放它'); }), act('收藏', 'fav', () => collectTo(s)), act('分享', 'share', () => share(s)),
-      act('去掉', 'rm', () => { list.splice(list.indexOf(s), 1); picked.delete(s); wrap.remove(); n.textContent = `${list.length} 首`; }));
+      tools || onRemove ? act(tools ? '去掉' : '移除', 'rm', () => { onRemove && onRemove(s); list.splice(list.indexOf(s), 1); picked.delete(s); wrap.remove(); n.textContent = `${list.length} 首`; }) : null);
     const wrap = h('div.as-mu-sw', acts, el);
     slide(el, () => acts.offsetWidth);
     return wrap;
@@ -687,7 +683,7 @@ export function openPlayer() {
   const lrc = h('div.as-mp__lrc'), stage = h('div.as-mp__stage', disc, arm);
   // 一起听：上面一小块是两个人的头像（外侧各塞一只耳机），头像上方的气泡是一组悄悄话（点一下去改）；群里只写一起听了多久。下面是歌词
   // 两个气泡排成一行、整行居中（一长一短也不会偏到一边）
-  const tgAv = [h('div.as-tg__av'), h('div.as-tg__av')], tgBub = [h('div.as-tg__bub.is-l', h('span')), h('div.as-tg__bub.is-r', h('span'))], tgTime = h('div.as-tg__time');
+  const tgAv = [h('div.as-tg__av'), h('div.as-tg__av')], tgBub = [h('div.as-tg__bub.is-l', h('span')), h('div.as-tg__bub.is-r', h('span'))], tgTime = h('div.as-tg__time', { role: 'button', onclick: async e => { e.stopPropagation(); (await import('./report.js')).openReport(P.together()); } });   // 点一起听了多久：缘分报告
   // 耳机换颜色：同一张图当遮罩，上面叠一层颜色「正片叠底」，明暗还在
   const half = (side, i) => h('div.as-tg__half.is-' + side, h('div.as-tg__who', tgAv[i]), h('img', { src: `assets/music/together-${side}.webp`, alt: '' }),
     h('i.as-tg__tint', { style: { webkitMaskImage: `url(assets/music/together-${side}.webp)`, maskImage: `url(assets/music/together-${side}.webp)` } }));
