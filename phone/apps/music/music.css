@@ -414,13 +414,13 @@
 .as-rp .as-empty__text { color: rgba(255,255,255,.7); }
 .as-tg__time[role="button"] { cursor: pointer; }
 /* 灵动岛：顶上正中的黑胶囊，小封面 + 跳动的音波（歌词颜色）；点开变大成小播放器 */
-.as-isl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 132px; height: 26px; border-radius: 16px; background: #000; color: #fff; overflow: hidden; cursor: pointer;
+.as-isl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 96px; height: calc(var(--as-sb-h) - 8px); border-radius: 16px; background: #000; color: #fff; overflow: hidden; cursor: pointer;
   transition: width 380ms var(--as-ease-spring, ease), height 380ms var(--as-ease-spring, ease), border-radius 380ms, top 380ms; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 .as-isl[hidden] { display: none; }
 .as-phone.is-locked .as-isl { display: none; }
-.as-isl__mini { display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 0 9px 0 5px; }
-.as-isl__cov { width: 18px; height: 18px; border-radius: 5px; background: #333 center / cover; }
-.as-isl__wave { display: flex; align-items: center; gap: 2px; height: 14px; }
+.as-isl__mini { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 8px 0 4px; }
+.as-isl__cov { width: 16px; height: 16px; border-radius: 4px; background: #333 center / cover; }
+.as-isl__wave { display: flex; align-items: center; gap: 2px; height: 12px; }
 .as-isl__wave i { width: 2.5px; height: 30%; border-radius: 2px; background: var(--isl, #fff); }
 .is-playing .as-isl__wave i { animation: as-isl-wave 900ms ease-in-out infinite; }
 .is-playing .as-isl__wave i:nth-child(2) { animation-delay: -300ms; } .is-playing .as-isl__wave i:nth-child(3) { animation-delay: -600ms; } .is-playing .as-isl__wave i:nth-child(4) { animation-delay: -150ms; }
@@ -438,13 +438,13 @@
 .as-isl__bar, .as-lmc__bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.22); margin: 14px 0 6px; overflow: hidden; }
 .as-isl__bar i, .as-lmc__bar i { display: block; height: 100%; width: 0; background: #fff; border-radius: 2px; }
 .as-isl__ctrl, .as-lmc__ctrl { display: flex; justify-content: center; align-items: center; gap: 40px; }
-.as-isl__ctrl button, .as-lmc__ctrl button { border: 0; background: none; color: inherit; padding: 4px; display: grid; cursor: pointer; }
+.as-isl__ctrl button, .as-lmc__ctrl button { width: 44px; height: 44px; border: 0; background: none; color: inherit; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .as-isl__ctrl svg, .as-lmc__ctrl svg { fill: currentColor; }
 /* 锁屏的播放卡片（照 iPhone 锁屏，右下角那个不要，左下角是红心） */
-.as-lmc { position: absolute; z-index: 2; left: max(16px, 4.5%); right: max(16px, 4.5%); top: var(--notice-top, 29.5%); padding: 14px 16px 12px; border-radius: 22px;
+.as-lmc { position: absolute; z-index: 2; left: max(16px, 4.5%); right: max(16px, 4.5%); bottom: 23%; padding: 14px 16px 8px; border-radius: 22px;
   background: var(--card); border: 1px solid var(--card-line); color: var(--card-ink); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); animation: as-notice-in 620ms var(--as-ease-spring) backwards; }
 .as-lmc[hidden] { display: none; }
-.as-lock.has-music .as-lock-notice { top: calc(var(--notice-top, 29.5%) + 168px); }
+.as-lock.has-music .as-lock-notice { bottom: calc(23% + 184px); overflow-y: auto; }   /* 卡片在下面，通知多了在上面自己滑，不压住卡片 */
 .as-lmc__row { display: flex; align-items: center; gap: 12px; }
 .as-lmc__cov { flex: none; width: 54px; height: 54px; border-radius: 10px; background: rgba(0,0,0,.12) center / cover; }
 .as-lmc__info { flex: 1; min-width: 0; display: grid; gap: 3px; }
@@ -454,18 +454,18 @@
 .as-lmc__prog .as-lmc__bar { flex: 1; margin: 0; background: rgba(0,0,0,.12); }
 .as-lmc__bar i { background: var(--card-ink); opacity: .55; }
 .as-lmc__ctrl { justify-content: space-between; padding: 0 4px; }
-.as-lmc__ctrl > span { width: 32px; }
+.as-lmc__ctrl > span { width: 44px; }
 .as-lmc__heart { color: var(--card-ink-2) !important; }
 .as-lmc__heart svg { fill: none; }
 .as-lmc__heart.is-on { color: #fc3d49 !important; }
 .as-lmc__heart.is-on svg { fill: currentColor; }
-.as-lmc__heart { position: relative; overflow: visible; }
-.as-lmc__heart.is-pop svg { animation: as-heart-in 900ms ease-out; }
+.is-pop { position: relative; overflow: visible; }
+.is-pop svg { animation: as-heart-in 900ms ease-out; }
 @keyframes as-heart-in { 0%, 45% { transform: scale(0); } 70% { transform: scale(1.22); } 100% { transform: scale(1); } }
-.as-hb { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px; border-radius: 50%; pointer-events: none;
+.as-hb { position: absolute; left: var(--cx, 50%); top: 50%; width: var(--hs, 42px); height: var(--hs, 42px); margin: calc(var(--hs, 42px) / -2); border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle, #ff5a72 0 17%, #ff7b6e 18% 34%, #ff9b72 35% 52%, #f2606c 53% 69%, #e0405e 70% 100%); box-shadow: inset 0 0 8px rgba(255,255,255,.45), 0 0 10px rgba(255,90,110,.35);
   animation: as-hb 560ms ease-out forwards; }
 .as-hb::after { content: ''; position: absolute; inset: 32%; background: #ff3d5e; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z'/%3E%3C/svg%3E") center / contain no-repeat; }   /* 圆圈中间那颗小心 */
 @keyframes as-hb { 0% { transform: scale(0); } 18% { transform: scale(.2); } 62% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(.35); opacity: 0; } }
-.as-hd { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #ff9b3d; pointer-events: none; opacity: 0; animation: as-hd 620ms 430ms ease-out forwards; }
+.as-hd { position: absolute; left: var(--cx, 50%); top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #ff9b3d; pointer-events: none; opacity: 0; animation: as-hd 620ms 430ms ease-out forwards; }
 @keyframes as-hd { 0% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(.5); opacity: 0; } }

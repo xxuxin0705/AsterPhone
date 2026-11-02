@@ -19,7 +19,7 @@ function build() {
   const el = h('div.as-isl', { role: 'button', 'aria-label': '正在播放', onclick: () => { if (!el.classList.contains('is-open')) { el.classList.add('is-open'); paint(); } } },
     h('div.as-isl__mini', cov, wave()),
     h('div.as-isl__big', h('div.as-isl__row', bigCov, h('div.as-isl__info', name, artist), wave()), h('div.as-isl__bar', bar),
-      h('div.as-isl__ctrl', btn('prev', '上一首', () => P.prev()), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, play), btn('next', '下一首', () => P.next()))));
+      h('div.as-isl__ctrl', btn('prev', '上一首', () => P.prev(), 24), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, play), btn('next', '下一首', () => P.next(), 24))));
   const close = () => { el.classList.remove('is-open'); paint(); };
   document.addEventListener('pointerdown', e => { if (el.classList.contains('is-open') && !el.contains(e.target)) close(); }, true);
   sb.append(el);
@@ -29,7 +29,7 @@ function build() {
   const heart = h('button.as-lmc__heart', { 'aria-label': '喜欢', onclick: e => {
     e.stopPropagation(); const on = P.like(); heart.classList.toggle('is-on', on);
     if (on) burst(heart);
-  } }, icon('heart', 24, 1.8));
+  } }, icon('heart', 30, 1.8));
   const c = h('div.as-lmc', { onclick: e => e.stopPropagation() },
     h('div.as-lmc__row', lc, h('div.as-lmc__info', ln, la), wave()),
     h('div.as-lmc__prog', t0, h('div.as-lmc__bar', lb), t1),
@@ -38,10 +38,13 @@ function build() {
   card = { el: c, lock, cov: lc, name: ln, artist: la, bar: lb, t0, t1, play: lp, heart };
   return true;
 }
-// 点亮红心（照作者发的苹果点赞动效第二种）：空心先没了 → 中间一个红点长成一圈圈橙红的圆再缩回去 → 实心红心弹出来，四周迸出几粒橙色小点
-function burst(btn) {
+// 点亮红心（照作者发的苹果点赞动效第二种）：空心先没了 → 中间一个红点长成一圈圈橙红的圆再缩回去 → 实心红心弹出来，四周迸出几粒橙色小点。
+// 圈和小点跟着心的大小走，中心对着心（乐评的赞前面还有数字）
+export function burst(btn) {
+  const svg = btn.querySelector('svg'), z = svg.width.baseVal.value, a = svg.getBoundingClientRect(), b = btn.getBoundingClientRect();
+  btn.style.setProperty('--cx', (a.left - b.left + a.width / 2) / b.width * 100 + '%'); btn.style.setProperty('--hs', z * 1.6 + 'px');
   btn.classList.remove('is-pop'); void btn.offsetWidth; btn.classList.add('is-pop');
-  const bits = [h('span.as-hb'), ...Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + Math.random() * .4, r = 20 + Math.random() * 10; return h('span.as-hd', { style: { '--dx': Math.cos(a) * r + 'px', '--dy': Math.sin(a) * r + 'px' } }); })];
+  const bits = [h('span.as-hb'), ...Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + Math.random() * .4, r = z * (.8 + Math.random() * .35); return h('span.as-hd', { style: { '--dx': Math.cos(a) * r + 'px', '--dy': Math.sin(a) * r + 'px' } }); })];
   btn.append(...bits);
   setTimeout(() => bits.forEach(b => b.remove()), 1100);
 }
@@ -60,7 +63,7 @@ function paint() {
     isl.name.textContent = card.name.textContent = s.name; isl.artist.textContent = card.artist.textContent = s.artist;
   }
   card.heart.classList.toggle('is-on', P.liked(s));
-  isl.play.replaceChildren(icon(on ? 'pause' : 'play', 26, 2.4)); card.play.replaceChildren(icon(on ? 'pause' : 'play', 34, 2.6));
+  isl.play.replaceChildren(icon(on ? 'pause' : 'play', 24, 2.4)); card.play.replaceChildren(icon(on ? 'pause' : 'play', 30, 2.4));
   time();
 }
 // 进度：只在看得见的时候改（锁着看卡片、灵动岛展开着）

@@ -12,6 +12,7 @@ import { compose } from '../../core/promptstore.js';
 import { storyText } from '../../core/context.js';
 import { log } from '../../core/log.js';
 import { nameOf, personaOf } from '../chat/engine.js';
+import { burst } from './island.js';
 
 const netName = c => c.nick || c.name || nameOf(c);   // 评论区里用联系人的网名
 const people = () => state.contacts.map(c => `- ${c.name || nameOf(c)}（网名：${netName(c)}）：${(personaOf(c) || '').slice(0, 160).replace(/\n/g, ' ')}`).join('\n') || '（没有）';
@@ -59,7 +60,7 @@ export async function openComments(s, me) {
   const when = x => x.at ? new Date(x.at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '-') : x.time || '';
   const like = (x, el) => h('button.as-cm__like' + (x.liked ? '.is-on' : ''), { 'aria-label': '点赞', onclick: e => {
     e.stopPropagation(); keep(x); x.liked = !x.liked; x.likes = (x.likes || 0) + (x.liked ? 1 : -1); save();
-    const b = like(x, el); e.currentTarget.replaceWith(b);
+    const b = like(x, el); e.currentTarget.replaceWith(b); if (x.liked) burst(b);
   } }, x.likes ? String(x.likes) : '', icon('heart', 15, x.liked ? 0 : 1.8));
   const reply = (x, r) => { replyTo = { x, name: r ? whoName(r) : whoName(x) }; toWho.hidden = false; toWho.replaceChildren(`回复 @${replyTo.name}`, h('button', { 'aria-label': '不回复了', onclick: () => { replyTo = null; toWho.hidden = true; } }, icon('close', 13, 2.4))); input.focus(); };
 
