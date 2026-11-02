@@ -7,6 +7,7 @@ import { xf, generate, resolveConn } from './api.js';
 import { log } from './log.js';
 import { compose } from './promptstore.js';
 import { uid } from './util.js';
+import { ctx } from './bridge.js';
 
 export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
@@ -25,8 +26,28 @@ async function get(url, as = 'json', what = '读音源') {
 }
 export const label = s => `${s.name} - ${s.artist}`;
 
+/* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云，登录后会员歌也能放 ----------
+ * 没装、或者在 Tauri Tavern 里，问一次就知道（回的不是它的 JSON），之后全走上面的公共音源。 */
+const BE = '/api/plugins/asterphone';
+export let ne = null;   // null = 没有插件；{ me } = 有插件（me 为空 = 没登录）
+async function be(p, post) {
+  const r = await fetch(BE + p, post ? { method: 'POST', headers: { ...(ctx()?.getRequestHeaders?.() || {}), 'Content-Type': 'application/json' }, body: JSON.stringify(post) } : {});
+  if (!/json/.test(r.headers.get('content-type') || '')) throw new Error('没装酒馆插件');
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+export const neReady = be('/status').then(j => { ne = j; tell('ne'); }, () => {});
+export const neQr = () => be('/qr');
+export const neQrCheck = key => be('/qr/check?key=' + encodeURIComponent(key)).then(j => { if (j.me) { ne.me = j.me; tell('ne'); } return j; });
+export const neCookie = cookie => be('/cookie', { cookie }).then(j => { ne.me = j.me; tell('ne'); });
+export const neLogout = () => be('/logout', {}).then(() => { ne.me = null; tell('ne'); });
+export const neDaily = () => be('/daily');
+export const neLists = () => be('/playlists');
+
 /* ---------- 找歌 ---------- */
 export async function search(word) {
+  if (ne) try { return await be('/search?word=' + encodeURIComponent(word)); } catch (e) { log('warn', '音乐', '插件搜歌失败，改用公共音源：' + e.message); }
   const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }), 'json', `搜「${word}」`);
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
@@ -39,8 +60,8 @@ export async function findSong(text) {
 }
 /** 歌单 / 榜单：读过的存在这台设备上，下次先给存的（马上出来），再去读新的 */
 export async function playlist(id) {
-  const j = await get(meting('playlist', id), 'json', '读歌单');
-  const out = (Array.isArray(j) ? j : []).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  const j = ne ? await be('/playlist?id=' + id).catch(() => null) : null;
+  const out = j && j.length ? j : (await get(meting('playlist', id), 'json', '读歌单').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
   if (out.length) kvSet('mulist:' + id, out).catch(() => {});
   return out;
 }
@@ -86,7 +107,7 @@ export function sung(L, i, t) {
 }
 /** 网易云的热评：网页直连多半会被拦，能不能拿到要在真机上试 */
 export async function hotComments(id) {
-  const j = await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
+  const j = ne ? await be('/comments?id=' + id) : await get(`https://music.163.com/api/v1/resource/comments/R_SO_4_${id}?limit=20`, 'json', '拿热评');
   return (j.hotComments || j.comments || []).map(c => ({ name: (c.user || {}).nickname || '网友', text: c.content, likes: c.likedCount || 0 }));
 }
 
@@ -132,9 +153,14 @@ function enter(s) {
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
   let base = [], yrc = [];
   const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
-  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
+  if (ne) be('/lyric?id=' + s.id).then(j => {
+    const tr = parseLrc(j.tr);
+    base = parseLrc(j.lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' }));
+    yrc = parseYrc(j.yrc); done();
+  }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
+  else get(meting('lrc', s.id), 'text', '拿歌词').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
-  get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
+  if (!ne) get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
     const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc, l = (d.lrc && d.lrc.lyric) || d.lrc;
     yrc = typeof y === 'string' ? parseYrc(y) : [];
     // 有的歌 Meting 给的歌词只有作词作曲那几行：vkeys 这份更全就用它
@@ -156,7 +182,7 @@ async function load(autoplay) {
 }
 /** 普通放法：先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样） */
 function plain(s, f, autoplay) {
-  const urls = f ? [URL.createObjectURL(f)] : [meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
+  const urls = f ? [URL.createObjectURL(f)] : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
   const tryUrl = i => {
     audio.onerror = () => {
       if (i + 1 < urls.length) return tryUrl(i + 1);
@@ -186,7 +212,8 @@ async function startChain(s, f, autoplay) {
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  const r = await fetch(meting('url', s.id), { signal });
+  let r = ne ? await fetch(`${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
+  if (!r || !r.ok) r = await fetch(meting('url', s.id), { signal });
   if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
   return r.body;
 }
@@ -252,6 +279,8 @@ export function like(s = current()) {
   if (!s) return false;
   const L = M().liked, i = L.findIndex(x => x.id === s.id);
   i < 0 ? L.unshift(s) : L.splice(i, 1); commit('music');
+  // 登录了网易云：红心同步过去
+  if (ne?.me && !s.local) be('/like', { id: s.id, like: i < 0 }).catch(e => log('warn', '音乐', `红心没同步到网易云：${e.message}`));
   return i < 0;
 }
 export const liked = s => !!s && M().liked.some(x => x.id === s.id);

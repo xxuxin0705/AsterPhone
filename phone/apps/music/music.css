@@ -239,3 +239,10 @@
 .as-mu-sum { margin: 0 4px 4px; font: 400 12px/1.4 var(--font-ui); color: var(--as-color-accent); }
 .as-mu-rsheet .as-mu-review__btns { padding: 6px 0 0; }
 
+.as-mu-lcover.is-red { background: var(--mu-red); }
+.as-mu-login { display: grid; justify-items: center; gap: 10px; padding: 4px 16px 20px; }
+.as-mu-login__qr { width: 200px; height: 200px; background: #fff; border-radius: 12px; }
+.as-mu-login__qr svg { width: 100%; height: 100%; display: block; }
+.as-mu-login__st { font-size: 14px; color: var(--mu-gray); }
+.as-mu-login__btns { display: flex; gap: 8px; width: 100%; }
+.as-mu-login__btns > * { flex: 1; }

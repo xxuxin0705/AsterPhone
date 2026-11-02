@@ -163,7 +163,7 @@ function renderMe(ctx) {
   ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)));
   const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const paintHeard = () => { const [n, u] = heard(); hearEl.replaceChildren(h('b', String(n)), ' ' + u); };
-  const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length]), () => {
+  const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
     const plays = Object.values(M().plays).reduce((n, x) => n + x.n, 0);
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
     const u = me();
@@ -178,6 +178,11 @@ function renderMe(ctx) {
         h('div.as-mu-li', { role: 'button', onclick: () => openList('我喜欢的音乐', M().liked, { onRemove: s => P.like(s) }) }, cover(firstPic(M().liked), true),
           h('div', h('b', '我喜欢的音乐'), h('span', `${M().liked.length} 首 · ${plays} 次播放`)),
           h('button.as-mu-chip', { onclick: e => { e.stopPropagation(); heartMode(); } }, icon('heart', 13, 2), '心动模式')),
+        // 装了酒馆插件才有：没登录给个登录入口；登录了是每日推荐和网易云里自己的歌单
+        ...(!P.ne ? [] : !P.ne.me ? [h('div.as-mu-li', { role: 'button', onclick: () => neLogin(loadNe) }, h('span.as-mu-lcover.is-red', icon('link', 22, 2)), h('div', h('b', '登录网易云'), h('span', '会员歌也能放')))] : [
+          h('div.as-mu-li', { role: 'button', onclick: openDaily }, h('span.as-mu-lcover.is-red', icon('sparkle', 22, 1.8)), h('div', h('b', '每日推荐'), h('span', '网易云 · ' + P.ne.me.name)),
+            h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); neMenu(); } }, icon('more', 18, 3))),
+          ...(neL || []).map(l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id) }, cover(l.pic), h('div', h('b', l.name), h('span', `网易云 · ${l.n} 首`))))]),
         ...M().lists.map(l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, l) }, cover(firstPic(l.songs)),
           h('div', h('b', l.name), h('span', `歌单 · ${(l.songs || []).length} 首`)),
           h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); delList(l); } }, icon('more', 18, 3)))),
@@ -188,6 +193,15 @@ function renderMe(ctx) {
   paint();
   ctx.body.append(box);
   ctx.el._onShow = paint;
+  const loadNe = () => P.neReady.then(async () => {
+    if (P.ne?.me && !neL) neL = await P.neLists().catch(e => { log('warn', '音乐', '读网易云歌单失败：' + e.message); return []; });
+    paint();
+  });
+  loadNe();
+  async function neMenu() {
+    if ((await actionSheet('网易云 · ' + P.ne.me.name, [{ value: 'out', label: '退出登录', icon: 'close', danger: true }])) !== 'out') return;
+    try { await P.neLogout(); neL = null; paint(); toast('退出了'); } catch (e) { log('error', '音乐', '退出网易云失败：' + e.message); toast('退出失败：' + e.message); }
+  }
 
   async function delList(l) {
     if ((await actionSheet(l.name, [{ value: 'rm', label: '删除', icon: 'trash', danger: true }])) !== 'rm') return;
@@ -207,6 +221,34 @@ function renderMe(ctx) {
       M().lists.push({ id, name: name.trim() || '网易云歌单', songs }); commit('music'); paint(); toast(`导入了 ${songs.length} 首`);
     } catch (e) { log('error', '音乐', '导入歌单失败：' + e.message); toast('导入失败：' + e.message); }
   }
+}
+let neL = null;   // 网易云里自己的歌单（登录后读一次）
+/* ---------- 登录网易云（酒馆插件替手机记着，哪台设备登一次都行） ---------- */
+async function neLogin(after) {
+  toast('正在拿二维码…', true);
+  let q; try { q = await P.neQr(); toast('二维码好了'); } catch (e) { log('error', '音乐', '拿登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
+  let t = 0;
+  const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('div.as-mu-login__qr');
+  qr.innerHTML = q.svg;
+  const s = sheet({ title: '登录网易云', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st,
+    h('div.as-mu-login__btns', btn('在网易云打开', 'secondary', () => window.open(q.link)), btn('粘贴 MUSIC_U', 'secondary', paste))) });
+  const done = name => { clearInterval(t); s.close(); toast('登录了：' + name); after(); };
+  t = setInterval(async () => {
+    const j = await P.neQrCheck(q.key).catch(() => null); if (!j) return;
+    if (j.code === 802) st.textContent = '扫好了，在手机上点确认';
+    if (j.code === 800) { clearInterval(t); st.textContent = '二维码过期了，关掉再开一次'; }
+    if (j.code === 803) done(j.me ? j.me.name : '');
+  }, 2000);
+  async function paste() {
+    const c = await dialog({ title: '粘贴 MUSIC_U', input: { placeholder: 'MUSIC_U' } }); if (!c) return;
+    toast('正在登录…', true);
+    try { await P.neCookie(c); done(P.ne.me.name); } catch (e) { log('error', '音乐', '登录网易云失败：' + e.message); toast('登录失败：' + e.message); }
+  }
+}
+async function openDaily() {
+  toast('正在读每日推荐…', true);
+  try { const L = await P.neDaily(); toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
+  catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
 }
 /** 「我的」资料：昵称、头像没改过就跟着「我」 */
 const me = () => { const u = M().profile || {}; return { nick: u.nick || myNick(), avatar: u.avatar || myAvatar(), sign: u.sign || '', bg: u.bg || '', fans: u.fans || 0, lv: u.lv || 1 }; };
