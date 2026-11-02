@@ -780,39 +780,7 @@ export function openPlayer() {
     const who = await pickChat('和谁一起听', c); if (!who) return;
     (await import('../chat/specials.js')).inviteListen(who);
   }
-  async function hot() {
-    const s = P.current();
-    let title = '本地的歌没有热评', why = '';
-    if (!s.local) {
-      toast('正在拿热评…', true);
-      try {
-        const list = await P.hotComments(s.id); if (!list.length) throw new Error('没有热评');
-        toast(`${list.length} 条热评`); showHot(list, []); return;
-      } catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); title = '拿不到热评'; why = e.message.replace(/[。.]$/, '') + '。\n'; }
-    }
-    // 本地的歌、拿不到热评（比如 Tauri Tavern 连不上网易云）：问要不要让 AI 写，写过的直接拿出来
-    const old = await P.aiCached(s.id);
-    if (old) { toast('AI 写的乐评'); showHot(old.hot, old.chars, s); return; }
-    toast(title);
-    if (await dialog({ title, text: `${why}要不要让 AI 写几条乐评，再加上角色们听这首歌的感受？会用一次 API。`, confirm: '生成' })) aiWrite(s);
-  }
-  async function aiWrite(s, old) {
-    toast('AI 正在写乐评…', true);
-    try { const r = await P.aiComments(s, listeners()); toast(`写好了，${r.hot.length} 条`); old && old.close(); showHot(r.hot, r.chars, s); }
-    catch (e) { log('error', '音乐', 'AI 写乐评失败：' + e.message); toast('没写成：' + e.message); }
-  }
-  // 谁来说感受：一起听的那个人 / 群里的人在前，不够 4 个再从联系人里随便挑
-  const listeners = () => {
-    const c = P.together(), first = !c ? [] : c.type === 'group' ? c.members.map(contact).filter(Boolean) : [c];
-    return [...first, ...state.contacts.filter(x => !first.includes(x)).sort(() => Math.random() - .5)].slice(0, Math.max(4, first.length));
-  };
-  // ai：AI 写的这首歌，最下面多一个「重新写」
-  const showHot = (list, chars, ai) => { const sh = sheet({ title: ai ? '乐评' : '热评', content: h('div.as-mu-reviews.as-mu-hot',
-    chars.length ? h('div.as-mu-sub', '大家听这首歌') : null,
-    ...chars.map(x => { const c = contact(x.id); return h('div.as-mu-review', avatar(c ? c.avatar : '', x.name, 34), h('div', h('div.as-mu-review__name', c ? nameOf(c) : x.name), h('div.as-mu-review__text', x.text))); }),
-    chars.length ? h('div.as-mu-sub', '网友乐评') : null,
-    ...list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text)))),
-    ai ? btn('重新写', 'secondary', async () => { if (await dialog({ title: '重新写一批？', text: '会再用一次 API，写好后换掉现在这些。', confirm: '重新写' })) aiWrite(ai, sh); }) : null) }); };
+  async function hot() { (await import('./comments.js')).openComments(P.current(), me()); }
   paintColor(); paintSong(); paintState(); paintTg();
   const off = P.onMusic(w => {
     if (w === 'song' || w === 'lyrics') { paintSong(); paintTg(); }

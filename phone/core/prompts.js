@@ -19,7 +19,8 @@ export const PROMPT_CATS = [
   ] },
   { app: '音乐', items: [
     { id: 'charSongs', name: '角色歌单', vars: ['char', 'persona', 'story', 'existing', 'count'] },
-    { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'chars', 'count'] },
+    { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'contacts', 'story'] },
+    { id: 'songReply', name: '乐评回复', vars: ['user', 'song', 'artist', 'contacts', 'threads', 'must'] },
   ] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] }] },
 ];
@@ -117,20 +118,42 @@ export const DEFAULT_PROMPTS = {
 
 每行一首，格式：歌名 - 歌手。只输出这些行。` },
   songTalk: { name: '乐评', cats: ['songTalk'], on: true, main: true,
-    text: `这首歌是《{{song}}》- {{artist}}。
+    text: `给《{{song}}》- {{artist}} 写一个网易云音乐的评论区。
 
 【歌词开头】
 {{lyrics}}
 
-【这些人也在听】
-{{chars}}
+【联系人（每个人都要有至少一条自己的乐评，名字用括号里的网名）】
+{{contacts}}
 
-写两部分：
-1. 像网易云热评区那样的网友乐评 {{count}} 条：有走心的、有讲自己故事的、有玩梗的，口语化，每条一两句到一小段；给每条起个网名、编一个点赞数。
-2. 上面每个人听这首歌的感受：按 TA 的人设和说话方式说一两句，像随口发的感想，不要旁白和动作描写。
+【最近的剧情（里面出现、但不在联系人里的人，也各写一条，网名照 TA 的性格起）】
+{{story}}
+
+要求：
+- 每条乐评照这个人的人设、经历和说话方式写：可以走心、讲自己的事、玩梗、阴阳怪气，长短不一，最长不超过两三百字。
+- 再加 6 到 10 条随机路人的乐评。
+- 联系人和剧情里的人的乐评点赞最多（几千到几万），路人少一些。
+- 一部分乐评下面有回复：可以是这些人互相回、自己回自己、路人回，回复可以 @ 别人。
+- 时间写成 月-日，地点写省份。
 
 只输出一个 JSON，不要别的文字：
-{"comments":[{"name":"网名","text":"乐评","likes":1234}],"chars":[{"name":"人名（照上面写）","text":"感受"}]}` },
+{"comments":[{"kind":"联系人 / 剧情 / 路人","who":"联系人的真实姓名（不是联系人就空着）","name":"网名","text":"乐评","likes":1234,"time":"09-21","place":"陕西","replies":[{"who":"","name":"网名","to":"回复谁的网名（回楼主就空着）","text":"回复","likes":12}]}]}` },
+  songReply: { name: '乐评回复', cats: ['songReply'], on: true, main: true,
+    text: `《{{song}}》- {{artist}} 的网易云评论区里，{{user}} 刚写了新的评论 / 回复（标了「新」的）。
+
+【联系人（名字用括号里的网名）】
+{{contacts}}
+
+【有新动静的楼（#后面是楼号）】
+{{threads}}
+
+接着写大家的反应：
+- {{must}} 一定要回 {{user}}。
+- 别的联系人看到了可以回，也可以不理；也可以自己回自己、回别人。说话照各自的人设和语气。
+- 可以顺便多几条新的路人评论。
+
+只输出一个 JSON，不要别的文字：
+{"replies":[{"floor":1,"who":"联系人的真实姓名（不是就空着）","name":"网名","to":"回复谁的网名","text":"回复","likes":3}],"comments":[{"who":"","name":"网名","text":"新评论","likes":0,"time":"刚刚","place":"省份"}]}` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 

@@ -322,3 +322,39 @@
 .as-mp.has-bg :is(.as-mp__top, .as-mp__name, .as-mp__artist, .as-mp__times, .as-mp__lrc, .as-tg__time, .as-fx__cur) { text-shadow: 0 1px 4px rgba(0,0,0,.45); }
 .as-mp.has-bg :is(.as-mp__lrc p.is-cur span, .as-ch.is-cur span) { text-shadow: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
 .as-mp.has-bg :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
+/* 乐评页（照网易云评论区） */
+.as-cm .as-page__body { padding: 0 0 120px; background: #fff; }
+.as-cm__song { display: flex; align-items: center; gap: 12px; padding: 10px 16px 14px; border-bottom: 8px solid #f4f4f6; }
+.as-cm__song .as-mu-lcover { width: 46px; height: 46px; border-radius: 50%; }
+.as-cm__song > div { min-width: 0; display: grid; gap: 3px; }
+.as-cm__song b { font: 500 15px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-cm__song span { font: 400 12px/1.3 var(--font-ui); color: #999; }
+.as-cm__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
+.as-cm__head b { font: 600 16px/1 var(--font-ui); }
+.as-cm__head .as-segmented { width: 120px; }
+.as-cm__item { display: flex; gap: 10px; padding: 14px 16px 6px; }
+.as-cm__item > div { flex: 1; min-width: 0; }
+.as-cm__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.as-cm__name { font: 500 14px/1.3 var(--font-ui); color: #507daf; }
+.as-cm small, .as-cm__name small { display: block; margin-top: 2px; font: 400 11px/1.3 var(--font-ui); color: #aaa; }
+.as-cm__rep .as-cm__name small { display: inline; margin-left: 6px; }
+.as-cm__text { margin-top: 8px; font: 400 15px/1.6 var(--font-ui); color: #222; white-space: pre-wrap; word-break: break-word; cursor: pointer; }
+.as-cm__text span { color: #507daf; }
+.as-cm__like { flex: none; display: flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 0; font: 400 12px/1 var(--font-ui); color: #999; cursor: pointer; }
+.as-cm__like.is-on { color: var(--mu-red); }
+.as-cm__like.is-on svg { fill: currentColor; }
+.as-cm__more { display: block; margin: 8px 0 4px; border: 0; background: none; padding: 0; font: 400 13px/1.4 var(--font-ui); color: #507daf; cursor: pointer; }
+.as-cm__more[hidden] { display: none; }
+.as-cm__reps:not(:empty) { margin-top: 10px; display: grid; gap: 12px; }
+.as-cm__rep { display: flex; gap: 8px; align-items: flex-start; }
+.as-cm__rep > div { flex: 1; min-width: 0; }
+.as-cm__rep .as-cm__text { margin-top: 3px; font-size: 14px; }
+.as-cm__rep.is-new { animation: as-ch-in 400ms ease-out; }
+.as-cm__bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid #eee; display: grid; gap: 8px; }
+.as-cm__row { display: flex; gap: 8px; }
+.as-cm__input { flex: 1; min-width: 0; border: 0; border-radius: 20px; padding: 10px 14px; background: #f2f2f4; font: 400 14px/1.3 var(--font-ui); outline: none; }
+.as-cm__row button { border: 0; background: none; color: var(--mu-red); font: 500 14px/1 var(--font-ui); cursor: pointer; }
+.as-cm__to { display: flex; align-items: center; justify-content: space-between; font: 400 12px/1.3 var(--font-ui); color: #507daf; }
+.as-cm__to[hidden], .as-cm__tell[hidden] { display: none; }
+.as-cm__to button { border: 0; background: none; color: #999; display: grid; cursor: pointer; }
+.as-cm__tell { justify-self: center; border: 0; border-radius: 16px; padding: 7px 16px; background: var(--mu-red); color: #fff; font: 500 13px/1 var(--font-ui); cursor: pointer; }
