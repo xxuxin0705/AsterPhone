@@ -330,7 +330,7 @@ export function openPlayer() {
   p.el.prepend(bg, cv);
   p.body.append(main,
     h('div.as-mp__info', h('div', name, artist), heart, h('button.as-mp__heart', { 'aria-label': '热评', onclick: hot }, icon('comment', 24, 1.8))),
-    h('div.as-mp__prog', track, h('div.as-mp__times', t0, t1)),
+    h('div.as-mp__prog', { dataset: { noSwipe: '' } }, track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
     h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('note', '收进笔记', collectLyrics)));
