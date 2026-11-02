@@ -834,7 +834,8 @@ export function openPlayer() {
         { value: 'cad', label: '碎语', active: S.name === 'cad' }, color]);
     if (!v) return;
     if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
-    if (v === 'color' && tc) { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
+    // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
+    if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
       const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', colorWheel(S.color || '#7cc4ff', c => { S.color = c; commit('music'); paintColor(); }),
         btn('恢复默认', 'secondary', () => { S.color = ''; commit('music'); paintColor(); sh.close(); })) });

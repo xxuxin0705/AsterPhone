@@ -39,10 +39,10 @@ export function styleTop(tgEl, time, bubs) {
 }
 // 一项颜色：右边一个小圆点（没设是「默认」），点开是色轮 + 恢复默认
 const dot = v => v ? h('span.as-tgl__dot', { style: { background: v } }) : h('span', '默认');
-function color(title, get, set, save) {
+function color(title, get, set, save, alpha) {
   const right = h('span', dot(get()));
   return item({ title, right, chevron: true, onClick: () => {
-    const sh = sheet({ title, content: h('div.as-mu-color', colorWheel(get() || '#ffffff', v => { set(v); right.replaceChildren(dot(v)); save(); }),
+    const sh = sheet({ title, content: h('div.as-mu-color', colorWheel(get() || (alpha ? '#ffffff24' : '#ffffff'), v => { set(v); right.replaceChildren(dot(v)); save(); }, alpha),
       btn('恢复默认', 'secondary', () => { set(''); right.replaceChildren(dot('')); save(); sh.close(); })) });
   } });
 }
@@ -72,7 +72,7 @@ export function openTgLook({ bgImage, bgFilter, c, me }) {
   p.body.append(pvBox(bgImage, bgFilter, tgEl),
     group('耳机', [color('耳机颜色', () => G.ear, v => { G.ear = v; }, save)]),
     group('一起听了多久', [color('颜色', ...field(G.time, 'color'), save), font(...field(G.time, 'font'), save)]),
-    group('头像上的两句话', [color('气泡颜色', ...field(G.pair, 'bg'), save), color('字的颜色', ...field(G.pair, 'ink'), save), font(...field(G.pair, 'font'), save)]),
+    group('头像上的两句话', [color('气泡颜色', ...field(G.pair, 'bg'), save, true), color('字的颜色', ...field(G.pair, 'ink'), save), font(...field(G.pair, 'font'), save)]),
     h('button.as-mu-morel', { onclick: async () => {
       if (!(await dialog({ title: '恢复默认？', text: '耳机、一起听了多久、头像上的两句话都回到原来的样子。', confirm: '恢复默认', danger: true }))) return;
       Object.assign(G, { ear: '', time: {}, pair: {} }); delete M().bub; commit('music'); nav.pop(); toast('恢复默认了');
@@ -107,7 +107,7 @@ export function openChoirLook({ bgImage, bgFilter, c, me }) {
         const v = await actionSheet('给谁调', [{ value: 'def', label: '所有人', active: who === 'def' }, ...people.map(y => ({ value: y.id, label: y.name, active: who === y.id }))]);
         if (v) pick(v);
       } }),
-      color('气泡颜色', ...set('bg'), save), color('歌词颜色', ...set('ly'), save), color('字的颜色', ...set('ink'), save), font(...set('font'), save),
+      color('气泡颜色', ...set('bg'), save, true), color('歌词颜色', ...set('ly'), save), color('字的颜色', ...set('ink'), save), font(...set('font'), save),
     ]));
   }
   p.body.append(pvBox(bgImage, bgFilter, h('div.as-tgl__list', { style: M().skin.color ? { '--ly': M().skin.color } : {} }, rows)), box,
