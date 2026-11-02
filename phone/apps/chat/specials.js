@@ -82,7 +82,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         const Mu = await import('../../core/music.js');
         if ((Mu.current() || {}).id !== m.id) Mu.playList([{ id: m.id, name: m.name, artist: m.artist, pic: m.pic }], 0, '一起听');
-        Mu.listenWith(ctx.c); (await import('../music/music.js')).openPlayer();
+        Mu.listenWith(E.isGroup(ctx.chat) ? ctx.chat : ctx.c); (await import('../music/music.js')).openPlayer();
       });
       return el;
     }
@@ -147,16 +147,16 @@ export async function plusAction(k, chat, c, { poke }) {
     case 'music': {
       const Mu = await import('../../core/music.js');
       if (!Mu.current()) { toast('先去音乐里放一首歌'); return; }
-      return inviteListen(c);
+      return inviteListen(E.isGroup(chat) ? chat : c);
     }
   }
 }
 
-/** 和 TA 一起听正在放的歌：在你们的聊天里发一张卡片（聊天「+」和播放页都走这里） */
+/** 和 TA（或一个群）一起听正在放的歌：在你们的聊天里发一张卡片（聊天「+」和播放页都走这里） */
 export async function inviteListen(c) {
   const Mu = await import('../../core/music.js'), s = Mu.current();
   Mu.listenWith(c);
-  await E.sendSpecial(chatForContact(c.id, true), { type: 'music', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
+  await E.sendSpecial(E.isGroup(c) ? c : chatForContact(c.id, true), { type: 'music', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
   toast(`在和${E.nameOf(c)}一起听`);
 }
 

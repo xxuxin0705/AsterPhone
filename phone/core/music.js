@@ -424,16 +424,25 @@ export function addToChar(c, s) {
   c.songs.push(s); commit('contacts'); return true;
 }
 /** 正文暗号 type="加歌"：TA 把某首歌加进了自己的歌单 */
-/* ---------- 一起听：只和私聊里的一个人。M().together 是 TA 的联系人 id；一起听了多少秒记在 M().tg[id] ---------- */
-export const together = () => contact(M().together) || null;
+/* ---------- 一起听：和私聊里的一个人，或者一个群。M().together 是 TA 的联系人 id / 群聊 id；一起听了多少秒记在 M().tg[id] ---------- */
+export const together = () => contact(M().together) || state.chats.find(x => x.id === M().together && x.type === 'group') || null;
 const tgTimes = () => M().tg || (M().tg = {});
 export const togetherSec = c => (tgTimes()[c.id] || 0) + (M().together === c.id ? heard / 1000 : 0);   // 还没存进去的那几秒也算上，一秒一秒涨
 export function listenWith(c) { M().together = c ? c.id : ''; commit('music'); tell('together'); }
-/** 一起听时气泡里的两句：这首歌里重复最多的两句（一般就是副歌），作词作曲那几行不算；有中文翻译就用翻译 */
-export function hook() {
-  const n = {}, tr = {}, L = lyrics.filter(x => x.text.trim() && !/[:：]/.test(x.text)).map(x => { const t = x.text.trim(); if (x.tr) tr[t] = x.tr; return t; });
-  L.forEach(t => { n[t] = (n[t] || 0) + 1; });
-  return [...new Set(L)].sort((a, b) => n[b] - n[a]).slice(0, 2).map(t => tr[t] || t);
+/** 一起听时两个头像上的气泡：一组两句（左边我、右边 TA）。第一次用时把内置的抄一份，之后随便改；M().pair 是选中的那组，空 = 每首歌换一组 */
+const PAIRS = [
+  ['这首歌好像在说我们', '那就多听几遍'], ['耳机分你一半', '心也分你一半'], ['你那边听得清吗', '清楚，像你在耳边'], ['循环第几遍了', '没数，不想停'],
+  ['别切歌', '等你听完这句'], ['天有点冷', '那靠近一点听'], ['下一首你来选', '选你喜欢的就好'], ['今天累不累', '听完这首就不累了'],
+  ['好想现在见你', '闭上眼，我就在旁边'], ['你在跟着哼吗', '被你发现了'], ['这首能听一整晚', '那我陪你一整晚'], ['你那边下雨了吗', '这边晴天，分你一点'],
+  ['这句写得真好', '像你会说的话'], ['晚安前最后一首', '那就放慢一点'], ['同一秒听到同一句', '好像就在一起'], ['隔着屏幕也算吗', '算，心在一起就算'],
+  ['这首让我想起你', '那我以后常出现'], ['你笑什么', '想到你了'], ['一听前奏就知道是你', '懂我'], ['明天也一起听吗', '每天都一起听'],
+  ['睡着了吗', '还没，在等这首放完'], ['有点想哭', '我在呢'], ['走在路上听的吗', '嗯，像你陪我散步'], ['你喜欢哪一句', '你偷偷哼的那句'],
+  ['风好大', '让歌替我抱你一下'], ['副歌要来了', '准备好了'], ['想把这一刻存起来', '我已经存好了'], ['听歌时在想什么', '在想你在想什么'],
+];
+export const pairs = () => M().pairs || (M().pairs = PAIRS.map(([a, b]) => ({ id: uid('pr'), a, b })));
+export function pairNow() {
+  const L = pairs(), s = current(); if (!L.length) return null;
+  return L.find(x => x.id === M().pair) || L[[...String(s && s.id)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % L.length];   // 按歌挑，同一首歌一直是同一组
 }
 /** 和 TA 聊天时告诉 AI 你们在一起听什么 */
 export function togetherNote(c) {

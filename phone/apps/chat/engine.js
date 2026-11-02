@@ -312,7 +312,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
-      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt));
+      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat);
     const rc = replyCfg(chat);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
     const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));

@@ -2,7 +2,7 @@
 // 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
-import { state, commit } from '../../core/store.js';
+import { state, commit, contact } from '../../core/store.js';
 import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -10,6 +10,8 @@ import { log } from '../../core/log.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 import { rain, isNight } from './rain.js';
+import { lyricFx } from './lyricfx.js';
+import { clock } from './clock.js';
 
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
@@ -177,7 +179,7 @@ function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { if ((await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }])) === 'float') openFloat(); }));
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const paintHeard = () => { const [n, u] = heard(); hearEl.replaceChildren(h('b', String(n)), ' ' + u); };
   const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
@@ -298,11 +300,7 @@ async function openFloat() {
   const save = () => { commit('music'); F.applyFloat(); };
   const fontName = () => (F.FONTS.find(x => x[0] === c.font) || [0, fonts.fontName(c.font) || '默认'])[1];
   const fontVal = h('span', fontName()), sizeOut = h('output', c.size + '');
-  // 颜色：几个常用的点一下就换，最后一个圆是自己调
-  const sw = h('div.as-mu-swatch', ['#ffffff', '#1d1d1f', '#fc3d49', '#ffd166', '#7cc4ff', '#ff9ec7', '#8ee3a1'].map(v => h('button', { style: { background: v }, dataset: { c: v }, 'aria-label': v, onclick: () => pick(v) })),
-    h('input', { type: 'color', value: c.color, 'aria-label': '自己调颜色', oninput: e => pick(e.target.value) }));
-  const pick = v => { c.color = v; [...sw.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === v)); save(); };
-  [...sw.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === c.color));
+  const sw = swatch(c.color, v => { c.color = v; save(); });
   const more = group('', [
     item({ title: '字体', right: fontVal, chevron: true, onClick: async () => {
       const v = await actionSheet('字体', [...F.FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: c.font === k })), ...fonts.userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: c.font === 'u:' + u.id }))]);
@@ -315,6 +313,39 @@ async function openFloat() {
   more.style.display = c.where === 'off' ? 'none' : '';
   const p = page({ app: 'music', id: 'music-float', title: '歌词悬浮窗', back: true });
   p.body.append(group('显示在', [h('div.as-field', segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; }))]), more);
+  nav.push(p.el);
+}
+/** 颜色：几个常用的点一下就换，最后一个圆是自己调（悬浮窗、播放页歌词共用） */
+function swatch(cur, onPick) {
+  const el = h('div.as-mu-swatch', ['#ffffff', '#1d1d1f', '#fc3d49', '#ffd166', '#7cc4ff', '#ff9ec7', '#8ee3a1'].map(v => h('button', { style: { background: v }, dataset: { c: v }, 'aria-label': v, onclick: () => pick(v) })),
+    h('input', { type: 'color', value: cur, 'aria-label': '自己调颜色', oninput: e => pick(e.target.value) }));
+  const pick = v => { [...el.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === v)); onPick(v); };
+  [...el.children].forEach(b => b.classList.toggle('is-on', b.dataset.c === cur));
+  return el;
+}
+/* ---------- 一起听的悄悄话：一组两句，点一下用这组，⋯ 编辑 / 删除 ---------- */
+function openPairs() {
+  const p = page({ app: 'music', id: 'music-pairs', title: '一起听的悄悄话', back: true, right: navBtn('plus', '新增', () => editPair()) });
+  const box = h('div.as-mu-sheet');
+  const row = (id, a, b, more) => h('div.as-mu-li.as-mu-pair', { role: 'button', dataset: { id }, onclick: () => { M().pair = id; commit('music'); mark(); } },
+    h('div', h('b', a), b && h('span', b)), h('span.as-mu-pair__on', icon('check', 18, 2.4)), more && h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); more(); } }, icon('more', 18, 3)));
+  const mark = () => box.querySelectorAll('.as-mu-pair').forEach(r => r.classList.toggle('is-on', r.dataset.id === (M().pair || '')));
+  const paint = () => { box.replaceChildren(row('', '每首歌换一组'), ...P.pairs().map(x => row(x.id, x.a, x.b, async () => {
+    const v = await actionSheet(x.a, [{ value: 'edit', label: '编辑', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
+    if (v === 'edit') editPair(x);
+    if (v === 'del') { P.pairs().splice(P.pairs().indexOf(x), 1); if (M().pair === x.id) M().pair = ''; commit('music'); paint(); }
+  }))); mark(); };
+  function editPair(x) {
+    const d = { a: x ? x.a : '', b: x ? x.b : '' };
+    const sh = sheet({ title: x ? '编辑' : '新增', content: h('div.as-mu-pairedit',
+      field('我说', input({ value: d.a, onInput: v => { d.a = v.trim(); } })), field('TA 说', input({ value: d.b, onInput: v => { d.b = v.trim(); } })),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => sh.close()), btn('保存', 'primary', () => {
+        if (!d.a && !d.b) { toast('两句至少写一句'); return; }
+        if (x) Object.assign(x, d); else P.pairs().push({ id: uid('pr'), ...d });
+        commit('music'); sh.close(); paint();
+      }))) });
+  }
+  paint(); p.body.append(box);
   nav.push(p.el);
 }
 /* ---------- 歌单导出 / 导入（小手机自己的文件） ---------- */
@@ -468,11 +499,12 @@ export function openPlayer() {
   const arm = h('div.as-mp__arm'); arm.innerHTML = ARM;
   // 点唱片 ⇄ 全部歌词
   const lrc = h('div.as-mp__lrc'), stage = h('div.as-mp__stage', disc, arm);
-  // 一起听：上面一小块是两个人的头像（外侧各塞一只耳机），头像上方的气泡是这首歌重复最多的两句；下面照旧是歌词
+  // 一起听：上面一小块是两个人的头像（外侧各塞一只耳机），头像上方的气泡是一组悄悄话（点一下去改）；群里是一排头像。下面是歌词
   const tgAv = [h('div.as-tg__av'), h('div.as-tg__av')], tgBub = [h('div.as-tg__bub', h('span')), h('div.as-tg__bub', h('span'))], tgTime = h('div.as-tg__time');
   const half = (side, i) => h('div.as-tg__half.is-' + side, h('div.as-tg__who', tgAv[i], tgBub[i]), h('img', { src: `assets/music/together-${side}.webp`, alt: '' }));
-  const tgEl = h('div.as-tg', h('div.as-tg__pair', half('l', 0), half('r', 1)), tgTime);
-  const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, tgEl, lrc);
+  const tgGroup = h('div.as-tg__group'), tgEl = h('div.as-tg', h('div.as-tg__pair', { onclick: e => { e.stopPropagation(); openPairs(); } }, half('l', 0), half('r', 1)), tgGroup, tgTime);
+  const fx = h('div.as-mp__fx');
+  const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, fx, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
   const name = h('div.as-mp__name'), artistName = h('span'), followBtn = h('button.as-mp__follow', { onclick: async e => {
@@ -510,15 +542,34 @@ export function openPlayer() {
     bg.classList.toggle('is-custom', !!S.bg || wet); bg.classList.toggle('is-scene', wet && !S.bg);
     p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
   };
-  const paintSkin = () => { p.el.classList.toggle('is-rain', S.name === 'rain'); S.name === 'rain' && !p.el.classList.contains('is-lrc') && !P.together() ? R.start() : R.stop(); };
+  // 流光 / 心象 / 时计：唱片那块换成动态歌词
+  let F = null;
+  const paintSkin = () => {
+    const free = !p.el.classList.contains('is-lrc') && !P.together();
+    ['rain', 'lumi', 'cad', 'clock'].forEach(k => p.el.classList.toggle('is-' + k, S.name === k));
+    S.name === 'rain' && free ? R.start() : R.stop();
+    const k = /^(lumi|cad|clock)$/.test(S.name) ? S.name : '';
+    if (k !== (F && F.kind)) { F && F.stop && F.stop(); F = k === 'clock' ? clock(fx, p.el, S.color || '#7cc4ff') : k ? { ...lyricFx(fx, k), kind: k } : null; if (F) { li = -2; tick(); } }
+    if (F && F.start) free ? F.start() : F.stop();
+  };
+  const paintColor = () => { p.el.style.setProperty('--ly', S.color || '#7cc4ff'); F && F.color && F.color(S.color || '#7cc4ff'); };
+  // 群唱：一起听时歌词一人一句，像聊天一样一条条冒出来（我的在右边）
+  const choir = () => !!P.together() && S.tg !== 'plain';
+  const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x)]) : [[c.avatar, nameOf(c)]];
   let tgWho = '';
   const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.togetherSec(c)); };
   const paintTg = () => {
     const c = P.together(); p.el.classList.toggle('is-tg', !!c); if (c) p.el.classList.remove('is-lrc'); paintSkin(); if (!c) return;
     // 头像只在换人时换（图片重新解码会闪）；气泡只改字
-    if (tgWho !== c.id) { tgWho = c.id; tgAv[0].replaceChildren(avatar(me().avatar, me().nick, 84)); tgAv[1].replaceChildren(avatar(c.avatar, nameOf(c), 84)); }
-    const [a, b] = P.hook();
-    [b, a].forEach((t, i) => { tgBub[i].hidden = !t; tgBub[i].firstChild.textContent = t || ''; });
+    const grp = c.type === 'group';
+    tgEl.classList.toggle('is-group', grp);
+    if (tgWho !== c.id) {
+      tgWho = c.id;
+      if (grp) tgGroup.replaceChildren(...[[me().avatar, me().nick], ...singers(c)].slice(0, 6).map(([a, n]) => avatar(a, n, 56)));
+      else { tgAv[0].replaceChildren(avatar(me().avatar, me().nick, 84)); tgAv[1].replaceChildren(avatar(c.avatar, nameOf(c), 84)); }
+    }
+    const x = grp ? null : P.pairNow();
+    [x && x.a, x && x.b].forEach((t, i) => { tgBub[i].hidden = !t; tgBub[i].firstChild.textContent = t || ''; });
     tgEl.classList.toggle('is-night', isNight()); paintTgTime(c);
   };
   let lines = [];
@@ -528,7 +579,14 @@ export function openPlayer() {
     top.replaceChildren(topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();
-    lines = L.map(x => h('p', h('span', x.text), x.tr ? h('small', x.tr) : null));
+    const tc = choir() && P.together(), who = tc && singers(tc), my = [me().avatar, me().nick];
+    lines = L.map((x, k) => {
+      const ly = h('p', h('span', x.text), x.tr ? h('small', x.tr) : null);
+      if (!tc) return ly;
+      const mine = k % (who.length + 1) === who.length, [a, n] = mine ? my : who[k % (who.length + 1)];
+      return h('div.as-ch' + (mine ? '.is-me' : ''), avatar(a, n, 32), ly);
+    });
+    lrc.classList.toggle('is-choir', !!tc);
     lrc.replaceChildren(...(L.length ? lines : [h('p.is-none', s.local ? '本地的歌没有歌词' : '纯音乐，或者没找到歌词')]));
     li = -2; tick();
   };
@@ -542,11 +600,13 @@ export function openPlayer() {
     let i = -1; while (i + 1 < L.length && L[i + 1].t <= t) i++;
     if (i !== li) {
       lines[li]?.classList.remove('is-cur'); li = i;
+      if (lrc.classList.contains('is-choir')) lines.forEach((r, k) => r.classList.toggle('is-said', k <= i));
+      F && F.line(L, i);
       const el = lines[i] || lines[0];
       if (lines[i]) lines[i].classList.add('is-cur');
       if (el && Date.now() - touched > 3000) lrc.scrollTo({ top: el.offsetTop - lrc.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
     }
-    if (L[i]) lines[i].style.setProperty('--p', P.sung(L, i, t) * 100 + '%');
+    if (L[i]) { const q = P.sung(L, i, t); lines[i].style.setProperty('--p', q * 100 + '%'); F && F.prog(q); }
   }
   function loop() {
     cancelAnimationFrame(raf);
@@ -554,10 +614,15 @@ export function openPlayer() {
     go();
   }
   async function skin() {
-    const rec = S.name !== 'rain';
-    const v = await actionSheet('样式', [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: !rec }]);
+    const tc = P.together(), rec = S.name === 'record' || !S.name, color = { value: 'color', label: '歌词颜色', icon: 'palette' };
+    // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
+    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '群唱', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, ...(S.tg !== 'plain' ? [color] : [])]
+      : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
+        { value: 'lumi', label: '流光', active: S.name === 'lumi' }, { value: 'cad', label: '心象', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, ...(/^(lumi|cad|clock)$/.test(S.name) ? [color] : [])]);
     if (!v) return;
-    if (v === 'rain') S.name = 'rain'; else { S.name = 'record'; S.disc = v; disc.classList.toggle('is-vinyl', v === 'vinyl'); }
+    if (v === 'color') { sheet({ title: '歌词颜色', content: swatch(S.color || '#7cc4ff', c => { S.color = c; commit('music'); paintColor(); }) }); return; }
+    if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }
+    if (v === 'glass' || v === 'vinyl') { S.name = 'record'; S.disc = v; disc.classList.toggle('is-vinyl', v === 'vinyl'); } else S.name = v;
     commit('music'); paintBg(); paintSkin();
   }
   async function background() {
@@ -599,9 +664,10 @@ export function openPlayer() {
       if (v === 'end') { P.listenWith(null); toast('不一起听了'); }
       if (v !== 'swap') return;
     }
-    if (!state.contacts.length) { toast('还没有联系人'); return; }
-    const id = await actionSheet('和谁一起听', state.contacts.filter(x => x !== c).map(x => ({ value: x.id, label: nameOf(x) })));
-    const who = id && state.contacts.find(x => x.id === id); if (!who) return;
+    const all = [...state.contacts, ...state.chats.filter(x => x.type === 'group')].filter(x => x !== c);
+    if (!all.length) { toast('还没有联系人'); return; }
+    const id = await actionSheet('和谁一起听', all.map(x => ({ value: x.id, label: nameOf(x) })));
+    const who = id && all.find(x => x.id === id); if (!who) return;
     (await import('../chat/specials.js')).inviteListen(who);
   }
   async function hot() {
@@ -612,15 +678,15 @@ export function openPlayer() {
       sheet({ title: '热评', content: h('div.as-mu-reviews.as-mu-hot', list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text))))) });
     } catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); toast('拿不到热评：' + e.message); }
   }
-  paintSong(); paintState(); paintTg();
+  paintColor(); paintSong(); paintState(); paintTg();
   const off = P.onMusic(w => {
     if (w === 'song' || w === 'lyrics') { paintSong(); paintTg(); }
-    if (w === 'together') paintTg();
+    if (w === 'together') { paintSong(); paintTg(); }
     if (w === 'state') paintState();
     if (w === 'time') { if (!P.playing()) tick(); const c = P.together(); if (c) paintTgTime(c); }
   });
   p.el._onShow = () => { loop(); paintSkin(); };
-  p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); };
+  p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); F && F.stop && F.stop(); };
   nav.push(p.el);
 }
 function openQueue() {

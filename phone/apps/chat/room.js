@@ -62,7 +62,7 @@ export async function openRoom(chat) {
   // 正在和 TA 一起听：顶上挂一条，点一下去播放页，× 结束
   const tgName = h('span'), tgBar = h('div.as-chat-tgbar', { hidden: true, role: 'button', onclick: async () => (await import('../music/music.js')).openPlayer() },
     icon('headphones', 16, 2), tgName, h('button', { 'aria-label': '结束一起听', onclick: e => { e.stopPropagation(); Mu.listenWith(null); } }, icon('close', 16, 2)));
-  const paintTg = () => { const on = !g && Mu.together() === c && !!Mu.current(); tgBar.hidden = !on; if (on) tgName.textContent = `正在一起听：${Mu.current().name}`; };
+  const paintTg = () => { const on = Mu.together() === (g ? chat : c) && !!Mu.current(); tgBar.hidden = !on; if (on) tgName.textContent = `正在一起听：${Mu.current().name}`; };
   list.before(tgBar); paintTg();
   const inputEl = h('textarea.as-chat-input', { rows: 1, placeholder: '发消息…', 'aria-label': '输入消息' });
   inputEl.value = chat.draft || '';
