@@ -28,7 +28,7 @@ function build() {
   const lc = h('span.as-lmc__cov'), ln = h('b'), la = h('span'), lb = h('i'), t0 = h('span'), t1 = h('span'), lp = h('span');
   const heart = h('button.as-lmc__heart', { 'aria-label': '喜欢', onclick: e => {
     e.stopPropagation(); const on = P.like(); heart.classList.toggle('is-on', on);
-    if (on) { heart.classList.remove('is-pop'); void heart.offsetWidth; heart.classList.add('is-pop'); }
+    if (on) burst(heart);
   } }, icon('heart', 24, 1.8));
   const c = h('div.as-lmc', { onclick: e => e.stopPropagation() },
     h('div.as-lmc__row', lc, h('div.as-lmc__info', ln, la), wave()),
@@ -37,6 +37,13 @@ function build() {
   lock.querySelector('.as-lock__head').after(c);
   card = { el: c, lock, cov: lc, name: ln, artist: la, bar: lb, t0, t1, play: lp, heart };
   return true;
+}
+// 点亮红心（照作者发的苹果点赞动效第二种）：空心先没了 → 中间一个红点长成一圈圈橙红的圆再缩回去 → 实心红心弹出来，四周迸出几粒橙色小点
+function burst(btn) {
+  btn.classList.remove('is-pop'); void btn.offsetWidth; btn.classList.add('is-pop');
+  const bits = [h('span.as-hb'), ...Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2 + Math.random() * .4, r = 20 + Math.random() * 10; return h('span.as-hd', { style: { '--dx': Math.cos(a) * r + 'px', '--dy': Math.sin(a) * r + 'px' } }); })];
+  btn.append(...bits);
+  setTimeout(() => bits.forEach(b => b.remove()), 1100);
 }
 let songId = '';
 function paint() {
