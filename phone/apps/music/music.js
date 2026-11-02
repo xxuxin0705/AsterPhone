@@ -596,7 +596,6 @@ export function openPlayer() {
   if (!P.current()) { toast('还没有在放的歌'); return; }
   const S = M().skin;
   const p = page({ app: 'music', id: 'music-player', back: true, cls: 'as-mp.is-dark' });
-  p.nav.querySelector('.as-navbar__back').replaceChildren(icon('down', 26, 2));
   const top = h('div.as-mp__top'), topName = h('b'), topArtist = h('span');
   p.nav.querySelector('.as-navbar__title').append(top);
   const bg = h('div.as-mp__bg'), cov = h('div.as-mp__cover'), disc = h('div.as-mp__disc' + (S.disc === 'vinyl' ? '.is-vinyl' : ''), cov);

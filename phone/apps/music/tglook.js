@@ -1,5 +1,5 @@
 // 一起听的样子（播放页一起听时「换样式」→「一起听的样子」）：耳机颜色、「一起听了多久」的颜色和字体、头像上那两句话的气泡颜色 / 字颜色 / 字体。
-// 对话式歌词的颜色（「换样式」→「歌词颜色」）：每个人一套（气泡、歌词唱到的颜色、字的颜色、字体），「所有人」是没单独调过的人用的。
+// 对话式歌词的颜色（「换样式」→「歌词颜色」）：每个人一套（气泡、歌词唱到的颜色、字的颜色、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
 // 空着的项 = 用原来的样子。两页上面都是预览，调什么马上看到。
 import { h } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
@@ -8,6 +8,7 @@ import * as nav from '../../core/nav.js';
 import { FONTS, useFont } from '../../core/floatlyric.js';
 import { userFonts } from '../../core/fonts.js';
 import { lyricsNow } from '../../core/music.js';
+import { myName } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 
 const M = () => state.music;
@@ -83,7 +84,8 @@ export function openTgLook({ bgImage, bgFilter, c, me }) {
 /** 对话式歌词的颜色：上面是每人一行的预览（人多就上下滑），点哪行或「给谁调」就调谁 */
 export function openChoirLook({ bgImage, bgFilter, c, me }) {
   const C = look().chars, p = page({ app: 'music', id: 'music-choirlook', title: '歌词颜色', back: true });
-  const people = [...(c.type === 'group' ? c.members.map(contact).filter(Boolean) : [c]).map(x => ({ id: x.id, name: nameOf(x), avatar: x.avatar })), { id: 'me', name: me.nick, avatar: me.avatar, mine: true }];
+  // 名字写真实姓名（备注、网名会重名，也不好认）
+  const people = [...(c.type === 'group' ? c.members.map(contact).filter(Boolean) : [c]).map(x => ({ id: x.id, name: x.name || nameOf(x), avatar: x.avatar })), { id: 'me', name: myName(), avatar: me.avatar, mine: true }];
   const L = lyricsNow().filter(x => x.text.trim());
   let who = people[0].id;
   const rows = people.map((x, k) => {
@@ -98,12 +100,14 @@ export function openChoirLook({ bgImage, bgFilter, c, me }) {
     who = id;
     rows.forEach(r => r.classList.toggle('is-sel', r._who.id === who || who === 'def'));   // 选中只在整行后面垫一层，气泡和头像照原样（头像以后要加头像框）
     const x = people.find(y => y.id === who), o = C[who] || (C[who] = {});
+    // 给「所有人」调的那一项，盖掉之前单独给某个人调的（以最新的为准）
+    const set = k => { const [get, put] = field(o, k); return [get, v => { put(v); if (who === 'def' && v) Object.keys(C).forEach(id => { if (id !== 'def') delete C[id][k]; }); }]; };
     box.replaceChildren(group('', [
-      item({ title: '给谁调', right: h('span', who === 'def' ? '所有人（没单独调过的）' : x.name), chevron: true, onClick: async () => {
-        const v = await actionSheet('给谁调', [{ value: 'def', label: '所有人（没单独调过的）', active: who === 'def' }, ...people.map(y => ({ value: y.id, label: y.name, active: who === y.id }))]);
+      item({ title: '给谁调', right: h('span', who === 'def' ? '所有人' : x.name), chevron: true, onClick: async () => {
+        const v = await actionSheet('给谁调', [{ value: 'def', label: '所有人', active: who === 'def' }, ...people.map(y => ({ value: y.id, label: y.name, active: who === y.id }))]);
         if (v) pick(v);
       } }),
-      color('气泡颜色', ...field(o, 'bg'), save), color('歌词颜色', ...field(o, 'ly'), save), color('字的颜色', ...field(o, 'ink'), save), font(...field(o, 'font'), save),
+      color('气泡颜色', ...set('bg'), save), color('歌词颜色', ...set('ly'), save), color('字的颜色', ...set('ink'), save), font(...set('font'), save),
     ]));
   }
   p.body.append(pvBox(bgImage, bgFilter, h('div.as-tgl__list', { style: M().skin.color ? { '--ly': M().skin.color } : {} }, rows)), box,
