@@ -322,6 +322,12 @@ export function next(step = 1) {
 export const prev = () => now() > 4 ? seek(0) : next(-1);
 export function seek(t) { if (restored) audio.currentTime = (seg()?.start || 0) + t; }
 export function jump(i) { M().idx = i; load(true); }
+/** 播放列表改顺序：正在放的不动，已经续上的那几首重新对一下是第几首 */
+function requeue(Q) { const c = current(); M().queue = Q; M().idx = Q.indexOf(c); if (chain) chain.segs.forEach(g => { g.i = Q.indexOf(g.s); }); commit('music'); }
+/** 置顶：放到正在放的这首后面，下一首就是它 */
+export function queueNext(s) { const Q = M().queue.filter(x => x !== s); Q.splice(Q.indexOf(current()) + 1, 0, s); requeue(Q); }
+/** 从播放列表里删掉；删的是正在放的就先切到下一首 */
+export function queueDel(s) { if (s === current()) next(); requeue(M().queue.filter(x => x !== s)); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];
 export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); return MODES[(i + 1) % MODES.length]; }
 export function like(s = current()) {
@@ -350,6 +356,7 @@ audio.addEventListener('timeupdate', () => {
     // 放进了下一首：换歌名、歌词，把前一首的内容从这条声音里清掉（省内存）
     const nx = c.segs[c.segs.indexOf(g) + 1];
     if (nx && nx.start != null && audio.currentTime >= nx.start) {
+      if (nx.i < 0) { next(); tell('time'); return; }   // 已经续上的那首后来从播放列表里删了：跳过它
       M().idx = nx.i; c.nexting = false; fails = 0; c.segs.splice(0, c.segs.indexOf(nx)); enter(nx.s);
       op(c, () => { if (nx.start > 2) c.sb.remove(0, nx.start - 1); else run(c); });
     }

@@ -1,7 +1,7 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow, kvGet } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.14';
+export const VERSION = '0.8.15';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -380,29 +380,6 @@ function openLook() {
   });
 }
 const segField = (label, seg) => h('div.as-field', h('span.as-field__label', label), seg);
-
-/** 圆形色轮：手指按到哪就是哪个颜色（越往外越鲜艳），下面一条调亮暗。onChange 收到 #rrggbb */
-function colorWheel(hex, onChange) {
-  const toHsv = x => { const n = parseInt(x.slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
-    const hh = !d ? 0 : mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(hh * 60 + 360) % 360, mx ? d / mx : 0, mx]; };
-  const toHex = (hh, s, v) => { const f = k => { const m = (k + hh / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(m, 4 - m, 1)))); }; return '#' + [f(5), f(3), f(1)].map(x => x.toString(16).padStart(2, '0')).join(''); };
-  let [hu, sa, va] = toHsv(hex);
-  const R = 90, cvs = h('canvas.as-wheel__disc', { width: R * 4, height: R * 4 }), knob = h('span.as-wheel__knob'), ctx = cvs.getContext('2d'), img = ctx.createImageData(R * 4, R * 4);
-  for (let y = 0; y < R * 4; y++) for (let x = 0; x < R * 4; x++) {
-    const dx = x - R * 2, dy = y - R * 2, r = Math.hypot(dx, dy) / (R * 2); if (r > 1) continue;
-    const c = toHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, r, 1), i = (y * R * 4 + x) * 4, n = parseInt(c.slice(1), 16);
-    img.data[i] = n >> 16 & 255; img.data[i + 1] = n >> 8 & 255; img.data[i + 2] = n & 255; img.data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const place = () => { const a = hu * Math.PI / 180; knob.style.left = 50 + Math.cos(a) * sa * 50 + '%'; knob.style.top = 50 + Math.sin(a) * sa * 50 + '%'; knob.style.background = toHex(hu, sa, va); cvs.style.filter = `brightness(${.25 + va * .75})`; };
-  const pick = e => { const r = cvs.getBoundingClientRect(), dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
-    hu = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360; sa = Math.min(1, Math.hypot(dx, dy) / (r.width / 2)); place(); onChange(toHex(hu, sa, va)); };
-  const wrap = h('div.as-wheel__wrap', { 'data-no-swipe': '' }, cvs, knob);
-  wrap.addEventListener('pointerdown', e => { e.preventDefault(); wrap.setPointerCapture(e.pointerId); pick(e); });
-  wrap.addEventListener('pointermove', e => { if (wrap.hasPointerCapture(e.pointerId)) pick(e); });
-  place();
-  return h('div.as-wheel', wrap, sliderRow('亮度', { min: .1, max: 1, step: .01, value: va, fmt: v => Math.round(v * 100) + '%', onInput: v => { va = v; place(); onChange(toHex(hu, sa, va)); } }));
-}
 
 /* ---------- 壁纸 ---------- */
 function wallLabel() {

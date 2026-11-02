@@ -11,9 +11,11 @@ export const isNight = () => { const h = new Date().getHours(); return h >= 18 |
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null;
-  const col = (n, d) => a => `rgba(${night ? n : d},${a})`;
-  const ink = col('244,248,255', '26,56,110'), rainC = col('215,230,255', '40,75,140'), ringC = col('110,170,255', '40,85,160'), spark = col('255,255,255', '30,60,120');
+  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '';
+  // tint：自己选的歌词颜色（'r,g,b'），字、字的光、水纹都换成它；没选就是白天 / 夜里各自的颜色
+  const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
+  const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
+  const glow = a => `rgba(${tint || '170,205,255'},${a})`;
   // z：远近（0 远 1 近）。远的短、慢、淡，落在靠近水平线的地方；近的长、快，落得靠下
   const drop = top => { const z = Math.random(); return { x: Math.random() * W, y: top ? -Math.random() * H * .4 : Math.random() * H * .9, z, l: 6 + z * 18, v: 380 + z * 560, end: ground + 4 + z * (H - ground - 4) }; };
 
@@ -112,14 +114,17 @@ export function rain(cv, page) {
       let fs = 16; ctx.font = `400 ${fs}px ${FONT}`;
       const tw = ctx.measureText(lay.tr).width; if (tw > W - 48) { fs = Math.max(11, fs * (W - 48) / tw); ctx.font = `400 ${fs}px ${FONT}`; }
       ctx.textAlign = 'center'; ctx.shadowColor = night ? 'rgba(4,14,40,.9)' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 6;   // 夜里水面月光亮，垫一层暗影才看得清
-      ctx.fillStyle = ink((night ? .88 : .7) * Math.min(1, landed / n * 1.5) * (1 - fade)); ctx.fillText(lay.tr, W / 2, ground + lay.fs * .6 + 30);
+      // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
+      const al = (night ? .88 : .7) * (1 - fade), y = ground + lay.fs * .6 + 30, w = ctx.measureText(lay.tr).width;
+      ctx.fillStyle = ink(al * .4); ctx.fillText(lay.tr, W / 2, y);
+      ctx.save(); ctx.beginPath(); ctx.rect(W / 2 - w / 2, y - fs * 1.2, w * landed / n, fs * 2); ctx.clip(); ctx.fillStyle = ink(al); ctx.fillText(lay.tr, W / 2, y); ctx.restore();
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }
   }
   // 碎开：字往下一压扁就没了，原地溅起几粒水珠落回水面，荡一圈小水纹
   function burst(k, cx, d, fs) {
     const top = ground - fs * .45;
-    ctx.fillStyle = spark(.95 * (1 - d * .7)); if (night) { ctx.shadowColor = 'rgba(170,205,255,.9)'; ctx.shadowBlur = 6; }
+    ctx.fillStyle = spark(.95 * (1 - d * .7)); if (night) { ctx.shadowColor = glow(.9); ctx.shadowBlur = 6; }
     for (const [vx, vy] of k.sp) { const x = cx + vx * d * fs * .8, y = top - vy * fs * .9 * d + fs * 1.6 * d * d; ctx.beginPath(); ctx.arc(x, Math.min(y, ground + 2), 2.3 * (1 - d * .4), 0, 7); ctx.fill(); }
     ctx.shadowBlur = 0;
     const rx = k.w * .3 + d * 22; ctx.strokeStyle = ringC((1 - d) * .5); ctx.beginPath(); ctx.ellipse(cx, ground + 4, rx, rx * .22, 0, 0, Math.PI * 2); ctx.stroke();
@@ -129,7 +134,7 @@ export function rain(cv, page) {
     const sq = 1 - Math.min(1, d * 1.8);   // 碎的时候前一小半就压扁没了
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
-    if (night) { ctx.shadowColor = `rgba(170,205,255,${.7 * a})`; ctx.shadowBlur = 10; }
+    if (night || tint) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; }
     ctx.fillStyle = ink(a * sq); ctx.fillText(t, 0, 0);
     ctx.restore();
     if (onWater) {   // 倒影：压扁、晃一晃
@@ -139,6 +144,7 @@ export function rain(cv, page) {
   }
 
   return {
+    color(hex) { tint = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
     start() { night = isNight(); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } },
     stop() { cancelAnimationFrame(raf); raf = 0; ctx.clearRect(0, 0, W, H); },
   };

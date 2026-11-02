@@ -74,15 +74,17 @@ export function buildBubble(m, ctx) {
       });
       return el;
     }
-    case 'music': {
-      // 一起听的卡片：点一下放这首、和 TA 一起听，打开播放页
-      const el = h('div.as-chat-bubble.as-chat-tg', h('span.as-chat-tg__cover', { style: { backgroundImage: m.pic ? `url("${m.pic}")` : '' } }, icon('headphones', 20, 2)),
-        h('div', h('b', m.name), h('span', `一起听 · ${m.artist}`)));
+    case 'music': case 'song': {
+      // 一起听的卡片：点一下放这首、和 TA 一起听，打开播放页；分享的歌：点一下放这首
+      const tg = m.type === 'music';
+      const el = h('div.as-chat-bubble.as-chat-tg', h('span.as-chat-tg__cover', { style: { backgroundImage: m.pic ? `url("${m.pic}")` : '' } }, icon(tg ? 'headphones' : 'music', 20, 2)),
+        h('div', h('b', m.name), h('span', `${tg ? '一起听' : '分享的歌'} · ${m.artist}`)));
       el.addEventListener('click', async e => {
         e.stopPropagation();
         const Mu = await import('../../core/music.js');
-        if ((Mu.current() || {}).id !== m.id) Mu.playList([{ id: m.id, name: m.name, artist: m.artist, pic: m.pic }], 0, '一起听');
-        Mu.listenWith(E.isGroup(ctx.chat) ? ctx.chat : ctx.c); (await import('../music/music.js')).openPlayer();
+        if ((Mu.current() || {}).id !== m.id) Mu.playList([{ id: m.id, name: m.name, artist: m.artist, pic: m.pic }], 0, tg ? '一起听' : '');
+        if (tg) Mu.listenWith(E.isGroup(ctx.chat) ? ctx.chat : ctx.c);
+        (await import('../music/music.js')).openPlayer();
       });
       return el;
     }
@@ -158,6 +160,12 @@ export async function inviteListen(c) {
   Mu.listenWith(c);
   await E.sendSpecial(E.isGroup(c) ? c : chatForContact(c.id, true), { type: 'music', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
   toast(`在和${E.nameOf(c)}一起听`);
+}
+
+/** 把一首歌分享到私聊或群聊：一张歌的卡片 */
+export async function shareSong(to, s) {
+  await E.sendSpecial(E.isGroup(to) ? to : chatForContact(to.id, true), { type: 'song', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
+  toast(`分享给${E.nameOf(to)}了`);
 }
 
 /* ================= 表情包面板 ================= */
