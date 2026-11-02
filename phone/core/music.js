@@ -68,23 +68,28 @@ export async function playlist(id) {
 export const cachedList = id => kvGet('mulist:' + id).catch(() => null);
 /** 从网易云分享链接 / 一串数字里找出歌单编号 */
 /** 分享出来的短链接（163cn.tv）要先问出它跳到哪：网页自己问不了（跨域）。装了酒馆插件让插件问；
- *  没装（Tauri）就借公共的跨域转发 allorigins 问一下（别人家的服务，问不到就请作者手动复制长链接） */
+ *  没装（Tauri）就挨个借公共的跨域转发去打开它，从跳到的地址或网页内容里找歌单编号（都是别人家的服务，可能慢、可能挂） */
+const RELAYS = [
+  ['allorigins', u => `https://api.allorigins.win/get?url=${u}`, async r => { const j = await r.json(); return ((j.status || {}).url || '') + ' ' + (j.contents || ''); }],
+  ['corsproxy', u => `https://corsproxy.io/?url=${u}`, r => r.text()],
+  ['codetabs', u => `https://api.codetabs.com/v1/proxy/?quest=${u}`, r => r.text()],
+];
 export async function playlistIdOf(text) {
   const id = playlistId(text), short = (String(text).match(/https?:\/\/163cn\.tv\/\w+/) || [])[0];
   if (id || !short) return id;
   if (ne) return playlistId((await be('/resolve?url=' + encodeURIComponent(short))).url);
-  const t0 = Date.now();
-  try {
-    const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(short));
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    const j = await r.json(); slow('解析短链接', t0);
-    const got = playlistId((j.status || {}).url) || playlistId(j.contents);
-    if (got) return got;
-    throw new Error('转发回来的内容里没有歌单');
-  } catch (e) {
-    log('error', '音乐', '解析短链接失败（allorigins）：' + e.message);
-    throw new Error('短链接没解析出来，先在浏览器里打开它，把地址栏的链接复制过来');
+  const why = [];
+  for (const [name, url, read] of RELAYS) {
+    try {
+      const r = await fetch(url(encodeURIComponent(short)), { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`${r.status}`);
+      const got = (String(await read(r)).match(/playlist\?id=(\d{5,})/) || [])[1];
+      if (got) return got;
+      why.push(`${name} 回来的内容里没有歌单`);
+    } catch (e) { why.push(`${name} ${e.name === 'TimeoutError' ? '超时' : e.message}`); }
   }
+  log('error', '音乐', '解析短链接失败：' + why.join('；'));
+  throw new Error(`短链接没解析出来（${why.join('；')}），先在浏览器里打开它，把地址栏的链接复制过来`);
 }
 export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || String(t).match(/[?&]id=(\d{5,})/) || String(t).trim().match(/^(\d{5,})$/)) || [])[1] || '';
 export function parseLrc(text) {
