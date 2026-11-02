@@ -59,6 +59,7 @@ function keep(box, sig, draw) { let last = ''; return () => { const k = sig(); i
 
 /* ================= 首页：顶上搜索框、排行榜四块、按语种和风格、最近播放、角色的歌单 ================= */
 const RANK_COLORS = ['teal', 'blue', 'red', 'purple'];
+const CATS = [['华语', 'huayu'], ['欧美', 'oumei'], ['日语', 'riyu'], ['韩语', 'hanyu'], ['粤语', 'yueyu'], ['二次元', 'erciyuan'], ['古风', 'gufeng'], ['说唱', 'shuochang'], ['电子', 'dianzi'], ['轻音乐', 'qingyinyue']];
 const STYLES = ['日语', '韩语', '英语', '粤语', '二次元', '古风', '说唱', '小甜歌'];
 function renderHome(ctx) {
   ctx.title.append(h('button.as-mu-search', { onclick: () => { ctx.go('search'); ctx.title.querySelector('input')?.focus(); } }, icon('search', 16, 2), h('span', '搜索歌曲、歌手、语种')));
@@ -142,15 +143,20 @@ function renderSearch(ctx) {
   paintHist();
   // 喜欢的歌里出现最多的两位歌手接在后面，没有就补两个风格
   const count = {}; M().liked.forEach(s => { const a = s.artist.split(/[/、,，&]/)[0].trim(); if (a && !s.local) count[a] = (count[a] || 0) + 1; });
-  const words = [...STYLES, '治愈', '伤感', ...Object.keys(count).sort((a, b) => count[b] - count[a]), '民谣', '摇滚'].slice(0, 12);
-  ctx.body.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))), h('div.as-mu-gap'));
+  const words = [...STYLES, '治愈', '伤感', ...Object.keys(count).sort((a, b) => count[b] - count[a]), '民谣', '摇滚'].filter(w => !CATS.some(c => c[0] === w)).slice(0, 12);   // 下面分类卡片里有的不重复
+  ctx.body.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))),
+    h('div.as-mu-h', '分类'), h('div.as-mu-cats', CATS.map(([w, f]) => h('button', { style: { backgroundImage: `url("assets/music/cat/${f}.webp")` }, onclick: () => find(w) }, h('b', w)))), h('div.as-mu-gap'));
   ctx.find = find;
   async function find(word) {
     if (!word) return;
     input.value = word; input.blur();
     M().history = [word, ...M().history.filter(x => x !== word)].slice(0, 10); commit('music'); paintHist();
     toast('正在搜…', true);
-    try { const songs = await P.search(word); toast(songs.length ? `找到 ${songs.length} 首` : '没搜到'); if (songs.length) openList(`搜「${word}」`, songs); }
+    try {
+      const [songs, lists] = await Promise.all([P.search(word), P.searchLists(word)]);
+      toast(songs.length || lists.length ? `找到${lists.length ? ` ${lists.length} 个歌单、` : ' '}${songs.length} 首` : '没搜到');
+      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null });
+    }
     catch (e) { log('error', '音乐', `搜「${word}」失败：${e.message}`); toast('搜索失败：' + e.message); }
   }
 }
@@ -360,6 +366,13 @@ function openList(title, list, { right, onRemove, count, sub, top } = {}) {
   fill(list);
   nav.push(p.el);
   return { fill };
+}
+/** 搜出来的歌单：先列 5 个，多的点「查看更多」；下面接单曲 */
+const listRow = l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id) }, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(l.pic) } }),
+  h('div', h('b', l.name), h('span', `${l.n} 首 · ${big(l.plays)} 次播放${l.by ? ' · ' + l.by : ''}`)));
+function listRows(word, lists) {
+  const more = () => { const p = page({ app: 'music', id: 'music-lists', title: `「${word}」的歌单`, back: true }); p.body.append(h('div.as-mu-sheet', lists.map(listRow), h('div.as-mu-gap'))); nav.push(p.el); };
+  return h('div', h('div.as-mu-sub', '歌单'), ...lists.slice(0, 5).map(listRow), lists.length > 5 ? h('button.as-mu-morel', { onclick: more }, '查看更多歌单') : null, h('div.as-mu-sub', '单曲'));
 }
 /** 榜单 / 导入的歌单：有存过的先马上显示，后台去读新的，读到了再换 */
 async function openRemote(name, id, l) {

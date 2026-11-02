@@ -93,6 +93,8 @@ async function init(router) {
   router.post('/logout', wrap(async () => { await api('logout').catch(() => {}); await save(''); return { me, borrow: !!other() }; }));   // 网易云那边退不掉也没关系，本地凭证删了就算退了
 
   router.get('/search', wrap(async req => (((await api('cloudsearch', { keywords: req.query.word, limit: 30 })).result || {}).songs || []).map(song)));
+  router.get('/search/lists', wrap(async req => (((await api('cloudsearch', { keywords: req.query.word, type: 1000, limit: 20 })).result || {}).playlists || [])
+    .map(p => ({ id: String(p.id), name: p.name, pic: https(p.coverImgUrl), n: p.trackCount, plays: p.playCount, by: (p.creator || {}).nickname || '' }))));
   // 分享出来的短链接（163cn.tv）：问出它跳到哪个网易云地址（只跟着网易云自己的地址走）
   router.get('/resolve', wrap(async req => {
     let u = String(req.query.url || '');

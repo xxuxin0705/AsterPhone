@@ -54,6 +54,8 @@ export async function search(word) {
   const j = await get(q(src('vkeys'), { word, page: 1, num: 30 }), 'json', `搜「${word}」`);
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
+/** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
+export const searchLists = word => ne ? be('/search/lists?word=' + encodeURIComponent(word)).catch(e => { log('warn', '音乐', '插件搜歌单失败：' + e.message); return []; }) : Promise.resolve([]);
 /** 按「歌名 - 歌手」找一首（AI 挑的歌、正文里提到的歌都走这）；找不到就是 null */
 export async function findSong(text) {
   const [name, artist = ''] = String(text).split(/\s[-–—]\s|[-–—]/).map(s => s.trim());
