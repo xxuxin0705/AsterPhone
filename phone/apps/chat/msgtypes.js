@@ -21,6 +21,7 @@ export function previewOf(m) {
     case 'location': return `[位置] ${m.text}`;
     case 'call': return m.missed ? `[${m.from === 'them' ? '未接来电' : '对方未接'}]` : `[${m.mode === 'video' ? '视频' : '语音'}通话] ${fmtDur(m.dur || 0)}`;
     case 'card': return `[名片] ${m.name}`;
+    case 'music': return `[一起听] ${m.name}`;
     default: return m.text || '';
   }
 }
@@ -36,6 +37,7 @@ export function forAI(m) {
     case 'location': return `[位置：${m.text}]`;
     case 'call': return m.missed ? `[${m.mode === 'video' ? '视频' : '语音'}通话，没接通]` : `[${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}${m.text ? '，聊了：' + m.text.slice(0, 200) : ''}]`;
     case 'card': return `[名片：${m.name}]`;
+    case 'music': return `[邀请一起听《${m.name}》- ${m.artist}]`;
     default: return m.text || '';
   }
 }

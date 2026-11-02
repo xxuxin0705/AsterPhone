@@ -243,7 +243,7 @@ export async function requestReply(chat, opts = {}) {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
-    const prompt = built.prompt + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
+    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
     const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
     const { lines, inner } = parseReply(raw, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
@@ -389,6 +389,7 @@ export async function fromStory({ from, body = '', group = '', type = '' }) {
   const c = storyContact(from); if (!c) return;
   if (type === '动态') return momentFromStory(c.name, body);
   if (type === '加歌') return (await import('../../core/music.js')).storyAddSong(c, body);
+  if (type === '一起听') { const s = await (await import('../../core/music.js')).storyTogether(c, body); if (s) await addSystem(chatForContact(c.id, true), `${nameOf(c)} 邀请你一起听《${s.name}》`); return; }
   if (type === '点赞' || type === '评论') return reactFromStory(c, type, body);
   if (type === '加好友') { c.cut = ''; commit('contacts'); const chat = chatForContact(c.id, true); await addSystem(chat, `你和「${nameOf(c)}」已经是好友了`); if (body.trim()) await deliverFromStory(c, body); return; }
   if (type === '删好友' || type === '拉黑') { c.cut = type === '删好友' ? 'deleted' : 'blocked'; commit('contacts'); log('info', '聊天', `正文里「${nameOf(c)}」${type === '删好友' ? '把你删了' : '把你拉黑了'}`); return; }   // 和真的一样不提醒，你发消息时才知道

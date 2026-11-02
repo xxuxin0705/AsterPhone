@@ -348,6 +348,17 @@
 .as-chat-loc__map { height: 88px; display: grid; place-items: center; color: var(--as-color-danger); background: repeating-linear-gradient(35deg, rgba(255,255,255,.4) 0 10px, rgba(160,210,240,.35) 10px 20px), linear-gradient(160deg, #cfeefc, #a9dcf6); }
 .as-chat-loc__map span { filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
 .as-chat-loc__name { padding: 8px 12px; font: 500 13.5px/1.4 var(--font-ui); }
+/* 一起听 */
+.as-chat-bubble.as-chat-tg { display: flex; gap: 10px; align-items: center; width: 210px; padding: 10px 12px; cursor: pointer; }
+.as-chat-tg__cover { flex: none; width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; color: #fff; background: #c9ccd6 center / cover; }
+.as-chat-tg__cover svg { filter: drop-shadow(0 1px 3px rgba(0,0,0,.35)); }
+.as-chat-tg > div { display: grid; gap: 3px; min-width: 0; }
+.as-chat-tg b { font: 600 14px/1.25 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-chat-tg span { font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-chat-tgbar { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--as-color-surface-2); font: 400 12.5px/1.4 var(--font-ui); color: var(--as-color-text-2); cursor: pointer; }
+.as-chat-tgbar span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-chat-tgbar button { display: grid; place-items: center; padding: 2px; border: 0; background: none; color: inherit; }
+.as-chat-tgbar[hidden] { display: none; }
 /* 通话记录 */
 .as-chat-callrec { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 /* 名片 */

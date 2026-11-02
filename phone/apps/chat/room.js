@@ -12,6 +12,7 @@ import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
 import { LANGS, langName } from '../../core/translate.js';
+import * as Mu from '../../core/music.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
 
@@ -58,13 +59,18 @@ export async function openRoom(chat) {
   p.nav.classList.add('is-inline');
   const list = h('div.as-chat-msgs', { role: 'log', 'aria-live': 'polite' });
   p.body.replaceWith(list);
+  // 正在和 TA 一起听：顶上挂一条，点一下去播放页，× 结束
+  const tgName = h('span'), tgBar = h('div.as-chat-tgbar', { hidden: true, role: 'button', onclick: async () => (await import('../music/music.js')).openPlayer() },
+    icon('headphones', 16, 2), tgName, h('button', { 'aria-label': '结束一起听', onclick: e => { e.stopPropagation(); Mu.listenWith(null); } }, icon('close', 16, 2)));
+  const paintTg = () => { const on = !g && Mu.together() === c && !!Mu.current(); tgBar.hidden = !on; if (on) tgName.textContent = `正在一起听：${Mu.current().name}`; };
+  list.before(tgBar); paintTg();
   const inputEl = h('textarea.as-chat-input', { rows: 1, placeholder: '发消息…', 'aria-label': '输入消息' });
   inputEl.value = chat.draft || '';
   const sendBtn = h('button.as-chat-sendbtn', { 'aria-label': '发送' });
   const plusBtn = h('button.as-chat-iconbtn', { 'aria-label': '更多', onclick: () => { const open = plus.hidden; closePanels(); plus.hidden = !open; plusBtn.classList.toggle('is-active', open); } }, icon('plus', 22, 1.8));
   const quoteBar = h('div.as-chat-quotebar', { hidden: true });
   const closePanels = () => { plus.hidden = true; stick.el.hidden = true; plusBtn.classList.remove('is-active'); };
-  const plus = h('div.as-chat-plus', { hidden: true }, PLUS.map(([k, label, ic]) => h('button' + (k === 'music' ? '.is-soon' : ''), { onclick: () => { closePanels(); plusAction(k); } }, h('span', icon(ic, 24, 1.7)), h('span', label))));
+  const plus = h('div.as-chat-plus', { hidden: true }, PLUS.map(([k, label, ic]) => h('button', { onclick: () => { closePanels(); plusAction(k); } }, h('span', icon(ic, 24, 1.7)), h('span', label))));
   const stick = stickerPanel(chat, () => {}); stick.el.hidden = true;
   const tool = (ic, label, fn) => h('button.as-chat-iconbtn', { 'aria-label': label, onclick: fn }, icon(ic, 21, 1.7));
   const inputWrap = h('div.as-chat-inputwrap', quoteBar, inputEl,
@@ -287,6 +293,7 @@ export async function openRoom(chat) {
 
   /* ---------- 和发动机连线 ---------- */
   const offs = [
+    Mu.onMusic(w => { if (w === 'together' || w === 'song') paintTg(); }),
     E.on('msg', (id, m) => { if (id !== chat.id) return; append(m); if (m.from !== 'me' && shell.visible) chat.unread = 0; syncBtn(); }),
     E.on('typing', (id, on) => {
       if (id !== chat.id) return;

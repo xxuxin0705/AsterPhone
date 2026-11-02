@@ -2,7 +2,7 @@
 // 音源（照旧插件）：vkeys 搜歌；Meting 取播放链接、歌词、歌单。地址在 state.music.src 里能改。
 // 播放链接直接塞给 <audio>（放别人家的音乐文件不会被跨域拦）；只有搜歌、歌词、歌单要读内容，走 xf（被拦时借酒馆代理）。
 // 角色的歌单存在联系人身上（c.songs，跟着聊天窗口走）；笔记在 state.musicNotes（也跟窗口走）。
-import { state, commit, kvGet, kvSet, kvDel } from './store.js';
+import { state, commit, kvGet, kvSet, kvDel, contact } from './store.js';
 import { xf, generate, resolveConn } from './api.js';
 import { log } from './log.js';
 import { compose } from './promptstore.js';
@@ -289,7 +289,11 @@ export const liked = s => !!s && M().liked.some(x => x.id === s.id);
 let saveT = 0, lastT = 0, heard = 0;
 audio.addEventListener('timeupdate', () => {
   const t = Date.now(); if (t - lastT < 2000) heard += t - lastT; lastT = t;
-  if (t - saveT > 5000) { saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000; heard = 0; commit('music'); }
+  if (t - saveT > 5000) {
+    saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000;
+    const tc = together(); if (tc) tgTimes()[tc.id] = (tgTimes()[tc.id] || 0) + heard / 1000;
+    heard = 0; commit('music');
+  }
   const c = chain, g = seg();
   if (c && g) {
     // 还剩 40 秒：去把下一首续上（读文件要时间）
@@ -371,6 +375,29 @@ export function addToChar(c, s) {
   c.songs.push(s); commit('contacts'); return true;
 }
 /** 正文暗号 type="加歌"：TA 把某首歌加进了自己的歌单 */
+/* ---------- 一起听：只和私聊里的一个人。M().together 是 TA 的联系人 id；一起听了多少秒记在 M().tg[id] ---------- */
+export const together = () => contact(M().together) || null;
+const tgTimes = () => M().tg || (M().tg = {});
+export const togetherSec = c => tgTimes()[c.id] || 0;
+export function listenWith(c) { M().together = c ? c.id : ''; commit('music'); tell('together'); }
+/** 一起听时气泡里的两句：这首歌里重复最多的两句（一般就是副歌），作词作曲那几行不算 */
+export function hook() {
+  const n = {}, L = lyrics.map(x => x.text.trim()).filter(t => t && !/[:：]/.test(t));
+  L.forEach(t => { n[t] = (n[t] || 0) + 1; });
+  return [...new Set(L)].sort((a, b) => n[b] - n[a]).slice(0, 2);
+}
+/** 和 TA 聊天时告诉 AI 你们在一起听什么 */
+export function togetherNote(c) {
+  const s = current();
+  return c && M().together === c.id && s ? `\n\n【你们正在一起听歌：《${s.name}》- ${s.artist}${playing() ? '' : '（暂停着）'}】` : '';
+}
+/** 正文里 TA 说一起听：找到这首就放，和 TA 一起听 */
+export async function storyTogether(c, text) {
+  const s = await findSong(text);
+  if (!s) { log('warn', '音乐', `正文里「${c.name}」要一起听《${text}》，但没搜到`); return null; }
+  playList([s], 0, '一起听'); listenWith(c);
+  return s;
+}
 export async function storyAddSong(c, text) {
   const s = await findSong(text);
   if (!s) { log('warn', '音乐', `正文里「${c.name}」加了歌《${text}》，但没搜到`); return; }

@@ -74,6 +74,18 @@ export function buildBubble(m, ctx) {
       });
       return el;
     }
+    case 'music': {
+      // 一起听的卡片：点一下放这首、和 TA 一起听，打开播放页
+      const el = h('div.as-chat-bubble.as-chat-tg', h('span.as-chat-tg__cover', { style: { backgroundImage: m.pic ? `url("${m.pic}")` : '' } }, icon('headphones', 20, 2)),
+        h('div', h('b', m.name), h('span', `一起听 · ${m.artist}`)));
+      el.addEventListener('click', async e => {
+        e.stopPropagation();
+        const Mu = await import('../../core/music.js');
+        if ((Mu.current() || {}).id !== m.id) Mu.playList([{ id: m.id, name: m.name, artist: m.artist, pic: m.pic }], 0, '一起听');
+        Mu.listenWith(ctx.c); (await import('../music/music.js')).openPlayer();
+      });
+      return el;
+    }
     default:
       return h('div.as-chat-bubble', quote, m.text);
   }
@@ -132,8 +144,20 @@ export async function plusAction(k, chat, c, { poke }) {
     }
     case 'voicecall': case 'videocall': return openCall(chat, c, k === 'videocall' ? 'video' : 'voice');
     case 'poke': return poke();
-    case 'music': toast('一起听要等音乐 App，第二期做'); return;
+    case 'music': {
+      const Mu = await import('../../core/music.js');
+      if (!Mu.current()) { toast('先去音乐里放一首歌'); return; }
+      return inviteListen(c);
+    }
   }
+}
+
+/** 和 TA 一起听正在放的歌：在你们的聊天里发一张卡片（聊天「+」和播放页都走这里） */
+export async function inviteListen(c) {
+  const Mu = await import('../../core/music.js'), s = Mu.current();
+  Mu.listenWith(c);
+  await E.sendSpecial(chatForContact(c.id, true), { type: 'music', id: s.id, name: s.name, artist: s.artist, pic: s.pic || '' });
+  toast(`在和${E.nameOf(c)}一起听`);
 }
 
 /* ================= 表情包面板 ================= */

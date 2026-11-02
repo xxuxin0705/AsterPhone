@@ -246,3 +246,23 @@
 .as-mu-login__st { font-size: 14px; color: var(--mu-gray); }
 .as-mu-login__btns { display: flex; gap: 8px; width: 100%; }
 .as-mu-login__btns > * { flex: 1; }
+
+/* 一起听：上面两个人的头像叠住一小块（TA 的压在上面），外侧各塞一只耳机（图左右切开往中间挤）；下面照旧是歌词 */
+.as-tg { display: none; }
+.as-mp.is-tg .as-tg { display: block; position: absolute; left: 0; right: 0; top: 64px; }
+.as-mp.is-tg .as-mp__stage, .as-mp.is-tg .as-mp__rain { display: none; }
+.as-mp.is-tg .as-mp__lrc { opacity: 1; visibility: visible; top: 210px; }
+.as-tg__pair { position: relative; width: 208px; height: 107px; margin: 0 auto; }
+.as-tg__half { position: absolute; top: 0; width: 112px; }
+.as-tg__half.is-r { left: 96px; }
+.as-tg__half img { display: block; width: 100%; position: relative; pointer-events: none; }
+.as-tg__who { position: absolute; top: 44.52%; width: 84px; height: 84px; transform: translate(-50%, -50%); }
+.is-l .as-tg__who { left: 60.87%; } .is-r .as-tg__who { left: 39.13%; }
+/* 气泡：白天白底黑字、夜里黑底白字，底下小三角对着头像（以后资源库的「气泡」直接套这个） */
+.as-tg__bub { position: absolute; bottom: calc(100% + 12px); padding: 8px 14px; border-radius: 14px; font: 400 12.5px/1.4 var(--font-ui); background: #fff; color: #222; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.as-tg__bub span { display: block; white-space: nowrap; max-width: 124px; overflow: hidden; text-overflow: ellipsis; }
+.as-tg__bub::after { content: ''; position: absolute; top: calc(100% - 1px); border: 6px solid transparent; border-top-color: #fff; border-bottom-width: 0; }
+.as-tg.is-night .as-tg__bub { background: #1c1c1e; color: #f2f2f2; } .as-tg.is-night .as-tg__bub::after { border-top-color: #1c1c1e; }
+.is-l .as-tg__bub { right: calc(50% - 26px); } .is-l .as-tg__bub::after { right: 20px; }
+.is-r .as-tg__bub { left: calc(50% - 26px); } .is-r .as-tg__bub::after { left: 20px; }
+.as-tg__time { margin-top: -8px; position: relative; text-align: center; font: 400 13px/1.4 var(--font-ui); color: rgba(var(--mp-ink),.75); }

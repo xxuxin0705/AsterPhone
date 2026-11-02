@@ -257,6 +257,8 @@ const big = n => n < 1000 ? String(n) : n < 1e6 ? +(n / 1000).toFixed(n < 1e4 ? 
 /** 听歌时长：不到一分钟写秒，不到一小时写分钟，再往上写小时 */
 const heard = () => { const s = Math.floor(M().heard || 0); return s < 60 ? [s, '秒'] : s < 3600 ? [Math.floor(s / 60), '分钟'] : [Math.floor(s / 3600), '小时']; };
 const follows = () => M().follows || (M().follows = []);
+/** 一起听了多久：不到一分钟写秒，不到一小时写分钟，再往上写几小时几分钟 */
+const span = sec => { const s = Math.floor(sec); return s < 60 ? `${s} 秒` : s < 3600 ? `${Math.floor(s / 60)} 分钟` : `${Math.floor(s / 3600)} 小时${s % 3600 >= 60 ? ` ${Math.floor(s % 3600 / 60)} 分钟` : ''}`; };
 function editMe(after) {
   const d = { ...(M().profile || {}) };
   const p = page({ app: 'music', id: 'music-edit', title: '编辑资料', back: true });
@@ -371,7 +373,11 @@ export function openPlayer() {
   const arm = h('div.as-mp__arm'); arm.innerHTML = ARM;
   // 点唱片 ⇄ 全部歌词
   const lrc = h('div.as-mp__lrc'), stage = h('div.as-mp__stage', disc, arm);
-  const main = h('div.as-mp__main', { onclick: () => { p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, lrc);
+  // 一起听：上面一小块是两个人的头像（外侧各塞一只耳机），头像上方的气泡是这首歌重复最多的两句；下面照旧是歌词
+  const tgAv = [h('div.as-tg__av'), h('div.as-tg__av')], tgBub = [h('div.as-tg__bub', h('span')), h('div.as-tg__bub', h('span'))], tgTime = h('div.as-tg__time');
+  const half = (side, i) => h('div.as-tg__half.is-' + side, h('div.as-tg__who', tgAv[i], tgBub[i]), h('img', { src: `assets/music/together-${side}.webp`, alt: '' }));
+  const tgEl = h('div.as-tg', h('div.as-tg__pair', half('l', 0), half('r', 1)), tgTime);
+  const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   onLongPress(lrc, collectLyrics);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
@@ -401,7 +407,7 @@ export function openPlayer() {
     h('div.as-mp__prog', { dataset: { noSwipe: '' } }, track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
-    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('note', '收进笔记', collectLyrics)));
+    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('headphones', '一起听', withWho), tool('note', '收进笔记', collectLyrics)));
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
   const paintBg = () => {
@@ -410,7 +416,17 @@ export function openPlayer() {
     bg.classList.toggle('is-custom', !!S.bg || wet); bg.classList.toggle('is-scene', wet && !S.bg);
     p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
   };
-  const paintSkin = () => { p.el.classList.toggle('is-rain', S.name === 'rain'); S.name === 'rain' && !p.el.classList.contains('is-lrc') ? R.start() : R.stop(); };
+  const paintSkin = () => { p.el.classList.toggle('is-rain', S.name === 'rain'); S.name === 'rain' && !p.el.classList.contains('is-lrc') && !P.together() ? R.start() : R.stop(); };
+  let tgWho = '';
+  const paintTgTime = c => { tgTime.textContent = '一起听了 ' + span(P.togetherSec(c)); };
+  const paintTg = () => {
+    const c = P.together(); p.el.classList.toggle('is-tg', !!c); if (c) p.el.classList.remove('is-lrc'); paintSkin(); if (!c) return;
+    // 头像只在换人时换（图片重新解码会闪）；气泡只改字
+    if (tgWho !== c.id) { tgWho = c.id; tgAv[0].replaceChildren(avatar(me().avatar, me().nick, 84)); tgAv[1].replaceChildren(avatar(c.avatar, nameOf(c), 84)); }
+    const [a, b] = P.hook();
+    [b, a].forEach((t, i) => { tgBub[i].hidden = !t; tgBub[i].firstChild.textContent = t || ''; });
+    tgEl.classList.toggle('is-night', isNight()); paintTgTime(c);
+  };
   let lines = [];
   const paintSong = () => {
     const s = P.current(); if (!s) return;
@@ -471,6 +487,18 @@ export function openPlayer() {
     const who = c && state.contacts.find(x => x.id === c); if (!who) return;
     toast(P.addToChar(who, s) ? `加到${nameOf(who)}的歌单了` : `${nameOf(who)}的歌单里已经有了`);
   }
+  async function withWho() {
+    const c = P.together();
+    if (c) {
+      const v = await actionSheet(`在和${nameOf(c)}一起听`, [{ value: 'swap', label: '换个人', icon: 'users' }, { value: 'end', label: '结束一起听', icon: 'close', danger: true }]);
+      if (v === 'end') { P.listenWith(null); toast('不一起听了'); }
+      if (v !== 'swap') return;
+    }
+    if (!state.contacts.length) { toast('还没有联系人'); return; }
+    const id = await actionSheet('和谁一起听', state.contacts.filter(x => x !== c).map(x => ({ value: x.id, label: nameOf(x) })));
+    const who = id && state.contacts.find(x => x.id === id); if (!who) return;
+    (await import('../chat/specials.js')).inviteListen(who);
+  }
   async function hot() {
     const s = P.current(); if (s.local) { toast('本地的歌没有热评'); return; }
     toast('正在拿热评…', true);
@@ -479,8 +507,13 @@ export function openPlayer() {
       sheet({ title: '热评', content: h('div.as-mu-reviews.as-mu-hot', list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text))))) });
     } catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); toast('拿不到热评：' + e.message); }
   }
-  paintSong(); paintState(); paintSkin();
-  const off = P.onMusic(w => { if (w === 'song' || w === 'lyrics') paintSong(); if (w === 'state') paintState(); if (w === 'time' && !P.playing()) tick(); });
+  paintSong(); paintState(); paintTg();
+  const off = P.onMusic(w => {
+    if (w === 'song' || w === 'lyrics') { paintSong(); paintTg(); }
+    if (w === 'together') paintTg();
+    if (w === 'state') paintState();
+    if (w === 'time') { if (!P.playing()) tick(); const c = P.together(); if (c) paintTgTime(c); }
+  });
   p.el._onShow = () => { loop(); paintSkin(); };
   p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); };
   nav.push(p.el);
