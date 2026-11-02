@@ -201,7 +201,7 @@ function renderSearch(ctx) {
     M().history = [word, ...M().history.filter(x => x !== word)].slice(0, 10); commit('music'); paintHist();
     toast('正在搜…', true);
     try {
-      // 一次先搜 3 页；最下面「再多搜一些」接着往后翻 3 页，搜到的和前面重复的不要
+      // 一批搜 3 页（同时发），和前面重复的不要；打开结果页后自己接着往下搜
       let page = 0, all = [];
       const batch = async () => { const got = (await Promise.all([1, 2, 3].map(k => P.search(word, page + k).catch(() => [])))).flat(); page += 3; const fresh = got.filter(s => !all.some(x => x.id === s.id) && (all.push(s), true)); return fresh; };
       const [songs, lists] = await Promise.all([batch(), P.searchLists(word)]);
@@ -513,13 +513,17 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   const bg = h('div.as-mu-lp__bg'), cov = h('span.as-mu-lcover.is-big'), n = h('span'), rows = h('div');
   p.el.prepend(bg);
   // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
-  // 搜索结果：最下面「再多搜一些」，搜到的新歌接在后面（只加新的那几行，不重画）
-  const moreBtn = h('button.as-mu-morel', { onclick: async () => {
-    moreBtn.disabled = true; toast('正在多搜一些…', true);
-    try { const L = await more(); if (!L.length) { toast('没有更多了'); moreBtn.remove(); return; } list.push(...L); rows.append(...L.map(row)); n.textContent = `${list.length} 首`; toast(`又找到 ${L.length} 首`); }
-    catch (e) { log('warn', '音乐', '多搜失败：' + e.message); toast('没搜到更多：' + e.message); }
-    moreBtn.disabled = false;
-  } }, '再多搜一些');
+  // 搜索结果：先放第一批，后面自己接着一批批往下搜，搜不到新的（或到 500 首）就停；搜到的接在后面（只加新的那几行，不重画）；离开这页就不搜了
+  const moreBtn = h('div.as-mu-morel');
+  const keepGoing = async () => {
+    while (p.el.isConnected && list.length < 500) {
+      moreBtn.textContent = `还在往下搜…已经 ${list.length} 首`;
+      let L; try { L = await more(); } catch (e) { log('warn', '音乐', '往下搜失败：' + e.message); break; }
+      if (!L.length) break;
+      list.push(...L); rows.append(...L.map(row)); n.textContent = `${list.length} 首`;
+    }
+    moreBtn.textContent = `一共 ${list.length} 首`;
+  };
   const nameEl = h('b'), subEl = h('span');
   const head = () => {
     nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
@@ -548,6 +552,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   };
   fill(list); head();
   nav.push(p.el);
+  if (more) keepGoing();
   return { fill, head };
 }
 /** 搜出来的歌单：先列 5 个，多的点「查看更多」；下面接单曲 */

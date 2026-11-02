@@ -10,4 +10,6 @@
 .as-lib-theme__on { position: absolute; top: 16px; right: 16px; width: 22px; height: 22px; border-radius: 50%; background: var(--as-color-accent); color: var(--as-color-on-accent); display: grid; place-items: center; }
 .as-lib-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 .as-lib-actions .as-btn { padding: 11px 6px; font-size: 14px; }
+.as-lib-actions.is-two { grid-template-columns: repeat(2, 1fr); }
+.as-lib-actions .as-btn { white-space: nowrap; }   /* 按钮字一行写完 */
 .as-lib-code { display: block; padding: 8px 10px; border-radius: 10px; background: var(--as-color-surface-2); font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; user-select: text; -webkit-user-select: text; word-break: break-all; }

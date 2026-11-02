@@ -4,6 +4,15 @@
 //           {{persona}} 角色人设  {{user_persona}} 你的人设  {{story}} 正文里最近发生的事
 //           {{history}} 手机里最近的聊天  {{min}} {{max}} 回复条数  {{world}} 世界书（没有就是空的）
 
+/** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
+export const VAR_INFO = {
+  char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容（没有就是空的）',
+  story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条',
+  group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
+  text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
+  entries: '世界书条目', count: '要挑几首', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
+  threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名',
+};
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
   { app: '聊天', items: [

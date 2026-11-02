@@ -4,7 +4,7 @@ import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, cl
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
-import { PROMPT_CATS, catInfo, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
+import { PROMPT_CATS, catInfo, VAR_INFO, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.26';
+export const VERSION = '0.8.27';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -265,7 +265,9 @@ function openBlock(cat, sid, id) {
   const shown = t => t.replace(/\{\{tag\}\}/g, tagName());
   // 从内置那几条复制来的（文风、消息语气…）名字不能改，只改内容；自己新建的才能起名字
   const fixed = !!sid && blocksIn(cat, '').some(x => x.name === b.name);
-  sub('prompt-block', sid && !fixed ? '编辑提示词' : b.name, body => {
+  // 标题旁边的小 i：这一类能用的变量各是什么
+  const vars = catInfo(cat).vars, title = sid && !fixed ? '编辑提示词' : b.name;
+  sub('prompt-block', vars.length ? withInfo(title, vars.map(v => `{{${v}}}　${VAR_INFO[v] || ''}`).join('\n')) : title, body => {
     if (!sid) { body.append(group('', [h('div.as-field', h('pre.as-prompt-view', shown(b.text)))])); return; }
     let name = b.name, text = b.text;
     const ta = textarea({ value: text, rows: 12, onInput: v => { text = v; } });
@@ -276,7 +278,7 @@ function openBlock(cat, sid, id) {
       .map(x => ({ name: x.name, blk: blocksIn(cat, x.id).find(y => y.name === b.name) })).filter(o => o.blk);
     body.append(
       ...(fixed ? [] : [group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))])]),
-      h('div.as-lib-actions', ...(others.length ? [btn('换成其他方案的', 'secondary', async () => {
+      h('div.as-lib-actions.is-two', ...(others.length ? [btn('换成其他方案的', 'secondary', async () => {
         const i = await actionSheet(`换成哪个方案里的「${b.name}」`, others.map((o, k) => ({ value: String(k), label: o.name })));
         if (i == null) return;
         ta.value = text = others[+i].blk.text; toast(`换成「${others[+i].name}」的了，保存后生效`);

@@ -2,7 +2,8 @@
 // 复制方案 = 把整套复制成自己的，里面每一条都能改、删、新建、开关、排顺序；用哪套就发哪套。
 // 存在 state.promptSchemes：{ [分类]: { cur: 方案 id（'' = 默认方案）, list: [{ id, name, blocks: [{ id, name, text, on }] }] } }
 import { state, commit } from './store.js';
-import { DEFAULT_PROMPTS, PROMPT_CATS, fill } from './prompts.js';
+import { DEFAULT_PROMPTS, PROMPT_CATS, VAR_INFO, fill } from './prompts.js';
+export { VAR_INFO };
 import { uid } from './util.js';
 import { userName as tavernUser, userPersona as tavernPersona, userAvatar as tavernAvatar } from './bridge.js';
 
