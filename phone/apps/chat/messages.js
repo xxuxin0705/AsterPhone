@@ -22,7 +22,10 @@ export function renderMessages(ctx) {
     const v = await actionSheet('', [
       { value: 'dm', label: '发起单聊', icon: 'chat' }, { value: 'group', label: '发起群聊', icon: 'users' },
       { value: 'add', label: '添加好友', icon: 'user' },
+      { value: 'select', label: '多选', icon: 'check' }, { value: 'import', label: '导入聊天', icon: 'box' },
     ]);
+    if (v === 'select') setSelecting(true);
+    if (v === 'import') import('./transfer.js').then(m => m.importChats(draw));
     if (v === 'dm') { const c = await pickContact('发起单聊'); if (c) openRoom(chatForContact(c.id, true)); }
     if (v === 'group') newGroup();
     if (v === 'add') openContactForm();
@@ -39,7 +42,7 @@ export function renderMessages(ctx) {
       listBox.appendChild(query ? empty('没有找到相关的聊天') : empty('还没有聊天', h('div', { style: { display: 'grid', gap: '10px' } },
         btn('去添加联系人', 'primary', () => ctx.switchTab('contacts')),
         btn('AI 智能加载', 'secondary', () => import('./aiload.js').then(m => m.openAiLoad(() => ctx.switchTab('contacts')))),
-        btn('从别的窗口继承', 'text', () => import('./aiload.js').then(m => m.openInherit(draw))))));
+        btn('导入聊天', 'text', () => import('./transfer.js').then(m => m.importChats(draw))))));
       return;
     }
     // 分组：置顶一组，联系人分组各一组，剩下的一组；每组可以折叠
@@ -69,11 +72,15 @@ export function renderMessages(ctx) {
       chat.cfg.streak && chat.streak && chat.streak.days >= 2 ? h('span.is-flame', icon('flame', 13, 2), chat.streak.days) : null,
       chat.muted ? icon('bell', 13, 2) : null);
     const lastText = chat.unread > 1 && chat.muted ? `[${chat.unread}条] ${chat.lastText}` : chat.lastText;
-    const el = h('div.as-chat-conv' + (chat.pinned ? '.is-pinned' : ''), { role: 'button', tabindex: 0, onclick: () => openRoom(chat) }, ava,
+    const ck = h('span.as-chat-check.as-chat-conv__check' + (sel.has(chat) ? '.is-active' : ''), icon('check', 14, 2.6));
+    const el = h('div.as-chat-conv' + (chat.pinned ? '.is-pinned' : ''), { role: 'button', tabindex: 0, onclick: () => {
+      if (!selecting) return openRoom(chat);
+      sel.has(chat) ? sel.delete(chat) : sel.add(chat); ck.classList.toggle('is-active', sel.has(chat)); syncBar();
+    } }, ck, ava,
       h('div.as-chat-conv__main',
         h('div.as-chat-conv__top', h('span.as-chat-conv__name', name), h('span.as-chat-conv__time', time.shortLabel({ at: chat.lastAt, st: chat.lastSt }))),
         h('div.as-chat-conv__bottom', chat.draft ? h('span.as-chat-draft', '[草稿]') : null, h('span.as-chat-conv__text', chat.draft || lastText || ' '), icons)));
-    onLongPress(el, () => menu(chat));
+    onLongPress(el, () => { if (!selecting) menu(chat); });
     return el;
   }
   async function menu(chat) {
@@ -92,7 +99,26 @@ export function renderMessages(ctx) {
     }
     if (v) { commit('chats'); draw(); }
   }
+  /* ---------- 多选：导出 / 删除 ---------- */
+  let selecting = false;
+  const sel = new Set(), tabbar = ctx.el.querySelector('.as-chat-tabbar');
+  const bar = h('div.as-chat-selectbar.is-3', { hidden: true },
+    h('button', { onclick: () => import('./transfer.js').then(m => m.exportChats([...sel])).then(() => setSelecting(false)) }, icon('box', 22, 1.7), '导出'),
+    h('button.is-danger', { onclick: delSelected }, icon('trash', 22, 1.7), '删除'),
+    h('button', { onclick: () => setSelecting(false) }, icon('close', 22, 1.7), '取消'));
+  ctx.el.appendChild(bar);
+  function setSelecting(on) {
+    selecting = on; sel.clear(); ctx.el.classList.toggle('is-selecting', on);
+    bar.hidden = !on; tabbar.hidden = on;
+    listBox.querySelectorAll('.as-chat-conv__check.is-active').forEach(x => x.classList.remove('is-active')); syncBar();
+  }
+  function syncBar() { [...bar.children].slice(0, 2).forEach(b => { b.disabled = !sel.size; }); }
+  async function delSelected() {
+    if (!(await dialog({ title: `删除 ${sel.size} 个聊天？`, text: '聊天记录会一起删掉，联系人还在。', confirm: '删除', danger: true }))) return;
+    for (const c of sel) { await clearMsgs(c.id); state.chats.splice(state.chats.indexOf(c), 1); }
+    setSelecting(false); commit('chats');
+  }
   draw();
   const unsub = subscribe(what => { if (what === 'chats' || what === 'all' || what === 'time') draw(); });
-  return unsub;
+  return () => { unsub(); bar.remove(); tabbar.hidden = false; ctx.el.classList.remove('is-selecting'); };
 }

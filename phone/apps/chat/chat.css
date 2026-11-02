@@ -194,6 +194,9 @@
 .as-chat-selectbar button { border: 0; background: none; display: grid; justify-items: center; gap: 4px; padding: 6px 0; font: 400 11.5px/1 var(--font-ui); color: var(--as-color-text); cursor: pointer; }
 .as-chat-selectbar button:disabled { opacity: .35; }
 .as-chat-selectbar button.is-danger { color: var(--as-color-danger); }
+.as-chat-selectbar.is-3 { grid-template-columns: repeat(3, 1fr); }
+.as-chat-conv__check { display: none; align-self: center; margin-right: 2px; }
+.as-chat-root.is-selecting .as-chat-conv__check { display: grid; }
 
 /* 长按菜单 */
 .as-chat-menu-mask { position: absolute; inset: 0; z-index: 70; background: rgba(0,0,0,.12); animation: as-fade 200ms; }

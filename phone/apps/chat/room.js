@@ -389,11 +389,7 @@ function openSettings(chat, redrawRoom) {
       group('', [item({ title: 'TA 的记忆', value: '下一轮', sub: '记忆宫殿做好后，在这里查看和编辑' })]));
     if (lastTab === 'data') box.append(
       group('记录', [
-        item({ title: '导出聊天记录', chevron: true, onClick: async () => {
-          const data = { app: 'AsterPhone', kind: 'chat', contact: c, chat, msgs: await getMsgs(chat.id) };
-          const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: `AsterPhone-${E.nameOf(c)}-聊天记录.json` });
-          document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
-        } }),
+        item({ title: '导出聊天记录', chevron: true, onClick: () => import('./transfer.js').then(m => m.exportChats([chat])) }),
         item({ title: '清空聊天记录', danger: true, onClick: async () => {
           if (!(await dialog({ title: '清空和 TA 的聊天记录？', text: '此操作无法撤销。', confirm: '清空', danger: true }))) return;
           await clearMsgs(chat.id); chat.lastText = ''; chat.unread = 0; chat.streak = null; save(); toast('已清空'); nav.pop();

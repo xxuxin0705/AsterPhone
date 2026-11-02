@@ -123,23 +123,6 @@ export async function windowList() {
   }
   return out;
 }
-/** 把别的窗口的数据复制到当前窗口（当前窗口原来的全部换掉）。all = false 只要联系人和群（群的设置带着，聊天记录不要） */
-export async function inheritWindow(key, all) {
-  const d = JSON.parse(JSON.stringify((await kvGet('win:' + key)) || {})), def = defaults();
-  for (const c of state.chats) await clearMsgs(c.id);
-  SCOPED.forEach(k => { state[k] = def[k]; });
-  state.contacts = d.contacts || []; state.groups = d.groups || def.groups;
-  for (const c of d.chats || []) {
-    if (!all && c.type !== 'group') continue;
-    const old = c.id; c.id = uid(c.type === 'group' ? 'g_' : 'c_');   // 聊天记录按聊天存，换个新编号复制一份，两边各改各的
-    if (all) { const m = await kvGet('msgs:' + old); if (m) await kvSet('msgs:' + c.id, m); }
-    else Object.assign(c, { lastText: '', unread: 0, lastAt: Date.now() });
-    state.chats.push(c);
-  }
-  if (all) { state.moments = d.moments || []; state.favorites = d.favorites || []; state.friendRequests = d.friendRequests || []; state.me = merge(def.me, d.me); }
-  state.contacts.forEach(c => { const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || Date.now(); });
-  commit('all');
-}
 export async function deleteWindow(key) {
   const d = (await kvGet('win:' + key)) || {};
   for (const c of d.chats || []) { await kvDel('msgs:' + c.id); msgCache.delete(c.id); }
@@ -166,7 +149,7 @@ export async function load() {
       // 以前只有一个 wallpaper（锁屏桌面共用）→ 现在拆成两个
       const S = saved.settings;
       if (S && S.wallpaper && !S.walls) S.walls = { lock: S.wallpaper, home: S.wallpaper };
-      // 以前聊天数据全手机一份 → 现在一个窗口一份：原来的先整个备份，再存成「更新前的数据」，哪个窗口想要就去继承
+      // 以前聊天数据全手机一份 → 现在一个窗口一份：原来的先整个备份，再存成「更新前的数据」（设置 → 所有窗口的数据里能导出聊天，再到聊天列表导入）
       if (!saved.winV) {
         await kvSet('backup:before-windows', saved);
         const old = { label: '更新前的数据' };

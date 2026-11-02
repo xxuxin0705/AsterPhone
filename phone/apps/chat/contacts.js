@@ -33,7 +33,7 @@ export function renderContacts(ctx) {
     ]));
     if (!state.contacts.length) {
       listBox.appendChild(empty('还没有联系人', h('div', { style: { display: 'grid', gap: '10px' } },
-        btn('AI 智能加载', 'primary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()), btn('从别的窗口继承', 'text', () => import('./aiload.js').then(m => m.openInherit(draw))))));
+        btn('AI 智能加载', 'primary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()))));
       return;
     }
     const stars = all.filter(c => c.star);

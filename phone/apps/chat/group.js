@@ -1,6 +1,6 @@
 // 群聊：建群、群头像（没设置时是群名第一个字）、群设置（资料 / 成员 / 行为 / 数据）。
 import { h } from '../../core/util.js';
-import { state, commit, contact, getMsgs, clearMsgs } from '../../core/store.js';
+import { state, commit, contact, clearMsgs } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
@@ -107,11 +107,7 @@ export function openGroupSettings(chat, redrawRoom) {
       ]),
       trGroup(cfg, save, draw));
     if (lastTab === 'data') box.append(group('', [
-      item({ title: '导出群聊记录', chevron: true, onClick: async () => {
-        const data = { app: 'AsterPhone', kind: 'group', chat, msgs: await getMsgs(chat.id) };
-        const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: `AsterPhone-${chat.name}-群聊记录.json` });
-        document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
-      } }),
+      item({ title: '导出群聊记录', chevron: true, onClick: () => import('./transfer.js').then(m => m.exportChats([chat])) }),
       item({ title: '清空聊天记录', danger: true, onClick: async () => {
         if (!(await dialog({ title: '清空群聊记录？', text: '此操作无法撤销。', confirm: '清空', danger: true }))) return;
         await clearMsgs(chat.id); chat.lastText = ''; chat.unread = 0; save(); toast('已清空');
