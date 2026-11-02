@@ -13,6 +13,7 @@ import { rain, isNight } from './rain.js';
 import { lyricFx } from './lyricfx.js';
 import { look, styleChoir, styleTop } from './tglook.js';
 import { burst } from './island.js';
+import { clockCfg } from '../../core/time.js';
 
 const M = () => state.music;
 const fmt = s => isFinite(s) && s > 0 ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '00:00';
@@ -245,20 +246,21 @@ function renderMe(ctx) {
   const box = h('div');
   ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('span');   // 听歌时长一直在涨，单独改字，不跟着整块重画
-  const paintHeard = () => { const [n, u] = heard(); hearEl.replaceChildren(h('b', String(n)), ' ' + u); };
-  const paintAll = keep(box, () => JSON.stringify([me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
+  const en = () => clockCfg().lang === 'en';   // 关注、粉丝、听歌时长跟着锁屏时间的语言
+  const paintHeard = () => hearEl.replaceChildren(h('b', heard(en())), en() ? ' listened' : ' 听歌');
+  const paintAll = keep(box, () => JSON.stringify([en(), M().likedInfo, me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
     const plays = M().liked.reduce((n, s) => n + ((M().plays[s.id] || {}).n || 0), 0);   // 只算喜欢的这些歌放了几次
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
     const u = me();
     ctx.meBg.style.backgroundImage = bgUrl(u.bg); ctx.meBg.classList.toggle('has-img', !!u.bg);
     return [
       h('div.as-mu-me', avatar(u.avatar, u.nick, 78), h('b', u.nick), u.sign ? h('div.as-mu-me__sign', u.sign) : null,
-        h('div.as-mu-me__stat', h('button', { onclick: openFollows }, h('b', String(follows().length)), ' 关注'), h('span', h('b', big(u.fans)), ' 粉丝'), h('b', 'Lv.' + u.lv), hearEl)),
+        h('div.as-mu-me__stat', h('button', { onclick: openFollows }, h('b', String(follows().length)), en() ? ' Following' : ' 关注'), h('span', h('b', big(u.fans)), en() ? (+u.fans === 1 ? ' Follower' : ' Followers') : ' 粉丝'), h('b', 'Lv.' + u.lv), hearEl)),
       h('div.as-mu-pills', [['最近', 'moments', () => openList('最近播放', M().recent)], ['本地', 'box', openLocal], ['排行', 'flame', openRank], ['导入', 'plus', importList]]
         .map(([t, ic, fn]) => h('button', { onclick: fn }, icon(ic, 16, 2), t))),
       h('div.as-mu-sheet',
         h('div.as-mu-sheet__h', '歌单', h('span', String(M().lists.length + 1))),
-        h('div.as-mu-li', { role: 'button', onclick: () => openList('我喜欢的音乐', M().liked, { onRemove: s => P.like(s) }) }, cover(firstPic(M().liked), true),
+        h('div.as-mu-li', { role: 'button', onclick: openLiked }, cover(likedInfo().pic || firstPic(M().liked), !likedInfo().pic),
           h('div', h('b', '我喜欢的音乐'), h('span', `${M().liked.length} 首 · ${plays} 次播放`)),
           h('button.as-mu-chip', { onclick: e => { e.stopPropagation(); heartMode(); } }, icon('heart', 13, 2), '心动模式')),
         // 装了酒馆插件才有：没登录给个登录入口；登录了是每日推荐和网易云里自己的歌单
@@ -459,18 +461,25 @@ function avgColor(src) {
 const lum = c => (c[0] * .299 + c[1] * .587 + c[2] * .114) / 255;
 /* ---------- 编辑歌单信息：封面、名字、一句话介绍、标签 ---------- */
 const listPic = l => l.pic || firstPic(l.songs);
-function editList(l, after) {
-  const d = { pic: l.pic || '', name: l.name, intro: l.intro || '', tags: (l.tags || []).slice() };
+// 「我喜欢的音乐」的封面、背景、介绍、标签（M().likedInfo，名字不能改）
+const likedInfo = () => M().likedInfo || (M().likedInfo = { name: '我喜欢的音乐' });
+function openLiked() {
+  const v = openList('我喜欢的音乐', M().liked, { info: likedInfo(), onRemove: s => P.like(s),
+    actions: h('div.as-mu-lp__acts', h('button', { onclick: () => editList(likedInfo(), () => v.head(), M().liked) }, icon('edit', 17, 2), '编辑')) });
+}
+function editList(l, after, songs = l.songs) {
+  const d = { pic: l.pic || '', bg: l.bg || '', name: l.name, intro: l.intro || '', tags: (l.tags || []).slice() };
   const p = page({ app: 'music', id: 'music-listedit', title: '编辑歌单信息', back: true });
-  const thumb = h('span.as-mu-lcover.is-thumb', { style: { backgroundImage: bgUrl(d.pic || firstPic(l.songs)) } });
+  const thumb = h('span.as-mu-lcover.is-thumb', { style: { backgroundImage: bgUrl(d.pic || firstPic(songs)) } }), bgThumb = h('span.as-mu-lcover.is-thumb', { style: { backgroundImage: bgUrl(d.bg) } });
   const tags = h('div.as-mu-tags'), tagIn = input({ placeholder: '标签' });
   const addTag = () => { const t = tagIn.value.trim(); tagIn.value = ''; if (t && !d.tags.includes(t)) { d.tags.push(t); paintTags(); } };
   const paintTags = () => tags.replaceChildren(...d.tags.map(t => h('button.as-mu-tag', { 'aria-label': '删掉标签 ' + t, onclick: () => { d.tags = d.tags.filter(x => x !== t); paintTags(); } }, t, icon('close', 11, 2.4))));
   tagIn.addEventListener('keydown', e => { if (e.key === 'Enter') addTag(); });
   paintTags();
   p.body.append(
-    group('', [item({ title: '封面', right: thumb, chevron: true, onClick: async () => { const v = await pickImage('歌单封面', { ratio: 1, size: 600, has: !!d.pic }); if (v != null) { d.pic = v; thumb.style.backgroundImage = bgUrl(v || firstPic(l.songs)); } } })]),
-    group('', [field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', input({ value: d.intro, placeholder: '一句话介绍', onInput: v => { d.intro = v.trim(); } }))]),
+    group('', [item({ title: '封面', right: thumb, chevron: true, onClick: async () => { const v = await pickImage('歌单封面', { ratio: 1, size: 600, has: !!d.pic }); if (v != null) { d.pic = v; thumb.style.backgroundImage = bgUrl(v || firstPic(songs)); } } }),
+      item({ title: '背景', right: bgThumb, chevron: true, onClick: async () => { const v = await pickImage('歌单背景', { ratio: 1, size: 900, has: !!d.bg }); if (v != null) { d.bg = v; bgThumb.style.backgroundImage = bgUrl(v); } } })]),
+    group('', [l === M().likedInfo ? null : field('名字', input({ value: d.name, onInput: v => { d.name = v.trim(); } })), field('一句话介绍', input({ value: d.intro, placeholder: '一句话介绍', onInput: v => { d.intro = v.trim(); } }))]),
     group('标签', [h('div.as-field', tags, h('div.as-mu-tagadd', tagIn, btn('添加', 'secondary', addTag)))]),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
       addTag(); Object.assign(l, { ...d, name: d.name || l.name }); commit('music'); nav.pop(); after && after();
@@ -495,8 +504,9 @@ async function importFile() {
 const me = () => { const u = M().profile || {}; return { nick: u.nick || myNick(), avatar: u.avatar || myAvatar(), sign: u.sign || '', bg: u.bg || '', fans: u.fans || 0, lv: u.lv || 1 }; };
 /** 990000 → 990k */
 const big = n => n < 1000 ? String(n) : n < 1e6 ? +(n / 1000).toFixed(n < 1e4 ? 1 : 0) + 'k' : n < 1e9 ? +(n / 1e6).toFixed(n < 1e7 ? 1 : 0) + 'M' : +(n / 1e9).toFixed(n < 1e10 ? 1 : 0) + 'B';
-/** 听歌时长：不到一分钟写秒，不到一小时写分钟，再往上写小时 */
-const heard = () => { const s = Math.floor(M().heard || 0); return s < 60 ? [s, '秒'] : s < 3600 ? [Math.floor(s / 60), '分钟'] : [Math.floor(s / 3600), '小时']; };
+/** 听歌时长：按分钟算，几小时几分钟（是 0 的那节不写） */
+const heard = en => { const m = Math.floor((M().heard || 0) / 60), x = Math.floor(m / 60), y = m % 60;
+  return en ? [x && x + 'h', (y || !x) && y + 'm'].filter(Boolean).join(' ') : [x && x + '小时', (y || !x) && y + '分钟'].filter(Boolean).join(''); };
 const follows = () => M().follows || (M().follows = []);
 /** 一起听了多久：几小时几分钟几秒，是 0 的那一节不写 */
 const span = sec => { const s = Math.floor(sec), p = [[Math.floor(s / 3600), '小时'], [Math.floor(s % 3600 / 60), '分钟'], [s % 60, '秒']].filter(x => x[0]); return p.length ? p.map(x => x.join(' ')).join(' ') : '0 秒'; };
@@ -583,7 +593,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   const head = () => {
     nameEl.replaceChildren((info && info.name) || title, ...((info && info.tags) || []).map(t => h('i.as-mu-tag', t)));
     subEl.textContent = (info && info.intro) || sub || ''; subEl.hidden = !subEl.textContent;
-    if (info) bg.style.backgroundImage = cov.style.backgroundImage = bgUrl(info.pic || firstPic(list));
+    if (info) { cov.style.backgroundImage = bgUrl(info.pic || firstPic(list)); bg.style.backgroundImage = bgUrl(info.bg || info.pic || firstPic(list)); }   // 背景没单独设就用封面
   };
   p.body.append(h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)),
     actions || null,
@@ -650,7 +660,7 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   }
   const fill = L => {
     list = L.slice(); const pic = (info && info.pic) || firstPic(L);
-    bg.style.backgroundImage = cov.style.backgroundImage = bgUrl(pic); n.textContent = `${L.length} 首`;
+    cov.style.backgroundImage = bgUrl(pic); bg.style.backgroundImage = bgUrl((info && info.bg) || pic); n.textContent = `${L.length} 首`;
     rows.replaceChildren(...(L.length ? L.map(row) : [empty('这里还没有歌')]));
   };
   fill(list); head();

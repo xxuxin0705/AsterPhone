@@ -462,6 +462,8 @@
 .as-mu-lypv i { position: absolute; inset: -20px; background: center / cover; }
 .as-mu-lypv span { position: relative; display: inline-block; font: 600 18px/1.4 var(--font-ui); background: linear-gradient(90deg, var(--ly) 55%, rgba(255,255,255,.6) 55%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
 .as-lmc { touch-action: none; }
+.as-lmc__rm { position: absolute; top: 0; bottom: 0; left: calc(100% + 10px); width: 76px; border: 0; border-radius: 22px; background: #e0646b; color: #fff; font: 500 15px/1 var(--font-ui); cursor: pointer; opacity: 0; transition: opacity 150ms; }
+.as-lmc.is-swipe .as-lmc__rm { opacity: 1; }
 .as-lock.has-music .as-lock-notice { bottom: calc(23% + 184px); overflow-y: auto; }   /* 卡片在下面，通知多了在上面自己滑，不压住卡片 */
 .as-lmc__row { display: flex; align-items: center; gap: 12px; }
 .as-lmc__cov { flex: none; width: 54px; height: 54px; border-radius: 10px; background: rgba(0,0,0,.12) center / cover; }

@@ -293,8 +293,9 @@ export function toast(msg, action) {
   toastEl.append(...(wait ? [h('i.as-spin')] : []), h('span', msg));
   if (action) toastEl.append(h('button.as-toast__action', { onclick: () => { toastEl.classList.remove('is-open'); action.fn(); } }, action.label));
   toastEl.classList.toggle('has-action', !!action);
-  requestAnimationFrame(() => toastEl.classList.add('is-open'));
-  clearTimeout(toastT); if (!wait) toastT = setTimeout(() => toastEl.classList.remove('is-open'), action ? 3600 : 1900);
+  // 收起的计时放进同一帧：页面切到后台时这一帧会等到回来才跑，计时放外面会先收起、回来又被这一帧打开，就再也不收了
+  clearTimeout(toastT);
+  requestAnimationFrame(() => { toastEl.classList.add('is-open'); clearTimeout(toastT); if (!wait) toastT = setTimeout(() => toastEl.classList.remove('is-open'), action ? 3600 : 1900); });
 }
 
 /* ---------- 横幅通知 ---------- */

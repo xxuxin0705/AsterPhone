@@ -35,16 +35,19 @@ function build() {
     h('div.as-lmc__prog', t0, h('div.as-lmc__bar', lb), t1),
     h('div.as-lmc__ctrl', heart, btn('prev', '上一首', () => P.prev(), 30), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, lp), btn('next', '下一首', () => P.next(), 30), h('span')));
   lock.querySelector('.as-lock__head').after(c);
-  // 往左划掉卡片：歌照放，下一首或者暂停后再放时回来
-  let x0 = null, dx = 0;
-  c.addEventListener('pointerdown', e => { e.stopPropagation(); x0 = e.clientX; dx = 0; });   // 不让锁屏当成上滑解锁
-  addEventListener('pointermove', e => { if (x0 == null) return; dx = Math.min(0, e.clientX - x0); c.style.transform = `translateX(${dx}px)`; c.style.opacity = 1 + dx / 300; });
+  // 往左划：划到一半露出「移除」，点了才收起卡片（歌照放，换歌或者暂停后再放时回来）；划回去、点卡片就合上
+  const W = 86, rm = h('button.as-lmc__rm', { onclick: e => { e.stopPropagation(); c.style.transition = 'transform 220ms, opacity 220ms'; c.style.transform = 'translateX(-110%)'; c.style.opacity = '0';
+    setTimeout(() => { gone = true; shut(); c.style.opacity = ''; paint(); }, 220); } }, '移除');
+  c.append(rm);
+  let x0 = null, base = 0, dx = 0;
+  const shut = () => { c.style.transition = 'transform 220ms'; c.style.transform = ''; c.classList.remove('is-swipe'); base = 0; };
+  c.addEventListener('pointerdown', e => { e.stopPropagation(); if (e.target === rm) return; x0 = e.clientX; dx = base; c.style.transition = ''; });   // 不让锁屏当成上滑解锁
+  addEventListener('pointermove', e => { if (x0 == null) return; dx = Math.max(-W * 2, Math.min(0, base + e.clientX - x0)); c.style.transform = `translateX(${dx}px)`; c.classList.toggle('is-swipe', dx < 0); });
   addEventListener('pointerup', () => {
     if (x0 == null) return; x0 = null;
-    if (dx < -8) c.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });   // 划完松手那一下不算点按钮
-    if (dx > -90) { c.style.transform = c.style.opacity = ''; return; }
-    c.style.transition = 'transform 220ms, opacity 220ms'; c.style.transform = 'translateX(-110%)'; c.style.opacity = '0';
-    setTimeout(() => { gone = true; c.style.transition = c.style.transform = c.style.opacity = ''; paint(); }, 220);
+    if (Math.abs(dx - base) > 8) c.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });   // 划完松手那一下不算点按钮
+    else if (base) { shut(); c.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true }); return; }   // 开着时点一下卡片：合上
+    if (dx < -W / 2) { base = -W; c.style.transition = 'transform 220ms'; c.style.transform = `translateX(${-W}px)`; } else shut();
   });
   new MutationObserver(paint).observe(sb.closest('.as-phone'), { attributes: true, attributeFilter: ['class'] });   // 锁上 / 解锁时看卡片该不该在
   card = { el: c, lock, cov: lc, name: ln, artist: la, bar: lb, t0, t1, play: lp, heart };
