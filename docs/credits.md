@@ -4,42 +4,20 @@
 
 ## 一、照搬进来的代码（发布时必须标注）
 
-| 用在哪 | 是什么 | 作者 | 许可 | 要做什么 |
-|---|---|---|---|---|
-| `server-plugin/qrcode.js` | qrcode-generator 1.4.4（画登录二维码） | Kazuhiko Arase，https://github.com/kazuhikoarase/qrcode-generator | MIT | 文件第一行的版权声明不能删（MIT 要求复制的代码带着它）；发布时把下面的许可全文放进仓库或说明里 |
+（现在没有照搬进来的代码。以前的 `server-plugin/qrcode.js`（qrcode-generator，MIT）在 v0.8.6 删掉了。）
 
-<details><summary>qrcode-generator 的 MIT 许可全文</summary>
+**装插件时下载的开源库**（不在我们仓库里，`npm install` 时下载；发布时在说明里写一句用到了它）：
 
-```
-MIT License
-
-Copyright (c) 2009 Kazuhiko Arase
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-</details>
+| 用在哪 | 是什么 | 许可 |
+|---|---|---|
+| `server-plugin`（扫码 / 手机号登录、搜歌、歌单、歌词、播放地址…） | NeteaseCloudMusicApi 4.32.0，https://www.npmjs.com/package/NeteaseCloudMusicApi | MIT |
 
 ## 二、只参考了思路、代码是自己写的（不强制，标上更礼貌）
 
 | 用在哪 | 参考了什么 | 来源 | 许可 |
 |---|---|---|---|
-| `server-plugin/index.js`（网易云接口地址、扫码登录的流程） | 哪些网易云接口不用加密就能调、扫码登录各个状态码的意思 | Anko3o/music-mcp-netease，https://github.com/Anko3o/music-mcp-netease | CC BY-NC-SA 4.0（不能商用；**如果以后照搬它的代码**，整个项目也得用同样的许可、不能商用，所以只学思路） |
+| `server-plugin/index.js`（改用 NeteaseCloudMusicApi 这个主意、二维码用 web 方式） | 作者发的「你自己的音乐源」插件，https://github.com/libertyseeyou/yourownmusicapiforST | MIT | 只参考思路 |
+| `server-plugin/index.js`（早先的网易云接口地址、扫码登录的流程） | 哪些网易云接口不用加密就能调、扫码登录各个状态码的意思 | Anko3o/music-mcp-netease，https://github.com/Anko3o/music-mcp-netease | CC BY-NC-SA 4.0（不能商用；**如果以后照搬它的代码**，整个项目也得用同样的许可、不能商用，所以只学思路） |
 | 音乐「一起听」 | 头像挨着、外侧耳机线的排法；头像上方白底气泡的样子 | 作者发的网易云「一起听」截图、一张带气泡的截图（来源未知） | 只参考样子，没用它们的图 |
 
 ## 三、字体和图片

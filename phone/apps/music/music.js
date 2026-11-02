@@ -233,10 +233,9 @@ async function neLogin(after) {
   toast('正在拿二维码…', true);
   let q; try { q = await P.neQr(); toast('二维码好了'); } catch (e) { log('error', '音乐', '拿登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
   let t = 0;
-  const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('div.as-mu-login__qr');
-  qr.innerHTML = q.svg;
+  const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('img.as-mu-login__qr', { src: q.img, alt: '登录二维码' });
   const s = sheet({ title: '登录网易云', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st,
-    h('div.as-mu-login__btns', btn('粘贴 MUSIC_U', 'secondary', paste))) });
+    h('div.as-mu-login__btns', btn('手机号登录', 'secondary', byPhone))) });
   const done = name => { clearInterval(t); s.close(); toast('登录了：' + name); after(); };
   t = setInterval(async () => {
     // 问不到、或者网易云回了别的（比如要验证）都写在二维码下面，不吞掉
@@ -247,10 +246,13 @@ async function neLogin(after) {
     else if (j.code === 803) done(j.me ? j.me.name : '');
     else { clearInterval(t); st.textContent = `网易云回：${j.message || j.code}`; log('error', '音乐', `扫码登录：网易云回 ${j.code} ${j.message}`); }
   }, 2000);
-  async function paste() {
-    const c = await dialog({ title: '粘贴 MUSIC_U', input: { placeholder: 'MUSIC_U' } }); if (!c) return;
+  async function byPhone() {
+    const phone = (await dialog({ title: '手机号登录', input: { placeholder: '手机号' }, confirm: '发验证码' }) || '').trim(); if (!phone) return;
+    toast('正在发验证码…', true);
+    try { await P.neSms(phone); toast('验证码发了'); } catch (e) { log('error', '音乐', '发验证码失败：' + e.message); toast('发不了验证码：' + e.message); return; }
+    const code = (await dialog({ title: '短信验证码', input: { placeholder: '验证码' }, confirm: '登录' }) || '').trim(); if (!code) return;
     toast('正在登录…', true);
-    try { await P.neCookie(c); done(P.ne.me.name); } catch (e) { log('error', '音乐', '登录网易云失败：' + e.message); toast('登录失败：' + e.message); }
+    try { await P.nePhone(phone, code); done(P.ne.me.name); } catch (e) { log('error', '音乐', '手机号登录失败：' + e.message); toast('登录失败：' + e.message); }
   }
 }
 async function openDaily() {

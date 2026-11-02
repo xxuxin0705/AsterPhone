@@ -1,0 +1,9 @@
+{
+  "name": "asterphone-server-plugin",
+  "private": true,
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "NeteaseCloudMusicApi": "4.32.0"
+  }
+}
