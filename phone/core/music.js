@@ -50,10 +50,10 @@ export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,
 export function parseLrc(text) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
-    const t = line.replace(/\[\d+:\d+(?:\.\d+)?\]/g, '').trim(); if (!t) continue;
+    const t = line.replace(/\[\d+:\d+(?:[.:]\d+)?\]/g, '').trim(); if (!t) continue;   // 有的歌词时间写成 [01:02:30]（冒号）
     // 外语歌音源把翻译接在后面括号里：「原文 (中文)」→ 拆成原文和翻译两行
     const m = t.match(/^(.*?)\s*[(（]([^()（）]*)[)）]$/), tr = m && /[\u3040-\u30ffA-Za-z\uac00-\ud7af]/.test(m[1]) && /[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff]/.test(m[2]);
-    for (const x of line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)) out.push({ t: +x[1] * 60 + +x[2], text: tr ? m[1] : t, tr: tr ? m[2] : '' });
+    for (const x of line.matchAll(/\[(\d+):(\d+)(?:[.:](\d+))?\]/g)) out.push({ t: +x[1] * 60 + +x[2] + +('0.' + (x[3] || 0)), text: tr ? m[1] : t, tr: tr ? m[2] : '' });
   }
   return out.sort((a, b) => a.t - b.t);
 }
@@ -132,12 +132,15 @@ function enter(s) {
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
   let base = [], yrc = [];
   const done = () => { if (current() !== s) return; lyrics = yrc.length ? yrc.map(x => ({ ...x, tr: (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
-  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { base = parseLrc(t); done(); })
+  get(meting('lrc', s.id), 'text', '拿歌词').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
   get(q(src('vkeys') + '/lyric', { id: s.id }), 'json', '拿逐字歌词').then(j => {
-    const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc;
+    const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc, l = (d.lrc && d.lrc.lyric) || d.lrc;
     yrc = typeof y === 'string' ? parseYrc(y) : [];
-    if (yrc.length) done();
+    // 有的歌 Meting 给的歌词只有作词作曲那几行：vkeys 这份更全就用它
+    const alt = typeof l === 'string' ? parseLrc(l) : [];
+    if (alt.length > base.length) base = alt;
+    if (yrc.length || base === alt) done();
   }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词没拿到：${e.message}`));
 }
 async function load(autoplay) {
