@@ -149,7 +149,6 @@
 .as-mp .as-page__body { display: flex; flex-direction: column; padding: 0 0 18px; overflow: hidden; }
 .as-mp__bg { position: absolute; inset: -40px; z-index: 0; background: #5a2a3a center / cover; filter: blur(46px) brightness(.62) saturate(1.35); transform: scale(1.15); }
 .as-mp__bg.is-custom { inset: 0; filter: none; transform: none; }
-.as-mp__bg.is-custom::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.25); }
 .as-mp > .as-navbar, .as-mp > .as-page__body { position: relative; z-index: 1; }
 .as-mp { --mp-ink: 255,255,255; }
 .as-mp .as-navbar__back { color: rgb(var(--mp-ink)) !important; }
@@ -223,9 +222,9 @@
 
 .as-mu-queue { display: grid; max-height: 56vh; overflow: auto; }
 .as-mu-queue__row { display: flex; align-items: baseline; gap: 8px; padding: 11px 6px; border: 0; border-bottom: 1px solid var(--as-color-line, rgba(0,0,0,.06)); background: none; text-align: left; color: var(--as-color-text); cursor: pointer; }
-.as-mu-queue__row b { font: 500 15px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mu-queue__row b { flex: 0 1 auto; min-width: 0; font: 500 15px/1.3 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-mu-queue__row span { flex: 1; min-width: 0; font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-mu-queue__row .as-mu-more { flex: none; align-self: center; }
+.as-mu-queue__row .as-mu-more { flex: none; align-self: center; color: var(--as-color-text-2); }
 .as-mu-queue__row.is-cur b, .as-mu-queue__row.is-cur span { color: var(--as-color-accent); }
 
 .as-mu-reviews { display: grid; gap: 14px; padding: 12px 14px 4px; }
@@ -261,12 +260,11 @@
 .as-tg__who { position: absolute; top: 44.52%; width: 84px; height: 84px; transform: translate(-50%, -50%); }
 .is-l .as-tg__who { left: 60.87%; } .is-r .as-tg__who { left: 39.13%; }
 /* 气泡：白天白底黑字、夜里黑底白字，底下小三角对着头像（以后资源库的「气泡」直接套这个） */
-.as-tg__bub { position: absolute; bottom: calc(100% + 12px); padding: 8px 14px; border-radius: 14px; font: 400 12.5px/1.4 var(--font-ui); background: #fff; color: #222; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.as-tg__bubs { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); display: flex; align-items: flex-end; gap: 10px; }
+.as-tg__bub { position: relative; padding: 8px 14px; border-radius: 14px; font: 400 12.5px/1.4 var(--font-ui); background: var(--bub-bg, #fff); color: var(--bub-ink, #222); box-shadow: 0 4px 14px rgba(0,0,0,.12); transition: background 300ms, color 300ms; }
 .as-tg__bub span { display: block; white-space: nowrap; max-width: 124px; overflow: hidden; text-overflow: ellipsis; }
-.as-tg__bub::after { content: ''; position: absolute; top: calc(100% - 1px); border: 6px solid transparent; border-top-color: #fff; border-bottom-width: 0; }
-.as-tg.is-night .as-tg__bub { background: #1c1c1e; color: #f2f2f2; } .as-tg.is-night .as-tg__bub::after { border-top-color: #1c1c1e; }
-.is-l .as-tg__bub { right: calc(50% - 26px); } .is-l .as-tg__bub::after { right: 20px; }
-.is-r .as-tg__bub { left: calc(50% - 26px); } .is-r .as-tg__bub::after { left: 20px; }
+.as-tg__bub::after { content: ''; position: absolute; top: calc(100% - 1px); border: 6px solid transparent; border-top-color: var(--bub-bg, #fff); border-bottom-width: 0; transition: border-color 300ms; }
+.as-tg__bub.is-l::after { right: 18px; } .as-tg__bub.is-r::after { left: 18px; }
 .as-tg__time { margin-top: -8px; position: relative; text-align: center; font: 400 13px/1.4 var(--font-ui); color: rgba(var(--mp-ink),.75); }
 
 /* 群里一起听：不放头像，只写一起听了多久 */
