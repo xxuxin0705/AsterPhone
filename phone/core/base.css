@@ -199,6 +199,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-sheet__grab { width: 38px; height: 5px; border-radius: 3px; margin: 2px auto 10px; background: color-mix(in srgb, var(--as-color-text) 22%, transparent); flex: none; }
 .as-sheet__title { font: 600 17px/1.3 var(--font-ui); text-align: center; margin-bottom: 10px; flex: none; }
 .as-sheet__body { overflow-y: auto; }
+.is-kb :is(.as-sheet__body, .as-page__body)::after { content: ''; display: block; height: var(--as-kb, 0px); }   /* 键盘弹出来时底下多留键盘那么高（index.js 设的），能拖到键盘后面的输入框 */
 .as-actions { display: flex; flex-direction: column; gap: 2px; }
 .as-actions__item { display: flex; align-items: center; gap: 12px; border: 0; background: none; padding: 14px 10px; border-radius: 14px; font: 400 1em/1.2 var(--font-ui); text-align: left; cursor: pointer; color: inherit; }
 .as-actions__item span { flex: 1; }

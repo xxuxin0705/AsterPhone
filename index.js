@@ -197,6 +197,9 @@ const toggle = () => (opened ? close() : open());
  * 中间几帧是空的——这就是「一点输入框就闪」。所以键盘弹出时小手机的大小一点不动，键盘只是盖住下面一截，
  * 输入框被盖住时把整台手机往上推到露出来（安卓自带的「推上去」也是这样） */
 let size = null;
+// 同一个输入框只往上推、不往回落：打中文时输入法的候选栏一会儿出来一会儿收回，键盘高度跟着变，
+// 每变一次就重新推一次，整个手机就一上一下地闪
+let liftEl = null, liftY = 0;
 const typing = () => { const a = opened && iframe.contentDocument && iframe.contentDocument.activeElement; return !!a && (/^(INPUT|TEXTAREA)$/.test(a.tagName) || a.isContentEditable); };
 function holdSize() {
     const f = overlay.firstChild;
@@ -208,7 +211,9 @@ function holdSize() {
         lift();
         return;
     }
-    overlay.classList.remove('is-kb');
+    overlay.classList.remove('is-kb'); liftEl = null; liftY = 0;
+    const root = iframe.contentDocument && iframe.contentDocument.documentElement;
+    if (root) { root.classList.remove('is-kb'); root.style.removeProperty('--as-kb'); }
     Object.assign(f.style, { width: '', height: '', marginTop: '', transform: '' });
     size = { vw: innerWidth, vh: innerHeight, w: f.offsetWidth, h: f.offsetHeight, top: f.offsetTop };
 }
@@ -216,7 +221,13 @@ function lift() {
     if (!overlay.classList.contains('is-kb')) return;
     const a = iframe.contentDocument.activeElement, f = overlay.firstChild;
     const under = size.top + a.getBoundingClientRect().bottom + 16 - innerHeight;
-    f.style.transform = `translateY(${-Math.max(0, Math.min(under, size.top + size.h - innerHeight))}px)`;
+    let y = Math.max(0, Math.min(under, size.top + size.h - innerHeight));
+    if (a === liftEl) y = Math.max(y, liftY);
+    liftEl = a; liftY = y;
+    f.style.transform = `translateY(${-y}px)`;
+    // 手机被键盘盖住的那一截：里面的页面和抽屉底下多留这么高，能往下拖到键盘后面的输入框（不然拖了又弹回来，一闪一闪）
+    const root = iframe.contentDocument.documentElement;
+    root.classList.add('is-kb'); root.style.setProperty('--as-kb', Math.max(0, size.top + size.h - y - innerHeight) + 'px');
 }
 
 /* ---------- 悬浮按钮 ---------- */
