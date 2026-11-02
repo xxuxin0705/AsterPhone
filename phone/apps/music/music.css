@@ -269,8 +269,8 @@
 
 /* 群里一起听：不放头像，只写一起听了多久 */
 .as-tg.is-group .as-tg__pair { display: none; }
-.as-tg.is-group .as-tg__time { margin-top: 18px; }
-.as-mp.is-tg .as-tg.is-group ~ .as-mp__lrc { top: 70px; }
+.as-tg.is-group .as-tg__time { margin-top: -18px; }
+.as-mp.is-tg .as-tg.is-group ~ .as-mp__lrc { top: 34px; }
 /* 群唱：一人一句，像聊天一样冒出来，我的在右边 */
 .as-mp__lrc.is-choir { padding: 0 16px; }
 .as-ch { display: none; align-items: flex-end; gap: 8px; margin: 10px 0; }

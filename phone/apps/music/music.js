@@ -748,9 +748,29 @@ export function openPlayer() {
     toast('正在拿热评…', true);
     try {
       const list = await P.hotComments(s.id); if (!list.length) throw new Error('没有热评'); toast(`${list.length} 条热评`);
-      sheet({ title: '热评', content: h('div.as-mu-reviews.as-mu-hot', list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text))))) });
-    } catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); toast('拿不到热评：' + e.message); }
+      showHot(list, []);
+    } catch (e) {
+      log('warn', '音乐', '拿热评失败：' + e.message);
+      // 拿不到（比如 Tauri Tavern 连不上网易云）：问要不要让 AI 写，写过的直接拿出来
+      const old = await P.aiCached(s.id);
+      if (old) { toast('AI 写的乐评'); showHot(old.hot, old.chars); return; }
+      toast('拿不到热评');
+      if (!(await dialog({ title: '拿不到热评', text: `${e.message.replace(/[。.]$/, '')}。\n要不要让 AI 写几条乐评，再加上角色们听这首歌的感受？会用一次 API。`, confirm: '生成' }))) return;
+      toast('AI 正在写乐评…', true);
+      try { const r = await P.aiComments(s, listeners()); toast(`写好了，${r.hot.length} 条`); showHot(r.hot, r.chars); }
+      catch (e2) { log('error', '音乐', 'AI 写乐评失败：' + e2.message); toast('没写成：' + e2.message); }
+    }
   }
+  // 谁来说感受：一起听的那个人 / 群里的人在前，不够 4 个再从联系人里随便挑
+  const listeners = () => {
+    const c = P.together(), first = !c ? [] : c.type === 'group' ? c.members.map(contact).filter(Boolean) : [c];
+    return [...first, ...state.contacts.filter(x => !first.includes(x)).sort(() => Math.random() - .5)].slice(0, Math.max(4, first.length));
+  };
+  const showHot = (list, chars) => sheet({ title: chars.length ? '乐评' : '热评', content: h('div.as-mu-reviews.as-mu-hot',
+    chars.length ? h('div.as-mu-sub', '大家听这首歌') : null,
+    ...chars.map(x => { const c = contact(x.id); return h('div.as-mu-review', avatar(c ? c.avatar : '', x.name, 34), h('div', h('div.as-mu-review__name', c ? nameOf(c) : x.name), h('div.as-mu-review__text', x.text))); }),
+    chars.length ? h('div.as-mu-sub', '网友乐评') : null,
+    ...list.map(c => h('div.as-mu-review', avatar('', c.name, 34), h('div', h('div.as-mu-review__name', c.name, h('span', `♡ ${c.likes}`)), h('div.as-mu-review__text', c.text))))) });
   paintColor(); paintSong(); paintState(); paintTg();
   const off = P.onMusic(w => {
     if (w === 'song' || w === 'lyrics') { paintSong(); paintTg(); }

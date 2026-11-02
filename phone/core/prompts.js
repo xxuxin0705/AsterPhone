@@ -19,6 +19,7 @@ export const PROMPT_CATS = [
   ] },
   { app: '音乐', items: [
     { id: 'charSongs', name: '角色歌单', vars: ['char', 'persona', 'story', 'existing', 'count'] },
+    { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'chars', 'count'] },
   ] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] }] },
 ];
@@ -115,6 +116,21 @@ export const DEFAULT_PROMPTS = {
 {{existing}}
 
 每行一首，格式：歌名 - 歌手。只输出这些行。` },
+  songTalk: { name: '乐评', cats: ['songTalk'], on: true, main: true,
+    text: `这首歌是《{{song}}》- {{artist}}。
+
+【歌词开头】
+{{lyrics}}
+
+【这些人也在听】
+{{chars}}
+
+写两部分：
+1. 像网易云热评区那样的网友乐评 {{count}} 条：有走心的、有讲自己故事的、有玩梗的，口语化，每条一两句到一小段；给每条起个网名、编一个点赞数。
+2. 上面每个人听这首歌的感受：按 TA 的人设和说话方式说一两句，像随口发的感想，不要旁白和动作描写。
+
+只输出一个 JSON，不要别的文字：
+{"comments":[{"name":"网名","text":"乐评","likes":1234}],"chars":[{"name":"人名（照上面写）","text":"感受"}]}` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 

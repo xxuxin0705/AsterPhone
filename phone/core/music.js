@@ -157,6 +157,24 @@ export async function hotComments(id) {
   return (j.hotComments || j.comments || []).map(c => ({ name: (c.user || {}).nickname || '网友', text: c.content, likes: c.likedCount || 0 }));
 }
 
+/** 拿不到热评时让 AI 写：几条网友乐评 + 这几个人听这首歌的感受。写过的存起来，再打开不再花 API */
+export const aiCached = id => kvGet('aicmt:' + id).catch(() => null);
+export async function aiComments(s, people) {
+  const { personaOf, nameOf } = await import('../apps/chat/engine.js');
+  const who = c => c.name || nameOf(c);
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', maxTokens: 1400,
+    prompt: compose('songTalk', { song: s.name, artist: s.artist, count: 8, lyrics: lyrics.slice(0, 12).map(x => x.text).join('\n') || '（没有歌词）',
+      chars: people.map(c => `- ${who(c)}：${(personaOf(c) || '').slice(0, 160).replace(/\n/g, ' ')}`).join('\n') || '（没有）' }) });
+  let j = null; try { j = JSON.parse((String(raw).match(/\{[\s\S]*\}/) || [])[0]); } catch { /* 下面报错 */ }
+  if (!j || !Array.isArray(j.comments)) throw new Error('AI 回的不是乐评：' + String(raw).slice(0, 60));
+  const out = {
+    hot: j.comments.filter(x => x && x.text).map(x => ({ name: x.name || '网友', text: x.text, likes: x.likes || 0 })),
+    chars: (j.chars || []).filter(x => x && x.text).map(x => { const c = people.find(p => who(p) === x.name); return { id: c ? c.id : '', name: x.name, text: x.text }; }),
+  };
+  await kvSet('aicmt:' + s.id, out);
+  return out;
+}
+
 /* ---------- 本地 MP3（存在这台设备上） ---------- */
 export async function addLocal(file) {
   const [a, b] = file.name.replace(/\.[^.]+$/, '').split(/\s-\s|-/).map(s => s.trim());
