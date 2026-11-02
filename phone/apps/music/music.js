@@ -1,7 +1,7 @@
 // 音乐 App 外壳：底部四个标签（首页 / 搜索 / 电台 / 我的）+ 浮着的迷你播放条；歌单页；播放页（唱片皮肤）。
 // 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
-import { h, onLongPress, pickFile } from '../../core/util.js';
+import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, field, input, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -377,6 +377,7 @@ function listRows(word, lists) {
 }
 /** 榜单 / 导入的歌单：有存过的先马上显示，后台去读新的，读到了再换 */
 async function openRemote(name, id, l) {
+  if (l && l.own) { openList(name, l.songs, { onRemove: s => { l.songs = l.songs.filter(x => x !== s); commit('music'); } }); return; }   // 自己建的歌单不用去网上读
   const old = (l && l.songs) || await P.cachedList(id);
   const view = old ? openList(name, old) : null;
   if (!old) toast('正在读歌单…', true);
@@ -441,7 +442,7 @@ export function openPlayer() {
     h('div.as-mp__prog', { dataset: { noSwipe: '' } }, track, h('div.as-mp__times', t0, t1)),
     h('div.as-mp__ctrl', modeBtn, h('button', { 'aria-label': '上一首', onclick: () => P.prev() }, icon('prev', 26, 1.8)), playBtn,
       h('button', { 'aria-label': '下一首', onclick: () => P.next() }, icon('next', 26, 1.8)), h('button', { 'aria-label': '播放列表', onclick: openQueue }, icon('list', 24, 1.8))),
-    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('users', '加到谁的歌单', toChar), tool('headphones', '一起听', withWho)));
+    h('div.as-mp__tools', tool('palette', '换样式', skin), tool('image', '换背景', background), tool('plus', '收藏到歌单', collect), tool('headphones', '一起听', withWho)));
 
   // 下雨天：背景是雨景图（白天 / 夜里两张，跟着时间换），白天那张浅，字和按钮换成深蓝
   const paintBg = () => {
@@ -465,7 +466,7 @@ export function openPlayer() {
   const paintSong = () => {
     const s = P.current(); if (!s) return;
     name.textContent = topName.textContent = s.name; artistName.textContent = topArtist.textContent = s.artist; paintFollow(); cov.style.backgroundImage = bgUrl(s.pic);
-    top.replaceChildren(h('em', M().from || ''), topName, topArtist);
+    top.replaceChildren(topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();
     lines = L.map(x => h('p', h('span', x.text), x.tr ? h('small', x.tr) : null));
@@ -504,6 +505,26 @@ export function openPlayer() {
     const v = S.bg ? await actionSheet('背景', [{ value: 'pick', label: '换一张图', icon: 'image' }, { value: 'none', label: S.name === 'rain' ? '用雨景图' : '跟着封面变色', icon: 'palette' }]) : 'pick';
     if (v === 'pick') { const img = await pickImage('播放页背景', { ratio: 'screen', size: 1100, has: !!S.bg }); if (img != null) { S.bg = img; commit('music'); paintBg(); } }
     if (v === 'none') { S.bg = ''; commit('music'); paintBg(); }
+  }
+  // 收藏：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单
+  function collect() {
+    const s = P.current();
+    const row = (cov, name, sub, fn) => h('div.as-mu-li', { role: 'button', onclick: () => { sh.close(); fn(); } }, cov, h('div', h('b', name), h('span', sub)));
+    const cov = pic => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } });
+    const sh = sheet({ title: '收藏到歌单', content: h('div.as-mu-collect',
+      row(h('span.as-mu-lcover.is-plus', icon('plus', 22, 2)), '新建歌单', '', async () => {
+        const name = ((await dialog({ title: '新建歌单', input: { placeholder: '歌单名字' }, confirm: '新建' })) || '').trim(); if (!name) return;
+        M().lists.unshift({ id: uid('my'), name, songs: [s], own: true }); commit('music'); toast(`收藏到「${name}」了`);
+      }),
+      row(h('span.as-mu-lcover', icon('heart', 26, 0)), '我喜欢的音乐', `${M().liked.length} 首`, () => {
+        if (P.liked(s)) { toast('已经在我喜欢的音乐里了'); return; }
+        P.like(s); heart.classList.add('is-on'); toast('收藏到我喜欢的音乐了');
+      }),
+      ...M().lists.map(l => row(cov(firstPic(l.songs)), l.name, `${(l.songs || []).length} 首`, () => {
+        if ((l.songs || []).some(x => x.id === s.id)) { toast(`「${l.name}」里已经有了`); return; }
+        (l.songs = l.songs || []).unshift(s); commit('music'); toast(`收藏到「${l.name}」了`);
+      })),
+      h('button.as-mu-morel', { onclick: () => { sh.close(); toChar(); } }, '加到角色的歌单')) });
   }
   async function toChar() {
     const s = P.current();

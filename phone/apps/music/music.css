@@ -90,10 +90,17 @@
 .as-mu-root > .as-mu-mebg { display: none; position: absolute; left: 0; right: 0; top: 0; height: 400px; z-index: 0; background: center / cover no-repeat; }
 .as-mu-root.is-dark > .as-mu-mebg { display: block; }
 .as-mu-mebg.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.25), rgba(0,0,0,.45) 280px, rgba(0,0,0,.15)); }
-/* 自己设了背景图：图铺满整页，下面的浅色底换成半透明磨砂，看得到图又不挡字 */
+/* 自己设了背景图：图铺满整页，下面的歌单是一张浮着的毛玻璃卡片——磨砂、细白亮边、一点高光，不是灰色的半透明罩子 */
 .as-mu-root.is-dark > .as-mu-mebg.has-img { height: 100%; }
-.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { background: rgba(243,244,248,.74); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
-.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-dock { background: linear-gradient(rgba(243,244,248,0), rgba(243,244,248,.8) 32%); }
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { margin: 0 12px; border-radius: 26px; background: rgba(255,255,255,.3);
+  border: 1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -10px 30px rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); }
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red) { background-color: rgba(255,255,255,.45); }
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet :is(.as-mu-li > div span, .as-mu-sheet__h span) { color: rgba(0,0,0,.55); }
+.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-dock { background: none; }
+.as-mu-root.is-dark:has(.as-mu-mebg.has-img) :is(.as-mu-mini, .as-mu-tabs) { background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 24px rgba(0,0,0,.15); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); }
+.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-tabs { margin-top: 8px; border-radius: 22px; }
 .as-mu-me { display: grid; justify-items: center; padding: 6px 16px 22px; color: #fff; }
 .as-mu-me .as-avatar { box-shadow: 0 0 0 2.5px #fff; margin-bottom: 14px; }
 .as-mu-me > b { font: 600 19px/1.3 var(--font-ui); }
@@ -152,10 +159,9 @@
 .as-mp__rain { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
 .as-mp:not(.is-rain) .as-mp__rain, .as-mp.is-lrc .as-mp__rain, .as-mp.is-rain .as-mp__stage { display: none; }
 .as-mp__top { display: grid; justify-items: center; gap: 3px; color: rgb(var(--mp-ink)); }
-.as-mp__top em { font: 400 14px/1.2 var(--font-ui); font-style: normal; color: rgba(var(--mp-ink),.75); }
 .as-mp__top b { font: 500 15px/1.2 var(--font-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .as-mp__top span { font: 400 12px/1 var(--font-ui); color: rgba(var(--mp-ink),.6); }
-.as-mp:not(.is-lrc) .as-mp__top b, .as-mp:not(.is-lrc) .as-mp__top span, .as-mp.is-lrc .as-mp__top em { display: none; }
+.as-mp:not(.is-lrc) .as-mp__top b, .as-mp:not(.is-lrc) .as-mp__top span { display: none; }
 
 .as-mp__main { position: relative; flex: 1; min-height: 0; cursor: pointer; }
 .as-mp__stage { position: relative; width: 78%; aspect-ratio: 1; margin: 32% auto 0; transition: opacity 250ms; }   /* 上面空出唱臂的位置 */
@@ -227,6 +233,8 @@
 .as-mu-only { display: flex; align-items: center; gap: 8px; margin: 4px; font: 400 14px/1.3 var(--font-ui); color: var(--as-color-text); cursor: pointer; }
 
 .as-mu-lcover.is-red { background: var(--mu-red); }
+.as-mu-lcover.is-plus { background: #eceef2; color: #fc3d49; }
+.as-mu-collect { display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
 .as-mu-login { display: grid; justify-items: center; gap: 10px; padding: 4px 16px 20px; }
 .as-mu-login__qr { width: 200px; height: 200px; background: #fff; border-radius: 12px; display: block; }
 .as-mu-login__st { font-size: 14px; color: var(--mu-gray); }
@@ -236,9 +244,9 @@
 
 /* 一起听：上面两个人的头像叠住一小块（TA 的压在上面），外侧各塞一只耳机（图左右切开往中间挤）；下面照旧是歌词 */
 .as-tg { display: none; }
-.as-mp.is-tg .as-tg { display: block; position: absolute; left: 0; right: 0; top: 64px; }
+.as-mp.is-tg .as-tg { display: block; position: absolute; left: 0; right: 0; top: 40px; }
 .as-mp.is-tg .as-mp__stage, .as-mp.is-tg .as-mp__rain { display: none; }
-.as-mp.is-tg .as-mp__lrc { opacity: 1; visibility: visible; top: 210px; }
+.as-mp.is-tg .as-mp__lrc { opacity: 1; visibility: visible; top: 186px; }
 .as-tg__pair { position: relative; width: 208px; height: 107px; margin: 0 auto; }
 .as-tg__half { position: absolute; top: 0; width: 112px; }
 .as-tg__half.is-r { left: 96px; }

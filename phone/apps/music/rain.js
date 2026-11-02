@@ -106,8 +106,11 @@ export function rain(cv, page) {
     });
     if (lay.tr && landed) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
-      ctx.font = `400 13px ${FONT}`; ctx.textAlign = 'center'; ctx.shadowColor = night ? 'rgba(4,14,40,.9)' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 6;   // 夜里水面月光亮，垫一层暗影才看得清
-      ctx.fillStyle = ink((night ? .82 : .6) * Math.min(1, landed / n * 1.5) * (1 - fade)); ctx.fillText(lay.tr, W / 2, ground + 32);
+      // 翻译放在倒影下面，不压着倒影；太长就缩小，一行放得下
+      let fs = 14; ctx.font = `400 ${fs}px ${FONT}`;
+      const tw = ctx.measureText(lay.tr).width; if (tw > W - 48) { fs = Math.max(11, fs * (W - 48) / tw); ctx.font = `400 ${fs}px ${FONT}`; }
+      ctx.textAlign = 'center'; ctx.shadowColor = night ? 'rgba(4,14,40,.9)' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 6;   // 夜里水面月光亮，垫一层暗影才看得清
+      ctx.fillStyle = ink((night ? .75 : .6) * Math.min(1, landed / n * 1.5) * (1 - fade)); ctx.fillText(lay.tr, W / 2, ground + lay.fs * .6 + 28);
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }
   }

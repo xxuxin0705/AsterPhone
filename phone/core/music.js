@@ -407,13 +407,13 @@ export function addToChar(c, s) {
 /* ---------- 一起听：只和私聊里的一个人。M().together 是 TA 的联系人 id；一起听了多少秒记在 M().tg[id] ---------- */
 export const together = () => contact(M().together) || null;
 const tgTimes = () => M().tg || (M().tg = {});
-export const togetherSec = c => tgTimes()[c.id] || 0;
+export const togetherSec = c => (tgTimes()[c.id] || 0) + (M().together === c.id ? heard / 1000 : 0);   // 还没存进去的那几秒也算上，一秒一秒涨
 export function listenWith(c) { M().together = c ? c.id : ''; commit('music'); tell('together'); }
-/** 一起听时气泡里的两句：这首歌里重复最多的两句（一般就是副歌），作词作曲那几行不算 */
+/** 一起听时气泡里的两句：这首歌里重复最多的两句（一般就是副歌），作词作曲那几行不算；有中文翻译就用翻译 */
 export function hook() {
-  const n = {}, L = lyrics.map(x => x.text.trim()).filter(t => t && !/[:：]/.test(t));
+  const n = {}, tr = {}, L = lyrics.filter(x => x.text.trim() && !/[:：]/.test(x.text)).map(x => { const t = x.text.trim(); if (x.tr) tr[t] = x.tr; return t; });
   L.forEach(t => { n[t] = (n[t] || 0) + 1; });
-  return [...new Set(L)].sort((a, b) => n[b] - n[a]).slice(0, 2);
+  return [...new Set(L)].sort((a, b) => n[b] - n[a]).slice(0, 2).map(t => tr[t] || t);
 }
 /** 和 TA 聊天时告诉 AI 你们在一起听什么 */
 export function togetherNote(c) {
