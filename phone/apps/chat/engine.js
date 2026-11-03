@@ -19,6 +19,8 @@ export function on(evt, fn) { if (!subs.has(evt)) subs.set(evt, new Set()); subs
 function emit(evt, ...a) { (subs.get(evt) || []).forEach(f => { try { f(...a); } catch (e) { console.error(e); } }); }
 
 export const busy = new Set();
+const stops = new Map();   // 正在回复的聊天 → AbortController（放模块里：退出聊天再进来，按钮还是「取消」）
+export const cancelReply = id => { const ac = stops.get(id); if (ac) ac.abort(); };
 /* ---------- 自动行为（私聊、群聊都会，不用开开关；免打扰时段里不来） ----------
  * 两种模式：正文里写到有人用手机发消息、转账、发红包 → 正文 AI 留暗号，手机照着收（deliverFromStory，见 core/sync.js）。
  * 只有仅线上聊天：还会每隔几小时来找你（加早安晚安），离开期间会补发；隔几小时在每个聊天里能单独改，默认跟「联动方式与时间」。
@@ -251,12 +253,13 @@ export async function requestReply(chat, opts = {}) {
   const c = contact(chat.contactId);
   const conn = resolveConn('text', 'chat', chat.cfg.conn);
   busy.add(chat.id); emit('typing', chat.id, true);
+  const ac = new AbortController(); stops.set(chat.id, ac);
   try {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote() + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
-    const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
+    const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
     const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
@@ -265,7 +268,7 @@ export async function requestReply(chat, opts = {}) {
     keepMem(chat, batch, mem, [c].filter(Boolean));
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
-      if (shown >= rc.lines[1]) break;
+      if (shown >= rc.lines[1] || ac.signal.aborted) break;
       let p = parseLine(line);
       if (p.type === 'voice') p = voiceLimit(rc, p, ++nv);
       // 收下 / 退还我刚发的转账、红包
@@ -285,9 +288,9 @@ export async function requestReply(chat, opts = {}) {
     }
     if (!shown) saveMsgs(chat.id);
   } catch (e) {
-    emit('error', chat.id, e.message || String(e), e.logId);
+    if (!ac.signal.aborted) emit('error', chat.id, e.message || String(e), e.logId);
   } finally {
-    busy.delete(chat.id); emit('typing', chat.id, false);
+    busy.delete(chat.id); stops.delete(chat.id); emit('typing', chat.id, false);
   }
 }
 /* ---------- 群聊 ---------- */
@@ -314,6 +317,7 @@ function groupHistory(msgs, n = 30) {
 export async function requestGroupReply(chat, opts = {}) {
   if (busy.has(chat.id)) return;
   busy.add(chat.id); emit('typing', chat.id, true);
+  const ac = new AbortController(); stops.set(chat.id, ac);
   try {
     const msgs = await getMsgs(chat.id);
     const members = chat.members.map(contact).filter(Boolean);
@@ -325,13 +329,14 @@ export async function requestGroupReply(chat, opts = {}) {
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history, members),
       time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
     const rc = replyCfg(chat);
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
     const batch = uid('b'); let shown = 0, nv = 0;
     keepMem(chat, batch, mem, members);
     for (const raw of clean.split('\n').map(l => l.trim()).filter(Boolean)) {
+      if (ac.signal.aborted) break;
       const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
       const mm = /^([^:：]{1,16})[:：]\s*(.+)$/.exec(raw); if (!mm) continue;
@@ -352,8 +357,8 @@ export async function requestGroupReply(chat, opts = {}) {
       if (shown >= rc.lines[1]) break;
     }
     if (!shown) await addSystem(chat, '大家好像都在忙，没人回');
-  } catch (e) { emit('error', chat.id, e.message || String(e), e.logId); }
-  finally { busy.delete(chat.id); emit('typing', chat.id, false); }
+  } catch (e) { if (!ac.signal.aborted) emit('error', chat.id, e.message || String(e), e.logId); }
+  finally { busy.delete(chat.id); stops.delete(chat.id); emit('typing', chat.id, false); }
 }
 /** 群里有人转去私聊你 */
 async function deliverDM(p, text) {

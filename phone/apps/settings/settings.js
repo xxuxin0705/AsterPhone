@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.80';
+export const VERSION = '0.8.81';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -591,7 +591,7 @@ function openLinkTime() {
       h('div.as-settings-time', { style: { padding: 0, marginTop: '10px' } },
         btn('读最新楼', 'secondary', async () => {
           const t = (await import('../../core/sync.js')).readLatestTime();
-          if (!t) return toast(`正文里没找到 <${tagName()}> 时间标签`);
+          if (!t) return toast('正文里没找到时间');
           const s1 = time.story(); hm.value = `${p2(s1.hh)}:${p2(s1.mm)}`; dateIn.value = `${s1.date.getFullYear()}-${p2(s1.date.getMonth() + 1)}-${p2(s1.date.getDate())}`;
           nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast(`已对上第 ${t.floor} 楼`);
         }),

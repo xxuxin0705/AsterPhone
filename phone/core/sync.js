@@ -56,13 +56,13 @@ const songLists = () => state.contacts.filter(c => !state.music.storyWho || stat
   .map(c => `- ${c.name}：${[...(c.songs && c.songs.length ? ['常听'] : []), ...(c.lists || []).map(l => l.name)].join('、') || '（还没有歌单）'}`).join('\n') || '（没有人）';   // c.songs 是还没搬的老歌单（见 core/music.js 的 charLists）
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 
-/** 从最新一楼往前找时间标签（不找 AI），找到就对上；返回第几楼和读到的时间 */
+/** 从最新一楼往前找时间（不找 AI）：先找时间标签，没有就找写着年月日和时分的那一行；找到就对上，返回第几楼 */
 export function readLatestTime() {
   const chat = (ctx() || {}).chat || [];
   for (let i = chat.length - 1; i >= 0; i--) {
     const m = chat[i]; if (m.is_user || m.is_system) continue;
-    const t = time.parseTimeTag(m.mes);
-    if (t) { time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place || undefined); return { floor: i, ...t }; }
+    const t = time.parseTimeTag(m.mes) || time.parseLooseTime(m.mes);
+    if (t) { time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place); return { floor: i, ...t }; }
   }
   return null;
 }

@@ -189,16 +189,16 @@ export async function openRoom(chat) {
 
   /* ---------- 输入栏 ---------- */
   function syncBtn() {
-    const has = inputEl.value.trim().length > 0, busy = E.busy.has(chat.id), pend = E.pending(msgs);
+    const has = inputEl.value.trim().length > 0, busy = E.busy.has(chat.id) && !has, pend = E.pending(msgs);   // 回复中、没打字：按钮是「取消」；打了字照样能发
     sendBtn.className = 'as-chat-sendbtn' + (busy ? '.is-loading' : has ? '' : pend ? '.is-reply' : '.is-idle').replace('.', ' ');
-    sendBtn.replaceChildren(busy ? h('i.as-spin') : icon(has ? 'send' : 'sparkle', 18, 2), h('span', g ? '让大家回复' : `让 ${E.nameOf(c).slice(0, 4)} 回复`));
-    sendBtn.setAttribute('aria-label', busy ? '正在回复' : has ? '发送' : '让 TA 回复');
+    sendBtn.replaceChildren(busy ? h('i.as-spin') : icon(has ? 'send' : 'sparkle', 18, 2), h('span', busy ? '取消' : g ? '让大家回复' : `让 ${E.nameOf(c).slice(0, 4)} 回复`));
+    sendBtn.setAttribute('aria-label', busy ? '取消回复' : has ? '发送' : '让 TA 回复');
     inputEl.style.height = 'auto'; inputEl.style.height = Math.min(130, Math.max(40, inputEl.scrollHeight)) + 'px';
   }
   async function doSend() {
     const text = inputEl.value.trim();
     if (!text) {
-      if (E.busy.has(chat.id)) return;
+      if (E.busy.has(chat.id)) { E.cancelReply(chat.id); toast('已取消'); return; }
       if (!E.pending(msgs)) toast(g ? '大家会接着聊' : `${E.nameOf(c)} 会接着说`);
       E.requestReply(chat); return;
     }

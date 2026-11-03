@@ -120,11 +120,18 @@ export function ago(ts) {
 export function parseTimeTag(text) {
   const tag = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(String(text || ''));
-  if (!m) return null;
-  const body = m[1];
+  return m ? parseBody(m[1]) : null;
+}
+/** 没有时间标签时：同一行里既有年月日又有时分的第一行（比如预设自己的状态栏）；不认地点 */
+export function parseLooseTime(text) {
+  const line = String(text || '').split('\n').find(l => YMD.test(l) && /\d{1,2}\s*[:：]\s*\d{2}(?!\d)/.test(l.replace(YMD, ' ')));
+  return line ? { ...parseBody(line), place: '' } : null;
+}
+const YMD = /(\d{4})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})/;
+function parseBody(body) {
   const dm = /第\s*(\d+)\s*天|day\s*(\d+)/i.exec(body);
   // 日期：2026年10月31日 / 2026-10-31 / 2026/10/31 / 2026.10.31
-  const ym = /(\d{4})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})/.exec(body);
+  const ym = YMD.exec(body);
   const tm = /(\d{1,2})\s*[:：]\s*(\d{2})(?!\d)/.exec(ym ? body.replace(ym[0], ' ') : body);
   if (!tm) return null;
   const cur = story();
