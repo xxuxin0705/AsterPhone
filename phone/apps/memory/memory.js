@@ -1,5 +1,5 @@
 // 念念树：水彩花枝下挂满风铃和纸签，一个挂件一段记忆（方案见 docs/pages-memory.md）。
-// 场景还没做进来，先用列表：首页列出有树的 TA（自己勾的）→ 点进去是这个 TA 的「现在」和按年月排的事 → 点一件事能改。
+// 首页列出有树的 TA（自己勾的）→ 点进去是 TA 的花枝（scene.js），挂着最重要、最近的十来件 → 右上角「时间线」看全部、改。
 // 整理（世界书 / 文件 / 当前聊天 → AI 分批整理）在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
@@ -10,6 +10,7 @@ import { loadBook, keepNow, detectTags, C as ctxCfg } from '../../core/context.j
 import { connLabel, resolveConn } from '../../core/api.js';
 import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
+import { scene } from './scene.js';
 
 const S = () => state.apps.memory;
 const ymd = at => at ? at.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日') : '不知道哪天';
@@ -48,13 +49,42 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 一个 TA 的记忆（先是列表） ---------- */
+/* ---------- 一个 TA 的树：花枝上挂着最重要、最近的十来件，按日期从左往右挂；点一件弹出那一天 ---------- */
 function openTree(c) {
-  const p = page({ app: 'memory', id: 'memory-tree', title: nameOf(c), back: true, right: navBtn('more', '更多', async () => {
+  const p = page({ app: 'memory', id: 'memory-tree', title: nameOf(c), back: true, cls: 'as-mem-tree', right: [navBtn('list', '时间线', () => openList(c)), navBtn('more', '更多', async () => {
     if (await actionSheet(nameOf(c), [{ value: 'cut', label: '把这棵树移走', danger: true }]) !== 'cut') return;
     if (!(await dialog({ title: `把 ${nameOf(c)} 的树移走？`, text: '记忆不会删，只是不在这里显示', confirm: '移走', danger: true }))) return;
     const d = await M.load(); d.trees = d.trees.filter(x => x !== c.id); await M.save(); nav.pop();
-  }) });
+  })] });
+  const host = h('div.as-mem-scene'), card = h('div.as-mem-card', { role: 'dialog' }), none = h('div.as-mem-none', { hidden: true }, h('div', '这棵树上还没有挂东西'), btn('去整理', 'secondary', openSort));
+  p.el.prepend(host); p.el.append(card, none);
+  let shown = null;
+  const close = () => { card.classList.remove('is-open'); shown = null; };
+  const S = scene(host, e => {
+    if (!e || e === shown) { close(); return; }
+    shown = e;
+    card.replaceChildren(h('small', [ymd(e.at) + (e.guess ? '（推测）' : ''), e.part, e.place].filter(Boolean).join(' · ')), h('b', e.title), h('p', e.text),
+      e.now ? h('p.as-mem-card__now', '现在：' + e.now) : null, h('div.as-mem-acts', btn('改', 'secondary', () => { close(); editEvent(e); }), btn('关', 'secondary', close)));
+    card.classList.add('is-open');
+  });
+  let seen = -1;
+  async function draw() {
+    S.resume();
+    const d = await M.load(); if (M.ver === seen) return; seen = M.ver;
+    // 挑十来件：钉住的先挂，再按重要度和新旧挑；挂的时候按日期从左（早）到右（近）
+    const all = M.evOf(c, d).filter(e => !e.off), n = all.length;
+    const pick = all.map((e, i) => [e, (e.pin ? 100 : 0) + e.imp * 3 + i / Math.max(1, n) * 4]).sort((a, b) => b[1] - a[1]).slice(0, 11).map(([e]) => e)
+      .sort((a, b) => (a.at || '0').localeCompare(b.at || '0'));
+    S.set(pick); none.hidden = n > 0;
+    if (shown && !all.includes(shown)) close();
+  }
+  draw(); p.el._onShow = draw; p.el._onLeave = S.stop;
+  nav.push(p.el); S.resume();   // 进了页面才开始动
+}
+
+/* ---------- 一个 TA 的时间线：「现在」（关系、没完的事）+ 按年月排的所有事 ---------- */
+function openList(c) {
+  const p = page({ app: 'memory', id: 'memory-list', title: '时间线', back: true });
   const box = h('div');
   let seen = -1;
   async function draw() {

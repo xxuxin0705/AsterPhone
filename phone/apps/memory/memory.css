@@ -1,4 +1,4 @@
-/* AsterPhone · 念念树（memory）。花枝场景还没做进来，先是列表 */
+/* AsterPhone · 念念树（memory） */
 .as-mem-who .as-list-item__icon { background: none !important; box-shadow: none; width: 30px; height: 30px; }
 .as-mem-ev.is-off { opacity: .45; }
 .as-mem-pin { display: inline-flex; vertical-align: -2px; margin-right: 4px; color: var(--as-color-accent); }
@@ -9,3 +9,21 @@
 .as-mem-range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
 .as-mem-pv { margin: 0; max-height: 52vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 13px/1.65 var(--as-font, inherit); padding: 12px 14px; border-radius: 14px; background: var(--as-color-surface-2); }
 .as-mem-pvbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding-top: 10px; }
+
+/* 花枝页：场景铺满整页（顶栏也在上面），顶栏透明、字白 */
+.as-mem-tree { background: #f3dbe4; }
+.as-mem-tree .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: #fff; text-shadow: 0 1px 8px rgba(80,40,70,.35); }
+.as-mem-tree .as-navbar__back, .as-mem-tree .as-navbar__btn { color: #fff; filter: drop-shadow(0 1px 4px rgba(80,40,70,.35)); }
+.as-mem-tree .as-page__body { pointer-events: none; }
+.as-mem-scene { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.as-mem-sky, .as-mem-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.as-mem-sky { object-fit: cover; transition: opacity 1.4s ease; }
+.as-mem-sky.is-night { opacity: 0; }
+.as-mem-scene.is-night .as-mem-sky.is-night { opacity: 1; }
+.as-mem-card { position: absolute; z-index: 3; left: 50%; top: 50%; width: min(80%, 300px); box-sizing: border-box; transform: translate(-50%, -46%) scale(.96); opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; padding: 20px 20px 14px; border-radius: 20px; background: rgba(255,252,253,.88); color: #5a3b4c; box-shadow: 0 18px 50px rgba(90,40,70,.25); font: 15px/1.75 "Noto Serif SC", "Songti SC", serif; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.as-mem-card.is-open { opacity: 1; transform: translate(-50%, -50%); pointer-events: auto; }
+.as-mem-card small { display: block; color: #9a7c8a; font-size: 12px; letter-spacing: .06em; }
+.as-mem-card b { display: block; font-size: 18px; margin: 4px 0 6px; }
+.as-mem-card p { margin: 0 0 6px; }
+.as-mem-card__now { color: #9a7c8a; font-size: 13px; }
+.as-mem-none { position: absolute; z-index: 3; left: 50%; top: 58%; transform: translateX(-50%); display: grid; gap: 12px; justify-items: center; color: #fff; text-shadow: 0 1px 8px rgba(80,40,70,.4); font-size: 14px; }
