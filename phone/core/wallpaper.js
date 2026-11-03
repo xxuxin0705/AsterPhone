@@ -72,7 +72,7 @@ void main(){
     float hb = hash(blk + floor(uTime * 26.));
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
-  vec2 off = vec2(0.), offN = vec2(0.); float rs = 0.;
+  vec2 off = vec2(0.), offN = vec2(0.);
   if (uKind > 1.5) {
     // 自己的图片 / Live 图：不加特效，原样铺满
   } else if (uKind < .5) {
@@ -85,11 +85,10 @@ void main(){
       vec4 rp = uRipples[i];
       if (rp.w > 0.) {
         vec2 pr = (iuv - rp.xy) * vec2(uImgAspect, 1.);
-        float r = length(pr), age = uTime - rp.z, front = age*.38, x = r - front;
+        float r = length(pr), age = uTime - rp.z, front = age*.3;
         if (age > 0. && age < 3.5) {
-          // 刚冒出来时慢慢长出来、快到时间时慢慢淡掉，不会「啪」地出现或消失
-          float ring = sin(x*72.) * exp(-abs(x)*17.) * exp(-age*1.1) * smoothstep(0., .12, age) * (1. - smoothstep(2.4, 3.5, age)) * rp.w;
-          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .017; rs += ring;
+          float ring = sin((r-front)*95.) * exp(-abs(r-front)*24.) * exp(-age*1.2) * rp.w;
+          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .007;
         }
       }
     }
@@ -124,7 +123,6 @@ void main(){
   } else if (uKind > .5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
-    col *= 1. + clamp(rs, -1., 1.) * .3;   // 水纹的波峰亮一点、波谷暗一点，看得出一圈圈
     float lum = dot(col, vec3(.3,.59,.11));
     float sh = smoothstep(.58, .95, lum);
     float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
@@ -380,7 +378,7 @@ export class Wallpaper {
   tap(x, y) { this.drop(x, y, 1); this.pointer(x, y, true); this.swingKick = 1; }
   drag(x, y) {
     const t = this.tt(), L = this.lastDrop;
-    if (t - L.t > .09 && Math.hypot(x - L.x, y - L.y) > 18) this.drop(x, y, .6);
+    if (t - L.t > .06 && Math.hypot(x - L.x, y - L.y) > 14) this.drop(x, y, .6);
     this.pointer(x, y, true); this.swingKick = Math.max(this.swingKick, .45);
   }
   release() { this.finger = null; }
