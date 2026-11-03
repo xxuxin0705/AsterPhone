@@ -252,7 +252,7 @@ export async function memoryFor(people, scan = '') {
   // 想起的事：钉住的 + 联想到的最多 3 件（见 recall）
   const pool = d.ev.filter(e => !e.off && e.who.some(n => ns.has(n)));
   const pick = [...pool.filter(e => e.pin), ...recall(pool.filter(e => !e.pin), scan, n => ns.has(n) || isMe(n))];
-  if (pick.length) lines.push('想起的事（自然地提起就好，不用每件都说）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${tail(e, pool)}`).join('\n'));
+  if (pick.length) lines.push('想起的事（自然地提起就好，不用每件都说；同一类的事有好几次时，像真人一样分清是哪一次：可以先反问、逗一逗，或者都说起）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${tail(e, pool)}`).join('\n'));
   return lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '';
 }
 
@@ -261,7 +261,7 @@ export async function memoryFor(people, scan = '') {
  * 1. 点星：最近说的话里字面出现的星亮起来（最后几句最亮，再往前的暗一半）。
  * 2. 漫开：亮光顺着线往旁边走两步，每走一步打对折；一颗星连着的事越多，分给每条线的越少（谁都连着的星不算数）。
  * 3. 挑事：一件事的分 = 它挂的星亮多少（越常见的星分越少）+ 字面像不像 + 重要度 + 以前被想起过几次；
- *    刚想起过的（十分钟内）先压下去，免得每句都提同一件（又直接说到它的不算）；不按时间变淡。最多 3 件，分不够的不带。 */
+ *    字面按「越少见的词越算数」比（BM25）；刚想起过的（十分钟内）先压下去，免得每句都提同一件（又直接说到它的不算）；不按时间变淡。最多 3 件，分不够的不带。 */
 function recall(pool, scan, self) {
   if (!pool.length || !scan) return [];
   const stars = e => [...new Set([...e.who, e.place, ...e.tags, ...(e.keys || [])].filter(n => n && n.length > 1 && !self(n)))];
@@ -277,14 +277,22 @@ function recall(pool, scan, self) {
     for (const [b, v] of next) act.set(b, (act.get(b) || 0) + v);
     front = next;
   }
-  const sg = grams(recent), now = Date.now();
+  // 字面：刚才那几句里的两字词，在越少的事里出现越算数（idf；「我们」「还记」这种到处都有的几乎不算），带虚字的不算。
+  // 没有关键词的老记忆（v0.8.71 前整理的）主要靠这个想起来
+  const docs = new Map(pool.map(e => [e, grams([e.title, e.text, e.place, ...e.tags, ...(e.keys || [])].join(''))])), N = pool.length;
+  const q = [...grams(recent)].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟]/.test(b));
+  const idf = new Map(q.map(b => { const df = pool.filter(e => docs.get(e).has(b)).length; return [b, df ? Math.log(1 + N / df) : 0]; }));
+  const now = Date.now();
   const score = e => {
-    const s = stars(e).reduce((t, n) => t + (act.get(n) || 0) / Math.sqrt(deg.get(n)), 0) + Math.min(1.2, overlap(sg, grams(e.title + e.text)) * .12);
-    const again = e.last && now - e.last < 600000 && !stars(e).some(n => hot.has(n));   // 刚想起过、这会儿又没直接说到它：先压下去
+    const lit = q.reduce((t, b) => t + (docs.get(e).has(b) ? idf.get(b) : 0), 0) * .2;
+    const s = stars(e).reduce((t, n) => t + (act.get(n) || 0) / Math.sqrt(deg.get(n)), 0) + Math.min(2, lit);
+    if (s < .3) return 0;   // 和现在说的一点都不沾：重要度、想起过几次都不算
+    const again = e.last && now - e.last < 600000 && !stars(e).some(n => hot.has(n)) && lit < .8;   // 刚想起过、这会儿又没直接说到它：先压下去
     return (s + e.imp * .08 + Math.log1p(e.used || 0) * .1) * (again ? .25 : 1);
   };
   const pick = pool.map(e => [e, score(e)]).filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);
   // 被想起一次记一次（不改 ver：页面不用跟着重画）
+  if (pick.length) log('info', '念念树', '想起：' + pick.map(e => e.title).join('、'));
   if (pick.length) { pick.forEach(e => { e.used = (e.used || 0) + 1; e.last = now; }); kvSet('mem:' + Dkey, D).catch(e => log('warn', '念念树', '没存上想起的次数：' + e.message)); }
   return pick;
 }
