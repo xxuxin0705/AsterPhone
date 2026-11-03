@@ -1,6 +1,6 @@
 // 和酒馆正文联动：
 // 1. 往正文里放「暗号」指令（让 AI 输出剧情时间、正文里发给你的手机消息）
-// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机，并把标签从正文显示里藏起来
+// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进念念树，并把标签从正文显示里藏起来
 // 3. 把手机里的聊天注入正文（跟随正文的聊天自动注入最近 N 条；手动钉住的始终注入）
 import { state, subscribe, getMsgs, contact, commit, enterWindow } from './store.js';
 import { syncTavernProfiles } from './api.js';
@@ -48,7 +48,8 @@ export function tagInstruction() {
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
-  return `[AsterPhone 格式说明]\n${text}` + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+  const mem = state.apps.memory, people = [myName(), ...state.contacts.map(c => c.name)].filter(Boolean).join('、');
+  return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people }) : '') + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 // 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
 const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))
@@ -62,6 +63,9 @@ async function readMessage(id) {
   const t = time.parseTimeTag(text);
   if (t) { const cur = time.story(), cd = cur.date ? `${cur.date.getFullYear()}-${String(cur.date.getMonth() + 1).padStart(2, '0')}-${String(cur.date.getDate()).padStart(2, '0')}` : null;
     if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd) || (t.place && t.place !== cur.place)) time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place || undefined); }
+  // 念念树：这一楼写的 <astermem>（没写也要告诉它：换了 swipe 时之前那版记下的要收回）
+  if (state.apps.memory.on) (await import('./memory.js')).fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n'))
+    .catch(e => log('warn', '念念树', '记不下这一楼：' + e.message));
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {
@@ -70,7 +74,7 @@ async function readMessage(id) {
     if (!from) { const mm = /^([^:：\n]{1,20})[:：]\s*([\s\S]+)$/.exec(body); if (mm) { from = mm[1].trim(); body = mm[2].trim(); } }
     if (from && (body || ty)) found.push([from, body, grp ? grp[1].trim() : '', ty ? ty[1] : '']);
   }
-  if (!found.length) return;
+  if (!found.length) { hideTagsIn(id, tag()); return; }
   const { fromStory } = await import('../apps/chat/engine.js');
   for (const [from, body, group, type] of found) {
     const k = `${id}|${m.swipe_id ?? 0}|${from}|${group}|${type}|${body}`;

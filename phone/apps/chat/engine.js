@@ -5,7 +5,7 @@ import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs } fro
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
-import { memoryFor } from '../../core/memory.js';
+import { memoryFor, fromChat, dropChat } from '../../core/memory.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -214,6 +214,11 @@ async function worldBlock(scan, people = []) {
   const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念树', '读不到记忆：' + e.message); return ''; });
   return (w ? `\n【世界书】\n${w}\n` : '') + m;
 }
+/** 念念树：让 TA 回消息时顺手把值得记的写进 <astermem>（不多调一次 AI） */
+const memNote = () => state.apps.memory.on && state.apps.memory.chat !== false ? '\n\n' + compose('memChat') : '';
+/** 把回复里的 <astermem> 拿出来（没写完被截断的也去掉），剩下的才是消息 */
+const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<astermem>([\s\S]*?)<\/astermem>/gi, (_, x) => { mem += x + '\n'; return ''; }).replace(/<astermem>[\s\S]*$/i, ''); return [text, mem.trim()]; };
+const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '念念树', '记不下这段聊天：' + e.message));
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
@@ -250,13 +255,14 @@ export async function requestReply(chat, opts = {}) {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
-    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
+    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote() + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
     const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天' });
-    const { lines, inner } = parseReply(raw, c);
+    const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     saveMsgs(chat.id); emit('read', chat.id);
     const batch = uid('b'), rc = replyCfg(chat);
+    keepMem(chat, batch, mem, [c].filter(Boolean));
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1]) break;
@@ -317,13 +323,14 @@ export async function requestGroupReply(chat, opts = {}) {
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history, members),
-      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat);
+      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
     const rc = replyCfg(chat);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
-    const clean = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ''));
+    const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
     const batch = uid('b'); let shown = 0, nv = 0;
+    keepMem(chat, batch, mem, members);
     for (const raw of clean.split('\n').map(l => l.trim()).filter(Boolean)) {
       const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
@@ -373,6 +380,7 @@ export async function regenerate(chat, msgId) {
   const msgs = await getMsgs(chat.id);
   const i = msgs.findIndex(m => m.id === msgId); if (i < 0) return;
   const batch = msgs[i].batch;
+  if (batch) dropChat(chat.id, batch).catch(e => log('warn', '念念树', '收不回这批记下的：' + e.message));
   for (let j = msgs.length - 1; j >= i; j--) if (msgs[j].from === 'them' && (!batch || msgs[j].batch === batch || j === i)) msgs.splice(j, 1);
   const last = msgs[msgs.length - 1]; if (last) touch(chat, last); else chat.lastText = '';
   saveMsgs(chat.id); commit('chats'); emit('reload', chat.id);

@@ -69,7 +69,8 @@ export function defaults() {
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
-      memory: { conn: { text: 'follow' }, on: true },   // 念念树：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆
+      // 念念树：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off / maybe 有值得记的才记 / every 每楼都记）、手机聊天时顺手记
+      memory: { conn: { text: 'follow' }, on: true, story: 'maybe', chat: true },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',

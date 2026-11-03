@@ -228,6 +228,11 @@ function openSet() {
       ...state.connections.text.map(c => ({ value: c.id, label: c.name, active: S().conn.text === c.id }))]);
     if (!v) return; S().conn.text = v; commit('apps'); connItem.querySelector('.as-list-item__value').textContent = label();
   } });
-  p.body.append(group('', [connItem, toggleItem({ title: '聊天时带上记忆' }, S().on, on => { S().on = on; commit('apps'); })]));
+  // 记忆关着时自动记也不跑，那一组就不显示
+  const auto = group(withInfo('自动记', '跟着剧情记：正文生成时顺手写下值得记的事，不另外花钱。手机聊天时顺手记：TA 回你消息时顺手记下，也不另外花钱。'), [
+      h('div.as-field', h('span.as-field__label', '跟着剧情记'), segmented([['off', '不记'], ['maybe', '有值得记的才记'], ['every', '每楼都记']], S().story, v => { S().story = v; commit('apps'); commit('inject'); })),
+      toggleItem({ title: '手机聊天时顺手记' }, S().chat !== false, on => { S().chat = on; commit('apps'); })]);
+  auto.hidden = !S().on;
+  p.body.append(group('', [connItem, toggleItem({ title: '聊天时带上记忆' }, S().on, on => { S().on = on; auto.hidden = !on; commit('apps'); commit('inject'); })]), auto);
   nav.push(p.el);
 }
