@@ -59,7 +59,10 @@ ${rc.group ? `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 
 }
 
 /** 从 AI 的一行回复里认出特殊消息；认不出就当普通文字 */
+// 有的预设、世界书里带着图床上的表情包链接，AI 会学着直接发链接：当成图发出来
+const IMG_URL = /^https?:\/\/\S+\.(png|jpe?g|gif|webp)(\?\S*)?$/i;
 export function parseLine(line) {
+  if (IMG_URL.test(line.trim())) return { type: 'sticker', name: '', src: line.trim() };
   const m = /^[\[【]\s*(语音|图片|照片|表情包?|表情|转账|红包|位置|定位|名片|拍一拍|收下|收款|领取|退还|退回)\s*(?:[:：]\s*)?[\]】]?\s*[:：]?\s*(.*)$/.exec(line);
   if (!m) return { type: 'text', text: line };
   const kind = m[1], rest = m[2].replace(/^[\]】]\s*/, '').trim();
@@ -67,7 +70,7 @@ export function parseLine(line) {
   const num = parseFloat(String(a).replace(/[^\d.]/g, '')) || 0;
   switch (kind) {
     case '语音': return { type: 'voice', text: rest || '……', dur: voiceDur(rest) };
-    case '图片': case '照片': return { type: 'image', text: rest };
+    case '图片': case '照片': return IMG_URL.test(rest) ? { type: 'image', src: rest, text: '' } : { type: 'image', text: rest };
     case '表情': case '表情包': {
       const st = (state.stickers || []).find(s => s.name === rest) || (state.stickers || []).find(s => rest && s.name.includes(rest));
       return st ? { type: 'sticker', name: st.name, src: st.src, sid: st.id } : { type: 'text', text: rest ? `[${rest}]` : '' };

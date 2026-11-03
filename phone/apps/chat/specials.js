@@ -11,6 +11,8 @@ import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 
 /* ================= 气泡 ================= */
 /** 按消息类型做出气泡。ctx = { chat, c, redraw } */
+/** 图打不开（链接失效、编出来的链接）：换成一行小字 */
+const broken = e => e.target.replaceWith(h('span.as-muted', '图片打不开'));
 export function buildBubble(m, ctx) {
   const quote = m.quote ? h('span.as-chat-quote', h('b', `回复 ${m.quote.who}`), h('span', m.quote.text)) : null;
   const mine = m.from === 'me';
@@ -30,7 +32,7 @@ export function buildBubble(m, ctx) {
       return el;
     }
     case 'image': {
-      if (m.src) return h('div.as-chat-bubble.as-chat-pic', quote, h('img', { src: m.src, alt: m.text || '图片', loading: 'lazy', onclick: () => viewImage(m.src, m.text) }));
+      if (m.src) return h('div.as-chat-bubble.as-chat-pic', quote, h('img', { src: m.src, alt: m.text || '图片', loading: 'lazy', onclick: () => viewImage(m.src, m.text), onerror: broken }));
       const gen = h('button.as-chat-imgcard__gen', { onclick: async e => {
         e.stopPropagation(); gen.disabled = true; gen.replaceChildren(h('i.as-spin'), ' 正在画');
         try { m.src = await generateImage(m.text || '一张生活照'); saveMsgs(ctx.chat.id); ctx.redraw(true); }
@@ -39,7 +41,7 @@ export function buildBubble(m, ctx) {
       return h('div.as-chat-bubble.as-chat-imgcard', quote, h('div.as-chat-imgcard__art', icon('image', 26, 1.5)), h('div.as-chat-imgcard__desc', m.text || '一张图片'), gen);
     }
     case 'sticker':
-      return h('div.as-chat-bubble.as-chat-sticker', h('img', { src: m.src || (state.stickers.find(s => s.id === m.sid) || {}).src || '', alt: m.name || '表情' }));
+      return h('div.as-chat-bubble.as-chat-sticker', h('img', { src: m.src || (state.stickers.find(s => s.id === m.sid) || {}).src || '', alt: m.name || '表情', onerror: broken }));
     case 'transfer': case 'packet': {
       const pk = m.type === 'packet';
       const el = h('div.as-chat-bubble.as-chat-money' + (pk ? '.is-packet' : '') + (m.status !== 'pending' ? '.is-done' : ''),

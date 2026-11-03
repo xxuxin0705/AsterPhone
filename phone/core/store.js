@@ -184,6 +184,7 @@ export function saveMsgs(chatId) {
 }
 export async function clearMsgs(chatId) {
   msgCache.set(chatId, []); await kvDel('msgs:' + chatId); saveMsgs(chatId);
+  (await import('./memory.js')).dropChatAll(chatId).catch(e => console.warn('[AsterPhone] 念念树没收回这个聊天记下的', e));   // 聊天删了，念念树里从这个聊天记下的也删
   for (const k of await kvKeys()) if (String(k).startsWith(`tts:${chatId}:`)) await kvDel(k);   // 合成好存着的语音
 }
 

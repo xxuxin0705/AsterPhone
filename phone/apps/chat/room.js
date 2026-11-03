@@ -272,6 +272,9 @@ export async function openRoom(chat) {
   async function del(list2) {
     if (!(await dialog({ title: list2.length > 1 ? `删除 ${list2.length} 条消息？` : '删除这条消息？', confirm: '删除', danger: true }))) return false;
     list2.forEach(m => { const i = msgs.indexOf(m); if (i >= 0) msgs.splice(i, 1); });
+    // 念念树里从这几批消息记下的也删掉
+    const { dropChat } = await import('../../core/memory.js');
+    for (const b of new Set(list2.map(m => m.batch).filter(Boolean))) await dropChat(chat.id, b).catch(e => toast('念念树里的没删掉：' + e.message));
     const last = msgs[msgs.length - 1]; chat.lastText = E.preview(last); if (last) chat.lastAt = last.at;
     saveMsgs(chat.id); commit('chats'); redraw(true); return true;
   }
