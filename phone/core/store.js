@@ -69,7 +69,7 @@ export function defaults() {
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
-      memory: { conn: { text: 'follow' }, on: true },   // 银河纪：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆
+      memory: { conn: { text: 'follow' }, on: true },   // 念念树：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',

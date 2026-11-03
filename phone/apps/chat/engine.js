@@ -209,9 +209,9 @@ function historyText(msgs, c, n = 24) {
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
-/** 世界书 + 银河纪里 TA 们记得的事（people：这次说话的 TA 们） */
+/** 世界书 + 念念树里 TA 们记得的事（people：这次说话的 TA 们） */
 async function worldBlock(scan, people = []) {
-  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '银河纪', '读不到记忆：' + e.message); return ''; });
+  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念树', '读不到记忆：' + e.message); return ''; });
   return (w ? `\n【世界书】\n${w}\n` : '') + m;
 }
 export async function buildReplyPrompt(chat, msgs) {
