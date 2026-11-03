@@ -64,7 +64,7 @@ function openTree(c) {
     if (!e || e === shown) { close(); return; }
     shown = e;
     card.replaceChildren(h('small', [ymd(e.at) + (e.guess ? '（推测）' : ''), e.part, e.place].filter(Boolean).join(' · ')), h('b', e.title), h('p', e.text),
-      e.now ? h('p.as-mem-card__now', '现在：' + e.now) : null, h('div.as-mem-acts', btn('改', 'secondary', () => { close(); editEvent(e); }), btn('关', 'secondary', close)));
+      M.tail(e, M.evOf(c)) ? h('p.as-mem-card__now', M.tail(e, M.evOf(c)).slice(1, -1)) : null, h('div.as-mem-acts', btn('改', 'secondary', () => { close(); editEvent(e); }), btn('关', 'secondary', close)));
     card.classList.add('is-open');
   });
   let seen = -1;
@@ -140,7 +140,7 @@ async function editEvent(e) {
       field('经过', textarea({ value: x.text, rows: 3, onInput: v => { x.text = v.trim(); } })),
       field('人物', input({ value: x.who, onInput: v => { x.who = v; } })),
       field('标签', input({ value: x.tags, onInput: v => { x.tags = v; } })),
-      field('现在的状态', input({ value: x.now, onInput: v => { x.now = v.trim(); } }))]),
+      field('影响', input({ value: x.after || '', onInput: v => { x.after = v.trim(); } }))]),
     group('重要度', [h('div.as-mem-imp', segmented([1, 2, 3, 4, 5].map(n => [n, '★'.repeat(n)]), x.imp, v => { x.imp = v; }))]),
     h('div.as-mem-acts', flag('pin', '取消钉住', '钉住'), flag('off', '恢复', '撤回'),
       btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这件事？', confirm: '删除', danger: true }))) return; d.ev.splice(d.ev.indexOf(e), 1); await M.save(); nav.pop(); })),

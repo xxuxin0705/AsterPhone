@@ -42,7 +42,8 @@ export const evOf = (c, d = D) => { const ns = namesOf(c); return d.ev.filter(e 
 export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(r => ns.has(r.a) || ns.has(r.b)); };
 
 /* ---------- 读 AI 写回来的行 ---------- */
-// 事件：日期｜时段｜地点｜标题｜经过｜人物｜标签｜重要度｜现在｜关键词
+// 事件：日期｜时段｜地点｜标题｜经过｜人物｜标签｜重要度｜影响｜关键词
+// 影响（after）= 这件事过去后留下了什么（伤、心结、还留着的东西），没有就空着；以前存的 now 是事情刚结束时的样子，只在 TA 最近那件事上当「现在」用
 // 关系：甲｜乙｜关系｜从何时起｜现在   人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
 /** 「2005年4月6日」「2005/4/6」「2005-04-06?」→ ['2005-04-06', 是不是推测] */
@@ -59,7 +60,7 @@ export function parse(raw) {
     const f = m[2].split(/[｜|]/).map(norm);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]);
-      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: list(f[6]), imp: Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), now: f[8] || '', keys: list(f[9]) });
+      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: list(f[6]), imp: Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), after: f[8] || '', keys: list(f[9]) });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') { const md = /(\d{1,2})\D+(\d{1,2})/.exec(f[0]); if (md && f[1]) out.days.push({ md: `${md[1].padStart(2, '0')}-${md[2].padStart(2, '0')}`, what: f[1], who: list(f[2]) }); }
@@ -226,6 +227,10 @@ export async function startJob(label, list, done = 0) {
 /* ---------- 聊天时带进去 ---------- */
 const today = () => { const d = time.isStory() ? time.story().date : new Date(); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const cut = (s, n) => s.length > n ? s.slice(0, n) + '…' : s;
+/** 最近的一件（按日期） */
+export const newest = list => list.reduce((a, e) => !a || (e.at || '') >= (a.at || '') ? e : a, null);
+/** 一件事后面带的：留下的影响；以前存的「现在」只在最近那件上算数 */
+export const tail = (e, list) => e.after ? `（后来：${e.after}）` : e.now && e === newest(list) ? `（现在：${e.now}）` : '';
 /** 给 people（这次聊天里的 TA 们）带上的记忆。scan = 最近的聊天和正文，拿来对名字、对字面 */
 export async function memoryFor(people, scan = '') {
   if (!state.apps.memory.on || !people.length) return '';
@@ -247,7 +252,7 @@ export async function memoryFor(people, scan = '') {
   // 想起的事：钉住的 + 联想到的最多 3 件（见 recall）
   const pool = d.ev.filter(e => !e.off && e.who.some(n => ns.has(n)));
   const pick = [...pool.filter(e => e.pin), ...recall(pool.filter(e => !e.pin), scan, n => ns.has(n) || isMe(n))];
-  if (pick.length) lines.push('想起的事（自然地提起就好，不用每件都说）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.now ? `（现在：${e.now}）` : ''}`).join('\n'));
+  if (pick.length) lines.push('想起的事（自然地提起就好，不用每件都说）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${tail(e, pool)}`).join('\n'));
   return lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '';
 }
 
