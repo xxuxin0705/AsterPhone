@@ -7,3 +7,5 @@
 .as-mem-imp, .as-mem-src { padding: 10px 14px; }
 .as-mem-sum { padding: 6px 4px; color: var(--as-color-text-2); font-size: 13px; text-align: center; }
 .as-mem-range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.as-mem-pv { margin: 0; max-height: 52vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 13px/1.65 var(--as-font, inherit); padding: 12px 14px; border-radius: 14px; background: var(--as-color-surface-2); }
+.as-mem-pvbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding-top: 10px; }

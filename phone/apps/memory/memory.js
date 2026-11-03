@@ -6,7 +6,7 @@ import { state, commit } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, avatar, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
-import { loadBook, keepNow, detectTags } from '../../core/context.js';
+import { loadBook, keepNow, detectTags, C as ctxCfg } from '../../core/context.js';
 import { connLabel, resolveConn } from '../../core/api.js';
 import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
@@ -132,7 +132,8 @@ function openSort() {
   // 每种来源各自的选择；parts() 给出要整理的一段段文字
   const book = { name: (ctx() && ctx().chatMetadata && ctx().chatMetadata.world_info) || '', entries: [], off: new Set() };
   const file = { name: '', got: null, off: new Set() };
-  const chat = { withUser: true, from: 0, to: Infinity, keep: keepNow() };   // 要哪些标签：一开始照「上下文与世界书」里给手机看的
+  // 要 / 不要哪些标签：记住上次在这里挑的；没挑过就照「上下文与世界书」
+  const chat = { withUser: true, from: 0, to: Infinity, keep: (S().keep || keepNow()).slice(), drop: (S().drop || ctxCfg().drop || []).slice() };
   const entryRows = (list, off) => list.map((e, i) => toggleItem({ title: e.title, sub: `${e.content.length} 字` }, !off.has(i), on => { on ? off.delete(i) : off.add(i); count(); }));
   const parts = () => {
     if (src === 'book') return book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content);
@@ -142,15 +143,36 @@ function openSort() {
   };
   const count = () => { const ps = parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字 · 分 ${M.batches(ps).length} 批` : ''; paintRun(); };
   // 正文楼层：读哪几层、包不包含你发的、哪些标签要（和「设置 → 上下文与世界书」一样：亮着的标签里的字拿去整理，灭着的整段去掉，没被标签包着的照常整理）
-  const floors = msgs => {
-    const found = detectTags(msgs.map(m => ({ text: m.mes || '' }))), tags = Object.keys(found).sort((a, b) => found[b] - found[a]);
-    const chip = tg => { const b = h('span.as-chip' + (chat.keep.includes(tg) ? '.is-active' : ''), { onclick: () => {
-      chat.keep = b.classList.toggle('is-active') ? [...chat.keep, tg] : chat.keep.filter(x => x !== tg); count();
-    } }, `${tg === '!--' ? '<!-- -->' : tg} · ${found[tg]}`); return b; };
-    return [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); }),
-      field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(chat.from), onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
-        h('span', '到'), input({ type: 'number', value: String(Math.min(chat.to, msgs.length - 1)), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })))]),
-    tags.length ? group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着。亮着的标签里的内容拿去整理，灭着的整段去掉；没被标签包着的正文照常整理。一开始照「设置 → 上下文与世界书」里给手机看的标签。'), [h('div.as-field', h('div.as-chips', tags.map(chip)))]) : null];
+  const floors = msgs => [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); }),
+    field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(chat.from), onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
+      h('span', '到'), input({ type: 'number', value: String(Math.min(chat.to, msgs.length - 1)), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })))]),
+  tagGroup(msgs)];
+  // 正文筛选：和「设置 → 上下文与世界书」一个规矩，「要」的标签里的字拿去整理，「不要」的整段去掉，没被标签包着的照常整理。
+  // 扫出来的标签都列出来（不在「要」里的先放「不要」），点一下换到另一排；也能自己加。下面能一层层预览筛完的样子
+  const tagGroup = msgs => {
+    const found = detectTags(msgs.map(m => ({ text: m.mes || '' })));
+    for (const tg of Object.keys(found)) if (!chat.keep.includes(tg) && !chat.drop.includes(tg)) chat.drop.push(tg);
+    const rows = { keep: h('div.as-chips'), drop: h('div.as-chips') }, other = k => k === 'keep' ? 'drop' : 'keep';
+    const keepSave = () => { S().keep = chat.keep; S().drop = chat.drop; commit('apps'); count(); paint(); };
+    const paint = () => ['keep', 'drop'].forEach(k => rows[k].replaceChildren(...chat[k].map(tg => h('span.as-chip' + (k === 'keep' ? '.is-active' : ''), {
+      onclick: () => { chat[k] = chat[k].filter(x => x !== tg); chat[other(k)].push(tg); keepSave(); } }, (tg === '!--' ? '<!-- -->' : tg) + (found[tg] ? ` · ${found[tg]}` : ''))),
+      h('button.as-chip.as-ctx-add', { onclick: async () => {
+        const tg = String(await dialog({ title: '加标签', input: { placeholder: '标签名' } }) || '').trim().replace(/^<\/?|>$/g, '').toLowerCase(); if (!tg) return;
+        chat.keep = chat.keep.filter(x => x !== tg); chat.drop = chat.drop.filter(x => x !== tg); chat[k].push(tg); keepSave();
+      } }, icon('plus', 12, 2.4), '加标签')));
+    paint();
+    return group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着。「要」里的标签，里面的字拿去整理；「不要」里的整段去掉；没被标签包着的正文照常整理。点一下标签换到另一排。'),
+      [h('div.as-field', h('span.as-field__label', '要'), rows.keep), h('div.as-field', h('span.as-field__label', '不要'), rows.drop), item({ title: '预览', chevron: true, onClick: () => preview(msgs) })]);
+  };
+  // 一层层看筛完、要拿去整理的样子
+  const preview = msgs => {
+    const list = msgs.map((m, i) => i).filter(i => i >= chat.from && i <= chat.to && msgs[i].mes && (chat.withUser || !msgs[i].is_user));
+    if (!list.length) { toast('这几层没有内容'); return; }
+    let k = 0;
+    const pre = h('pre.as-mem-pv'), at = h('span.as-mem-sum');
+    const show = () => { const i = list[k]; pre.textContent = M.floorsText(msgs, { ...chat, from: i, to: i })[0] || `【第 ${i} 层】\n（筛完是空的）`; at.textContent = `${k + 1} / ${list.length}`; pre.scrollTop = 0; };
+    sheet({ title: '预览', content: [pre, h('div.as-mem-pvbar', btn('上一层', 'secondary', () => { if (k > 0) { k--; show(); } }), at, btn('下一层', 'secondary', () => { if (k < list.length - 1) { k++; show(); } }))] });
+    show();
   };
 
   async function paintPick() {
@@ -178,7 +200,7 @@ function openSort() {
   // 下面那一块：开始 / 正在整理第几批（取消）/ 上次没跑完（接着整理、放弃）
   async function paintRun() {
     const j = M.running(), left = j ? null : await M.leftover();
-    if (j) act.replaceChildren(h('div.as-mem-sum', `正在整理「${j.label}」第 ${j.done + 1}/${j.list.length} 批…`), btn('取消', 'secondary', () => M.cancelJob()));
+    if (j) act.replaceChildren(h('div.as-mem-sum', `正在整理「${j.label}」第 ${j.done + 1}/${j.list.length} 批…`), h('div.as-prompt-bar', btn('取消', 'secondary', () => M.cancelJob())));
     else if (left) act.replaceChildren(h('div.as-mem-sum', `「${left.label}」还剩 ${left.list.length - left.done} 批没整理`),
       h('div.as-prompt-bar', btn('放弃', 'secondary', async () => { await M.dropJob(); paintRun(); }), btn('接着整理', 'primary', () => go(left.label, left.list, left.done))));
     else act.replaceChildren(h('div.as-prompt-bar', btn('开始整理', 'primary', () => {
