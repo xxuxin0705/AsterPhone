@@ -22,6 +22,7 @@ const APP_LOADERS = {
   log: () => import('../apps/log/log.js'),
   music: () => import('../apps/music/music.js'),
   library: () => import('../apps/library/library.js'),
+  memory: () => import('../apps/memory/memory.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 

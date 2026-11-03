@@ -27,4 +27,5 @@
 .as-home-app[data-as-app="settings"] .as-home-app__icon { background: linear-gradient(160deg, #b9c9dc, #6f85a3); }
 .as-home-app[data-as-app="library"] .as-home-app__icon { background: linear-gradient(160deg, #b7c6ff, #6f86e8); }
 .as-home-app[data-as-app="log"] .as-home-app__icon { background: linear-gradient(160deg, #8ee6c8, #2eb08f); }
+.as-home-app[data-as-app="memory"] .as-home-app__icon { background: linear-gradient(160deg, #f9c8e2, #a68be8); }
 

@@ -5,6 +5,7 @@ import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs } fro
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
+import { memoryFor } from '../../core/memory.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -208,7 +209,11 @@ function historyText(msgs, c, n = 24) {
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
-async function worldBlock(scan) { const w = await worldText(scan).catch(() => ''); return w ? `\n【世界书】\n${w}\n` : ''; }
+/** 世界书 + 念念树里 TA 们记得的事（people：这次说话的 TA 们） */
+async function worldBlock(scan, people = []) {
+  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念树', '读不到记忆：' + e.message); return ''; });
+  return (w ? `\n【世界书】\n${w}\n` : '') + m;
+}
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
@@ -217,7 +222,7 @@ export async function buildReplyPrompt(chat, msgs) {
     system: specialsGuide(rc),
     prompt: compose('dm', {
       char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
-      story, world: await worldBlock(story + '\n' + history), time: time.forPrompt(), history, min, max,
+      story, world: await worldBlock(story + '\n' + history, [c]), time: time.forPrompt(), history, min, max,
     }, chatScheme('dm', cfg.prompt)),
   };
 }
@@ -311,7 +316,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
-    const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history),
+    const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history, members),
       time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat);
     const rc = replyCfg(chat);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊' });
@@ -488,7 +493,7 @@ export async function deliverFromStory(c, text, groupName = '') {
 export async function genMoment(c) {
   const conn = resolveConn('text', 'chat');
   const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400,
-    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count))), time: time.forPrompt() }) });
+    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c]), time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
   let hiddenFromMe = false;
