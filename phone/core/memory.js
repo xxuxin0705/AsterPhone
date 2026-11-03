@@ -9,7 +9,7 @@ import { uid } from './util.js';
 import { generate, resolveConn } from './api.js';
 import { compose, myName } from './promptstore.js';
 import { cleanText } from './context.js';
-import { log } from './log.js';
+import { log, apiLog } from './log.js';
 import { ctx } from './bridge.js';
 import * as time from './time.js';
 
@@ -290,7 +290,8 @@ function recall(pool, scan, self) {
   // 字面只比内容：说话人的名字（每行开头的「桃霁：」）、TA 们和我的名字都去掉，不然谁的事都对得上
   const strip = s => [...self].filter(n => n.length > 1).reduce((x, n) => x.split(n).join(' '), s);
   const docs = new Map(pool.map(e => [e, toks(strip([e.title, e.text, e.place, ...e.tags, ...(e.keys || [])].join(' ')))])), N = pool.length;
-  const q = [...toks(strip(recent))].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b));
+  // 单个字只看最后一句（刚说的话），不然几百字的正文里随便几个字都能对上
+  const q = [...new Set([...grams(strip(recent)), ...toks(strip(scan.slice(scan.lastIndexOf('\n') + 1)))])].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b));
   const idf = new Map(q.map(b => { const df = pool.filter(e => docs.get(e).has(b)).length; return [b, df ? Math.log(1 + N / df) : 0]; }));
   const now = Date.now();
   const score = e => {
@@ -302,7 +303,7 @@ function recall(pool, scan, self) {
   };
   const pick = pool.map(e => [e, score(e)]).filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);
   // 被想起一次记一次（不改 ver：页面不用跟着重画）
-  if (pick.length) log('info', '念念树', '想起：' + pick.map(e => e.title).join('、'));
+  if (pick.length) apiLog('info', '念念树', '想起：' + pick.map(e => e.title).join('、'));
   if (pick.length) { pick.forEach(e => { e.used = (e.used || 0) + 1; e.last = now; }); kvSet('mem:' + Dkey, D).catch(e => log('warn', '念念树', '没存上想起的次数：' + e.message)); }
   return pick;
 }
