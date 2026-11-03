@@ -24,28 +24,20 @@ const FLOWERS = {
   night: { size: [1024, 720], list: [[31.1,1067.2,72.5,35,1045,40,-400,45],[129.8,1099.3,98.3,140,1070,179,-617,62],[119.6,1189.3,48.9,125,1170,520,-549,40],[194.3,1256.8,56,200,1235,9,-606,45],[24.2,1395.5,98,30,1365,490,-913,62],[141.6,1462.7,96.1,155,1425,564,-974,80],[672.1,1505.7,106.3,660,1465,-551,-1004,85],[801.6,1538.8,78,805,1515,93,-1083,48],[341.7,1577.7,54.6,345,1560,-20,-933,36],[276,1580,39.6,275,1565,463,-953,30],[308,1639.9,50.1,310,1625,125,-1002,30],[417.4,1649.8,33.3,420,1635,396,-1029,30],[153.5,1692.8,167.2,165,1640,357,-1470,108],[597.5,1699.8,50.1,600,1680,-59,-1057,40],[793.6,1797.4,173.8,790,1740,-614,-1564,115],[403.5,1805.5,140.2,410,1760,425,-1617,92]] },
 };
 // 水中月：鱼群绕月亮转圈（圆心、横纵比、每条鱼的起始角度和半径）
-// 水中月的水面网格：竖向格子更密，水纹看起来是扁的（透视）。图里上面远、下面近，越近水面越「放大」
-const WG = 128, WH = 288;
-const toPlane = (u, v) => { const p = (Math.pow(.15 + .85 * Math.min(1, Math.max(0, v)), .6) - .3204) / .6796; return [(.5 + (u - .5) * (1 - .45 * p)) * WG, p * WH]; };
 const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
   fish: [[-1.077,.4912],[-2.274,.4506],[-.475,.3628],[-3.056,.3695],[2.791,.3206],[.487,.3533],[1.928,.32],[1.095,.4479]] };
 
 const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
 const FS = `
 precision highp float;
-uniform sampler2D uDay, uNight, uFish, uFlD, uFlN, uWave; uniform vec2 uFlSzD, uFlSzN;
+uniform sampler2D uDay, uNight, uFish, uFlD, uFlN; uniform vec2 uFlSzD, uFlSzN;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
 uniform vec4 uCrop;   // 自己的壁纸调过位置：只用图里 (x, y, 宽, 高) 这一块
-uniform vec3 uReveal; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
+uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
 float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
-// 水面一直在动的细水流：几层慢慢挪的正弦，没人碰时水也不是死的
-float flow(vec2 q){
-  return sin(q.x*31. + uTime*.55 + sin(q.y*9. - uTime*.35)*2.2) * sin(q.y*52. - uTime*.8 + sin(q.x*13. + uTime*.25)*1.6)
-       + .6*sin(q.x*57. - uTime*.4 + q.y*21.) * sin(q.y*88. + uTime*.6);
-}
 vec3 tap(sampler2D t, vec2 uv, float b){
   if (b < .0004) return texture2D(t, uv).rgb;
   vec3 c = texture2D(t, uv).rgb*.28;
@@ -80,22 +72,27 @@ void main(){
     float hb = hash(blk + floor(uTime * 26.));
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
-  vec2 off = vec2(0.), offN = vec2(0.), wg = vec2(0.);
+  vec2 off = vec2(0.), offN = vec2(0.); float rs = 0.;
   if (uKind > 1.5) {
     // 自己的图片 / Live 图：不加特效，原样铺满
   } else if (uKind < .5) {
     // 城堡：底图不扭，花头另外贴上去（见下面）
   } else {
-    // 水面：图里上面远、下面近，按透视换到水面网格上（和 JS 的 toPlane 同一个算法）
-    float v = (pow(.15 + .85*clamp(iuv.y, 0., 1.), .6) - .3204) / .6796;
-    vec2 q = vec2(.5 + (iuv.x - .5) * (1. - .45*v), v);
-    // 手指荡开的水纹：CPU 算好的坡度，开了平方根存进 8 位图里（小坡度也够细）
-    vec2 e = texture2D(uWave, q).ra * 2. - 1.;
-    wg = sign(e) * e * e * .5;
-    float d = .002;
-    wg += vec2(flow(q + vec2(d, 0.)) - flow(q - vec2(d, 0.)), flow(q + vec2(0., d)) - flow(q - vec2(0., d))) * .0045;
-    // 折射：按坡度把底下的画面推开一点，越近推得越多
-    off = vec2(wg.x * .9, wg.y * .35) * (.35 + .65*v);
+    off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
+               cos(iuv.x*33. - uTime*.9) + sin((iuv.x-iuv.y)*24. + uTime*1.3)) * .0016;
+    // 水波纹：最多 16 圈同时在扩散，按住拖动时会沿着手指一路冒出来
+    for (int i = 0; i < 16; i++) {
+      vec4 rp = uRipples[i];
+      if (rp.w > 0.) {
+        vec2 pr = (iuv - rp.xy) * vec2(uImgAspect, 1.);
+        float r = length(pr), age = uTime - rp.z, front = age*.38, x = r - front;
+        if (age > 0. && age < 3.5) {
+          // 刚冒出来时慢慢长出来、快到时间时慢慢淡掉，不会「啪」地出现或消失
+          float ring = sin(x*72.) * exp(-abs(x)*17.) * exp(-age*1.1) * smoothstep(0., .12, age) * (1. - smoothstep(2.4, 3.5, age)) * rp.w;
+          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .011; rs += ring;
+        }
+      }
+    }
     offN = off;
   }
   vec2 tuv = clamp(iuv + off, .001, .999), tuvN = clamp(iuv + offN, .001, .999);
@@ -127,10 +124,7 @@ void main(){
   } else if (uKind > .5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
-    // 朝月亮那边斜的坡亮、背着的暗，再加一点尖的高光，水纹才有起伏
-    vec3 nn = normalize(vec3(-wg * 14., 1.));
-    float hl = pow(max(0., dot(nn, normalize(vec3(0., -.75, .66)))), 90.) * mix(.35, 1., exp(-pow((iuv.x - .5) / .2, 2.)));
-    col = col * (1. + clamp(wg.y * 6., -.5, .5) * mix(.4, .9, m)) + mix(vec3(1.), vec3(.82, .9, 1.), m) * hl * mix(.6, 1.1, m);
+    col *= 1. + clamp(rs, -1., 1.) * .16;   // 水纹的波峰亮一点、波谷暗一点，看得出一圈圈
     float lum = dot(col, vec3(.3,.59,.11));
     float sh = smoothstep(.58, .95, lum);
     float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
@@ -212,7 +206,7 @@ export class Wallpaper {
     this.kind = 'castle'; this.images = {}; this.atlas = {};
     this.mix = { from: 0, to: 0, start: -10, dur: 1.1, cx: .5, cy: .2 };
     this.unlock = { from: 0, to: 0, start: -10, dur: .55 };
-    this.glitchT = -10; this.wCur = new Float32Array(WG * WH); this.wOld = new Float32Array(WG * WH); this.wBytes = new Uint8Array(WG * WH * 2).fill(128); this.wAcc = 0; this.wLast = -99; this.finger = null; this.prevFinger = null; this.initFlowers(); this.swingKick = 0; this.startle = 0;
+    this.glitchT = -10; this.ripples = new Float32Array(64); this.rIdx = 0; this.lastDrop = { t: -1, x: 0, y: 0 }; this.finger = null; this.prevFinger = null; this.initFlowers(); this.swingKick = 0; this.startle = 0;
     this.zoom = 1.04; this.drift = [0, 0]; this.running = false; this.t0 = performance.now(); this.last = 0;
     this.stars = []; this.motes = []; this.glints = []; this.meteors = []; this.bursts = []; this.nextMeteor = 2;
     this.fish = RING.fish.map(([a, r]) => ({ a, r, sp: rand(.9, 1.15), ph: rand(0, 6.28), len: rand(.15, .21), wob: rand(0, 6.28) }));
@@ -258,14 +252,13 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uWave', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch', 'uCrop']
+    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch', 'uCrop']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
-    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4); gl.uniform1i(this.U.uWave, 5);
+    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; };
-    this.tex = { day: mk(), night: mk(), fish: mk(), flD: mk(), flN: mk(), wave: mk() };
-    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, this.tex.wave); gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE_ALPHA, WG, WH, 0, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, this.wBytes);
+    this.tex = { day: mk(), night: mk(), fish: mk(), flD: mk(), flN: mk() };
     this.fishCanvas = document.createElement('canvas'); this.fishCanvas.width = 512; this.fishCanvas.height = Math.round(512 / WALLPAPERS.water.aspect);
     this.fishCtx = this.fishCanvas.getContext('2d');
     gl.bindTexture(gl.TEXTURE_2D, this.tex.fish); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.fishCanvas);
@@ -382,16 +375,12 @@ export class Wallpaper {
   glitch() { if (!reduceMotion) this.glitchT = this.now(); }
   glitchNow(t) { const k = (t - this.glitchT) / .55; return k < 0 || k > 1 ? 0 : Math.sin(k * Math.PI) * (1 - k * .4); }
 
-  /** 手指按下 / 拖动 / 抬起：水面荡开水纹、鱼躲开；城堡的花被拨开、挂星被风吹 */
+  /** 点画面：水面起涟漪、鱼被惊动；城堡的挂星被风吹 */
+  /** 手指按下 / 拖动 / 抬起：水面一路冒波纹、鱼躲开；城堡的花被拨开、挂星被风吹 */
   tap(x, y) { this.drop(x, y, 1); this.pointer(x, y, true); this.swingKick = 1; }
   drag(x, y) {
-    const [u, v] = this.screenToImg(x, y), pf = this.finger;
-    // 划过水面：沿着手指一路轻轻按下去，拖出一道水痕
-    if (pf && this.kind === 'water') {
-      const n = Math.min(40, Math.ceil(Math.hypot((u - pf[0]) * WG, (v - pf[1]) * WH / 2)));
-      for (let k = 1; k <= n; k++) this.poke(pf[0] + (u - pf[0]) * k / n, pf[1] + (v - pf[1]) * k / n, .12, 1);
-      this.startle = Math.max(this.startle, .6);
-    }
+    const t = this.tt(), L = this.lastDrop;
+    if (t - L.t > .09 && Math.hypot(x - L.x, y - L.y) > 18) this.drop(x, y, .6);
     this.pointer(x, y, true); this.swingKick = Math.max(this.swingKick, .45);
   }
   release() { this.finger = null; }
@@ -429,33 +418,10 @@ export class Wallpaper {
     }
   }
   drop(x, y, w) {
-    if (this.kind !== 'water') return;
-    const [u, v] = this.screenToImg(x, y);
-    this.poke(u, v, .7 * w, 1.2); this.startle = Math.max(this.startle, w);
-  }
-  /* ---------- 水中月的水：网格上的波动方程，CPU 算，把坡度传给 GPU 去折射 ---------- */
-  poke(u, v, a, r) {
-    const [cx, cy] = toPlane(u, v), R = Math.ceil(r * 2.5), c = this.wCur;
-    for (let dy = -2 * R; dy <= 2 * R; dy++) for (let dx = -R; dx <= R; dx++) {
-      const x = Math.round(cx) + dx, y = Math.round(cy) + dy; if (x < 1 || y < 1 || x >= WG - 1 || y >= WH - 1) continue;
-      c[y * WG + x] -= a * Math.exp(-(dx * dx + dy * dy / 4) / (r * r));
-    }
-    this.wLast = this.now();
-  }
-  stepWater(dt) {
-    if (this.now() - this.wLast > 8) return;   // 水纹早散完了：不算也不传，省电
-    // 固定 60 次 / 秒，120Hz 屏幕上水纹也一样快；c² = .25，水纹走得慢一点
-    for (this.wAcc += dt; this.wAcc >= 1 / 60; this.wAcc -= 1 / 60) {
-      const c = this.wCur, o = this.wOld;
-      for (let y = 1; y < WH - 1; y++) for (let x = 1, i = y * WG + 1; x < WG - 1; x++, i++)
-        o[i] = (c[i] + .25 * (c[i - 1] + c[i + 1] + c[i - WG] + c[i + WG]) - o[i]) * .975;
-      this.wCur = o; this.wOld = c;
-    }
-    // 坡度开平方根再存成 8 位：小坡度也分得清，不会一圈圈地出台阶
-    const c = this.wCur, b = this.wBytes, enc = g => 127.5 + Math.sign(g) * Math.sqrt(Math.min(1, Math.abs(g) * 2)) * 127.5;
-    for (let i = WG; i < c.length - WG; i++) { b[i * 2] = enc(c[i + 1] - c[i - 1]); b[i * 2 + 1] = enc(c[i + WG] - c[i - WG]); }
-    const gl = this.gl; gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, this.tex.wave);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, WG, WH, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, b);
+    const [u, v] = this.screenToImg(x, y), i = this.rIdx++ % 16;
+    this.ripples.set([u, v, this.tt(), w], i * 4);
+    this.lastDrop = { t: this.tt(), x, y };
+    if (this.kind === 'water') this.startle = Math.max(this.startle, w);
   }
   pointer(x, y, push) {
     const [u, v] = this.screenToImg(x, y), pf = this.finger; this.finger = [u, v];
@@ -508,7 +474,7 @@ export class Wallpaper {
     const custom = this.kind === 'custom';
     if (gl && (custom || this.images[this.kind + 'day'])) {
       const w = this.w, U = this.U;
-      if (this.kind === 'water') { this.drawFish(tt, dd); this.stepWater(dd); }
+      if (this.kind === 'water') this.drawFish(tt, dd);
       const v = this.video;
       if (v && !v.paused && v.readyState >= 2) this.upload(v);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
@@ -523,6 +489,7 @@ export class Wallpaper {
       gl.uniform1f(U.uMixFrom, p >= 1 ? s.to : s.from); gl.uniform1f(U.uMixTo, s.to);
       gl.uniform3f(U.uReveal, s.cx, s.cy, p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6);
       gl.uniform1f(U.uUnlock, u);
+      gl.uniform4fv(U.uRipples, this.ripples);
       if (this.kind === 'castle') { this.stepFlowers(tt, dd); gl.uniform4fv(U.uFD, this.flowerBuf.day); gl.uniform4fv(U.uFN, this.flowerBuf.night); }
       gl.uniform2f(U.uMoonDay, ...w.moonDay); gl.uniform2f(U.uMoonNight, ...w.moonNight);
       gl.uniform2f(U.uDrift, ...this.drift); gl.uniform1f(U.uZoom, this.zoom);
