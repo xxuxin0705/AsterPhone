@@ -89,7 +89,7 @@ void main(){
         if (age > 0. && age < 3.5) {
           // 刚冒出来时慢慢长出来、快到时间时慢慢淡掉，不会「啪」地出现或消失
           float ring = sin(x*72.) * exp(-abs(x)*17.) * exp(-age*1.1) * smoothstep(0., .12, age) * (1. - smoothstep(2.4, 3.5, age)) * rp.w;
-          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .011; rs += ring;
+          off += (r > .0001 ? pr/r : vec2(0.)) * ring * .017; rs += ring;
         }
       }
     }
@@ -124,7 +124,7 @@ void main(){
   } else if (uKind > .5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
-    col *= 1. + clamp(rs, -1., 1.) * .16;   // 水纹的波峰亮一点、波谷暗一点，看得出一圈圈
+    col *= 1. + clamp(rs, -1., 1.) * .3;   // 水纹的波峰亮一点、波谷暗一点，看得出一圈圈
     float lum = dot(col, vec3(.3,.59,.11));
     float sh = smoothstep(.58, .95, lum);
     float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
