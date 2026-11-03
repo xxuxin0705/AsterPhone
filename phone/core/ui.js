@@ -289,7 +289,7 @@ export async function busy(btn, fn) {
 /** action = true：要等的操作，带等待动画一直挂着，直到下一条 toast 把它换掉（所以结束时一定要再 toast 一句结果） */
 export function toast(msg, action) {
   if (!toastEl) { toastEl = h('div.as-toast', { role: 'status' }); root.appendChild(toastEl); }
-  const wait = action === true; if (wait) action = null;
+  const wait = action === true || !!(action && action.wait); if (action === true) action = null;   // { label, fn, wait: true }：转圈 + 按钮（比如「取消」），一直挂着
   toastEl.innerHTML = '';
   toastEl.append(...(wait ? [h('i.as-spin')] : []), h('span', msg));
   if (action) toastEl.append(h('button.as-toast__action', { onclick: () => { toastEl.classList.remove('is-open'); action.fn(); } }, action.label));

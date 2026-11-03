@@ -367,14 +367,14 @@ function imageInReply(j) {
   const hit = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(text) || /(data:image\/[\w+]+;base64,[\w+/=]+)/.exec(text) || /(https?:\/\/\S+?\.(?:png|jpe?g|webp|gif)(?:\?\S*)?)(?=[\s)"']|$)/i.exec(text);
   return hit ? hit[1] : '';
 }
-export async function generateImage(prompt, app = '聊天', connIn) {
+export async function generateImage(prompt, app = '聊天', connIn, stop) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
-  try { return await withRetry('image', app, () => imageOnce(prompt, app, conn)); }
+  try { return await withRetry('image', app, () => imageOnce(prompt, app, conn, stop)); }
   catch (e) {   // 生图线断了 → 改用选好的副 API（只换一次）；自己点了中止不换
     const bk = backupOf('image'); if (!bk || bk.id === conn.id || e.message === '已中止') throw e;
     log('warn', app, `「${conn.name}」生图失败，改用副 API「${bk.name}」`);
-    return imageOnce(prompt, app, bk);
+    return imageOnce(prompt, app, bk, stop);
   }
 }
 /** 真正发出去的正面 / 负面提示词：画师串 + 质量词 + 这次的画面 */
@@ -383,9 +383,10 @@ function imgPrompt(conn, prompt) {
   return { full: [I.tags, quality, prompt].filter(Boolean).join(', '), neg: I.neg || '' };
 }
 /** 一次生图记成日志里的一条调用 */
-async function imageOnce(prompt, app, conn) {
+async function imageOnce(prompt, app, conn, stop) {
   const { full, neg } = imgPrompt(conn, prompt);
   const call = startCall({ app, what: '生图', src: conn.name, model: conn.model || '', req: full + (neg ? `\n\n【负面】\n${neg}` : '') });
+  stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });
   try { const u = await orAbort(imageRaw(prompt, conn), call.signal); call.done('[一张图片]'); return u; }
   catch (e) { call.fail(e.message); throw Object.assign(e, { logId: call.id }); }
 }

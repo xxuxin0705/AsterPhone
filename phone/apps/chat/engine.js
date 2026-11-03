@@ -372,12 +372,12 @@ async function deliverDM(p, text) {
 }
 
 /** 通话中：TA 接着说几句（不写进聊天记录，挂断时整段变成一条通话记录） */
-export async function callReply(chat, lines, mode) {
+export async function callReply(chat, lines, mode, stop) {
   const c = contact(chat.contactId), msgs = await getMsgs(chat.id);
   const { prompt } = await buildReplyPrompt(chat, msgs);
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
   const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
-  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话' });
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话', stop });
   return parseReply(raw, c).lines.filter(l => !/^\[/.test(l)).slice(0, 3);
 }
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
@@ -503,9 +503,9 @@ export async function deliverFromStory(c, text, groupName = '') {
 }
 
 /* ---------- 动态 ---------- */
-export async function genMoment(c) {
+export async function genMoment(c, stop) {
   const conn = resolveConn('text', 'chat');
-  const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400,
+  const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400, stop,
     prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c]), time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
@@ -515,7 +515,7 @@ export async function genMoment(c) {
   state.moments.unshift(mo); commit('moments');
   return mo;
 }
-export async function genComments(mo) {
+export async function genComments(mo, stop) {
   const author = mo.author === 'me' ? myName() : nameOf(contact(mo.author));
   const people = state.contacts.filter(p => p.id !== mo.author && canSee(mo, p.id)).slice(0, 12);
   if (!people.length) throw new Error('还没有其他联系人可以来评论');
@@ -523,7 +523,7 @@ export async function genComments(mo) {
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
     mo.likes.length ? `已点赞：${mo.likes.map(who).join('、')}` : ''].filter(Boolean).join('\n');
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', maxTokens: 600, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', maxTokens: 600, stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
   let added = 0;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {

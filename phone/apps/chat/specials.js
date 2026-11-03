@@ -13,6 +13,7 @@ import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 /** 按消息类型做出气泡。ctx = { chat, c, redraw } */
 /** 图打不开（链接失效、编出来的链接）：换成一行小字 */
 const broken = e => e.target.replaceWith(h('span.as-muted', '图片打不开'));
+const drawing = new Map();   // 正在画的图：消息 id → AbortController（重画、退出再进来，卡片上还是「取消」）
 export function buildBubble(m, ctx) {
   const quote = m.quote ? h('span.as-chat-quote', h('b', `回复 ${m.quote.who}`), h('span', m.quote.text)) : null;
   const mine = m.from === 'me';
@@ -33,11 +34,16 @@ export function buildBubble(m, ctx) {
     }
     case 'image': {
       if (m.src) return h('div.as-chat-bubble.as-chat-pic', quote, h('img', { src: m.src, alt: m.text || '图片', loading: 'lazy', onclick: () => viewImage(m.src, m.text), onerror: broken }));
+      const idle = () => gen.replaceChildren(icon('sparkle', 14, 2), '生图');
       const gen = h('button.as-chat-imgcard__gen', { onclick: async e => {
-        e.stopPropagation(); gen.disabled = true; gen.replaceChildren(h('i.as-spin'), ' 正在画');
-        try { m.src = await generateImage(m.text || '一张生活照'); saveMsgs(ctx.chat.id); ctx.redraw(true); }
-        catch (err) { toast(err.message); gen.disabled = false; gen.replaceChildren(icon('sparkle', 14, 2), '生图'); }
-      } }, icon('sparkle', 14, 2), '生图');
+        e.stopPropagation();
+        if (drawing.has(m.id)) { drawing.get(m.id).abort(); return; }
+        const ac = new AbortController(); drawing.set(m.id, ac); gen.replaceChildren(h('i.as-spin'), ' 取消');
+        try { m.src = await generateImage(m.text || '一张生活照', '聊天', undefined, ac.signal); saveMsgs(ctx.chat.id); ctx.redraw(true); }
+        catch (err) { toast(ac.signal.aborted ? '已取消' : err.message); idle(); }
+        drawing.delete(m.id);
+      } });
+      if (drawing.has(m.id)) gen.replaceChildren(h('i.as-spin'), ' 取消'); else idle();
       return h('div.as-chat-bubble.as-chat-imgcard', quote, h('div.as-chat-imgcard__art', icon('image', 26, 1.5)), h('div.as-chat-imgcard__desc', m.text || '一张图片'), gen);
     }
     case 'sticker':
@@ -235,11 +241,11 @@ export function ringIn(chat, c, mode) {
 export function openCall(chat, c, mode = 'voice', incoming = false) {
   const host = document.querySelector('#phone');
   const lines = [];
-  let sec = 0, busy = false, ended = false, picked = !incoming;
+  let sec = 0, busy = null, ended = false, picked = !incoming;   // busy：TA 正在想说什么（AbortController），这时再点发送 / 让 TA 说 就取消
   const timer = h('div.as-chat-call__time', incoming ? `邀请你${mode === 'video' ? '视频' : '语音'}通话…` : '正在呼叫…');
   const log = h('div.as-chat-call__log');
   const input = h('input.as-chat-call__input', { placeholder: '说点什么…', enterkeyhint: 'send' });
-  const say = h('button.as-chat-call__say', { onclick: talk }, icon('send', 18, 2));
+  const say = h('button.as-chat-call__say', { 'aria-label': '发送', onclick: () => talk() }, icon('send', 18, 2));
   const bgUrl = chat.cfg.callBg || chat.cfg.bg || E.avatarOf(c, chat);
   let bar, ring, btns;
   const el = h('div.as-chat-call' + (mode === 'video' ? '.is-video' : ''),
@@ -264,19 +270,20 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
 
   function add(who, text) { lines.push({ who, text }); log.appendChild(h('div.as-chat-call__line' + (who === 'me' ? '.is-me' : ''), text)); log.scrollTop = log.scrollHeight; }
   async function talk(themOnly) {
-    if (busy || ended) return;
+    if (ended) return;
     const t = input.value.trim();
+    if (busy) { if (themOnly || !t) { busy.abort(); stopSpeak(); toast('已取消'); } return; }
     if (!themOnly && !t) return;
     if (t) { add('me', t); input.value = ''; }
-    busy = true; say.disabled = true;
+    const ac = busy = new AbortController(); say.replaceChildren(h('i.as-spin')); say.setAttribute('aria-label', '取消');
     try {
-      const out = await E.callReply(chat, lines, mode);
-      for (const l of out) { if (ended) break; add('them', l); await speakAs(c.id, l.replace(/[（(][^）)]*[）)]/g, '')).catch(() => {}); }
-    } catch (e) { add('them', '（信号不太好……）'); toast('回复失败：' + e.message); }
-    busy = false; say.disabled = false;
+      const out = await E.callReply(chat, lines, mode, ac.signal);
+      for (const l of out) { if (ended || ac.signal.aborted) break; add('them', l); await speakAs(c.id, l.replace(/[（(][^）)]*[）)]/g, '')).catch(() => {}); }
+    } catch (e) { if (!ac.signal.aborted) { add('them', '（信号不太好……）'); toast('回复失败：' + e.message); } }
+    busy = null; say.replaceChildren(icon('send', 18, 2)); say.setAttribute('aria-label', '发送');
   }
   async function hang() {
-    ended = true; clearInterval(tick); stopSpeak();
+    ended = true; clearInterval(tick); stopSpeak(); if (busy) busy.abort();
     el.classList.remove('is-open'); setTimeout(() => el.remove(), 360);
     const text = lines.map(l => `${l.who === 'me' ? '我' : E.nameOf(c)}：${l.text}`).join('\n');
     await E.sendSpecial(chat, picked ? { type: 'call', mode, dur: Math.max(sec, 1), text, ...(incoming ? { from: 'them' } : {}) } : { type: 'call', mode, dur: 0, missed: true, from: 'them' });

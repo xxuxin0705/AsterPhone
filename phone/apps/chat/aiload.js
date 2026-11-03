@@ -171,7 +171,9 @@ export function openPreview(data, { after, lore, under } = {}) {
 }
 
 /* ================= 从世界书添加 ================= */
+let loreJob = null;   // 正在拆人：再点「从世界书添加」就是取消
 export async function openLoreAdd(after) {
+  if (loreJob) { loreJob.abort(); return; }
   if (!inTavern()) { toast('单独预览时读不到酒馆的世界书'); return; }
   const names = worldNames();
   if (!names.length) { toast('没有找到世界书'); return; }
@@ -183,13 +185,15 @@ export async function openLoreAdd(after) {
   const picked = await pickMany('选写了人物的条目', entries.map(e => ({ key: String(e.uid), name: e.title, note: e.keys.slice(0, 2).join('、') })));
   if (!picked || !picked.length) return;
   const chosen = entries.filter(e => picked.includes(String(e.uid)));
-  toast('AI 正在拆人…', true);
+  const ac = loreJob = new AbortController();
+  toast('AI 正在拆人…', { label: '取消', fn: () => ac.abort(), wait: true });
   try {
-    const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', maxTokens: 2400, app: '世界书拆人',
+    const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', maxTokens: 2400, app: '世界书拆人', stop: ac.signal,
       prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
     const data = pickJSON(raw); toast(`拆出 ${(data.people || []).length} 个人`);
     openPreview(data, { after, lore: { world, entries: chosen } });
-  } catch (e) { log('error', '世界书拆人', e.message, e); toast('拆人失败：' + e.message); }
+  } catch (e) { if (ac.signal.aborted) toast('已取消'); else { log('error', '世界书拆人', e.message, e); toast('拆人失败：' + e.message); } }
+  finally { loreJob = null; }
 }
 
 /** 聊天前把连到世界书的人设刷新一下（世界书改了，手机跟着变） */

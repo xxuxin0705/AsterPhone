@@ -69,10 +69,20 @@ function opbar(anchor, m, redraw) {
   const bar = h('div.as-chat-opbar', { style: { right: (hr.right - r.left + 6) + 'px', top: (r.top - hr.top + r.height / 2 - 19) + 'px' } },
     act(liked ? '取消' : '赞', 'heart', () => { liked ? m.likes.splice(m.likes.indexOf('me'), 1) : m.likes.push('me'); commit('moments'); }),
     act('评论', 'comment', () => commentOn(m, null, redraw)),
-    act('生成评论', 'sparkle', async () => { toast('大家正在看…', true); try { const n = await genComments(m); toast(n ? `来了 ${n} 条互动` : '大家都没理'); } catch (e) { toast('生成失败：' + e.message); } }),
+    act(cmJobs.has(m.id) ? '取消生成' : '生成评论', 'sparkle', () => cmJobs.has(m.id) ? cmJobs.get(m.id).abort() : comments(m)),
     m.author === 'me' ? act('删除', 'trash', async () => { if (await dialog({ title: '删除这条动态？', confirm: '删除', danger: true })) { state.moments.splice(state.moments.indexOf(m), 1); commit('moments'); } }) : null);
   host.appendChild(bar);
   setTimeout(() => document.addEventListener('pointerdown', outside, true));
+}
+// 正在跑的请求放模块里：退出再进来、再点一下就是取消；一条动态 / 一批动态同时只有一个
+const cmJobs = new Map();
+let genJob = null;
+async function comments(m) {
+  const ac = new AbortController(); cmJobs.set(m.id, ac);
+  toast('大家正在看…', { label: '取消', fn: () => ac.abort(), wait: true });
+  try { const n = await genComments(m, ac.signal); toast(n ? `来了 ${n} 条互动` : '大家都没理'); }
+  catch (e) { toast(ac.signal.aborted ? '已取消' : '生成失败：' + e.message); }
+  cmJobs.delete(m.id);
 }
 async function commentOn(m, to, redraw) {
   const text = await dialog({ title: to ? `回复 ${who(to)}` : '评论', input: { placeholder: '说点什么…' }, confirm: '发送' });
@@ -120,6 +130,7 @@ function openPost() {
 
 /* ---------- 生成角色动态 ---------- */
 function openGenerate() {
+  if (genJob) { genJob.abort(); return; }
   if (!state.contacts.length) { toast('先添加几个联系人'); return; }
   let mode = 'random', count = 1, picked = [];
   const who2 = h('div.as-muted', { style: { padding: '0 4px' } });
@@ -133,13 +144,14 @@ function openGenerate() {
     const pool = mode === 'random' ? [...state.contacts].sort(() => Math.random() - .5) : picked.map(contact).filter(Boolean);
     if (!pool.length) { toast('先选角色'); return; }
     s.close();
-    let ok = 0;
-    for (let i = 0; i < count; i++) {
+    let ok = 0; const ac = genJob = new AbortController();
+    for (let i = 0; i < count && !ac.signal.aborted; i++) {
       const c = pool[i % pool.length];
-      toast(`${nameOf(c)} 正在发动态…（${i + 1}/${count}）`);
-      try { await genMoment(c); ok++; } catch (e) { toast('生成失败：' + e.message); break; }
+      toast(`${nameOf(c)} 正在发动态…（${i + 1}/${count}）`, { label: '取消', fn: () => ac.abort(), wait: true });
+      try { await genMoment(c, ac.signal); ok++; } catch (e) { if (!ac.signal.aborted) toast('生成失败：' + e.message); break; }
     }
-    if (ok) toast(`新增 ${ok} 条动态`);
+    genJob = null;
+    if (ac.signal.aborted) toast(ok ? `已取消，新增 ${ok} 条动态` : '已取消'); else if (ok) toast(`新增 ${ok} 条动态`);
   });
   const s = sheet({ title: '生成角色动态', content: h('div.as-stack-gap',
     segmented([['random', '随机角色'], ['pick', '指定角色']], mode, v => { mode = v; pickBtn.hidden = v !== 'pick'; who2.hidden = v !== 'pick'; }),
