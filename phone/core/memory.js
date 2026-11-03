@@ -101,12 +101,12 @@ export function merge(x, src = '') {
 /* ---------- 来源 → 一批批文字 ---------- */
 const DATE_RE = /(\d{4})\s*[年/-]\s*(\d{1,2})\s*[月/-]\s*(\d{1,2})/;
 /** 正文的一层层 → 每层前面标上第几层、谁、日期（正文里写了日期就读出来，不用 AI 猜） */
-export function floorsText(msgs, { withUser = true, from = 0, to = Infinity } = {}) {
+export function floorsText(msgs, { withUser = true, from = 0, to = Infinity, keep } = {}) {
   const out = [];
   msgs.forEach((m, i) => {
     // 隐藏起来的楼层（is_system，总结插件常这么做）也要：那正是早先的剧情
     if (i < from || i > to || !m.mes || (m.is_user && !withUser)) return;
-    const d = DATE_RE.exec(m.mes), t = cleanText(m.mes);
+    const d = DATE_RE.exec(m.mes), t = cleanText(m.mes, keep);
     if (t) out.push(`【第 ${i} 层 · ${m.name || ''}${d ? ` · ${d[1]}年${+d[2]}月${+d[3]}日` : ''}】\n${t}`);
   });
   return out;

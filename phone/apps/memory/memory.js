@@ -3,10 +3,10 @@
 // 整理（世界书 / 文件 / 当前聊天 → AI 分批整理）在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, avatar, actionSheet, dialog, toast, empty, navBtn, sheet } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, avatar, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
-import { loadBook } from '../../core/context.js';
+import { loadBook, keepNow, detectTags } from '../../core/context.js';
 import { connLabel, resolveConn } from '../../core/api.js';
 import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
@@ -132,7 +132,7 @@ function openSort() {
   // 每种来源各自的选择；parts() 给出要整理的一段段文字
   const book = { name: (ctx() && ctx().chatMetadata && ctx().chatMetadata.world_info) || '', entries: [], off: new Set() };
   const file = { name: '', got: null, off: new Set() };
-  const chat = { withUser: true, from: 0, to: Infinity };
+  const chat = { withUser: true, from: 0, to: Infinity, keep: keepNow() };   // 要哪些标签：一开始照「上下文与世界书」里给手机看的
   const entryRows = (list, off) => list.map((e, i) => toggleItem({ title: e.title, sub: `${e.content.length} 字` }, !off.has(i), on => { on ? off.delete(i) : off.add(i); count(); }));
   const parts = () => {
     if (src === 'book') return book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content);
@@ -141,9 +141,17 @@ function openSort() {
     return g.msgs ? M.floorsText(g.msgs, chat) : g.entries ? g.entries.filter((e, i) => !file.off.has(i)).map(e => e.content) : g.text.split(/\n{2,}/);
   };
   const count = () => { const ps = parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字 · 分 ${M.batches(ps).length} 批` : ''; paintRun(); };
-  const floorRange = n => group('楼层', [toggleItem({ title: '带上我说的话' }, chat.withUser, on => { chat.withUser = on; count(); }),
-    field(`从第几层到第几层（一共 ${n} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: '0', onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
-      h('span', '到'), input({ type: 'number', value: String(n - 1), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })))]);
+  // 正文楼层：读哪几层、包不包含你发的、哪些标签要（和「设置 → 上下文与世界书」一样：亮着的标签里的字拿去整理，灭着的整段去掉，没被标签包着的照常整理）
+  const floors = msgs => {
+    const found = detectTags(msgs.map(m => ({ text: m.mes || '' }))), tags = Object.keys(found).sort((a, b) => found[b] - found[a]);
+    const chip = tg => { const b = h('span.as-chip' + (chat.keep.includes(tg) ? '.is-active' : ''), { onclick: () => {
+      chat.keep = b.classList.toggle('is-active') ? [...chat.keep, tg] : chat.keep.filter(x => x !== tg); count();
+    } }, `${tg === '!--' ? '<!-- -->' : tg} · ${found[tg]}`); return b; };
+    return [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); }),
+      field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(chat.from), onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
+        h('span', '到'), input({ type: 'number', value: String(Math.min(chat.to, msgs.length - 1)), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })))]),
+    tags.length ? group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着。亮着的标签里的内容拿去整理，灭着的整段去掉；没被标签包着的正文照常整理。一开始照「设置 → 上下文与世界书」里给手机看的标签。'), [h('div.as-field', h('div.as-chips', tags.map(chip)))]) : null];
+  };
 
   async function paintPick() {
     const nb = [];
@@ -157,15 +165,15 @@ function openSort() {
       }
       if (book.entries.length) nb.push(group('要整理的条目', entryRows(book.entries, book.off)));
     } else if (src === 'file') {
-      nb.push(group('', [item({ title: '文件', value: file.name || '选一个', chevron: true, onClick: async () => {
+      nb.push(group('', [item({ title: withInfo('文件', '能导入三种：酒馆导出的聊天记录（.jsonl）、酒馆导出的世界书（.json）、纯文字（.txt）。'), value: file.name || '选一个', chevron: true, onClick: async () => {
         const f = await pickFile('.json,.jsonl,.txt,text/plain,application/json'); if (!f) return;
         try { file.got = await M.readFile(f); file.name = f.name; file.off.clear(); paintPick(); } catch (e) { toast('这个文件读不出来'); }
       } })]));
       const g = file.got;
-      if (g && g.msgs) nb.push(floorRange(g.msgs.length));
+      if (g && g.msgs) nb.push(...floors(g.msgs));
       if (g && g.entries) nb.push(group('要整理的条目', entryRows(g.entries, file.off)));
-    } else nb.push(M.chatMsgs().length ? floorRange(M.chatMsgs().length) : empty('现在没有打开酒馆的聊天'));
-    pick.replaceChildren(...nb); count();
+    } else if (M.chatMsgs().length) nb.push(...floors(M.chatMsgs())); else nb.push(empty('现在没有打开酒馆的聊天'));
+    pick.replaceChildren(...nb.filter(Boolean)); count();
   }
   // 下面那一块：开始 / 正在整理第几批（取消）/ 上次没跑完（接着整理、放弃）
   async function paintRun() {

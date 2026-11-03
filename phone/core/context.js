@@ -29,9 +29,9 @@ const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${esc(t)}(?=[\\s>])[^>]*>[\\s\\S]*?<\\/${esc(t)}>`, 'giu');
 /** 现在真正给手机看的标签：「给手机看」里没被暂时关掉的 */
 export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
-/** 按设置清洗一条正文：只留「给手机看」里的标签（去掉记号留下字），别的标签连内容一起去掉（「不给看」的、没分类的都算）；没被标签包着的字照常留着 */
-export function cleanText(text) {
-  const keep = keepNow();
+/** 按设置清洗一条正文：只留「给手机看」里的标签（去掉记号留下字），别的标签连内容一起去掉（「不给看」的、没分类的都算）；没被标签包着的字照常留着。
+ *  keep：要留哪些标签，不给就按「给手机看」（念念树整理时自己挑） */
+export function cleanText(text, keep = keepNow()) {
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   if (!keep.includes('!--')) t = t.replace(block('!--'), '');
