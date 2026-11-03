@@ -1,5 +1,5 @@
-// 念念树：每个 TA 一棵挂满祈福牌的树，一块牌子一段回忆（方案见 docs/pages-memory.md）。
-// 树的图还没画好，先用列表：首页列出谁有树 → 点进去是这个 TA 的「现在」和按年月排的事 → 点一件事能改。
+// 银河纪：一片夜里的海，记忆是漂在里面的光，点水面把它打捞上来（方案见 docs/pages-memory.md）。
+// 场景还没做进来，先用列表：首页列出放进银河的 TA（自己勾的）→ 点进去是这个 TA 的「现在」和按年月排的事 → 点一件事能改。
 // 整理（世界书 / 文件 / 当前聊天 → AI 分批整理）在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
@@ -23,7 +23,7 @@ M.onJob((how, j) => {
 });
 
 export function open() {
-  const p = page({ app: 'memory', id: 'memory-main', title: '念念树', large: true, back: true,
+  const p = page({ app: 'memory', id: 'memory-main', title: '银河纪', large: true, back: true,
     right: [navBtn('plus', '整理', openSort), navBtn('gear', '设置', openSet)] });
   const box = h('div');
   let seen = -1;
@@ -33,14 +33,14 @@ export function open() {
     seen = sig;
     const all = people(d);
     const row = ({ c, tree }) => item({ icon: avatar(c.avatar, nameOf(c), 30), title: nameOf(c), cls: 'as-mem-who',
-      sub: tree ? `${M.evOf(c, d).length} 件事` : '', value: tree ? '' : '种一棵', chevron: tree,
+      sub: tree ? `${M.evOf(c, d).length} 件事` : '', value: tree ? '' : '放进来', chevron: tree,
       onClick: async () => {
-        if (!tree) { if (!(await dialog({ title: `给 ${nameOf(c)} 种一棵树？`, confirm: '种' }))) return; d.trees.push(c.id); await M.save(); draw(); return; }
+        if (!tree) { if (!(await dialog({ title: `把 ${nameOf(c)} 放进银河？`, confirm: '放进来' }))) return; d.trees.push(c.id); await M.save(); draw(); return; }
         openTree(c);
       } });
     box.replaceChildren(...(all.length ? [
-      all.some(x => x.tree) ? group('有树的', all.filter(x => x.tree).map(row)) : null,
-      all.some(x => !x.tree) ? group('还没种树', all.filter(x => !x.tree).map(row)) : null,
+      all.some(x => x.tree) ? group('在银河里的', all.filter(x => x.tree).map(row)) : null,
+      all.some(x => !x.tree) ? group('还没放进来', all.filter(x => !x.tree).map(row)) : null,
     ].filter(Boolean) : [empty('还没有联系人')]));
   }
   p.body.append(box);
@@ -48,11 +48,11 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 一个 TA 的树（先是列表） ---------- */
+/* ---------- 一个 TA 的记忆（先是列表） ---------- */
 function openTree(c) {
   const p = page({ app: 'memory', id: 'memory-tree', title: nameOf(c), back: true, right: navBtn('more', '更多', async () => {
-    if (await actionSheet(nameOf(c), [{ value: 'cut', label: '把这棵树拔掉', danger: true }]) !== 'cut') return;
-    if (!(await dialog({ title: '把这棵树拔掉？', text: '记忆不会删，只是不在这里显示', confirm: '拔掉', danger: true }))) return;
+    if (await actionSheet(nameOf(c), [{ value: 'cut', label: '移出银河', danger: true }]) !== 'cut') return;
+    if (!(await dialog({ title: `把 ${nameOf(c)} 移出银河？`, text: '记忆不会删，只是不在这里显示', confirm: '移出', danger: true }))) return;
     const d = await M.load(); d.trees = d.trees.filter(x => x !== c.id); await M.save(); nav.pop();
   }) });
   const box = h('div');

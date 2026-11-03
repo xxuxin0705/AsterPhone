@@ -6,7 +6,7 @@
 
 /** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
 export const VAR_INFO = {
-  char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上念念树里 TA 记得的事（没有就是空的）',
+  char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上银河纪里 TA 记得的事（没有就是空的）',
   story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条',
   group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
@@ -32,7 +32,7 @@ export const PROMPT_CATS = [
     { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'contacts', 'story'] },
     { id: 'songReply', name: '乐评回复', vars: ['user', 'song', 'artist', 'contacts', 'threads', 'must'] },
   ] },
-  { app: '念念树', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing'] }] },
+  { app: '银河纪', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -243,7 +243,7 @@ export const DEFAULT_PROMPTS = {
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
   verify: { name: '好友验证', cats: ['verify'], on: true, main: true,
     text: '{{char}} 之前把 {{user}} 的好友删了。现在 {{user}} 发来朋友验证：「{{text}}」\n\n【{{char}} 的人设】\n{{persona}}\n\n【正文里最近发生的事】\n{{story}}\n\n结合人设和剧情，{{char}} 会通过吗？只回答「通过」或「不通过」。' },
-  // ---------- 念念树 ----------
+  // ---------- 银河纪 ----------
   memSort: { name: '整理记忆', cats: ['memSort'], on: true, main: true,
     text: `你在帮 {{user}} 整理一段故事里发生过的事，做成手机里各个角色的长期记忆。只记真发生过的，用客观的口吻写（发生了什么、说了什么原话），不替人下结论，不编造；不知道的就写「不知道」。
 

@@ -1,6 +1,6 @@
-// 念念树：手机里的 TA 记得的事（方案见 docs/pages-memory.md）。
+// 银河纪：手机里的 TA 记得的事（方案见 docs/pages-memory.md）。
 // 每个酒馆聊天窗口一份，存在 kv 的 mem:窗口 里：
-//   ev 事件 / rel 关系（两人一条，只记一次）/ ppl 人物 / days 特殊日子 / todo 没完的事 / trees 谁有树（联系人 id）
+//   ev 事件 / rel 关系（两人一条，只记一次）/ ppl 人物 / days 特殊日子 / todo 没完的事 / trees 放进银河的 TA（联系人 id）
 // 整理：把世界书、导入的文件、当前聊天切成一批批交给 AI，按行写回来再合并；同一时间只跑一个，断了能接着跑（kv 的 memjob:窗口）。
 import { state, win, kvGet, kvSet, kvDel } from './store.js';
 import { uid } from './util.js';
@@ -88,7 +88,7 @@ export function merge(x, src = '') {
   for (const r of x.rel) {
     const a = canon(r.a), b = canon(r.b), o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
     if (!o) { D.rel.push({ id: uid('r'), a, b, kind: r.kind, since: r.since, now: r.now, hist: [] }); continue; }
-    // 关系变了：旧的留进 hist（树上之前挂的牌子还是旧的结）
+    // 关系变了：旧的留进 hist（以后能看出关系是怎么变过来的）
     if (o.kind !== r.kind) { o.hist.push({ kind: o.kind, since: o.since }); o.kind = r.kind; o.since = r.since || o.since; }
     if (r.now) o.now = r.now;
   }
@@ -164,7 +164,7 @@ export async function startJob(label, list, done = 0) {
   try {
     while (job.done < job.list.length) {
       await kvSet('memjob:' + key, { label, list, done: job.done });
-      const raw = await generate({ conn: resolveConn('text', 'memory'), app: '念念树',
+      const raw = await generate({ conn: resolveConn('text', 'memory'), app: '银河纪',
         prompt: compose('memSort', { source: list[job.done], existing: known() }), temperature: .3, maxTokens: 4000, stop: job.ac.signal });
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       job.added += merge(parse(raw), label); await save();
