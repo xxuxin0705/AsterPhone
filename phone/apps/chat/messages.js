@@ -102,7 +102,11 @@ export function renderMessages(ctx) {
   /* ---------- 多选：导出 / 删除 ---------- */
   let selecting = false;
   const sel = new Set(), tabbar = ctx.el.querySelector('.as-chat-tabbar');
-  const bar = h('div.as-chat-selectbar.is-3', { hidden: true },
+  const allBtn = h('button', { onclick: () => {   // 全选 / 全不选：只改勾，不重画
+    const all = sel.size < state.chats.length; sel.clear(); if (all) state.chats.forEach(c => sel.add(c));
+    listBox.querySelectorAll('.as-chat-conv__check').forEach(x => x.classList.toggle('is-active', all)); syncBar();
+  } }, icon('check', 22, 1.7), h('span', '全选'));
+  const bar = h('div.as-chat-selectbar', { hidden: true }, allBtn,
     h('button', { onclick: () => import('./transfer.js').then(m => m.exportChats([...sel])).then(() => setSelecting(false)) }, icon('box', 22, 1.7), '导出'),
     h('button.is-danger', { onclick: delSelected }, icon('trash', 22, 1.7), '删除'),
     h('button', { onclick: () => setSelecting(false) }, icon('close', 22, 1.7), '取消'));
@@ -112,7 +116,7 @@ export function renderMessages(ctx) {
     bar.hidden = !on; tabbar.hidden = on;
     listBox.querySelectorAll('.as-chat-conv__check.is-active').forEach(x => x.classList.remove('is-active')); syncBar();
   }
-  function syncBar() { [...bar.children].slice(0, 2).forEach(b => { b.disabled = !sel.size; }); }
+  function syncBar() { [...bar.children].slice(1, 3).forEach(b => { b.disabled = !sel.size; }); allBtn.lastChild.textContent = sel.size && sel.size === state.chats.length ? '全不选' : '全选'; }
   async function delSelected() {
     if (!(await dialog({ title: `删除 ${sel.size} 个聊天？`, text: '聊天记录会一起删掉，联系人还在。', confirm: '删除', danger: true }))) return;
     for (const c of sel) { await clearMsgs(c.id); state.chats.splice(state.chats.indexOf(c), 1); }

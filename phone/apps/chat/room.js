@@ -80,7 +80,11 @@ export async function openRoom(chat) {
       tool('mic', '语音', () => { closePanels(); plusAction('voice'); }),
       h('span.as-spacer'), sendBtn),
     stick.el, plus);
-  const selectBar = h('div.as-chat-selectbar', { hidden: true },
+  const allBtn = h('button', { onclick: () => {   // 全选 / 全不选：只改勾，不重画
+    const all = selected.size < msgs.length; selected.clear(); if (all) msgs.forEach(m => selected.add(m.id));
+    p.el.querySelectorAll('.as-chat-msg').forEach(r => r.querySelector('.as-chat-msg__check').classList.toggle('is-active', all)); syncSelectBar();
+  } }, icon('check', 22, 1.7), h('span', '全选'));
+  const selectBar = h('div.as-chat-selectbar.is-5', { hidden: true }, allBtn,
     h('button.is-danger', { onclick: () => bulk('del') }, icon('trash', 22, 1.7), '删除'),
     h('button', { onclick: () => bulk('pin') }, icon('link', 22, 1.7), '注入正文'),
     h('button', { onclick: () => bulk('fav') }, icon('bookmark', 22, 1.7), '收藏'),
@@ -266,7 +270,7 @@ export async function openRoom(chat) {
     commit('me'); toast(list2.length > 1 ? `已收藏 ${list2.length} 条` : '已收藏');
   }
   async function del(list2) {
-    if (!(await dialog({ title: list2.length > 1 ? `删除 ${list2.length} 条消息？` : '删除这条消息？', text: '只删手机里的记录。', confirm: '删除', danger: true }))) return false;
+    if (!(await dialog({ title: list2.length > 1 ? `删除 ${list2.length} 条消息？` : '删除这条消息？', confirm: '删除', danger: true }))) return false;
     list2.forEach(m => { const i = msgs.indexOf(m); if (i >= 0) msgs.splice(i, 1); });
     const last = msgs[msgs.length - 1]; chat.lastText = E.preview(last); if (last) chat.lastAt = last.at;
     saveMsgs(chat.id); commit('chats'); redraw(true); return true;
@@ -279,7 +283,7 @@ export async function openRoom(chat) {
     if (!on) selected.clear();
     redraw(true); syncSelectBar();
   }
-  function syncSelectBar() { selectBar.querySelectorAll('button:not(:last-child)').forEach(b => { b.disabled = !selected.size; }); }
+  function syncSelectBar() { selectBar.querySelectorAll('button:not(:first-child):not(:last-child)').forEach(b => { b.disabled = !selected.size; }); allBtn.lastChild.textContent = selected.size && selected.size === msgs.length ? '全不选' : '全选'; }
   async function bulk(kind) {
     const list2 = msgs.filter(m => selected.has(m.id));
     if (kind === 'del') { if (await del(list2)) setSelecting(false); return; }
