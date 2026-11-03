@@ -267,7 +267,8 @@ export async function memoryFor(people, scan = '') {
  * 1. 点星：最近说的话里字面出现的星亮起来（最后几句最亮，再往前的暗一半）。
  * 2. 漫开：亮光顺着线往旁边走两步，每走一步打对折；一颗星连着的事越多，分给每条线的越少（谁都连着的星不算数）。
  * 3. 挑事：一件事的分 = 它挂的星亮多少（越常见的星分越少）+ 字面像不像 + 重要度 + 以前被想起过几次；
- *    字面按「越少见的词越算数」比（BM25）；刚想起过的（十分钟内）先压下去，免得每句都提同一件（又直接说到它的不算）；不按时间变淡。最多 3 件，分不够的不带。 */
+ *    字面按「越少见的词越算数」比（BM25）；刚想起过的（十分钟内）先压下去，免得每句都提同一件（又直接说到它的、重新生成同一句的不算）；不按时间变淡。最多 3 件，分不够的不带。 */
+let lastAsk = '';
 function recall(pool, scan, self) {
   if (!pool.length || !scan) return [];
   const stars = e => [...new Set([...e.who, e.place, ...e.tags, ...(e.keys || [])].filter(n => n && n.length > 1 && !self.has(n)))];
@@ -291,14 +292,16 @@ function recall(pool, scan, self) {
   const strip = s => [...self].filter(n => n.length > 1).reduce((x, n) => x.split(n).join(' '), s);
   const docs = new Map(pool.map(e => [e, toks(strip([e.title, e.text, e.place, ...e.tags, ...(e.keys || [])].join(' ')))])), N = pool.length;
   // 单个字只看最后一句（刚说的话），不然几百字的正文里随便几个字都能对上
-  const q = [...new Set([...grams(strip(recent)), ...toks(strip(scan.slice(scan.lastIndexOf('\n') + 1)))])].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b));
+  const ask = scan.slice(scan.lastIndexOf('\n') + 1), said = toks(strip(ask));
+  const q = [...new Set([...grams(strip(recent)), ...said])].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b));
   const idf = new Map(q.map(b => { const df = pool.filter(e => docs.get(e).has(b)).length; return [b, df ? Math.log(1 + N / df) : 0]; }));
-  const now = Date.now();
+  const now = Date.now(), redo = ask === lastAsk;   // 重新生成：还是同一句话，想起的也该是同样的事
+  lastAsk = ask;
   const score = e => {
     const hit = q.filter(b => docs.get(e).has(b)), lit = hit.length < 2 ? 0 : hit.reduce((t, b) => t + idf.get(b) * (b.length > 1 ? 1 : .5), 0) * .25;   // 只对上一个字 / 词的不算，免得碰巧
     const s = stars(e).reduce((t, n) => t + (act.get(n) || 0) / Math.sqrt(deg.get(n)), 0) + Math.min(2, lit);
     if (s < .3) return 0;   // 和现在说的一点都不沾：重要度、想起过几次都不算
-    const again = e.last && now - e.last < 600000 && !stars(e).some(n => hot.has(n)) && lit < .8;   // 刚想起过、这会儿又没直接说到它：先压下去
+    const again = !redo && e.last && now - e.last < 600000 && !stars(e).some(n => hot.has(n)) && lit < .8;   // 刚想起过、这会儿又没直接说到它：先压下去
     return (s + e.imp * .08 + Math.log1p(e.used || 0) * .1) * (again ? .25 : 1);
   };
   const pick = pool.map(e => [e, score(e)]).filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);

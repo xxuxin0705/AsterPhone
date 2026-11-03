@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.78';
+export const VERSION = '0.8.79';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -588,7 +588,14 @@ function openLinkTime() {
     // 切换「跟随剧情 / 现实时间」只显示 / 藏起手动设定那一块，不重画整页
     const manual = h('div.as-field', { hidden: S().timeSrc !== 'story' }, h('span.as-field__label', '读不到剧情时间时：手动设定'),
       h('div.as-settings-time', { style: { padding: 0 } }, dateIn, hm),
-      btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); }));
+      h('div.as-settings-time', { style: { padding: 0, marginTop: '10px' } },
+        btn('读最新楼', 'secondary', async () => {
+          const t = (await import('../../core/sync.js')).readLatestTime();
+          if (!t) return toast(`正文里没找到 <${tagName()}> 时间标签`);
+          const s1 = time.story(); hm.value = `${p2(s1.hh)}:${p2(s1.mm)}`; dateIn.value = `${s1.date.getFullYear()}-${p2(s1.date.getMonth() + 1)}-${p2(s1.date.getDate())}`;
+          nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast(`已对上第 ${t.floor} 楼`);
+        }),
+        btn('设定', 'secondary', () => { const [hh, mm] = hm.value.split(':').map(Number); time.setStoryDate(dateIn.value, hh || 0, mm || 0); nowItem.querySelector('.as-list-item__value').textContent = nowText(); toast('剧情时间已更新'); })));
     // 仅线上聊天才有「定时来找你」；切换只显示 / 藏起这一块
     // 「TA 主动来找我」改了，所有聊天一起跟着改（每个聊天里还能单独再改）；关着就藏起「多久来找你一次」
     const every = sliderRow('TA 多久来找你一次', { min: 1, max: 24, step: 1, value: a.defaults.proactiveEvery || 3, fmt: v => `${v} 小时`, onInput: v => { a.defaults.proactiveEvery = v; commit('apps'); } });

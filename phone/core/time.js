@@ -1,5 +1,5 @@
 // 时间：现实时间 / 剧情时间。
-// 剧情时间 = 最后一次读到（或手动设定）的那一刻 + 之后现实里过去的分钟数，所以会自己往前走。
+// 剧情时间 = 最后一次读到（或手动设定）的那一刻，不会自己走：只有正文里的时间变了才跟着变。
 import { state, commit } from './store.js';
 import { pad } from './util.js';
 
@@ -13,10 +13,8 @@ const dayDiff = (a, b) => Math.round((b - a) / 86400000);
 
 /** 剧情时间现在是第几天、几点；正文里给过日期的话，还会算出今天是几年几月几日 */
 export function story() {
-  const st = state.settings.storyTime;
-  const total = st.minutes + Math.floor((Date.now() - st.at) / 60000);
-  const day = st.day + Math.floor(total / 1440), min = ((total % 1440) + 1440) % 1440;
-  return { day, min, hh: Math.floor(min / 60), mm: min % 60, date: dayToDate(day), place: st.place || '' };
+  const st = state.settings.storyTime, min = st.minutes;
+  return { day: st.day, min, hh: Math.floor(min / 60), mm: min % 60, date: dayToDate(st.day), place: st.place || '' };
 }
 /** 剧情里「第几天」只是内部记账用；界面和给 AI 看的都换成年月日。没给过日期就按设定那天的现实日期算 */
 export function dayToDate(d) {
@@ -135,6 +133,6 @@ export function parseTimeTag(text) {
   // 只给了日期没给「第几天」：按和上一次日期差了几天往前推
   if (!dm && date && cur.date) day = Math.max(1, cur.day + dayDiff(cur.date, parseYmd(date)));
   // 地点：用「·」隔开的、不是日期也不是时间的那一段
-  const place = body.split(/[·|｜]/).map(x => x.trim()).find(x => x && !/\d{1,2}\s*[:：]\s*\d{2}/.test(x) && !/\d{4}\s*[年\-/.]/.test(x) && !/第\s*\d+\s*天|day\s*\d+/i.test(x)) || '';
+  const place = body.split(/[·|｜]/).map(x => x.trim()).find(x => x && !/\d{1,2}\s*[:：]\s*\d{2}/.test(x) && !/\d{4}\s*[年\-/.]/.test(x) && !/第\s*\d+\s*天|day\s*\d+/i.test(x) && !/^(星期|周)[一二三四五六日天]$/.test(x)) || '';
   return { day, hh: Math.min(23, parseInt(tm[1], 10)), mm: Math.min(59, parseInt(tm[2], 10)), date, place, raw: body.trim() };
 }
