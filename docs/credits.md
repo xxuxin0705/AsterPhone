@@ -41,3 +41,7 @@
 - 逐字歌词：AMLL TTML DB（https://github.com/amll-dev/amll-ttml-db，CC0，社区打轴），从 raw.githubusercontent.com 读
 - 悬浮窗字体：jsDelivr（https://cdn.jsdelivr.net）
 - 没装插件时解析歌单分享短链接：allorigins（https://api.allorigins.win）、corsproxy.io（https://corsproxy.io）、codetabs（https://api.codetabs.com），挨个试
+
+## 银河纪的图（phone/assets/memory/）
+- 白天 / 夜里底图（sky-*）、风铃纸签（bell-* / tag-* / knot / chime-tube）：作者用豆包生成；底图右下角的「豆包 AI 生成」水印已抹掉，挂件从假的透明格子底上抠出来。
+- 花瓣、雪花、枫叶（petal* / snow* / leaf*）：作者用 GPT 生成（黑底，转成了透明底）。
