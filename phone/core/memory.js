@@ -14,6 +14,7 @@ import { ctx } from './bridge.js';
 import * as time from './time.js';
 
 export const KINDS = ['恋人', '暧昧', '家人', '朋友', '对手', '其他'];
+export const DAY_KINDS = ['生日', '纪念日', '祭日', '节日', '其他'];
 const BATCH = 30000;   // 一批多少字
 
 /* ---------- 存 ---------- */
@@ -63,7 +64,10 @@ export function parse(raw) {
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: list(f[6]), imp: Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), after: f[8] || '', keys: list(f[9]) });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
-    else if (m[1] === '日子') { const md = /(\d{1,2})\D+(\d{1,2})/.exec(f[0]); if (md && f[1]) out.days.push({ md: `${md[1].padStart(2, '0')}-${md[2].padStart(2, '0')}`, what: f[1], who: list(f[2]) }); }
+    else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
+      const [kind, at, what, who] = DAY_KINDS.includes(f[0]) ? f : ['其他', ...f], d = /(?:(\d{4})\D+)?(\d{1,2})\D+(\d{1,2})/.exec(at || ''), p = x => x.padStart(2, '0');
+      if (d && what) out.days.push({ kind, date: d[1] ? `${d[1]}-${p(d[2])}-${p(d[3])}` : '', md: `${p(d[2])}-${p(d[3])}`, what, who: list(who) });
+    }
     else if (m[1] === '没完' && f[1]) out.todo.push({ who: f[0], text: f[1] });
     else if (m[1] === '完成' && f[1]) out.done.push({ who: f[0], text: f[1] });
   }
@@ -231,7 +235,33 @@ export async function startJob(label, list, done = 0) {
 }
 
 /* ---------- 聊天时带进去 ---------- */
-const today = () => { const d = time.isStory() ? time.story().date : new Date(); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+/* 特殊日子：当天说出来；快到了（7 天内）先记在心里。
+ * 生日、祭日、节日、其他：每年那天（祭日知道年份就说第几年）；纪念日（知道年份的）：满一个月、100 天、半年，满一年后每年一次。
+ * 关系里「从什么时候起」写的是日期的恋人，也当成交往纪念日。返回 [今天的, 快到的, 碰上的日子（拿来找相关的往事）, 今天有没有祭日] */
+const AHEAD = 7;
+function specialDays(d, ns) {
+  const n = time.isStory() ? time.story().date : new Date(), t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const ymd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m && new Date(+m[1], m[2] - 1, +m[3]); };
+  const shift = (x, mo, dd = 0) => new Date(x.getFullYear(), x.getMonth() + mo, x.getDate() + dd);
+  const list = [...d.days, ...d.rel.filter(r => r.kind === '恋人' && (ns.has(r.a) || ns.has(r.b)) && ymd(r.since) && !d.days.some(x => x.kind === '纪念日' && x.date === r.since.slice(0, 10))).map(r => ({ kind: '纪念日', date: r.since, md: r.since.slice(5), what: `${r.a}和${r.b}交往` }))];
+  const now = [], soon = [], hits = [];
+  let sad = false;   // 今天有祭日：语气要不一样
+  for (const x of list) {
+    const s = ymd(x.date), [mm, dd] = x.md.split('-').map(Number), marks = [];
+    for (const y of [t0.getFullYear(), t0.getFullYear() + 1]) {   // 每年那天（年底时下一年的也看看）
+      const k = s ? y - s.getFullYear() : 0;
+      if (s && k < 1) continue;
+      marks.push([new Date(y, mm - 1, dd), x.kind === '纪念日' && s ? `${x.what} ${k} 周年` : x.kind === '祭日' && s ? `${x.what}（第 ${k} 年）` : x.what]);
+    }
+    if (x.kind === '纪念日' && s) marks.push([shift(s, 1), `${x.what}满一个月`], [shift(s, 0, 100), `${x.what}满 100 天`], [shift(s, 6), `${x.what}满半年`]);
+    for (const [t, label] of marks) {
+      const left = Math.round((t - t0) / 864e5);
+      if (left === 0) { now.push(label); sad = sad || x.kind === '祭日'; } else if (left > 0 && left <= AHEAD) soon.push(`再过 ${left} 天：${label}`); else continue;
+      hits.push(x);
+    }
+  }
+  return [now, soon, hits, sad];
+}
 const cut = (s, n) => s.length > n ? s.slice(0, n) + '…' : s;
 /** 最近的一件（按日期） */
 export const newest = list => list.reduce((a, e) => !a || (e.at || '') >= (a.at || '') ? e : a, null);
@@ -250,14 +280,17 @@ export async function memoryFor(people, scan = '') {
   if (rel.length) lines.push('关系：' + rel.map(r => `${r.a}和${r.b}是${r.kind}${r.since ? `（${r.since}起）` : ''}${r.now ? `，现在${r.now}` : ''}`).join('；'));
   const todo = d.todo.filter(t => !t.done && ns.has(t.who));
   if (todo.length) lines.push('没完的事：' + todo.map(t => `${t.who}：${t.text}`).join('；'));
-  // 对上才带：今天是什么日子、聊到的人
-  const days = d.days.filter(x => x.md === today());
-  if (days.length) lines.push('今天：' + days.map(x => x.what).join('；'));
+  // 对上才带：特殊日子、聊到的人
+  const [now, soon, hits, sad] = specialDays(d, ns);
+  if (now.length) lines.push(`今天是特别的日子：${now.join('；')}（可以主动提起${sad ? '；祭日要克制、温柔，别说成喜事' : '、好好过'}）`);
+  if (soon.length) lines.push(`快到的日子：${soon.join('；')}（先记在心里，可以悄悄准备，不用急着说）`);
   const ppl = d.ppl.filter(p => !ns.has(p.name) && !isMe(p.name) && [p.name, ...p.alias].some(hit));
   if (ppl.length) lines.push('聊到的人：' + ppl.map(p => `${p.name}：${p.who}`).join('；'));
   // 想起的事：钉住的 + 联想到的最多 3 件（见 recall）
   const pool = d.ev.filter(e => !e.off && e.who.some(n => ns.has(n)));
-  const pick = [...pool.filter(e => e.pin), ...recall(pool.filter(e => !e.pin), scan, new Set([...ns, myName(), '我']))];
+  // 到了 / 快到特殊日子：翻出以前同一类日子的事（标签是这个类型的，或写到了这个日子），最近的 3 件
+  const onDay = hits.length ? pool.filter(e => !e.pin && hits.some(x => (x.kind !== '其他' && e.tags.includes(x.kind)) || [e.title, ...e.tags, ...(e.keys || [])].some(t => t && (t.includes(x.what) || x.what.includes(t) && t.length > 1)))).sort((a, b) => (b.at || '').localeCompare(a.at || '')).slice(0, 3) : [];
+  const pick = [...pool.filter(e => e.pin), ...onDay, ...recall(pool.filter(e => !e.pin && !onDay.includes(e)), scan, new Set([...ns, myName(), '我']))];
   if (pick.length) lines.push('想起的事（这些是真发生过的。自然地提起就好，不用每件都说；同一类的事有好几次时，像真人一样分清是哪一次：可以先反问、逗一逗，或者都说起。提到过去时只用这里、正文和世界书里写了的，没写到的事和细节不要编）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${tail(e, pool)}`).join('\n'));
   return lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '';
 }
