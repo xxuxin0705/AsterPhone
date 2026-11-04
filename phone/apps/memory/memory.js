@@ -1,7 +1,7 @@
 // 念念树：水彩花枝下挂满风铃和纸签，一个挂件一段记忆（方案见 docs/pages-memory.md）。
 // 首页列出有树的 TA（自己勾的）→ 点进去是 TA 的花枝（scene.js），挂着最重要、最近的十来件 → 右上角「时间线」看全部、改。
 // 整理（世界书 / 文件 / 当前聊天 → AI 分批整理）在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
-import { h, pickFile } from '../../core/util.js';
+import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, avatar, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -102,6 +102,8 @@ function openList(c) {
     const days = M.daysOf(c, d), md = x => x.date ? ymd(x.date) : x.md.replace(/^0?(\d+)-0?(\d+)$/, '每年$1月$2日');
     nb.push(group('日子', [...days.map(x => item({ title: x.what, sub: `${x.kind || '其他'} · ${md(x)}`, chevron: true, onClick: () => editDay(x) })),
       item({ icon: icon('plus', 18, 2), title: '加一个日子', onClick: () => editDay(null) })]));
+    nb.push(group(`${nameOf(c)}知道的`, [...M.factsOf(c, d).map(f => item({ title: `${f.about}：${M.knownOf(f, M.namesOf(c))}`, sub: f.know.join('、') + '知道', chevron: true, onClick: () => editFact(f) })),
+      item({ icon: icon('plus', 18, 2), title: '加一条', onClick: () => editFact(null) })]));
     // 按年月分组，最近的在上面
     const months = new Map();
     for (const e of ev) { const k = ym(e.at); if (!months.has(k)) months.set(k, []); months.get(k).push(e); }
@@ -138,6 +140,22 @@ function openList(c) {
         const y = M.parse(`日子：${x.kind}｜${x.at}｜${x.what}｜${x.who}`).days[0];
         if (!y) { toast(x.what ? '日期写成 年-月-日 或 月-日' : '写上是什么日子'); return; }
         if (o) Object.assign(o, y); else d.days.push(y);
+        await M.save(); s.close(); draw();
+      })),
+    ].filter(Boolean) });
+  }
+  // 了解：关于谁、是什么、谁知道（每个人知道的不一样）
+  async function editFact(o) {
+    const d = await M.load(), x = o ? { about: o.about, text: o.text, know: o.know.join('、') } : { about: '', text: '', know: c.name || nameOf(c) };
+    const s = sheet({ title: o ? '这一条' : '加一条', content: [
+      field('关于谁', input({ value: x.about, onInput: v => { x.about = v.trim(); } })),
+      field('是什么', textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
+      field('谁知道', input({ value: x.know, onInput: v => { x.know = v; } })),
+      o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.facts.splice(d.facts.indexOf(o), 1); await M.save(); s.close(); draw(); })) : null,
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+        if (!x.about || !x.text) { toast(x.about ? '写上是什么' : '写上关于谁'); return; }
+        const know = String(x.know).split(/[、,，]/).map(t => t.trim()).filter(Boolean);
+        if (o) Object.assign(o, { about: x.about, text: x.text, know }); else d.facts.push({ id: uid('f'), about: x.about, text: x.text, know, hist: [] });
         await M.save(); s.close(); draw();
       })),
     ].filter(Boolean) });

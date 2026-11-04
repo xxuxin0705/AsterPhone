@@ -1,6 +1,7 @@
 // 念念树：手机里的 TA 记得的事（方案见 docs/pages-memory.md）。
 // 每个酒馆聊天窗口一份，存在 kv 的 mem:窗口 里：
 //   ev 事件 / rel 关系（两人一条，只记一次）/ ppl 人物 / days 特殊日子 / todo 没完的事 / trees 有树的 TA（联系人 id）
+//   facts 了解（关于某人长期不太变的事：喜好、怕什么、酒量…，带「谁知道」：每个人知道的不一样）
 // 记忆从三处来：① 整理（世界书、导入的文件、当前聊天切成一批批交给 AI，同一时间只跑一个，断了能接着跑，kv 的 memjob:窗口）；
 // ② 跟着剧情自动记（正文里的 <astermem> 暗号，core/sync.js 读到交给 fromStory）；③ 手机聊天自动记（TA 回消息时顺手写的 <astermem>，交给 fromChat）。
 // 三处写的都是同一种行（见 parse），同一件事只记一次。
@@ -20,7 +21,7 @@ const BATCH = 30000;   // 一批多少字
 /* ---------- 存 ---------- */
 let D = null, Dkey = null;
 export let ver = 0;   // 改过一次加一：页面返回时看它变没变，没变就不重画
-const blank = () => ({ ev: [], rel: [], ppl: [], days: [], todo: [], trees: [] });
+const blank = () => ({ ev: [], rel: [], ppl: [], days: [], todo: [], trees: [], facts: [] });
 export async function load() {
   if (D && Dkey === win.key) return D;
   const k = win.key, d = await kvGet('mem:' + k);
@@ -41,6 +42,15 @@ export function namesOf(c) {
 const isMe = n => n === myName() || n === '我' || n === '{{user}}';
 export const evOf = (c, d = D) => { const ns = namesOf(c); return d.ev.filter(e => e.who.some(n => ns.has(n))); };
 export const daysOf = (c, d = D) => { const ns = namesOf(c); return d.days.filter(x => !x.who.length || x.who.some(n => ns.has(n) || isMe(n))); };
+/** 一条「了解」里 ns 这个人知道的那个版本：知道现在的就是现在的（也知道以前的才带上以前），只知道以前的就是以前的，都不知道是 null */
+export function knownOf(f, ns) {
+  const has = l => (l || []).some(n => ns.has(n)), last = f.hist[f.hist.length - 1];
+  if (has(f.know)) return f.text + (last && has(last.know) ? `（以前：${last.text}）` : '');
+  const h = [...f.hist].reverse().find(h => has(h.know));
+  return h ? h.text : null;
+}
+/** 这个 TA 知道的关于人的事 */
+export const factsOf = (c, d = D) => { const ns = namesOf(c); return d.facts.filter(f => knownOf(f, ns) != null); };
 export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(r => ns.has(r.a) || ns.has(r.b)); };
 
 /* ---------- 读 AI 写回来的行 ---------- */
@@ -55,10 +65,10 @@ export function day(s) {
   return m ? [`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`, guess] : ['', false];
 }
 export function parse(raw) {
-  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [] };
+  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [] };
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
   for (const line of text.split('\n')) {
-    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
+    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
     const f = m[2].split(/[｜|]/).map(norm);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]);
@@ -71,6 +81,7 @@ export function parse(raw) {
     }
     else if (m[1] === '没完' && f[1]) out.todo.push({ who: f[0], text: f[1] });
     else if (m[1] === '完成' && f[1]) out.done.push({ who: f[0], text: f[1] });
+    else if (m[1] === '了解' && f[1]) out.facts.push({ about: f[0], text: f[1], know: list(f[2]), old: f[3] || '' });   // 谁｜是什么｜谁知道｜以前（变了才有）
   }
   return out;
 }
@@ -108,6 +119,14 @@ export function merge(x, src = '') {
     else { if (!o.kind || o.kind === '其他') o.kind = d.kind; if (!o.date) o.date = d.date; }   // 老的没有类型、年份：重新整理时补上
   }
   for (const t of x.todo) if (!D.todo.some(o => !o.done && alike(o.text, t.text) > .6)) D.todo.push({ id: uid('t'), who: canon(t.who), text: t.text, done: false, src });
+  // 了解：同一个人、差不多的一条只记一次，后来知道的人加进去；写了「以前」的是变了，旧的留痕（「你以前爱喝可乐」）
+  for (const f of x.facts) {
+    const about = canon(f.about), know = f.know.map(canon), same = D.facts.filter(o => o.about === about);
+    const o = same.find(o => f.old && alike(o.text, f.old) > .5) || same.find(o => alike(o.text, f.text) > .6);
+    if (!o) { D.facts.push({ id: uid('f'), about, text: f.text, know, hist: [], src }); continue; }
+    if (alike(o.text, f.text) <= .6) { o.hist.push({ text: o.text, know: o.know, src }); o.text = f.text; o.know = know; continue; }   // 变了：只有这次知道的人知道新的，其他人还以为是旧的
+    o.know = [...new Set([...o.know, ...know])];
+  }
   for (const t of x.done) { const o = D.todo.find(o => !o.done && alike(o.text, t.text) > .45); if (o) { o.done = true; o.doneBy = src; } }
   D.ev.sort((a, b) => (a.at || '9999').localeCompare(b.at || '9999'));
   return added;
@@ -119,17 +138,19 @@ function forget(src) {
   D.rel = D.rel.filter(r => r.src !== src);
   for (const r of D.rel) { const i = r.hist.findIndex(h => h.src === src); if (i >= 0) { Object.assign(r, { kind: r.hist[i].kind, since: r.hist[i].since }); r.hist.splice(i); } }
   for (const t of D.todo) if (t.doneBy === src) { t.done = false; delete t.doneBy; }
+  D.facts = D.facts.filter(f => f.src !== src);
+  for (const f of D.facts) { const i = f.hist.findIndex(h => h.src === src); if (i >= 0) { Object.assign(f, { text: f.hist[i].text, know: f.hist[i].know || f.know }); f.hist.splice(i); } }
 }
 const storyDay = () => { const d = time.isStory() ? time.story().date : new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const nowPart = () => time.partOfDay(time.isStory() ? time.story().hh : new Date().getHours());
 /** 收一段 <astermem> 暗号：src 是这一处的名字，同一处内容变了就先收回旧的再记；fix 用来改每条事件（补日期、限定谁知道） */
-async function take(src, body, fix) {
+async function take(src, body, fix, fixFact) {
   const d = await load(), sig = String(body).trim(), S = d.sigs || (d.sigs = {});
   if (S[src] === sig || (!sig && !(src in S))) return 0;
   forget(src);
   if (!sig) { delete S[src]; await save(); return 0; }   // 这一楼换了个没写暗号的版本：之前记的收回就好
   S[src] = sig;
-  const x = parse(sig); x.ev.forEach(fix);
+  const x = parse(sig); x.ev.forEach(fix); if (fixFact) x.facts.forEach(fixFact);
   const n = merge(x, src); await save();
   if (n) log('info', '念念树', `记下 ${n} 件事：${x.ev.map(e => e.title).join('、')}`);
   return n;
@@ -149,7 +170,7 @@ export function fromChat(chatId, batch, body, people) {
     e.who = [...new Set([...e.who.filter(n => known.has(n)).map(as), me, ...(people.length === 1 ? names : [])])];
     if (people.length > 1 && e.who.length < 2) e.who.push(...names);
     e.tags = [...new Set([...e.tags, '手机'])];
-  });
+  }, f => { f.know = names; });   // 手机里说的，只有这个聊天里的 TA 们知道
 }
 /** 手机里的聊天整个清空 / 删掉了：这个聊天里记下的全收回 */
 export async function dropChatAll(chatId) {
@@ -214,7 +235,8 @@ function known() {
   const ppl = D.ppl.map(p => `${p.name}${p.alias.length ? `（${p.alias.join('、')}）` : ''}`).join('、');
   const rel = D.rel.map(r => `${r.a}—${r.b}：${r.kind}`).join('；');
   const ev = D.ev.slice(-40).map(e => `${e.at || '不知道'} ${e.title}`).join('\n');
-  return [ppl && '人物：' + ppl, rel && '关系：' + rel, ev && '已经记下的事：\n' + ev].filter(Boolean).join('\n') || '（还没有）';
+  const facts = D.facts.slice(-60).map(f => `${f.about}：${f.text}（${f.know.join('、')}知道）`).join('；');
+  return [ppl && '人物：' + ppl, rel && '关系：' + rel, facts && '已经了解的：' + facts, ev && '已经记下的事：\n' + ev].filter(Boolean).join('\n') || '（还没有）';
 }
 /** list：一批批文字。从 done 那批接着跑 */
 export async function startJob(label, list, done = 0) {
@@ -276,13 +298,21 @@ export const tail = (e, list) => e.after ? `（后来：${e.after}）` : e.now &
 export async function memoryFor(people, scan = '') {
   if (!state.apps.memory.on || !people.length) return '';
   const d = await load();
-  if (!d.ev.length && !d.rel.length) return '';
+  if (!d.ev.length && !d.rel.length && !d.facts.length && !d.days.length) return '';
   const ns = new Set(people.flatMap(c => [...namesOf(c)])), hit = n => n && scan.includes(n), lines = [];
   // 每次都带：现在的关系、没完的事、钉住的
   // TA 和我的、TA 们之间的、TA 和这会儿聊到的人的
   const other = r => ns.has(r.a) ? r.b : ns.has(r.b) ? r.a : null;
   const rel = d.rel.filter(r => { const o = other(r); return o != null && (isMe(o) || ns.has(o) || hit(o)); });
   if (rel.length) lines.push('关系：' + rel.map(r => `${r.a}和${r.b}是${r.kind}${r.since ? `（${r.since}起）` : ''}${r.now ? `，现在${r.now}` : ''}`).join('；'));
+  // 知道的关于人的事：只带这次说话的 TA 们知道的；群里不是人人都知道的，写明谁知道（别说漏）
+  const by = new Map();
+  for (const f of d.facts) {
+    const v = new Map();   // 每个人知道的版本 → 谁
+    for (const c of people) { const t = knownOf(f, namesOf(c)); if (t != null) v.set(t, [...(v.get(t) || []), c.name || c.nick]); }
+    for (const [t, knows] of v) by.set(f.about, [...(by.get(f.about) || []), t + (people.length > 1 && knows.length < people.length ? `（只有${knows.join('、')}知道）` : '')]);
+  }
+  if (by.size) lines.push('知道的关于人的事（别人不知道的事别说漏）：\n' + [...by].map(([a, l]) => `- ${a}：${l.join('；')}`).join('\n'));
   const todo = d.todo.filter(t => !t.done && ns.has(t.who));
   if (todo.length) lines.push('没完的事：' + todo.map(t => `${t.who}：${t.text}`).join('；'));
   // 对上才带：特殊日子、聊到的人
