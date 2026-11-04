@@ -211,16 +211,16 @@ function historyText(msgs, c, n = 24) {
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
-/** 世界书 + 念念树里 TA 们记得的事（people：这次说话的 TA 们） */
+/** 世界书 + 念念铃里 TA 们记得的事（people：这次说话的 TA 们） */
 async function worldBlock(scan, people = []) {
-  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念树', '读不到记忆：' + e.message); return ''; });
+  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念铃', '读不到记忆：' + e.message); return ''; });
   return (w ? `\n【世界书】\n${w}\n` : '') + m;
 }
-/** 念念树：让 TA 回消息时顺手把值得记的写进 <astermem>（不多调一次 AI） */
+/** 念念铃：让 TA 回消息时顺手把值得记的写进 <astermem>（不多调一次 AI） */
 const memNote = () => state.apps.memory.on && state.apps.memory.chat !== false ? '\n\n' + compose('memChat') : '';
 /** 把回复里的 <astermem> 拿出来（没写完被截断的也去掉），剩下的才是消息 */
 const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<astermem>([\s\S]*?)<\/astermem>/gi, (_, x) => { mem += x + '\n'; return ''; }).replace(/<astermem>[\s\S]*$/i, ''); return [text, mem.trim()]; };
-const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '念念树', '记不下这段聊天：' + e.message));
+const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '念念铃', '记不下这段聊天：' + e.message));
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
@@ -385,7 +385,7 @@ export async function regenerate(chat, msgId) {
   const msgs = await getMsgs(chat.id);
   const i = msgs.findIndex(m => m.id === msgId); if (i < 0) return;
   const batch = msgs[i].batch;
-  if (batch) dropChat(chat.id, batch).catch(e => log('warn', '念念树', '收不回这批记下的：' + e.message));
+  if (batch) dropChat(chat.id, batch).catch(e => log('warn', '念念铃', '收不回这批记下的：' + e.message));
   for (let j = msgs.length - 1; j >= i; j--) if (msgs[j].from === 'them' && (!batch || msgs[j].batch === batch || j === i)) msgs.splice(j, 1);
   const last = msgs[msgs.length - 1]; if (last) touch(chat, last); else chat.lastText = '';
   saveMsgs(chat.id); commit('chats'); emit('reload', chat.id);

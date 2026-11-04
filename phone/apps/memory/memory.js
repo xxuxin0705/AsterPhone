@@ -1,5 +1,5 @@
-// 念念树：水彩花枝下挂满风铃和纸签，一个挂件一段记忆（方案见 docs/pages-memory.md）。
-// 首页列出有树的 TA（自己勾的）→ 点进去是 TA 的花枝（scene.js），挂着最重要、最近的十来件 → 右上角「时间线」看全部、改。
+// 念念铃：一根根细绳挂满风铃，一只铃一件事（方案见 docs/pages-memory.md）。
+// 首页列出挂了铃的 TA（自己勾的，存在 trees 里）→ 点进去是 TA 的念念铃（scene.js），按月挂着所有事、能搜 → 右上角「时间线」看全部、改。
 // 整理（世界书 / 文件 / 当前聊天 → AI 分批整理）在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
@@ -24,7 +24,7 @@ M.onJob((how, j) => {
 });
 
 export function open() {
-  const p = page({ app: 'memory', id: 'memory-main', title: '念念树', large: true, back: true,
+  const p = page({ app: 'memory', id: 'memory-main', title: '念念铃', large: true, back: true,
     right: [navBtn('plus', '整理', openSort), navBtn('gear', '设置', openSet)] });
   const box = h('div');
   let seen = -1;
@@ -34,14 +34,14 @@ export function open() {
     seen = sig;
     const all = people(d);
     const row = ({ c, tree }) => item({ icon: avatar(c.avatar, nameOf(c), 30), title: nameOf(c), cls: 'as-mem-who',
-      sub: tree ? `${M.evOf(c, d).length} 件事` : '', value: tree ? '' : '种一棵', chevron: tree,
+      sub: tree ? `${M.evOf(c, d).length} 件事` : '', value: tree ? '' : '挂一串', chevron: tree,
       onClick: async () => {
-        if (!tree) { if (!(await dialog({ title: `给 ${nameOf(c)} 种一棵树？`, confirm: '种' }))) return; d.trees.push(c.id); await M.save(); draw(); return; }
+        if (!tree) { if (!(await dialog({ title: `给 ${nameOf(c)} 挂一串念念铃？`, confirm: '挂' }))) return; d.trees.push(c.id); await M.save(); draw(); return; }
         openTree(c);
       } });
     box.replaceChildren(...(all.length ? [
-      all.some(x => x.tree) ? group('有树的', all.filter(x => x.tree).map(row)) : null,
-      all.some(x => !x.tree) ? group('还没种树', all.filter(x => !x.tree).map(row)) : null,
+      all.some(x => x.tree) ? group('挂了铃的', all.filter(x => x.tree).map(row)) : null,
+      all.some(x => !x.tree) ? group('还没挂', all.filter(x => !x.tree).map(row)) : null,
     ].filter(Boolean) : [empty('还没有联系人')]));
   }
   p.body.append(box);
@@ -49,21 +49,21 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 一个 TA 的树：花枝上挂着最重要、最近的十来件，按日期从左往右挂；点一件弹出那一天 ---------- */
+/* ---------- 一个 TA 的念念铃：所有事按月挂成一根根绳，新的在上面；点一只铃弹出那一天；搜索能滑到那只铃 ---------- */
 function openTree(c) {
-  const p = page({ app: 'memory', id: 'memory-tree', title: nameOf(c), back: true, cls: 'as-mem-tree', right: [navBtn('list', '时间线', () => openList(c)), navBtn('more', '更多', async () => {
-    if (await actionSheet(nameOf(c), [{ value: 'cut', label: '把这棵树移走', danger: true }]) !== 'cut') return;
-    if (!(await dialog({ title: `把 ${nameOf(c)} 的树移走？`, text: '记忆不会删，只是不在这里显示', confirm: '移走', danger: true }))) return;
+  const p = page({ app: 'memory', id: 'memory-tree', title: nameOf(c), back: true, cls: 'as-mem-tree', right: [navBtn('search', '搜索', search), navBtn('list', '时间线', () => openList(c)), navBtn('more', '更多', async () => {
+    if (await actionSheet(nameOf(c), [{ value: 'cut', label: '把这串铃收起来', danger: true }]) !== 'cut') return;
+    if (!(await dialog({ title: `把 ${nameOf(c)} 的念念铃收起来？`, text: '记忆不会删，只是不在这里显示', confirm: '收起来', danger: true }))) return;
     const d = await M.load(); d.trees = d.trees.filter(x => x !== c.id); await M.save(); nav.pop();
   })] });
-  const host = h('div.as-mem-scene'), card = h('div.as-mem-card', { role: 'dialog' }), none = h('div.as-mem-none', { hidden: true }, h('div', '这棵树上还没有挂东西'), btn('去整理', 'secondary', openSort));
+  const host = h('div.as-mem-scene'), card = h('div.as-mem-card', { role: 'dialog' }), none = h('div.as-mem-none', { hidden: true }, h('div', '还没有挂上铃'), btn('去整理', 'secondary', openSort));
   p.el.prepend(host); p.el.append(card, none);
   let shown = null;
   const close = () => { card.classList.remove('is-open'); shown = null; };
   const S = scene(host, e => {
     if (!e || e === shown) { close(); return; }
     shown = e;
-    card.replaceChildren(h('small', [ymd(e.at) + (e.guess ? '（推测）' : ''), e.part, e.place].filter(Boolean).join(' · ')), h('b', e.title), h('p', e.text),
+    card.replaceChildren(h('small', [ymd(e.at) + (e.guess ? '（推测）' : ''), e.part, e.place].filter(Boolean).join(' · ')), h('b', e.title), h('p', e.text), e.quote ? h('p.as-mem-card__now', '「' + e.quote + '」') : null,
       M.tail(e, M.evOf(c)) ? h('p.as-mem-card__now', M.tail(e, M.evOf(c)).slice(1, -1)) : null, h('div.as-mem-acts', btn('改', 'secondary', () => { close(); editEvent(e); }), btn('关', 'secondary', close)));
     card.classList.add('is-open');
   });
@@ -71,12 +71,17 @@ function openTree(c) {
   async function draw() {
     S.resume();
     const d = await M.load(); if (M.ver === seen) return; seen = M.ver;
-    // 挑十来件：钉住的先挂，再按重要度和新旧挑；挂的时候按日期从左（早）到右（近）
-    const all = M.evOf(c, d).filter(e => !e.off), n = all.length;
-    const pick = all.map((e, i) => [e, (e.pin ? 100 : 0) + e.imp * 3 + i / Math.max(1, n) * 4]).sort((a, b) => b[1] - a[1]).slice(0, 11).map(([e]) => e)
-      .sort((a, b) => (a.at || '0').localeCompare(b.at || '0'));
-    S.set(pick); none.hidden = n > 0;
+    const all = M.evOf(c, d).filter(e => !e.off);
+    S.set(all); none.hidden = all.length > 0;
     if (shown && !all.includes(shown)) close();
+  }
+  // 搜索：标题、经过、地点、标签、关键词、原话、日期里有这几个字的，点一件就滑到那只铃
+  function search() {
+    const box = h('div'), all = () => M.evOf(c).filter(e => !e.off);
+    const fill = w => box.replaceChildren(...(!w ? [] : all().filter(e => [e.title, e.text, e.place, e.at, e.quote, ...e.tags, ...(e.keys || [])].some(x => x && x.includes(w))).slice(0, 30)
+      .map(e => item({ title: e.title, sub: [ymd(e.at), e.place].filter(Boolean).join(' · '), chevron: true, onClick: () => { s.close(); close(); S.find(e); } }))));
+    const q = input({ placeholder: '想找什么', onInput: v => fill(v.trim()) }), s = sheet({ title: '找一件事', content: [q, box] });
+    setTimeout(() => q.focus(), 300);
   }
   draw(); p.el._onShow = draw; p.el._onLeave = S.stop;
   nav.push(p.el); S.resume();   // 进了页面才开始动

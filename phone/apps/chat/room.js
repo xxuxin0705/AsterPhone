@@ -274,9 +274,9 @@ export async function openRoom(chat) {
     list2.forEach(m => { const i = msgs.indexOf(m); if (i >= 0) msgs.splice(i, 1); });
     // TA 最后一条之后我发的，TA 还没看到：又变回「送达」
     for (let i = msgs.length - 1; i >= 0 && msgs[i].from !== 'them'; i--) if (msgs[i].from === 'me') msgs[i].read = false;
-    // 念念树里从这几批消息记下的也删掉
+    // 念念铃里从这几批消息记下的也删掉
     const { dropChat } = await import('../../core/memory.js');
-    for (const b of new Set(list2.map(m => m.batch).filter(Boolean))) await dropChat(chat.id, b).catch(e => toast('念念树里的没删掉：' + e.message));
+    for (const b of new Set(list2.map(m => m.batch).filter(Boolean))) await dropChat(chat.id, b).catch(e => toast('念念铃里的没删掉：' + e.message));
     const last = msgs[msgs.length - 1]; chat.lastText = E.preview(last); if (last) chat.lastAt = last.at;
     saveMsgs(chat.id); commit('chats'); redraw(true); return true;
   }

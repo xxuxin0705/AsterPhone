@@ -1,6 +1,6 @@
 // 和酒馆正文联动：
 // 1. 往正文里放「暗号」指令（让 AI 输出剧情时间、正文里发给你的手机消息）
-// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进念念树，并把标签从正文显示里藏起来
+// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进念念铃，并把标签从正文显示里藏起来
 // 3. 把手机里的聊天注入正文（跟随正文的聊天自动注入最近 N 条；手动钉住的始终注入）
 import { state, subscribe, getMsgs, contact, commit, enterWindow } from './store.js';
 import { syncTavernProfiles } from './api.js';
@@ -73,9 +73,9 @@ async function readMessage(id) {
   const t = time.parseTimeTag(text);
   if (t) { const cur = time.story(), cd = cur.date ? `${cur.date.getFullYear()}-${String(cur.date.getMonth() + 1).padStart(2, '0')}-${String(cur.date.getDate()).padStart(2, '0')}` : null;
     if (cur.day !== t.day || cur.hh !== t.hh || cur.mm !== t.mm || (t.date && t.date !== cd) || (t.place && t.place !== cur.place)) time.setStory(t.day, t.hh, t.mm, 'story', t.date, t.place || undefined); }
-  // 念念树：这一楼写的 <astermem>（没写也要告诉它：换了 swipe 时之前那版记下的要收回）
+  // 念念铃：这一楼写的 <astermem>（没写也要告诉它：换了 swipe 时之前那版记下的要收回）
   if (state.apps.memory.on) (await import('./memory.js')).fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n'))
-    .catch(e => log('warn', '念念树', '记不下这一楼：' + e.message));
+    .catch(e => log('warn', '念念铃', '记不下这一楼：' + e.message));
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {

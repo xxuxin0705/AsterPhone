@@ -69,7 +69,7 @@ export function defaults() {
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
-      // 念念树：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off / maybe 有值得记的才记 / every 每楼都记）、手机聊天时顺手记
+      // 念念铃：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off / maybe 有值得记的才记 / every 每楼都记）、手机聊天时顺手记
       memory: { conn: { text: 'follow' }, on: true, story: 'maybe', chat: true },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
@@ -184,7 +184,7 @@ export function saveMsgs(chatId) {
 }
 export async function clearMsgs(chatId) {
   msgCache.set(chatId, []); await kvDel('msgs:' + chatId); saveMsgs(chatId);
-  (await import('./memory.js')).dropChatAll(chatId).catch(e => console.warn('[AsterPhone] 念念树没收回这个聊天记下的', e));   // 聊天删了，念念树里从这个聊天记下的也删
+  (await import('./memory.js')).dropChatAll(chatId).catch(e => console.warn('[AsterPhone] 念念铃没收回这个聊天记下的', e));   // 聊天删了，念念铃里从这个聊天记下的也删
   for (const k of await kvKeys()) if (String(k).startsWith(`tts:${chatId}:`)) await kvDel(k);   // 合成好存着的语音
 }
 

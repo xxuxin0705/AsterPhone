@@ -1,4 +1,4 @@
-// 念念树：手机里的 TA 记得的事（方案见 docs/pages-memory.md）。
+// 念念铃：手机里的 TA 记得的事（方案见 docs/pages-memory.md）。
 // 每个酒馆聊天窗口一份，存在 kv 的 mem:窗口 里：
 //   ev 事件 / rel 关系（两人一条，只记一次）/ ppl 人物 / days 特殊日子 / todo 没完的事 / trees 有树的 TA（联系人 id）
 //   facts 了解（关于某人长期不太变的事：喜好、怕什么、酒量…，带「谁知道」：每个人知道的不一样）
@@ -152,7 +152,7 @@ async function take(src, body, fix, fixFact) {
   S[src] = sig;
   const x = parse(sig); x.ev.forEach(fix); if (fixFact) x.facts.forEach(fixFact);
   const n = merge(x, src); await save();
-  if (n) log('info', '念念树', `记下 ${n} 件事：${x.ev.map(e => e.title).join('、')}`);
+  if (n) log('info', '念念铃', `记下 ${n} 件事：${x.ev.map(e => e.title).join('、')}`);
   return n;
 }
 /** 正文第 id 层里的 <astermem>（换了 swipe、改了内容就按新的重记）：没写日期就用现在的剧情日期 */
@@ -248,7 +248,7 @@ export async function startJob(label, list, done = 0) {
   try {
     while (job.done < job.list.length) {
       await kvSet('memjob:' + key, { label, list, done: job.done });
-      const raw = await generate({ conn: resolveConn('text', 'memory'), app: '念念树',
+      const raw = await generate({ conn: resolveConn('text', 'memory'), app: '念念铃',
         prompt: compose('memSort', { source: list[job.done], existing: known() }), temperature: .3, maxTokens: 4000, stop: job.ac.signal });
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       job.added += merge(parse(raw), label); await save();
@@ -380,7 +380,7 @@ function recall(pool, scan, self) {
   let drift = null;
   if (near.length && Math.random() < DRIFT) { let r = Math.random() * total; drift = (near.find(([, s]) => (r -= s) <= 0) || near[0])[0]; }
   // 被想起一次记一次（不改 ver：页面不用跟着重画）
-  if (pick.length || drift) apiLog('info', '念念树', [pick.length && '想起：' + pick.map(e => e.title).join('、'), drift && '忽然想起：' + drift.title].filter(Boolean).join('；'));
-  if (pick.length) { pick.forEach(e => { e.used = (e.used || 0) + 1; }); kvSet('mem:' + Dkey, D).catch(e => log('warn', '念念树', '没存上想起的次数：' + e.message)); }
+  if (pick.length || drift) apiLog('info', '念念铃', [pick.length && '想起：' + pick.map(e => e.title).join('、'), drift && '忽然想起：' + drift.title].filter(Boolean).join('；'));
+  if (pick.length) { pick.forEach(e => { e.used = (e.used || 0) + 1; }); kvSet('mem:' + Dkey, D).catch(e => log('warn', '念念铃', '没存上想起的次数：' + e.message)); }
   return [pick, drift];
 }
