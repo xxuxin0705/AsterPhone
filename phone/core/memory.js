@@ -40,6 +40,7 @@ export function namesOf(c) {
 }
 const isMe = n => n === myName() || n === '我' || n === '{{user}}';
 export const evOf = (c, d = D) => { const ns = namesOf(c); return d.ev.filter(e => e.who.some(n => ns.has(n))); };
+export const daysOf = (c, d = D) => { const ns = namesOf(c); return d.days.filter(x => !x.who.length || x.who.some(n => ns.has(n) || isMe(n))); };
 export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(r => ns.has(r.a) || ns.has(r.b)); };
 
 /* ---------- 读 AI 写回来的行 ---------- */
@@ -61,7 +62,7 @@ export function parse(raw) {
     const f = m[2].split(/[｜|]/).map(norm);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]);
-      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: list(f[6]), imp: Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), after: f[8] || '', keys: list(f[9]) });
+      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: list(f[6]), imp: Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), after: f[8] || '', keys: list(f[9]), quote: f[10] || '' });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
@@ -91,7 +92,7 @@ export function merge(x, src = '') {
   for (const e of x.ev) {
     e.who = [...new Set(e.who.map(canon))];
     const dup = D.ev.find(o => o.at === e.at && (o.title === e.title || alike(o.title + o.text, e.title + e.text) > .6));
-    if (dup) { dup.imp = Math.max(dup.imp, e.imp); continue; }
+    if (dup) { dup.imp = Math.max(dup.imp, e.imp); for (const k of ['quote', 'after', 'keys']) if (!(dup[k] && dup[k].length) && e[k] && e[k].length) dup[k] = e[k]; continue; }   // 重新整理：老记忆缺的格子补上
     D.ev.push({ id: uid('m'), ...e, pin: false, off: false, src }); added++;
   }
   for (const r of x.rel) {
@@ -101,7 +102,11 @@ export function merge(x, src = '') {
     if (o.kind !== r.kind) { o.hist.push({ kind: o.kind, since: o.since, src }); o.kind = r.kind; o.since = r.since || o.since; }
     if (r.now) o.now = r.now;
   }
-  for (const d of x.days) if (!D.days.some(o => o.md === d.md && alike(o.what, d.what) > .5)) D.days.push({ ...d, who: d.who.map(canon), src });
+  for (const d of x.days) {
+    const o = D.days.find(o => o.md === d.md && alike(o.what, d.what) > .5);
+    if (!o) D.days.push({ ...d, who: d.who.map(canon), src });
+    else { if (!o.kind || o.kind === '其他') o.kind = d.kind; if (!o.date) o.date = d.date; }   // 老的没有类型、年份：重新整理时补上
+  }
   for (const t of x.todo) if (!D.todo.some(o => !o.done && alike(o.text, t.text) > .6)) D.todo.push({ id: uid('t'), who: canon(t.who), text: t.text, done: false, src });
   for (const t of x.done) { const o = D.todo.find(o => !o.done && alike(o.text, t.text) > .45); if (o) { o.done = true; o.doneBy = src; } }
   D.ev.sort((a, b) => (a.at || '9999').localeCompare(b.at || '9999'));
@@ -238,12 +243,12 @@ export async function startJob(label, list, done = 0) {
 /* 特殊日子：当天说出来；快到了（7 天内）先记在心里。
  * 生日、祭日、节日、其他：每年那天（祭日知道年份就说第几年）；纪念日（知道年份的）：满一个月、100 天、半年，满一年后每年一次。
  * 关系里「从什么时候起」写的是日期的恋人，也当成交往纪念日。返回 [今天的, 快到的, 碰上的日子（拿来找相关的往事）, 今天有没有祭日] */
-const AHEAD = 7;
+const AHEAD = 7, CATALOG = 60, DRIFT = .35;   // 快到的日子提前几天；目录最多几件；没被问到时，大概几次里有一次忽然想起一件
 function specialDays(d, ns) {
   const n = time.isStory() ? time.story().date : new Date(), t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
   const ymd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m && new Date(+m[1], m[2] - 1, +m[3]); };
   const shift = (x, mo, dd = 0) => new Date(x.getFullYear(), x.getMonth() + mo, x.getDate() + dd);
-  const list = [...d.days, ...d.rel.filter(r => r.kind === '恋人' && (ns.has(r.a) || ns.has(r.b)) && ymd(r.since) && !d.days.some(x => x.kind === '纪念日' && x.date === r.since.slice(0, 10))).map(r => ({ kind: '纪念日', date: r.since, md: r.since.slice(5), what: `${r.a}和${r.b}交往` }))];
+  const list = [...d.days.filter(x => !x.who.length || x.who.some(n => ns.has(n) || isMe(n))), ...d.rel.filter(r => r.kind === '恋人' && (ns.has(r.a) || ns.has(r.b)) && ymd(r.since) && !d.days.some(x => x.kind === '纪念日' && x.date === r.since.slice(0, 10))).map(r => ({ kind: '纪念日', date: r.since, md: r.since.slice(5), what: `${r.a}和${r.b}交往` }))];
   const now = [], soon = [], hits = [];
   let sad = false;   // 今天有祭日：语气要不一样
   for (const x of list) {
@@ -290,8 +295,13 @@ export async function memoryFor(people, scan = '') {
   const pool = d.ev.filter(e => !e.off && e.who.some(n => ns.has(n)));
   // 到了 / 快到特殊日子：翻出以前同一类日子的事（标签是这个类型的，或写到了这个日子），最近的 3 件
   const onDay = hits.length ? pool.filter(e => !e.pin && hits.some(x => (x.kind !== '其他' && e.tags.includes(x.kind)) || [e.title, ...e.tags, ...(e.keys || [])].some(t => t && (t.includes(x.what) || x.what.includes(t) && t.length > 1)))).sort((a, b) => (b.at || '').localeCompare(a.at || '')).slice(0, 3) : [];
-  const pick = [...pool.filter(e => e.pin), ...onDay, ...recall(pool.filter(e => !e.pin && !onDay.includes(e)), scan, new Set([...ns, myName(), '我']))];
-  if (pick.length) lines.push('想起的事（这些是真发生过的。自然地提起就好，不用每件都说；同一类的事有好几次时，像真人一样分清是哪一次：可以先反问、逗一逗，或者都说起。提到过去时只用这里、正文和世界书里写了的，没写到的事和细节不要编）：\n' + pick.map(e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${tail(e, pool)}`).join('\n'));
+  const [got, drift] = recall(pool.filter(e => !e.pin && !onDay.includes(e)), scan, new Set([...ns, myName(), '我']));
+  const pick = [...pool.filter(e => e.pin), ...onDay, ...got], full = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${tail(e, pool)}`;
+  if (pick.length) lines.push('想起的事（这些是真发生过的。自然地提起就好，不用每件都说；同一类的事有好几次时，像真人一样分清是哪一次：可以先反问、逗一逗，或者都说起。提到过去时只用这里、正文和世界书里写了的，没写到的事和细节不要编）：\n' + pick.map(full).join('\n'));
+  if (drift) lines.push('忽然想起的（和现在有点关系，合适就顺口提一句，不合适就不提）：\n' + full(drift));
+  // 其他经历过的：只有日期、地点、标题，让 TA 知道自己经历过什么，聊到了能自己想起来；太多时留重要的、近的
+  const rest = pool.filter(e => !pick.includes(e) && e !== drift), keep = new Set(rest.map((e, i) => [e, e.imp * 2 + i / Math.max(1, rest.length) * 3]).sort((a, b) => b[1] - a[1]).slice(0, CATALOG).map(([e]) => e));
+  if (keep.size) lines.push('其他经历过的事（只记得个大概；聊到了可以说起，细节记不清就说记不清，不要编）：\n' + rest.filter(e => keep.has(e)).map(e => `- ${e.at || '不知道哪天'}${e.place ? ' ' + e.place : ''}：${e.title}`).join('\n'));
   return lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '';
 }
 
@@ -302,7 +312,7 @@ export async function memoryFor(people, scan = '') {
  * 3. 挑事：一件事的分 = 它挂的星亮多少（越常见的星分越少）+ 字面像不像 + 重要度 + 以前被想起过几次；
  *    字面按「越少见的词越算数」比（BM25）；不按时间变淡。最多 3 件，分不够的不带。 */
 function recall(pool, scan, self) {
-  if (!pool.length || !scan) return [];
+  if (!pool.length || !scan) return [[], null];
   const stars = e => [...new Set([...e.who, e.place, ...e.tags, ...(e.keys || [])].filter(n => n && n.length > 1 && !self.has(n)))];
   const deg = new Map(), link = new Map();
   for (const e of pool) { const s = stars(e); for (const a of s) { deg.set(a, (deg.get(a) || 0) + 1); const l = link.get(a) || link.set(a, new Map()).get(a); for (const b of s) if (b !== a) l.set(b, (l.get(b) || 0) + 1); } }
@@ -324,17 +334,23 @@ function recall(pool, scan, self) {
   const strip = s => [...self].filter(n => n.length > 1).reduce((x, n) => x.split(n).join(' '), s);
   const docs = new Map(pool.map(e => [e, toks(strip([e.title, e.text, e.place, ...e.tags, ...(e.keys || [])].join(' ')))])), N = pool.length;
   // 单个字只看最后一句（刚说的话），不然几百字的正文里随便几个字都能对上
-  const q = [...new Set([...grams(strip(recent)), ...toks(strip(scan.slice(scan.lastIndexOf('\n') + 1)))])].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b));
+  // 单个字再多去掉几个到处都有的（过、时、日、天…）；「生日」这种两字词照样算
+  const said = toks(strip(scan.slice(scan.lastIndexOf('\n') + 1)));
+  const q = [...new Set([...grams(strip(recent)), ...said])].filter(b => !/[的了吗呢吧啊呀哦嗯我你他她它们是在有这那么个一不也就都还和跟想说要会去来看好]/.test(b) && (b.length > 1 || !/[过着什时候日天年月点今明昨上下前后里次]/.test(b)));
   const idf = new Map(q.map(b => { const df = pool.filter(e => docs.get(e).has(b)).length; return [b, df ? Math.log(1 + N / df) : 0]; }));
   const score = e => {
-    const hit = q.filter(b => docs.get(e).has(b)), lit = hit.length < 2 ? 0 : hit.reduce((t, b) => t + idf.get(b) * (b.length > 1 ? 1 : .5), 0) * .25;   // 只对上一个字 / 词的不算，免得碰巧
+    const hit = q.filter(b => docs.get(e).has(b)), lit = hit.length < 2 ? 0 : hit.reduce((t, b) => t + idf.get(b) * (b.length > 1 ? 1 : .5), 0) * .25 + (hit.filter(b => said.has(b)).length >= 2 ? .3 : 0);   // 只对上一个字 / 词的不算，免得碰巧；刚说的那句话里对上两处的再加一点
     const s = stars(e).reduce((t, n) => t + (act.get(n) || 0) / Math.sqrt(deg.get(n)), 0) + Math.min(2, lit);
     if (s < .3) return 0;   // 和现在说的一点都不沾：重要度、想起过几次都不算
     return s + e.imp * .08 + Math.log1p(e.used || 0) * .1;
   };
-  const pick = pool.map(e => [e, score(e)]).filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);
+  const scored = pool.map(e => [e, score(e)]), pick = scored.filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);
+  // 忽然想起：和现在有点关系（沾边但不够格）的里面，偶尔按分数抽一件（学自玄参的「自然浮现」：纯随机像失忆，只取最高分又会一直是那几件）
+  const near = scored.filter(([e, s]) => s > 0 && s < .8 && !pick.includes(e)), total = near.reduce((t, [, s]) => t + s, 0);
+  let drift = null;
+  if (near.length && Math.random() < DRIFT) { let r = Math.random() * total; drift = (near.find(([, s]) => (r -= s) <= 0) || near[0])[0]; }
   // 被想起一次记一次（不改 ver：页面不用跟着重画）
-  if (pick.length) apiLog('info', '念念树', '想起：' + pick.map(e => e.title).join('、'));
+  if (pick.length || drift) apiLog('info', '念念树', [pick.length && '想起：' + pick.map(e => e.title).join('、'), drift && '忽然想起：' + drift.title].filter(Boolean).join('；'));
   if (pick.length) { pick.forEach(e => { e.used = (e.used || 0) + 1; }); kvSet('mem:' + Dkey, D).catch(e => log('warn', '念念树', '没存上想起的次数：' + e.message)); }
-  return pick;
+  return [pick, drift];
 }

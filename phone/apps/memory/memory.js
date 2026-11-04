@@ -99,6 +99,9 @@ function openList(c) {
         await M.save(); draw();
       } })),
     ]));
+    const days = M.daysOf(c, d), md = x => x.date ? ymd(x.date) : x.md.replace(/^0?(\d+)-0?(\d+)$/, '每年$1月$2日');
+    nb.push(group('日子', [...days.map(x => item({ title: x.what, sub: `${x.kind || '其他'} · ${md(x)}`, chevron: true, onClick: () => editDay(x) })),
+      item({ icon: icon('plus', 18, 2), title: '加一个日子', onClick: () => editDay(null) })]));
     // 按年月分组，最近的在上面
     const months = new Map();
     for (const e of ev) { const k = ym(e.at); if (!months.has(k)) months.set(k, []); months.get(k).push(e); }
@@ -122,6 +125,23 @@ function openList(c) {
       })),
     ] });
   }
+  // 日子：类型、日期（年-月-日，不知道年份就写月-日）、是什么日子、和谁有关；照「日子」那一行的格式读，和 AI 记的一样
+  async function editDay(o) {
+    const d = await M.load(), x = o ? { kind: o.kind || '其他', at: o.date || o.md, what: o.what, who: o.who.join('、') } : { kind: '生日', at: '', what: '', who: c.name || nameOf(c) };
+    const s = sheet({ title: o ? o.what : '加一个日子', content: [
+      segmented(M.DAY_KINDS.map(k => [k, k]), x.kind, v => { x.kind = v; }),
+      field('是什么日子', input({ value: x.what, onInput: v => { x.what = v.trim(); } })),
+      field('日期', input({ value: x.at, placeholder: '年-月-日', onInput: v => { x.at = v.trim(); } })),
+      field('和谁有关', input({ value: x.who, onInput: v => { x.who = v; } })),
+      o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); draw(); })) : null,
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+        const y = M.parse(`日子：${x.kind}｜${x.at}｜${x.what}｜${x.who}`).days[0];
+        if (!y) { toast(x.what ? '日期写成 年-月-日 或 月-日' : '写上是什么日子'); return; }
+        if (o) Object.assign(o, y); else d.days.push(y);
+        await M.save(); s.close(); draw();
+      })),
+    ].filter(Boolean) });
+  }
   p.body.append(box);
   draw(); p.el._onShow = draw;
   nav.push(p.el);
@@ -140,7 +160,8 @@ async function editEvent(e) {
       field('经过', textarea({ value: x.text, rows: 3, onInput: v => { x.text = v.trim(); } })),
       field('人物', input({ value: x.who, onInput: v => { x.who = v; } })),
       field('标签', input({ value: x.tags, onInput: v => { x.tags = v; } })),
-      field('影响', input({ value: x.after || '', onInput: v => { x.after = v.trim(); } }))]),
+      field('影响', input({ value: x.after || '', onInput: v => { x.after = v.trim(); } })),
+      field('原话', textarea({ value: x.quote || '', rows: 2, onInput: v => { x.quote = v.trim(); } }))]),
     group('重要度', [h('div.as-mem-imp', segmented([1, 2, 3, 4, 5].map(n => [n, '★'.repeat(n)]), x.imp, v => { x.imp = v; }))]),
     h('div.as-mem-acts', flag('pin', '取消钉住', '钉住'), flag('off', '恢复', '撤回'),
       btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这件事？', confirm: '删除', danger: true }))) return; d.ev.splice(d.ev.indexOf(e), 1); await M.save(); nav.pop(); })),
