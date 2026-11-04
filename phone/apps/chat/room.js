@@ -96,14 +96,16 @@ export async function openRoom(chat) {
   function msgNode(m, prev, next, anim) {
     const frag = [];
     const sep = sepFor(m, prev); if (sep) frag.push(h('div.as-chat-time', sep));
-    if (solo(m)) {
+    const check = h('span.as-chat-check.as-chat-msg__check' + (selected.has(m.id) ? '.is-active' : ''), icon('check', 14, 2.6));
+    const pickable = row => { row.addEventListener('click', () => { if (!selecting) return; selected.has(m.id) ? selected.delete(m.id) : selected.add(m.id); check.classList.toggle('is-active', selected.has(m.id)); syncSelectBar(); }); return row; };
+    if (solo(m)) {   // 拍一拍、撤回这种提示：多选时也能勾、能删
       const mine = m.from === 'me';
-      frag.push(h('div.as-chat-sys', { dataset: { id: m.id } }, m.recalled ? (mine ? '你撤回了一条消息' : `「${E.nameOf(c)}」撤回了一条消息`) : m.text,
+      frag.push(pickable(h('div.as-chat-msg.is-sys.no-anim', { dataset: { id: m.id } }, check, h('div.as-chat-sys', m.recalled ? (mine ? '你撤回了一条消息' : `「${E.nameOf(c)}」撤回了一条消息`) : m.text,
         m.recalled && mine && m.text ? h('button', { onclick: () => { inputEl.value = m.text; syncBtn(); inputEl.focus(); } }, '重新编辑') : null,
         m.verify && E.cutOf(chat) === 'deleted' ? h('button', { onclick: async () => {
           const t = await dialog({ title: '发送朋友验证', input: { value: `我是${state.me.nick || '我'}` }, confirm: '发送' }); if (t == null) return;
           try { await E.sendVerify(chat, t.trim() || `我是${state.me.nick || '我'}`); } catch (e) { toast('发送失败：' + e.message); }
-        } }, '发送朋友验证') : null));
+        } }, '发送朋友验证') : null))));
       return frag;
     }
     const me = m.from === 'me', A = avatarCfg(chat.cfg);
@@ -143,12 +145,10 @@ export async function openRoom(chat) {
       rx.length ? h('div.as-chat-reactions', rx.map(r => h('span', r))) : null,
       tags.length ? h('div.as-chat-msg__tags', tags) : null,
       meta.length ? h('div.as-chat-msg__meta', meta) : null);
-    const check = h('span.as-chat-check.as-chat-msg__check' + (selected.has(m.id) ? '.is-active' : ''), icon('check', 14, 2.6));
     const row = h('div.as-chat-msg' + (me ? '.is-me' : '.is-them') + (cont ? '.is-cont' : '') + (lastOfRun ? '.is-last' : '') + (anim ? '' : '.no-anim'),
       { dataset: { id: m.id }, style: { '--ava': (showAva ? A.size : 0) + 'px' } }, check, ava, col);
     if (ava && cont) ava.style.visibility = 'hidden';
-    row.addEventListener('click', () => { if (!selecting) return; selected.has(m.id) ? selected.delete(m.id) : selected.add(m.id); check.classList.toggle('is-active', selected.has(m.id)); syncSelectBar(); });
-    frag.push(row);
+    frag.push(pickable(row));
     return frag;
   }
   function redraw(keepScroll, animId) {
@@ -272,6 +272,8 @@ export async function openRoom(chat) {
   async function del(list2) {
     if (!(await dialog({ title: list2.length > 1 ? `删除 ${list2.length} 条消息？` : '删除这条消息？', confirm: '删除', danger: true }))) return false;
     list2.forEach(m => { const i = msgs.indexOf(m); if (i >= 0) msgs.splice(i, 1); });
+    // TA 最后一条之后我发的，TA 还没看到：又变回「送达」
+    for (let i = msgs.length - 1; i >= 0 && msgs[i].from !== 'them'; i--) if (msgs[i].from === 'me') msgs[i].read = false;
     // 念念树里从这几批消息记下的也删掉
     const { dropChat } = await import('../../core/memory.js');
     for (const b of new Set(list2.map(m => m.batch).filter(Boolean))) await dropChat(chat.id, b).catch(e => toast('念念树里的没删掉：' + e.message));
