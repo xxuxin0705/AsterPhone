@@ -1,7 +1,7 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
 import { h, onLongPress } from '../../core/util.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -239,7 +239,7 @@ export async function openRoom(chat) {
         act(m.tr ? '收起翻译' : '翻译', 'note', async () => {
           if (m.tr) { delete m.tr; saveMsgs(chat.id); redraw(true); return; }
           if (!m.text) { toast('这条没有文字可以翻译'); return; }
-          toast('正在翻译…', true); try { toast(await E.translateMsg(chat, m) ? '翻译好了' : '本来就是这个语言'); } catch (e) { toast(e.message); }
+          try { const r = await waiting('正在翻译…', async () => [await E.translateMsg(chat, m)]); if (r) toast(r[0] ? '翻译好了' : '本来就是这个语言'); } catch (e) { toast(e.message); }
         }),
         act('收藏', 'bookmark', () => fav([m])),
         act(m.pinned ? '取消注入' : '注入正文', 'link', () => { m.pinned = !m.pinned; saveMsgs(chat.id); commit('inject'); redraw(true); toast(m.pinned ? '已钉住，会一直注入正文' : '已取消注入'); }),

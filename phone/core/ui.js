@@ -280,11 +280,20 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
 
 /* ---------- 轻提示 ---------- */
 let toastEl = null, toastT = 0;
-/** 按钮干活时（拉取、试听…）转圈、不能再点，大小不变；干完恢复原样 */
-export async function busy(btn, fn) {
-  if (btn.disabled) return;
-  const old = [...btn.childNodes]; btn.style.minWidth = btn.offsetWidth + 'px'; btn.disabled = true; btn.replaceChildren(h('span.as-spin'));
-  try { return await fn(); } finally { btn.disabled = false; btn.replaceChildren(...old); btn.style.minWidth = ''; }
+/* 要等的事都要能取消（作者定的规矩，以后新加的也一样）。点了取消就不等了：提示「已取消」，返回 undefined；
+ * fn 拿到 signal，能断的断掉（找 AI 的传给 generate 的 stop）。只把「要等的那一步」放进 fn，拿到结果后再动页面，取消了就不会再动 */
+const run = (ac, fn) => new Promise((ok, no) => {
+  ac.signal.addEventListener('abort', () => { toast('已取消'); ok(); }, { once: true });
+  Promise.resolve().then(() => fn(ac.signal)).then(v => ac.signal.aborted || ok(v), e => ac.signal.aborted || no(e));
+});
+/** 提示条转圈 +「取消」 */
+export function waiting(msg, fn) { const ac = new AbortController(); toast(msg, { label: '取消', fn: () => ac.abort(), wait: true }); return run(ac, fn); }
+/** 按钮干活时（拉取、试听…）转圈、大小不变，再点一下就取消；给了 msg 就同时挂一条带「取消」的提示 */
+export async function busy(btn, fn, msg) {
+  if (btn._ac) { btn._ac.abort(); return; }
+  const ac = btn._ac = new AbortController(), old = [...btn.childNodes]; btn.style.minWidth = btn.offsetWidth + 'px'; btn.replaceChildren(h('span.as-spin'));
+  if (msg) toast(msg, { label: '取消', fn: () => ac.abort(), wait: true });
+  try { return await run(ac, fn); } finally { btn._ac = null; btn.replaceChildren(...old); btn.style.minWidth = ''; }
 }
 /** action = true：要等的操作，带等待动画一直挂着，直到下一条 toast 把它换掉（所以结束时一定要再 toast 一句结果） */
 export function toast(msg, action) {

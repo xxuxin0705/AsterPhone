@@ -475,6 +475,7 @@ const audioOf = async res => {
 /** 一次合成语音记成日志里的一条调用 */
 export async function synthesize(conn, text, opts = {}) {
   const call = startCall({ app: '语音', what: '合成语音', src: conn.name, model: conn.model || '', req: text + (opts.voice || (conn.tts || {}).voice ? `\n\n（音色：${opts.voice || conn.tts.voice}）` : '') });
+  opts.stop && opts.stop.addEventListener('abort', () => abortCall(call.id), { once: true });
   try { const u = await orAbort(synthRaw(conn, text, opts), call.signal); call.done('[一段声音]'); return u; }
   catch (e) { call.fail(e.message); throw Object.assign(e, { logId: call.id }); }
 }
@@ -589,9 +590,10 @@ export async function listVoices(conn) {
   return null;
 }
 /** 试听：用这个接口、这个音色念一句 */
-export async function tryVoice(conn, voice, text = '你好呀，能听到我说话吗？') {
+export async function tryVoice(conn, voice, text = '你好呀，能听到我说话吗？', stop) {
   try {
-    const url = await Promise.race([synthesize(conn, text, { voice }), new Promise((_, no) => setTimeout(() => no(new Error('等了 40 秒还没合成好')), 40000))]);
+    const url = await Promise.race([synthesize(conn, text, { voice, stop }), new Promise((_, no) => setTimeout(() => no(new Error('等了 40 秒还没合成好')), 40000))]);
+    if (stop && stop.aborted) return;
     stopSpeak(); const a = new Audio(url); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a;
     await a.play().catch(e => { throw new Error(e.name === 'NotAllowedError' ? '浏览器没让出声，再点一次' : `合成好了但播不出来（${e.name}：${e.message}）`); });
   } catch (e) { if (!e.logId) log('warn', '语音', `「${conn.name}」试听失败：${e.message}`); throw e; }   // 合成那一步失败的，调用记录里已经有了
@@ -611,19 +613,20 @@ export async function speak(text, opts = {}) {
   say('start');
   try { return await speakRaw(text, opts); } finally { say('end'); }
 }
-async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent } = {}) {
+async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop } = {}) {
   if (!silent) stopSpeak();
   const play = async (url, c) => {
     if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));
-    if (silent) return;
+    if (silent || (stop && stop.aborted)) return;
     const a = new Audio(url); a.volume = Math.min(1, (c && c.tts && c.tts.volume) ?? 1); playing = a; await a.play();
-    return new Promise(r => { a.onended = r; a.onerror = r; });
+    return new Promise(r => { a.onended = r; a.onerror = r; a.onpause = r; });   // 被停掉（stopSpeak）也算念完，不然等它的地方会一直卡着
   };
   const saved = cache && await kvGet(cache).catch(() => null);
   if (saved) { cache = null; return play(URL.createObjectURL(saved), conn); }
   if (conn) {
-    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice })), conn); }
+    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice, stop })), conn); }
     catch (e) {
+      if (stop && stop.aborted) return;   // 自己点了停：不换副 API、不用浏览器念
       log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
       const bk = backupOf('tts');   // 语音线断了 → 先换副 API（用它自己的音色），再不行才用浏览器朗读
       if (bk && bk.id !== conn.id) try {

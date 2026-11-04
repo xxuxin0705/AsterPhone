@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit, contact, kvGet, kvSet, kvDel } from '../../core/store.js';
-import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
@@ -178,8 +178,7 @@ function openAllChars() {
   }
 }
 async function heartMode() {
-  toast('正在开启心动模式…', true);
-  try { const songs = await P.heartPick(); toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }
+  try { const songs = await waiting('正在开启心动模式…', () => P.heartPick()); if (!songs) return; toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }
   catch (e) { log('error', '心动模式', e.message); toast(e.message); }
 }
 // 角色的一个歌单：能编辑（名字、封面、背景、简介、标签）、加歌（搜一下挑一首）；左滑「移除」删歌
@@ -188,8 +187,8 @@ function openCharOne(c, l) {
   const v = openList(l.name, l.songs, { info: l, onRemove: s => { l.songs = l.songs.filter(x => x.id !== s.id); commit('contacts'); },
     actions: h('div.as-mu-lp__acts', pill('edit', '编辑', () => editList(l, () => { commit('contacts'); v.head(); })), pill('plus', '加歌', async () => {
       const w = ((await dialog({ title: '加歌', input: { placeholder: '歌名或歌手' }, confirm: '搜' })) || '').trim(); if (!w) return;
-      toast(`正在搜「${w}」…`, true);
-      let L; try { L = (await P.search(w)).slice(0, 12); } catch (e) { log('warn', '音乐', `搜「${w}」失败：${e.message}`); toast(`没搜成：${e.message}`); return; }
+      let L; try { L = await waiting(`正在搜「${w}」…`, () => P.search(w)); } catch (e) { log('warn', '音乐', `搜「${w}」失败：${e.message}`); toast(`没搜成：${e.message}`); return; }
+      if (!L) return; L = L.slice(0, 12);
       if (!L.length) { toast('没搜到'); return; }
       toast(`${L.length} 首`);
       const id = await actionSheet('挑一首', L.map(s => ({ value: s.id, label: P.label(s) }))); const s = L.find(x => x.id === id); if (!s) return;
@@ -217,9 +216,9 @@ const picking = {}, charViews = {};   // charViews：每个人现在开着的那
 function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
     if (picking[c.id]) { picking[c.id].abort(); return; }
-    const ac = picking[c.id] = new AbortController(); ai.textContent = '取消'; toast(`${nameOf(c)}正在挑歌…`, true);
-    try { const r = await P.charPick(c, (n, all, sp) => toast(sp ? '正在用备选补…' : `正在找歌 ${n} / ${all}`, true), ac.signal); toast([`加了 ${r.got.length} 首`, r.used && `其中 ${r.used} 首是备选补的`, r.short && `还差 ${r.short} 首没补上`].filter(Boolean).join('，')); }
-    catch (err) { log('error', '角色歌单', err.message, err); toast(ac.signal.aborted ? '取消了' : err.message); }
+    const ac = picking[c.id] = new AbortController(), wait = { label: '取消', fn: () => ac.abort(), wait: true }; ai.textContent = '取消'; toast(`${nameOf(c)}正在挑歌…`, wait);
+    try { const r = await P.charPick(c, (n, all, sp) => toast(sp ? '正在用备选补…' : `正在找歌 ${n} / ${all}`, wait), ac.signal); toast([`加了 ${r.got.length} 首`, r.used && `其中 ${r.used} 首是备选补的`, r.short && `还差 ${r.short} 首没补上`].filter(Boolean).join('，')); }
+    catch (err) { if (ac.signal.aborted) toast('已取消'); else { log('error', '角色歌单', err.message, err); toast(err.message); } }
     finally { delete picking[c.id]; const v = charViews[c.id]; v.ai.textContent = 'AI 挑歌'; v.paint(); }
   });
   const p = page({ app: 'music', id: 'music-charlists', title: `${nameOf(c)}的歌单`, back: true, right: ai });
@@ -255,12 +254,12 @@ function renderSearch(ctx) {
     if (!word) return;
     input.value = word; input.blur();
     M().history = [word, ...M().history.filter(x => x !== word)].slice(0, 10); commit('music'); paintHist();
-    toast('正在搜…', true);
     try {
       // 一批搜 3 页（同时发），和前面重复的不要；打开结果页后自己接着往下搜
       let page = 0, all = [];
       const batch = async () => { const got = (await Promise.all([1, 2, 3].map(k => P.search(word, page + k).catch(() => [])))).flat(); page += 3; const fresh = got.filter(s => !all.some(x => x.id === s.id) && (all.push(s), true)); return fresh; };
-      const [songs, lists] = await Promise.all([batch(), P.searchLists(word)]);
+      const r = await waiting('正在搜…', () => Promise.all([batch(), P.searchLists(word)])); if (!r) return;
+      const [songs, lists] = r;
       toast(songs.length || lists.length ? `找到${lists.length ? ` ${lists.length} 个歌单、` : ' '}${songs.length} 首` : '没搜到');
       if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null, more: batch, tools: true });
     }
@@ -341,15 +340,13 @@ function renderMe(ctx) {
     if (!link) return;
     let id;
     const short = /163cn\.tv/.test(link);   // 短链接要去问，慢
-    if (short) toast('正在认链接…', true);
-    try { id = await P.playlistIdOf(link); } catch (e) { log('error', '音乐', '认歌单链接失败：' + e.message); toast(e.message); return; }
+    try { const r = short ? await waiting('正在认链接…', async () => [await P.playlistIdOf(link)]) : [await P.playlistIdOf(link)]; if (!r) return; id = r[0]; } catch (e) { log('error', '音乐', '认歌单链接失败：' + e.message); toast(e.message); return; }
     if (!id) { toast('没认出歌单，换成分享出来的链接试试'); return; }
     if (short) toast('认出来了');
     if (M().lists.some(l => l.id === id)) { toast('这个歌单已经导入过了'); return; }
     const name = await dialog({ title: '给歌单起个名字', input: { value: '网易云歌单' } }); if (name == null) return;
-    toast('正在读歌单…', true);
     try {
-      const songs = await P.playlist(id);
+      const songs = await waiting('正在读歌单…', () => P.playlist(id)); if (!songs) return;
       if (!songs.length) throw new Error('歌单是空的，或者没设成公开');
       M().lists.push({ id, name: name.trim() || '网易云歌单', songs }); commit('music'); paint(); toast(`导入了 ${songs.length} 首`);
     } catch (e) { log('error', '音乐', '导入歌单失败：' + e.message); toast('导入失败：' + e.message); }
@@ -358,8 +355,7 @@ function renderMe(ctx) {
 let neL = null;   // 网易云里自己的歌单（登录后读一次）
 /* ---------- 登录网易云（酒馆插件替手机记着，哪台设备登一次都行） ---------- */
 async function neLogin(after) {
-  toast('正在拿二维码…', true);
-  let q; try { q = await P.neQr(); toast('二维码好了'); } catch (e) { log('error', '音乐', '拿登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
+  let q; try { q = await waiting('正在拿二维码…', () => P.neQr()); if (!q) return; toast('二维码好了'); } catch (e) { log('error', '音乐', '拿登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
   let t = 0;
   const st = h('div.as-mu-login__st', '用网易云 App 扫一扫'), qr = h('img.as-mu-login__qr', { src: q.img, alt: '登录二维码' });
   const s = sheet({ title: '登录网易云', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st,
@@ -377,25 +373,20 @@ async function neLogin(after) {
   }, 2000);
   async function paste() {
     const c = (await dialog({ title: '粘贴登录凭证', input: { placeholder: 'MUSIC_U' } }) || '').trim(); if (!c) return;
-    toast('正在登录…', true);
-    try { await P.neCookie(c); done(P.ne.me.name); } catch (e) { log('error', '音乐', '凭证登录失败：' + e.message); toast('登录失败：' + e.message); }
+    try { if (await waiting('正在登录…', () => P.neCookie(c).then(() => true))) done(P.ne.me.name); } catch (e) { log('error', '音乐', '凭证登录失败：' + e.message); toast('登录失败：' + e.message); }
   }
   async function borrow() {
-    toast('正在登录…', true);
-    try { await P.neBorrow(); done(P.ne.me.name); } catch (e) { log('error', '音乐', '借登录失败：' + e.message); toast('登录失败：' + e.message); }
+    try { if (await waiting('正在登录…', () => P.neBorrow().then(() => true))) done(P.ne.me.name); } catch (e) { log('error', '音乐', '借登录失败：' + e.message); toast('登录失败：' + e.message); }
   }
   async function byPhone() {
     const phone = (await dialog({ title: '手机号登录', input: { placeholder: '手机号' }, confirm: '发验证码' }) || '').trim(); if (!phone) return;
-    toast('正在发验证码…', true);
-    try { await P.neSms(phone); toast('验证码发了'); } catch (e) { log('error', '音乐', '发验证码失败：' + e.message); toast('发不了验证码：' + e.message); return; }
+    try { if (!(await waiting('正在发验证码…', () => P.neSms(phone).then(() => true)))) return; toast('验证码发了'); } catch (e) { log('error', '音乐', '发验证码失败：' + e.message); toast('发不了验证码：' + e.message); return; }
     const code = (await dialog({ title: '短信验证码', input: { placeholder: '验证码' }, confirm: '登录' }) || '').trim(); if (!code) return;
-    toast('正在登录…', true);
-    try { await P.nePhone(phone, code); done(P.ne.me.name); } catch (e) { log('error', '音乐', '手机号登录失败：' + e.message); toast('登录失败：' + e.message); }
+    try { if (await waiting('正在登录…', () => P.nePhone(phone, code).then(() => true))) done(P.ne.me.name); } catch (e) { log('error', '音乐', '手机号登录失败：' + e.message); toast('登录失败：' + e.message); }
   }
 }
 async function openDaily() {
-  toast('正在读每日推荐…', true);
-  try { const L = await P.neDaily(); toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
+  try { const L = await waiting('正在读每日推荐…', () => P.neDaily()); if (!L) return; toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
   catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
 }
 /* ---------- 歌词悬浮窗的设置（显示在哪、字体、颜色、大小、固定） ---------- */
@@ -567,9 +558,9 @@ function openFollows() {
   nav.push(p.el);
 }
 async function openArtist(a) {
-  toast(`正在找${a}的歌…`, true);
   try {
-    const all = await P.search(a), mine = all.filter(s => s.artist.split(/[/、,，&]/).some(x => x.trim() === a));
+    const all = await waiting(`正在找${a}的歌…`, () => P.search(a)); if (!all) return;
+    const mine = all.filter(s => s.artist.split(/[/、,，&]/).some(x => x.trim() === a));
     const songs = mine.length ? mine : all; toast(`${songs.length} 首`);
     const on = () => follows().includes(a);
     const b = navText(on() ? '已关注' : '关注', () => { follow(a); b.textContent = on() ? '已关注' : '关注'; });
@@ -732,9 +723,8 @@ async function openRemote(name, id, l, pic) {
   const old = (l && l.songs) || await P.cachedList(id);
   if (old) songs = old;
   view = old ? openList(name, old, opts) : null;
-  if (!old) toast('正在读歌单…', true);
   try {
-    const got = await P.playlist(id);
+    const got = old ? await P.playlist(id) : await waiting('正在读歌单…', () => P.playlist(id)); if (!got) return;
     if (got.length) songs = got;
     if (l) { l.songs = got; commit('music'); }
     if (!view) { toast(`${got.length} 首`); view = openList(name, got, opts); return; }

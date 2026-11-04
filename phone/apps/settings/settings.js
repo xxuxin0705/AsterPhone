@@ -1,7 +1,7 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow, kvGet } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel, busy } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, VAR_INFO, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.82';
+export const VERSION = '0.8.83';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -669,13 +669,11 @@ function openAbout() {
       group('', [
         // 在酒馆里：让外面那层去查，有新版本就能直接点「现在更新」；单独预览时只能自己查
         item({ title: '检查更新', right: st, chevron: true, onClick: async () => {
-          st.replaceChildren(h('i.as-spin'));
-          let r;
-          if (inTavern()) r = await new Promise(res => {
+          const r = await busy(st, () => inTavern() ? new Promise(res => {   // 转圈时再点一下就取消
             const on = e => { if (e.data && e.data.aster === 'update-result') { removeEventListener('message', on); res(e.data); } };
             addEventListener('message', on); postToParent({ aster: 'update-check' }); setTimeout(() => res({ error: true }), 15000);
-          });
-          else r = await fetch('https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json', { cache: 'no-cache' }).then(x => x.json()).then(m => ({ remote: m.version, newer: cmp(m.version, VERSION) > 0 })).catch(() => ({ error: true }));
+          }) : fetch('https://raw.githubusercontent.com/xxuxin0705/AsterPhone/main/manifest.json', { cache: 'no-cache' }).then(x => x.json()).then(m => ({ remote: m.version, newer: cmp(m.version, VERSION) > 0 })).catch(() => ({ error: true })));
+          if (!r) return;
           if (r.error) { st.textContent = '检查失败'; return; }
           if (!r.newer) { st.textContent = '已是最新版本'; return; }
           const v = r.remote ? ` v${r.remote}` : '';

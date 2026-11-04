@@ -14,6 +14,7 @@ import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 /** 图打不开（链接失效、编出来的链接）：换成一行小字 */
 const broken = e => e.target.replaceWith(h('span.as-muted', '图片打不开'));
 const drawing = new Map();   // 正在画的图：消息 id → AbortController（重画、退出再进来，卡片上还是「取消」）
+const speaking = new Map();   // 正在合成 / 念的语音条：再点一下就停
 export function buildBubble(m, ctx) {
   const quote = m.quote ? h('span.as-chat-quote', h('b', `回复 ${m.quote.who}`), h('span', m.quote.text)) : null;
   const mine = m.from === 'me';
@@ -25,10 +26,11 @@ export function buildBubble(m, ctx) {
         m.showText ? h('div.as-chat-voice__text', m.text) : null);
       el.addEventListener('click', async e => {
         e.stopPropagation();
+        if (speaking.has(m.id)) { speaking.get(m.id).abort(); speaking.delete(m.id); stopSpeak(); el.classList.remove('is-playing'); return; }
         if (!m.showText) { m.showText = true; saveMsgs(ctx.chat.id); ctx.redraw(true); }
-        el.classList.add('is-playing');
-        try { await speakAs(mine ? 'me' : m.who || (ctx.c && ctx.c.id), m.text, { cache: E.voiceKey(ctx.chat, m) }); } catch (err) { toast(err.message); }
-        el.classList.remove('is-playing');
+        const ac = new AbortController(); speaking.set(m.id, ac); el.classList.add('is-playing');
+        try { await speakAs(mine ? 'me' : m.who || (ctx.c && ctx.c.id), m.text, { cache: E.voiceKey(ctx.chat, m), stop: ac.signal }); } catch (err) { if (!ac.signal.aborted) toast(err.message); }
+        if (speaking.get(m.id) === ac) speaking.delete(m.id); el.classList.remove('is-playing');
       });
       return el;
     }

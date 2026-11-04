@@ -11,10 +11,11 @@ const ttsList = () => state.connections.tts || [];
 const fmtOf = c => c.type === 'custom-tts' && c.fmt ? c.fmt : c.type;
 const PULL = new Set(['minimax-cn', 'minimax-intl', 'fish', 'elevenlabs']);
 const FROM = { male: '男声默认', female: '女声默认', base: '当前音色' };
-/** 试听：按钮转圈直到出声，出声了说「正在播放」，失败说原因 */
-const listen = (btn, conn, voice, text) => busy(btn, async () => {
-  try { await tryVoice(conn, voice, text); toast('正在播放'); } catch (e) { toast('试听失败：' + e.message, { label: '查看日志', fn: () => shell.openApp('log', { id: e.logId }) }); }
-});
+/** 试听：按钮转圈直到出声（再点一下取消），出声了说「正在播放」，失败说原因 */
+const listen = async (btn, conn, voice, text) => {
+  try { if (await busy(btn, stop => tryVoice(conn, voice, text, stop).then(() => true))) toast('正在播放'); }
+  catch (e) { toast('试听失败：' + e.message, { label: '查看日志', fn: () => shell.openApp('log', { id: e.logId }) }); }
+};
 const playBtn = (conn, voice, text) => h('button.as-pbd__ibtn', { 'aria-label': '试听', onclick: e => { e.stopPropagation(); listen(e.currentTarget, conn(), voice(), text); } }, icon('play', 16, 2));
 
 /** 音色输入：手填，旁边快选（这家常用的）、拉取（网上拉）、试听。getConn 每次现取，换了渠道也对 */
@@ -25,14 +26,13 @@ export function voiceInput(getConn, value, onChange, placeholder = '音色 ID') 
   const t = fmtOf(getConn());
   return h('div.as-pbd__line', inp,
     VOICES[t] ? h('button.as-pbd__mini', { onclick: () => pick('快选音色', VOICES[fmtOf(getConn())] || []) }, '快选') : null,
-    PULL.has(t) ? h('button.as-pbd__mini', { onclick: e => busy(e.currentTarget, async () => {
-      toast('正在拉取音色…', true);
-      try {
-        const list = await listVoices(getConn()) || [];
-        if (!list.length) { toast('没有拉到音色，可以手动填'); return; }
-        toast(`拉到 ${list.length} 个音色`); pick(`选择音色（${list.length}）`, list.map(x => [x.id, x.name]));
-      } catch (e) { toast('拉取失败：' + e.message); }
-    }) }, '拉取') : null,
+    PULL.has(t) ? h('button.as-pbd__mini', { onclick: async e => {
+      let list;
+      try { list = await busy(e.currentTarget, async () => await listVoices(getConn()) || [], '正在拉取音色…'); } catch (err) { toast('拉取失败：' + err.message); return; }
+      if (!list) return;
+      if (!list.length) { toast('没有拉到音色，可以手动填'); return; }
+      toast(`拉到 ${list.length} 个音色`); pick(`选择音色（${list.length}）`, list.map(x => [x.id, x.name]));
+    } }, '拉取') : null,
     playBtn(getConn, () => inp.value));
 }
 /** 读音表的一行：写法 → 读音，试听、删掉。读音表和某个人的声音抽屉共用 */

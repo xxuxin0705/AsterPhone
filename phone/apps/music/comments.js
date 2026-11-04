@@ -4,7 +4,7 @@
 // 每首歌一份，存在 kv 的 aicmt:歌 id（网易云的真热评不存，你点过赞、回过的那条才存进来）。
 import { h, uid } from '../../core/util.js';
 import { state, contact, kvGet, kvSet } from '../../core/store.js';
-import { page, icon, avatar, toast, dialog, empty, navText, segmented } from '../../core/ui.js';
+import { page, icon, avatar, toast, dialog, empty, navText, segmented, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { generate, resolveConn } from '../../core/api.js';
@@ -37,10 +37,9 @@ export async function openComments(s, me) {
   const d = (live[s.id] && (busy['w' + s.id] || busy['a' + s.id]) && live[s.id].d) || await load(s);
   let real = [], why = s.local ? '本地的歌没有热评。' : '';
   if (!s.local) {
-    toast('正在拿热评…', true);
-    try { real = (await P.hotComments(s.id)).map(x => ({ ...x, id: 'n' + uid(''), real: true, replies: [] })); toast(`${real.length} 条热评`); }
+    try { const got = await waiting('正在拿热评…', () => P.hotComments(s.id)); if (got) { real = got.map(x => ({ ...x, id: 'n' + uid(''), real: true, replies: [] })); toast(`${real.length} 条热评`); } }
     catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); why = e.message + '。'; toast('拿不到网易云的热评'); }
-    if (busy['w' + s.id]) toast('AI 正在写乐评…', true);
+    if (busy['w' + s.id]) toast('AI 正在写乐评…', { label: '取消', fn: () => busy['w' + s.id] && busy['w' + s.id].abort(), wait: true });
   }
   const save = () => kvSet('aicmt:' + s.id, d).catch(e => toast('没存上：' + e.message));
   const all = () => [...d.list, ...real.filter(x => !d.list.some(y => y.real && y.name === x.name && y.text === x.text))];
@@ -98,9 +97,9 @@ export async function openComments(s, me) {
   const run = async (k, msg, fn) => {
     const ac = busy[k + s.id] = new AbortController(), view = () => live[s.id];
     if (k === 'w') view().btn.textContent = '取消'; else paintTell();
-    toast(msg, true);
+    toast(msg, { label: '取消', fn: () => ac.abort(), wait: true });
     try { await fn(ac.signal); }
-    catch (e) { log('error', '音乐', `${k === 'w' ? 'AI 写乐评' : '让大家回复'}失败：` + e.message, e); toast(ac.signal.aborted ? '取消了' : (k === 'w' ? '没写成：' : '没回成：') + e.message); }
+    catch (e) { if (ac.signal.aborted) { toast('已取消'); return; } log('error', '音乐', `${k === 'w' ? 'AI 写乐评' : '让大家回复'}失败：` + e.message, e); toast((k === 'w' ? '没写成：' : '没回成：') + e.message); }
     finally { delete busy[k + s.id]; if (k === 'w') view().btn.textContent = 'AI 乐评'; else view().tell(); }
   };
 

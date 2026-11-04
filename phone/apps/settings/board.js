@@ -779,11 +779,11 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
   paintSub();
   // 测试用的是现在填的内容（不用先保存）；测好了觉得行再保存
   const testBtn = h('button.as-pbd__test', { onclick: async () => {
-    testBtn.disabled = true; status[orig.id] = 'test'; paintSt();
+    if (testBtn._ac) { testBtn._ac.abort(); return; }   // 测试中再点一下：取消
+    status[orig.id] = 'test'; paintSt();
     let r = {}, err = '', logId;
-    try { r = await doTest(d, kind); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; logId = e.logId; }
-    testBtn.disabled = false;
-    if (r.cancel) { delete status[orig.id]; paintSt(); return; }
+    try { r = await busy(testBtn, () => doTest(d, kind)); } catch (e) { err = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message || '连不上'; logId = e.logId; }
+    if (!r || r.cancel) { delete status[orig.id]; paintSt(); return; }
     status[orig.id] = err ? 'bad' : 'ok';
     if (!isNew) { orig.ok = !err; orig.okAt = Date.now(); if (!dirty) commit('connections'); }
     paintSt();
@@ -857,15 +857,14 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         h('button.as-pbd__chipx', { 'aria-label': '删掉这个模型', onclick: e => { e.stopPropagation(); d.models = d.models.filter(x => x !== m); touch(); paintModels(); } }, icon('close', 11, 2.4)))));
       const useModel = m => { d.model = m; modelIn.value = m; if (!d.models.includes(m)) d.models.push(m); paintSub(); touch(); paintModels(); };
       paintModels();
-      const pull = h('button.as-pbd__mini', { onclick: () => busy(pull, async () => {
-        toast('正在拉取模型…', true);
-        try {
-          const models = await listModels(d);
-          if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
-          toast(`拉到 ${models.length} 个模型`);
-          const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
-        } catch (e) { toast('拉取失败：' + e.message); }
-      }) }, icon('link', 13, 2), '拉取');
+      const pull = h('button.as-pbd__mini', { onclick: async () => {
+        let models;
+        try { models = await busy(pull, () => listModels(d), '正在拉取模型…'); } catch (e) { toast('拉取失败：' + e.message); return; }
+        if (!models) return;
+        if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
+        toast(`拉到 ${models.length} 个模型`);
+        const s = sheet({ title: `选择模型（${models.length}）`, content: h('div.as-settings-models', models.map(m => h('button.as-actions__item' + (m === d.model ? '.is-active' : ''), { onclick: () => { useModel(m); s.close(); } }, h('span', m)))) });
+      } }, icon('link', 13, 2), '拉取');
       // 官网：去哪拿密钥
       const siteBox = h('div.as-pbd__site');
       const paintSite = () => {
