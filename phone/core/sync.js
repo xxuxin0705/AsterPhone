@@ -10,6 +10,7 @@ import { log } from './log.js';
 import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
+import { paletteNames } from './diary.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
 const seen = new Set();
@@ -51,10 +52,13 @@ export function tagInstruction() {
   const mem = state.apps.memory, people = [myName(), ...state.contacts.map(c => c.name)].filter(Boolean).join('、');
   return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
-// 跟着剧情写日记：每楼都写的、值得写才写的各列一遍名字
+// 跟着剧情写日记：每隔几楼写一篇。这次要生成的是第几楼（重新生成 / 换 swipe 时最后一楼就是它自己），轮到谁就列谁的名字
 function diaryNote() {
-  const who = mode => state.diary.books.filter(b => b.mode === mode).map(b => (contact(b.who) || {}).name).filter(Boolean).join('、');
-  return [['every', 'diaryEvery'], ['maybe', 'diaryMaybe']].map(([m, cat]) => who(m) && '\n' + compose(cat, { people: who(m) })).join('');
+  const chat = (ctx() || {}).chat || [];
+  let k = chat.filter(m => !m.is_user && !m.is_system).length;
+  if (chat.length && !chat[chat.length - 1].is_user) k--;
+  const who = state.diary.books.filter(b => b.mode !== 'hand' && (k + 1) % (b.n || 1) === 0).map(b => (contact(b.who) || {}).name).filter(Boolean).join('、');
+  return who ? '\n' + compose('diaryEvery', { people: who, palettes: paletteNames() }) : '';
 }
 // 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
 const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))

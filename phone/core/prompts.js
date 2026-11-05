@@ -12,7 +12,7 @@ export const VAR_INFO = {
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
   entries: '世界书条目', count: '要挑几首', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
-  source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事；没挑就是最近的正文和手机聊天', people: '手机里的人（你和所有联系人）的名字',
+  source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的色卡名字', people: '手机里的人（你和所有联系人）的名字',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
@@ -35,8 +35,8 @@ export const PROMPT_CATS = [
   { app: '念念铃', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people'] },
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
-  { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time'] },
-    { id: 'diaryMaybe', name: '跟着剧情写 · 值得写才写', vars: ['user', 'people'] }, { id: 'diaryEvery', name: '跟着剧情写 · 每楼都写', vars: ['user', 'people'] }] },
+  { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
+    { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -362,23 +362,17 @@ export const DEFAULT_PROMPTS = {
 天气：晴 / 晴转多云 / 多云 / 阴 / 小雨 / 雨 / 太阳雨 / 夜雨 / 雷雨 / 雪 / 雾 / 风 / 台风 / 彩虹 / 夜晚 / 夜晚多云，挑一个
 日记正文
 [图片] 配图的画面（中文，一句话：拍了什么、在哪）
-[生图] 同一个画面的生图提示词（英文，逗号隔开的短词）` },
-  diaryMaybe: { name: '值得写才写', cats: ['diaryMaybe'], on: true, main: true,
-    text: `这些人在记日记：{{people}}。如果这一楼里发生了 TA 会想写进日记的事（心情有起伏、和 {{user}} 之间有了变化、第一次做什么、印象深的事），在回复最后另起一行，用 <asterdiary from="名字">……</asterdiary> 替 TA 写一篇，一个人一个标签；没什么可写的就不写。大多数楼层不用写。
+[生图] 同一个画面的生图提示词（英文，逗号隔开的短词）
+配色：从这些色卡里挑一个最合这篇心情和剧情氛围的，只写名字：{{palettes}}` },
+  diaryEvery: { name: '跟着剧情写', cats: ['diaryEvery'], on: true, main: true,
+    text: `这些人在记日记：{{people}}。这一楼在回复最后另起一行，用 <asterdiary from="名字">……</asterdiary> 替 TA 们各写一篇这一楼的日记，一个人一个标签；TA 不在场就写 TA 此刻在做什么、在想什么。
 日记是 TA 自己写给自己看的：第一人称「我」，用 TA 的口吻和性格；写今天发生的事和当时没说出口的心情，提到 {{user}} 就直接写名字或 TA 平时怎么叫。100～300 字，像真人写日记，不要写成小说，不要旁白。
 格式：
 天气：晴 / 晴转多云 / 多云 / 阴 / 小雨 / 雨 / 太阳雨 / 夜雨 / 雷雨 / 雪 / 雾 / 风 / 台风 / 彩虹 / 夜晚 / 夜晚多云，挑一个
 日记正文
 [图片] 配图的画面（中文，一句话：拍了什么、在哪）
-[生图] 同一个画面的生图提示词（英文，逗号隔开的短词）` },
-  diaryEvery: { name: '每楼都写', cats: ['diaryEvery'], on: true, main: true,
-    text: `这些人在记日记：{{people}}。每一楼都在回复最后另起一行，用 <asterdiary from="名字">……</asterdiary> 替 TA 写一篇这一楼的日记，一个人一个标签；TA 不在场就写 TA 此刻在做什么、在想什么。
-日记是 TA 自己写给自己看的：第一人称「我」，用 TA 的口吻和性格；写今天发生的事和当时没说出口的心情，提到 {{user}} 就直接写名字或 TA 平时怎么叫。100～300 字，像真人写日记，不要写成小说，不要旁白。
-格式：
-天气：晴 / 晴转多云 / 多云 / 阴 / 小雨 / 雨 / 太阳雨 / 夜雨 / 雷雨 / 雪 / 雾 / 风 / 台风 / 彩虹 / 夜晚 / 夜晚多云，挑一个
-日记正文
-[图片] 配图的画面（中文，一句话：拍了什么、在哪）
-[生图] 同一个画面的生图提示词（英文，逗号隔开的短词）` },
+[生图] 同一个画面的生图提示词（英文，逗号隔开的短词）
+配色：从这些色卡里挑一个最合这篇心情和剧情氛围的，只写名字：{{palettes}}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

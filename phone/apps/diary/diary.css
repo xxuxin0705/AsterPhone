@@ -27,6 +27,17 @@
 .as-dy-acts { display: flex; padding: 8px 2px 0; }
 .as-dy-acts > * { flex: 1; }
 
+/* 能换色的贴纸：图变灰，再按图的形状叠一层颜色（正片叠底：花纹还在，颜色是色卡的） */
+.as-dy-tint { position: relative; display: block; isolation: isolate; }
+.as-dy-tint img { display: block; width: 100%; filter: grayscale(1) brightness(1.12) contrast(.92); }
+.as-dy-tint::after { content: ''; position: absolute; inset: 0; background: var(--c, transparent); mix-blend-mode: multiply; opacity: .85; -webkit-mask: var(--m) center / 100% 100% no-repeat; mask: var(--m) center / 100% 100% no-repeat; pointer-events: none; }
+.as-dy-pals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px 2px 12px; }
+.as-dy-pal { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border: 2px solid transparent; border-radius: 12px; background: var(--as-color-surface-2); color: var(--as-color-text); font-size: 12px; cursor: pointer; }
+.as-dy-pal.is-on { border-color: var(--as-color-accent); }
+.as-dy-pal__dots { display: flex; }
+.as-dy-pal__dots i { width: 16px; height: 16px; border-radius: 50%; margin-left: -4px; box-shadow: 0 0 0 1.5px var(--as-color-surface-2), inset 0 0 0 1px rgba(0,0,0,.06); }
+.as-dy-src { padding: 0 0 10px; }
+
 /* 翻开：左右滑，一页一篇 */
 .as-dy-desk .as-page__body:has(.as-dy-flip) { overflow: hidden; }
 .as-dy-flip { position: absolute; inset: 0; display: flex; gap: 16px; padding: 6px 24px 22px; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; }
@@ -43,6 +54,7 @@
 .as-dy-leaf__head span { flex: 1; color: #8a7d84; font-size: 13px; }
 .as-dy-leaf__wx { width: 40px; height: 40px; object-fit: contain; }
 .as-dy-leaf__more { margin-right: -8px; padding: 6px; border: 0; background: none; color: #8a7d84; cursor: pointer; }
+.as-dy-lace { width: calc(100% + 40px); margin: -4px -20px 12px; pointer-events: none; }
 .as-dy-photo { position: relative; width: 64%; margin: 2px auto 14px; rotate: var(--r); cursor: pointer; filter: drop-shadow(0 6px 10px rgba(40,40,60,.18)); }
 .as-dy-photo__frame { position: relative; display: block; width: 100%; pointer-events: none; }
 /* 拍立得里那个窗（透明的，照片垫在后面）、邮票里那块纸（不透明，照片盖在上面）：抠图量出来的位置 */
@@ -56,10 +68,13 @@
 /* 横线纸：线只画在字底下（一行 30px，和图里的线距对上） */
 .as-dy-flip.is-lined .as-dy-leaf__text { background: url(../../assets/diary/paper-lined.webp) 0 15px / 377px 450px; }
 /* 排版 1：邮票贴在右边，字绕着走 */
-.as-dy-leaf.is-l1 .as-dy-photo { float: right; width: 48%; margin: 0 -4px 8px 10px; }
+.as-dy-leaf.is-l1 > .as-dy-photo { float: right; width: 48%; margin: 0 -4px 8px 10px; }
 /* 排版 2：小拍立得在左上，字写在一块便签上，便签顶上贴一条胶带 */
-.as-dy-leaf.is-l2 .as-dy-photo { width: 52%; margin: 0 0 -26px 4px; z-index: 1; }
-.as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: rgba(240,214,222,.55); rotate: -.6deg; }
+.as-dy-leaf.is-l2 > .as-dy-photo { width: 52%; margin: 0 0 -26px 4px; z-index: 1; }
+.as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: color-mix(in srgb, var(--c1) 50%, transparent); rotate: -.6deg; }
 .as-dy-flip.is-lined .as-dy-leaf.is-l2 .as-dy-leaf__text { background-position: 0 19px; }
 .as-dy-leaf__text > .as-dy-tape { top: -14px; left: auto; right: 6%; width: 36%; translate: none; rotate: 4deg; }
 .as-dy-deco { display: block; width: 30%; margin: 6px 0 0 auto; rotate: var(--r); pointer-events: none; }
+/* 自己多放的照片：小邮票一排 */
+.as-dy-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 14px; }
+.as-dy-photo.is-small { width: 30%; margin: 0; }
