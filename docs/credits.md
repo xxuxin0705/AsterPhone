@@ -47,7 +47,11 @@
 - 花瓣、雪花、枫叶（petal* / snow* / leaf*）：作者用 GPT 生成（黑底，转成了透明底）。
 
 ## 日记的图（phone/assets/diary/）
-- 日记本封面（cover-*）、书桌白天 / 夜里（desk-*）、邮票框（stamp*）、和纸胶带（tape* / tape-pink* / strip*）、纸片小物（paper*）、干花（flower*）、蜡笔天气（weather-*）、三种纸（paper-*，从作者给的截图里裁出来，横线纸只留了线）、蕾丝（lace*）：作者用 AI 生成或提供；黑底 / 白底的抠成了透明底，一张多个的拆成单个。
+- 日记本封面（cover-*）、书桌白天 / 夜里（desk-*）、邮票框（stamp*）、和纸胶带（tape* / tape-pink* / strip*）、纸片小物（paper*）、干花（flower*）、蜡笔天气（weather-*）、三种纸（paper-*，从作者给的截图里裁出来，横线纸只留了线）、蕾丝（lace* / wlace*）、白蕾丝小物（wl*）、雪花 / 枫叶 / 樱花瓣（snow* / leaf* / petal*）：作者用 AI 生成或提供；黑底 / 白底的抠成了透明底，一张多个的拆成单个。
 
-## 日记的色卡（core/diary.js 的 PALETTES）
-- 作者从小红书挑的配色分享，照抄了色号和名字：糯嘟嘟的配色（菠萝金桔苏等 9 组）、阿晋的配色笔记（蓝莓冰酪等 7 组）、AI画了个啥（雾樱晨露等 4 组）、设计师英俊（中国传统色：琉璃 / 淡翠 / 谷鞘 等 3 组）。
+## 日记的主题色（core/diary.js 的 THEMES）
+- 作者挑的：「中国传统色 · 春季篇」（二十四节气配色，照抄色号和名字）、Vainny 的四组色卡（从截图上取色，名字是我按颜色起的：珊瑚、晚霞、海雾…）。
+
+## 日记的字体（apps/diary/diary.js 的 FONTS，从 jsDelivr 上「中文网字计划」@chinese-fonts 按需下载）
+- 小赖字体（xiaolai）、悠哉字体（yozai，SIL OFL）、猫啃珠圆体（mkzyt，基于 RocknRoll，OFL）、霞鹜文楷（lxgwwenkai，OFL）
+- 千图笔锋手写体（qtbfsxt）：千图网出的，声明免费商用；包里没有正式的授权文件

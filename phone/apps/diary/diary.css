@@ -28,14 +28,18 @@
 .as-dy-acts > * { flex: 1; }
 
 /* 能换色的贴纸：图变灰，再按图的形状叠一层颜色（正片叠底：花纹还在，颜色是色卡的） */
-.as-dy-tint { position: relative; display: block; isolation: isolate; }
-.as-dy-tint img { display: block; width: 100%; filter: grayscale(1) brightness(1.12) contrast(.92); }
-.as-dy-tint::after { content: ''; position: absolute; inset: 0; background: var(--c, transparent); mix-blend-mode: multiply; opacity: .85; -webkit-mask: var(--m) center / 100% 100% no-repeat; mask: var(--m) center / 100% 100% no-repeat; pointer-events: none; }
-.as-dy-pals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px 2px 12px; }
-.as-dy-pal { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border: 2px solid transparent; border-radius: 12px; background: var(--as-color-surface-2); color: var(--as-color-text); font-size: 12px; cursor: pointer; }
+.as-dy-tint { position: relative; display: block; isolation: isolate;
+  --c0: color-mix(in srgb, var(--t, #f3c6cf) 55%, #fff); --c1: color-mix(in srgb, var(--t, #f3c6cf) 38%, #fff); --c2: color-mix(in srgb, var(--t, #f3c6cf) 46%, #fff6ee); }
+.as-dy-tint img { display: block; width: 100%; filter: grayscale(1) contrast(.6) brightness(1.38); }
+.as-dy-tint::after { content: ''; position: absolute; inset: 0; background: var(--c, transparent); mix-blend-mode: multiply; -webkit-mask: var(--m) center / 100% 100% no-repeat; mask: var(--m) center / 100% 100% no-repeat; pointer-events: none; }
+.as-dy-pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 4px 2px 12px; }
+.as-dy-pal { display: grid; justify-items: center; gap: 5px; padding: 8px 2px; border: 2px solid transparent; border-radius: 12px; background: var(--as-color-surface-2); color: var(--as-color-text); font-size: 11px; line-height: 1.2; cursor: pointer; }
 .as-dy-pal.is-on { border-color: var(--as-color-accent); }
-.as-dy-pal__dots { display: flex; }
-.as-dy-pal__dots i { width: 16px; height: 16px; border-radius: 50%; margin-left: -4px; box-shadow: 0 0 0 1.5px var(--as-color-surface-2), inset 0 0 0 1px rgba(0,0,0,.06); }
+.as-dy-pal i { width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.as-dy-addgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 4px 2px 12px; }
+.as-dy-add-st { display: grid; place-items: center; aspect-ratio: 1; padding: 8px; border: 0; border-radius: 12px; background: var(--as-color-surface-2); cursor: pointer; }
+.as-dy-add-st > * { max-width: 100%; max-height: 100%; }
+.as-dy-add-st img { display: block; max-width: 100%; max-height: 64px; object-fit: contain; }
 .as-dy-src { padding: 0 0 10px; }
 
 /* 翻开：左右滑，一页一篇 */
@@ -44,7 +48,7 @@
 .as-dy-flip::-webkit-scrollbar { display: none; }
 .as-dy-leaf { position: relative; flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: center; overflow-y: auto; overscroll-behavior: contain; padding: 30px 20px 26px; border-radius: 4px 10px 10px 4px;
   background: #fbfaf7 url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto repeat-y local; box-shadow: 0 14px 30px rgba(40,40,60,.25), inset 10px 0 14px -10px rgba(80,70,60,.25);
-  color: #4a3f45; font-family: "LXGW WenKai", "Kaiti SC", STKaiti, serif; }
+  color: #4a3f45; }
 .as-dy-flip.is-dots .as-dy-leaf { background-image: url(../../assets/diary/paper-dots.webp); }
 .as-dy-bg.is-night ~ .as-page__body .as-dy-leaf { filter: brightness(.9); }
 .as-dy-leaf.is-blank { display: grid; place-content: center; justify-items: center; gap: 14px; font-size: 16px; color: #8a7d84; }
@@ -71,10 +75,11 @@
 .as-dy-leaf.is-l1 > .as-dy-photo { float: right; width: 48%; margin: 0 -4px 8px 10px; }
 /* 排版 2：小拍立得在左上，字写在一块便签上，便签顶上贴一条胶带 */
 .as-dy-leaf.is-l2 > .as-dy-photo { width: 52%; margin: 0 0 -26px 4px; z-index: 1; }
-.as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: color-mix(in srgb, var(--c1) 50%, transparent); rotate: -.6deg; }
+.as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: color-mix(in srgb, var(--t) 20%, transparent); rotate: -.6deg; }
 .as-dy-flip.is-lined .as-dy-leaf.is-l2 .as-dy-leaf__text { background-position: 0 19px; }
 .as-dy-leaf__text > .as-dy-tape { top: -14px; left: auto; right: 6%; width: 36%; translate: none; rotate: 4deg; }
-.as-dy-deco { display: block; width: 30%; margin: 6px 0 0 auto; rotate: var(--r); pointer-events: none; }
-/* 自己多放的照片：小邮票一排 */
-.as-dy-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 14px; }
-.as-dy-photo.is-small { width: 30%; margin: 0; }
+/* 贴纸：能拖、能捏着缩放旋转（手指按上去就不让这一页跟着滑） */
+.as-dy-zone { position: relative; height: 170px; }
+.as-dy-st { position: absolute; z-index: 2; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent; filter: drop-shadow(0 2px 3px rgba(60,50,60,.12)); }
+.as-dy-st img { display: block; width: 100%; pointer-events: none; -webkit-user-drag: none; }
+.as-dy-st.is-photo .as-dy-st__pic { position: absolute; inset: 13%; width: 74%; height: 74%; object-fit: cover; z-index: 1; }

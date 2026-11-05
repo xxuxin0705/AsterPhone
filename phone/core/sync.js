@@ -10,7 +10,7 @@ import { log } from './log.js';
 import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
-import { paletteNames } from './diary.js';
+import { themeNames } from './diary.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
 const seen = new Set();
@@ -58,7 +58,7 @@ function diaryNote() {
   let k = chat.filter(m => !m.is_user && !m.is_system).length;
   if (chat.length && !chat[chat.length - 1].is_user) k--;
   const who = state.diary.books.filter(b => b.mode !== 'hand' && (k + 1) % (b.n || 1) === 0).map(b => (contact(b.who) || {}).name).filter(Boolean).join('、');
-  return who ? '\n' + compose('diaryEvery', { people: who, palettes: paletteNames() }) : '';
+  return who ? '\n' + compose('diaryEvery', { people: who, palettes: themeNames() }) : '';
 }
 // 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
 const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))

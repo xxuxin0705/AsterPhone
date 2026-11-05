@@ -20,18 +20,18 @@ export async function load() {
   return D;
 }
 export const save = async () => { ver++; await kvSet('diary:' + Dkey, D); commit('diary'); };
-// 色卡：作者挑的（小红书上的配色分享，见 docs/credits.md）。AI 写日记时按剧情挑一个，胶带、蕾丝、邮票框、便签都换成这几个颜色
-export const PALETTES = {
-  菠萝金桔苏: ['#dae8f2', '#ffcfca', '#ffbd9c', '#ffe3a4'], 香椿煎蛋饼: ['#ffe1a6', '#e4bb9b', '#cce3ed', '#dd997f'], 白蘑奶油汤: ['#a5876b', '#ffe8b0', '#cceae6', '#dfefed'],
-  樱花水信玄: ['#ffd2dc', '#d6f2de', '#ffffff', '#d0bcd8'], 青梅酒酿冰: ['#ffeabb', '#e2ef95', '#f2f9cd', '#ccc696'], 豌豆茉莉冻: ['#c9b6d9', '#fff8d4', '#d1e0cc', '#b19bac'],
-  杏花糯米糍: ['#ffdce4', '#f0e9de', '#f2bfad', '#f4e3ca'], 莓果马卡龙: ['#fff2b3', '#ffcdcc', '#ffb3c7', '#cc9f92'], 蒲公英拿铁: ['#d7e7f4', '#f7c9d6', '#b0d8bc', '#ffe7b0'],
-  蓝莓冰酪: ['#f7f3ff', '#ede4ff', '#d8c8ff', '#b89aff'], 烟芋松露: ['#e4dde2', '#c9bcc8', '#d8ced6', '#a894a6'], 蜜桃乳酸: ['#fff0e8', '#ffe2d5', '#ffd1b8', '#ffb88a'],
-  雾杏松糕: ['#e8e2d9', '#d4c8bb', '#e2d8cf', '#b8a99a'], 蒙布朗卷: ['#fbf5ef', '#f2e6d8', '#e6cfb8', '#d4b38a'], 椰奶清补: ['#fffdf7', '#f6f0e8', '#e8dfd5', '#d9cfbe'],
-  苔痕奶霜: ['#e2e8e3', '#c4cfc6', '#d4ddd6', '#98a89b'], 雾樱晨露: ['#cfedef', '#dcebcf', '#f5cdd6', '#f6eae3'], 柚芽晴空: ['#d7edbe', '#fff8da', '#d4e7f2', '#f5f1b6'],
-  桂雾抹茶: ['#e8e8bf', '#f6f1de', '#c6d7b2', '#96b88b'], 莓霞薄荷: ['#c98b92', '#f7c9d4', '#d6f0ef', '#a2dccf'],
-  琉璃淡翠: ['#f0c800', '#c6dfc8', '#f4786e'], 碧青石青: ['#5cb5ce', '#7bcfa6', '#f4acac'], 谷鞘青莲: ['#f4786e', '#6e328e', '#f2506e'],
+// 主题色：作者挑的淡色（中国传统色 · 春季篇 + Vainny 的色卡，见 docs/credits.md）。AI 写日记时按剧情挑一个，胶带、蕾丝、邮票框、便签都换成它的淡色
+export const THEMES = {
+  立春: '#e8f4e5', 雨水: '#d6ebd2', 惊蛰: '#c1e2c1', 春分: '#a8d5b2', 清明: '#7ebe9b', 谷雨: '#5aae86', 东风解冻: '#f3e7ef', 蛰虫始振: '#f1d6e1', 鱼陟负冰: '#e8bfd1',
+  桃始华: '#f5afc4', 仓庚鸣: '#fab7a6', 鹰化为鸠: '#f7c9a8', 玄鸟至: '#cdecc7', 雷乃发声: '#b7e0b0', 始电: '#a1d99b', 微雨水: '#8bcf93', 木笔发芽: '#74bf85', 绵草生: '#9ccfa6',
+  莺始鸣: '#dfedc2', 戴胜降于桑: '#c8e1a7', 蚕始生: '#b4d69d', 桐始华: '#a8cca0', 田鼠化为鴽: '#dfebc9', 虹始见: '#e7f2e1', 萍始生: '#d6e8f5', 鸣鸠拂其羽: '#bbd9f2',
+  草木蔓发: '#a2c7eb', 春山可望: '#86b3da', 浮云如絮: '#bfe3d4', 桐始花: '#d9efd6', 麦起身: '#e9f5c8', 夏始生: '#f3e9b2', 香椿萌动: '#ebc99a', 枇杷黄: '#f6c68c', 柳眼青: '#c9d89f', 春水生: '#a6cbaa',
+  珊瑚: '#d6584e', 晚霞: '#fb9aa1', 海雾: '#a0c7db', 薄荷: '#b8e1d3', 樱粉: '#f4acb8', 晴空: '#89b9e9', 云絮: '#d0e1f1', 薰衣草: '#bdacd6', 雾蓝: '#b4c4dd', 奶杏: '#f8e1c2',
+  莓红: '#ef7c89', 嫩芽: '#eae484', 苔绿: '#8ba26e',
 };
-export const paletteNames = () => Object.keys(PALETTES).join('、');
+export const themeNames = () => Object.keys(THEMES).join('、');
+/** 这一篇的主题色：AI 挑的名字、自己调的颜色（#xxxxxx），都没有就按这一篇定一个 */
+export const themeOf = p => THEMES[p.pal] || (/^#[0-9a-f]{6}$/i.test(p.pal || '') ? p.pal : Object.values(THEMES)[[...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) % Object.keys(THEMES).length]);
 export const bookOf = id => state.diary.books.find(b => b.who === id);
 export const pagesOf = id => D.pages.filter(p => p.who === id).sort((a, b) => (a.at + a.hm).localeCompare(b.at + b.hm) || a.ts - b.ts);
 
@@ -39,9 +39,9 @@ export const pagesOf = id => D.pages.filter(p => p.who === id).sort((a, b) => (a
 export function parse(body) {
   const o = { weather: '', desc: '', prompt: '', pal: '' };
   const take = (re, k) => s => s.replace(re, (_, v) => { o[k] = v.trim(); return ''; });
-  const text = [take(/^\s*天气[:：]\s*(.+)$/m, 'weather'), take(/^\s*\[图片(?:\]|[:：])\s*(.+?)\]?\s*$/m, 'desc'), take(/^\s*\[生图(?:\]|[:：])\s*(.+?)\]?\s*$/m, 'prompt'), take(/^\s*配色[:：]\s*(.+)$/m, 'pal')]
+  const text = [take(/^\s*天气[:：]\s*(.+)$/m, 'weather'), take(/^\s*\[图片(?:\]|[:：])\s*(.+?)\]?\s*$/m, 'desc'), take(/^\s*\[生图(?:\]|[:：])\s*(.+?)\]?\s*$/m, 'prompt'), take(/^\s*(?:主题色|配色)[:：]\s*(.+)$/m, 'pal')]
     .reduce((s, f) => f(s), String(body)).trim();
-  if (!PALETTES[o.pal]) o.pal = Object.keys(PALETTES).find(k => o.pal.includes(k)) || '';
+  if (!THEMES[o.pal]) o.pal = Object.keys(THEMES).find(k => o.pal.includes(k)) || '';
   return { ...o, text };
 }
 const nowAt = () => { const s = time.isStory() ? time.story() : null, d = s ? s.date : new Date();
@@ -72,7 +72,7 @@ export async function write(c, { events = [], floors = null, photos = [] }, stop
   const scan = floors || events.length ? about : story;
   const w = await worldText(scan).catch(() => ''), mem = await memoryFor([c], scan).catch(() => '');
   const raw = await generate({ conn: resolveConn('text', 'diary'), system: '', app: '日记', maxTokens: 900, stop,
-    prompt: compose('diaryWrite', { palettes: paletteNames(), char: name, persona: (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）', world: (w ? `\n【世界书】\n${w}\n` : '') + mem, about, time: time.forPrompt() }) });
+    prompt: compose('diaryWrite', { palettes: themeNames(), char: name, persona: (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）', world: (w ? `\n【世界书】\n${w}\n` : '') + mem, about, time: time.forPrompt() }) });
   const body = String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
   if (!body) throw new Error('AI 回了空的');
   const d = await load(), p = Object.assign(page(c.id, 'hand', body), photos.length ? { pic: photos[0], more: photos.slice(1) } : {});
