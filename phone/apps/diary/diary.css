@@ -33,7 +33,9 @@
 .as-dy-plate { position: absolute; left: 50%; bottom: 16%; translate: -50%; max-width: 70%; padding: 4px 14px; border-radius: 4px; background: rgba(255,253,248,.92); box-shadow: 0 1px 3px rgba(0,0,0,.15);
   color: #5a4650; font: 15px/1.4 "LXGW WenKai", "Kaiti SC", STKaiti, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-dy-pages { position: absolute; inset: 1.5% 2.5% 1.5% 1%; }
-.as-dy-pages > .as-dy-sheet > .as-dy-face:first-child { touch-action: pan-y; }
+/* 竖着滑给这一页滚字，横着拖留给翻页。手机上 preserve-3d 里面的页手指滑不动，所以停着的那页压平，只有翻动的时候才立体 */
+.as-dy-leaf { touch-action: pan-y; }
+.as-dy-pages > .as-dy-sheet:not(.is-turned):not(.is-flip) { transform-style: flat; }
 
 /* 选封面 */
 .as-dy-covers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 4px 2px 12px; }

@@ -176,7 +176,7 @@ function openBook(c, v, p, table, gone) {
   table.classList.add('is-reading'); v.el.classList.add('is-open');
   let seen = -1, idx = 0;
   // 翻到第 idx 页：前面的都翻过去了；只留眼前这页和前后各一页，别的先不画。书立起来、合上的时候，翻过去的那页先藏起来（不然会从书边露出来）
-  const layout = (tuck = false) => [...pages.children].forEach((s, i) => { s.classList.toggle('is-turned', i < idx); s.style.zIndex = i < idx ? i : 500 - i; s.hidden = i < idx ? tuck || i < idx - 1 : i > idx + 1; });
+  const layout = (tuck = false) => [...pages.children].forEach((s, i) => { if (s.classList.contains('is-turned') !== i < idx) s.classList.add('is-flip'); s.classList.toggle('is-turned', i < idx); s.style.zIndex = i < idx ? i : 500 - i; s.hidden = i < idx ? tuck || i < idx - 1 : i > idx + 1; });
   async function draw() {
     ping(c.id);
     await Dy.load(); if (Dy.ver === seen) return;
@@ -199,7 +199,7 @@ function openBook(c, v, p, table, gone) {
       if (Math.abs(dx) < 12) return;
       drag.back = dx > 0; drag.s = pages.children[drag.back ? idx - 1 : idx < pages.children.length - 1 ? idx : -1];
       if (!drag.s) { drag = null; return; }
-      pages.setPointerCapture(e.pointerId); drag.W = pages.clientWidth; drag.s.style.transition = 'none'; drag.s.style.zIndex = 999;
+      pages.setPointerCapture(e.pointerId); drag.W = pages.clientWidth; drag.s.classList.add('is-flip'); drag.s.style.transition = 'none'; drag.s.style.zIndex = 999;
     }
     drag.a = drag.back ? Math.min(0, -180 + dx / drag.W * 180) : Math.max(-180, Math.min(0, dx / drag.W * 180));
     drag.s.style.transform = `rotateY(${drag.a}deg)`;
@@ -212,6 +212,7 @@ function openBook(c, v, p, table, gone) {
     drag = null;
   };
   pages.addEventListener('pointerup', up); pages.addEventListener('pointercancel', up);
+  pages.addEventListener('transitionend', e => e.target.parentNode === pages && e.target.classList.remove('is-flip'));
   pages.addEventListener('click', e => { if (Date.now() - dragged < 300) e.stopPropagation(); }, true);   // 刚翻完页别当成点了按钮
   // 合上：封面翻回来盖住 → 躺回桌上 → 把页拿掉，顶栏换回来
   function close() {
