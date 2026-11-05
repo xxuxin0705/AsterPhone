@@ -1012,7 +1012,13 @@ export function openPlayer() {
     if (w === 'time') { if (!P.playing()) tick(); const c = P.together(); if (c) paintTgTime(c); }
   });
   p.el._onShow = () => { loop(); paintTg(); paintBub(); restyle(); };   // 从悄悄话页、一起听的样子回来：马上变
-  p.el._onLeave = () => { off(); cancelAnimationFrame(raf); R.stop(); };
+  // 手机换了白天 / 夜间：自带的雨景换图（先解码好再换，不闪），雨和字的颜色、气泡跟着换
+  const mo = new MutationObserver(() => {
+    const night = isNight(), go = () => { if (night === isNight()) { paintBg(); paintBub(); paintSkin(); } };
+    if (S.name === 'rain' && !S.bgId) { const im = new Image(); im.src = `assets/music/rain-${night ? 'night' : 'day'}.webp`; im.decode().then(go, go); } else go();
+  });
+  mo.observe(document.querySelector('.as-phone'), { attributes: true, attributeFilter: ['data-mode'] });
+  p.el._onLeave = () => { off(); mo.disconnect(); cancelAnimationFrame(raf); R.stop(); };
   nav.push(p.el);
 }
 function openQueue() {

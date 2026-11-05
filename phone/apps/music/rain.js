@@ -7,7 +7,7 @@ const FONT = '"Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", ser
 const WIDE = '぀-ヿ㐀-鿿가-힯＀-￯　-〿“”‘’…—';
 const TOK = new RegExp(`[${WIDE}]|[^\\s${WIDE}]+|\\s+`, 'g');   // 中日韩一个字一块，外文一个词一块
 const FALL = .55, POP = .38, GAP = .045, SIZE = 26, MIN = 18, TR = 18;
-export const isNight = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
+export const isNight = () => document.querySelector('.as-phone')?.dataset.mode === 'night';   // 跟着手机的白天 / 夜间模式
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
