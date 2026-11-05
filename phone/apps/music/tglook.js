@@ -1,12 +1,12 @@
 // 一起听的样子（播放页一起听时「换样式」→「一起听的样子」）：耳机颜色、「一起听了多久」的颜色和字体、头像上那两句话的气泡颜色 / 字颜色 / 字体。
 // 对话式歌词的颜色（「换样式」→「歌词设置」）：每个人一套（气泡、唱到的字、没唱的字、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
 // 空着的项 = 用原来的样子。两页上面都是预览，调什么马上看到。
-import { h } from '../../core/util.js';
+import { h, pickFile } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
 import { page, group, item, avatar, actionSheet, dialog, sheet, colorWheel, btn, toast } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { FONTS, useFont } from '../../core/floatlyric.js';
-import { userFonts } from '../../core/fonts.js';
+import { userFonts, importClockFont } from '../../core/fonts.js';
 import { lyricsNow } from '../../core/music.js';
 import { myName } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
@@ -46,10 +46,15 @@ function color(title, get, set, save, alpha) {
       btn('恢复默认', 'secondary', () => { set(''); right.replaceChildren(dot('')); save(); sh.close(); })) });
   } });
 }
+// 字体：内置的 + 资源库里的，也能当场导入（导入的放进资源库，别处也能用）
 export function font(get, set, save) {
   const right = h('span', fontLabel(get()));
   return item({ title: '字体', right, chevron: true, onClick: async () => {
-    const v = await actionSheet('字体', [...FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: (get() || '') === k })), ...userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: get() === 'u:' + u.id }))]);
+    let v = await actionSheet('字体', [...FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: (get() || '') === k })), ...userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: get() === 'u:' + u.id })), { value: '__add', label: '导入字体文件' }]);
+    if (v === '__add') {
+      const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+      try { const x = await importClockFont(f); v = 'u:' + x.id; toast('已导入「' + x.name + '」'); } catch (e) { toast(e.message); return; }
+    }
     if (v == null) return; set(v === 'def' ? '' : v); right.textContent = fontLabel(get()); save();
   } });
 }

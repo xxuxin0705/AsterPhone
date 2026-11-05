@@ -432,15 +432,11 @@ async function openDaily() {
 }
 /* ---------- 歌词悬浮窗的设置（显示在哪、字体、颜色、大小、固定） ---------- */
 async function openFloat() {
-  const F = await import('../../core/floatlyric.js'), fonts = await import('../../core/fonts.js'), c = F.cfg();
+  const F = await import('../../core/floatlyric.js'), c = F.cfg();
   const save = () => { commit('music'); F.applyFloat(); };
-  const fontName = () => (F.FONTS.find(x => x[0] === c.font) || [0, fonts.fontName(c.font) || '默认'])[1];
-  const fontVal = h('span', fontName()), sizeOut = h('output', c.size + '');
+  const sizeOut = h('output', c.size + '');
   const more = group('', [
-    item({ title: '字体', right: fontVal, chevron: true, onClick: async () => {
-      const v = await actionSheet('字体', [...F.FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: c.font === k })), ...fonts.userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: c.font === 'u:' + u.id }))]);
-      if (v == null) return; c.font = v === 'def' ? '' : v; fontVal.textContent = fontName(); save();
-    } }),
+    font(() => c.font || '', v => { c.font = v; }, save),
     h('div.as-field', h('span.as-field__label', '颜色'), colorWheel(c.color, v => { c.color = v; save(); })),
     h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 12, max: 48, step: 1, value: c.size, onInput: v => { c.size = v; sizeOut.textContent = v; save(); } }), sizeOut),
     toggleItem({ title: '锁定' }, c.lock, v => { c.lock = v; save(); }),
