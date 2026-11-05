@@ -90,7 +90,7 @@ export function hideTagsIn(mesId, tagName) {
   try {
     const el = P.document.querySelector(`#chat .mes[mesid="${mesId}"] .mes_text`);
     if (!el) return;
-    const re = new RegExp(`(&lt;|<)(${tagName}|asterphone|astermem)[\\s\\S]*?(&lt;|<)\\/(${tagName}|asterphone|astermem)(&gt;|>)`, 'gi');
+    const re = new RegExp(`(&lt;|<)(${tagName}|asterphone|astermem|asterdiary)[\\s\\S]*?(&lt;|<)\\/(${tagName}|asterphone|astermem|asterdiary)(&gt;|>)`, 'gi');
     if (re.test(el.innerHTML)) el.innerHTML = el.innerHTML.replace(re, '');
   } catch (e) { /* 忽略 */ }
 }

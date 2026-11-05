@@ -11,6 +11,7 @@ export const APPS = [
   { id: 'library', name: '资源库', icon: 'box' },
   { id: 'music', name: '音乐', icon: 'music' },
   { id: 'memory', name: '念念铃', icon: 'bell' },
+  { id: 'diary', name: '日记', icon: 'note' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 

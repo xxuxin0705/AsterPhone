@@ -33,7 +33,7 @@ export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(
  *  keep：要留哪些标签，不给就按「给手机看」（念念铃整理时自己挑） */
 export function cleanText(text, keep = keepNow()) {
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
-  let t = String(text).replace(new RegExp(`<(astertime|asterphone|astermem|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
+  let t = String(text).replace(new RegExp(`<(astertime|asterphone|astermem|asterdiary|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   if (!keep.includes('!--')) t = t.replace(block('!--'), '');
   for (const tag of new Set(tagsIn(t))) if (!keep.includes(tag)) t = t.replace(block(tag), '');
   return t.replace(/<!--|-->/g, '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();

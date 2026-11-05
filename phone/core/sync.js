@@ -1,6 +1,6 @@
 // 和酒馆正文联动：
 // 1. 往正文里放「暗号」指令（让 AI 输出剧情时间、正文里发给你的手机消息）
-// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进念念铃，并把标签从正文显示里藏起来
+// 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进念念铃、把 <asterdiary> 收进日记本，并把标签从正文显示里藏起来
 // 3. 把手机里的聊天注入正文（跟随正文的聊天自动注入最近 N 条；手动钉住的始终注入）
 import { state, subscribe, getMsgs, contact, commit, enterWindow } from './store.js';
 import { syncTavernProfiles } from './api.js';
@@ -49,7 +49,12 @@ export function tagInstruction() {
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
   const mem = state.apps.memory, people = [myName(), ...state.contacts.map(c => c.name)].filter(Boolean).join('、');
-  return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people }) : '') + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+  return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+}
+// 跟着剧情写日记：每楼都写的、值得写才写的各列一遍名字
+function diaryNote() {
+  const who = mode => state.diary.books.filter(b => b.mode === mode).map(b => (contact(b.who) || {}).name).filter(Boolean).join('、');
+  return [['every', 'diaryEvery'], ['maybe', 'diaryMaybe']].map(([m, cat]) => who(m) && '\n' + compose(cat, { people: who(m) })).join('');
 }
 // 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
 const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))
@@ -76,6 +81,10 @@ async function readMessage(id) {
   // 念念铃：这一楼写的 <astermem>（没写也要告诉它：换了 swipe 时之前那版记下的要收回）
   if (state.apps.memory.on) (await import('./memory.js')).fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n'))
     .catch(e => log('warn', '念念铃', '记不下这一楼：' + e.message));
+  // 日记：同上，换了 swipe 就换成新的那几篇
+  if (state.diary.books.length) (await import('./diary.js')).fromStory(id, [...text.matchAll(/<asterdiary\b([^>]*)>([\s\S]*?)<\/asterdiary>/gi)]
+    .map(x => [((/from\s*=\s*["“']?([^"”'>]+)/.exec(x[1]) || [])[1] || '').trim(), x[2].trim()]).filter(x => x[0] && x[1]))
+    .catch(e => log('warn', '日记', '收不下这一楼的日记：' + e.message));
   const re = /<asterphone\b([^>]*)>([\s\S]*?)<\/asterphone>/gi;
   let r; const found = [];
   while ((r = re.exec(text))) {

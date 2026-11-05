@@ -45,3 +45,6 @@
 ## 念念树的图（phone/assets/memory/）
 - 白天 / 夜里底图（sky-*）、风铃纸签（bell-* / tag-* / knot / chime-tube）：作者用豆包生成；底图右下角的「豆包 AI 生成」水印已抹掉，挂件从假的透明格子底上抠出来。
 - 花瓣、雪花、枫叶（petal* / snow* / leaf*）：作者用 GPT 生成（黑底，转成了透明底）。
+
+## 日记的图（phone/assets/diary/）
+- 日记本封面（cover-*）、书桌白天 / 夜里（desk-*）、邮票框（stamp*）、和纸胶带（tape* / tape-pink* / strip*）、纸片小物（paper*）、干花（flower*）、蜡笔天气（weather-*）、三种纸（paper-*，从作者给的截图里裁出来，横线纸只留了线）：作者用 AI 生成或提供；黑底 / 白底的抠成了透明底，一张多个的拆成单个。

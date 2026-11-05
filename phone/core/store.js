@@ -80,6 +80,7 @@ export function defaults() {
     // 音乐（整部手机一份）：播放队列、放到哪、喜欢、最近、导入的歌单、皮肤、音源地址
     music: { queue: [], idx: 0, mode: 'list', pos: 0, liked: [], recent: [], lists: [], local: [], plays: {}, history: [], storySongs: false, skin: { name: 'record', disc: 'glass', bg: '' }, src: {} },
     musicNotes: [],   // 音乐笔记（歌词 + 感悟 + 乐评），跟着聊天窗口走
+    diary: { books: [] },   // 日记本：谁有一本、封面、什么时候写（日记本身存在 kv 的 diary:窗口 里）
   };
 }
 
@@ -90,7 +91,7 @@ export function subscribe(fn) { listeners.add(fn); return () => listeners.delete
 /* ---------- 每个酒馆聊天窗口一份手机数据 ---------- */
 // 联系人、群、聊天、动态、收藏、新的朋友、分组、我的资料（含钱包）按窗口存在 'win:窗口' 里；其余（设置、接口、提示词、表情包、皮肤…）整部手机共用。
 // 音色和读音跟着角色卡：当前卡的放在 state.voice 里，别的卡的放在 state.voiceCards 里，换卡时对调
-const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me', 'musicNotes'];
+const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me', 'musicNotes', 'diary'];
 export let win = { key: '', card: '', label: '' };
 let entered = false;
 async function saveNow() {

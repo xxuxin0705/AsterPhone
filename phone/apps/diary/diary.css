@@ -1,0 +1,65 @@
+/* AsterPhone · 日记（diary） */
+/* 书桌铺满整页（顶栏也在上面），顶栏透明 */
+.as-dy-desk { background: #e9e6e1; }
+.as-dy-desk .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; position: relative; z-index: 1; }
+.as-dy-desk .as-page__body { position: relative; z-index: 1; }
+.as-dy-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.as-dy-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 1.2s ease; }
+.as-dy-bg img.is-night { opacity: 0; }
+.as-dy-bg.is-night img.is-night { opacity: 1; }
+.as-dy-bg.is-night ~ .as-navbar { color: #fff; text-shadow: 0 1px 6px rgba(20,24,50,.6); }
+.as-dy-bg.is-night ~ .as-navbar .as-navbar__back, .as-dy-bg.is-night ~ .as-navbar .as-navbar__btn { color: #fff; }
+
+/* 桌上的本子 */
+.as-dy-shelf { display: grid; grid-template-columns: 1fr 1fr; gap: 30px 26px; padding: 26px 30px 40px; }
+.as-dy-book, .as-dy-add { display: grid; justify-items: center; gap: 10px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.as-dy-book img { width: 100%; aspect-ratio: 470 / 640; object-fit: contain; rotate: var(--r); filter: drop-shadow(0 10px 14px rgba(40,40,60,.28)); transition: transform .25s; }
+.as-dy-book:active img { transform: translateY(-4px) scale(1.02); }
+.as-dy-book__name { padding: 3px 14px; background: url(../../assets/diary/tape-pink2.webp) center / 100% 100%; color: #5a4650; font: 15px/1.4 "LXGW WenKai", "Kaiti SC", STKaiti, serif; }
+.as-dy-add { align-content: center; aspect-ratio: 470 / 640; border: 1.5px dashed rgba(90,80,90,.35); border-radius: 10px; color: rgba(70,60,70,.6); font-size: 14px; }
+.as-dy-bg.is-night ~ .as-page__body .as-dy-add { border-color: rgba(255,255,255,.45); color: rgba(255,255,255,.8); }
+
+/* 选封面 */
+.as-dy-covers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 4px 2px 12px; }
+.as-dy-cover { padding: 4px; border: 2px solid transparent; border-radius: 10px; background: none; cursor: pointer; }
+.as-dy-cover img { width: 100%; aspect-ratio: 470 / 640; object-fit: contain; display: block; }
+.as-dy-cover.is-on { border-color: var(--as-color-accent); }
+.as-dy-acts { display: flex; padding: 8px 2px 0; }
+.as-dy-acts > * { flex: 1; }
+
+/* 翻开：左右滑，一页一篇 */
+.as-dy-desk .as-page__body:has(.as-dy-flip) { overflow: hidden; }
+.as-dy-flip { position: absolute; inset: 0; display: flex; gap: 16px; padding: 6px 24px 22px; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; }
+.as-dy-flip::-webkit-scrollbar { display: none; }
+.as-dy-leaf { position: relative; flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: center; overflow-y: auto; overscroll-behavior: contain; padding: 30px 20px 26px; border-radius: 4px 10px 10px 4px;
+  background: #fbfaf7 url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto repeat-y local; box-shadow: 0 14px 30px rgba(40,40,60,.25), inset 10px 0 14px -10px rgba(80,70,60,.25);
+  color: #4a3f45; font-family: "LXGW WenKai", "Kaiti SC", STKaiti, serif; }
+.as-dy-flip.is-dots .as-dy-leaf { background-image: url(../../assets/diary/paper-dots.webp); }
+.as-dy-bg.is-night ~ .as-page__body .as-dy-leaf { filter: brightness(.9); }
+.as-dy-leaf.is-blank { display: grid; place-content: center; justify-items: center; gap: 14px; font-size: 16px; color: #8a7d84; }
+.as-dy-tape { position: absolute; top: -12px; left: 50%; width: 34%; translate: -50%; rotate: var(--r); pointer-events: none; opacity: .92; }
+.as-dy-leaf__head { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 0 12px; }
+.as-dy-leaf__head b { font-size: 19px; font-weight: 600; }
+.as-dy-leaf__head span { flex: 1; color: #8a7d84; font-size: 13px; }
+.as-dy-leaf__wx { width: 40px; height: 40px; object-fit: contain; }
+.as-dy-leaf__more { margin-right: -8px; padding: 6px; border: 0; background: none; color: #8a7d84; cursor: pointer; }
+.as-dy-photo { position: relative; width: 64%; margin: 2px auto 14px; rotate: var(--r); cursor: pointer; filter: drop-shadow(0 6px 10px rgba(40,40,60,.18)); }
+.as-dy-photo__frame { position: relative; display: block; width: 100%; pointer-events: none; }
+/* 拍立得里那个窗（透明的，照片垫在后面）、邮票里那块纸（不透明，照片盖在上面）：抠图量出来的位置 */
+.as-dy-photo__img, .as-dy-photo__none { position: absolute; left: 10.5%; top: 15.3%; width: 78.6%; height: 63%; box-sizing: border-box; }
+.as-dy-photo.is-stamp .as-dy-photo__img, .as-dy-photo.is-stamp .as-dy-photo__none { inset: 13%; width: auto; height: auto; z-index: 1; }
+.as-dy-photo__img { object-fit: cover; display: block; }
+.as-dy-photo__none { display: grid; align-content: center; gap: 6px; justify-items: center; padding: 10px; overflow: hidden; background: #f3eee6; color: #6d6168; font-size: 13px; line-height: 1.5; text-align: center; }
+.as-dy-photo__none p { margin: 0; }
+.as-dy-photo__none small { color: #a0959b; font: 10px/1.4 ui-monospace, Menlo, monospace; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.as-dy-leaf__text { white-space: pre-wrap; font-size: 16px; line-height: 30px; }
+/* 横线纸：线只画在字底下（一行 30px，和图里的线距对上） */
+.as-dy-flip.is-lined .as-dy-leaf__text { background: url(../../assets/diary/paper-lined.webp) 0 15px / 377px 450px; }
+/* 排版 1：邮票贴在右边，字绕着走 */
+.as-dy-leaf.is-l1 .as-dy-photo { float: right; width: 48%; margin: 0 -4px 8px 10px; }
+/* 排版 2：小拍立得在左上，字写在一块便签上，便签顶上贴一条胶带 */
+.as-dy-leaf.is-l2 .as-dy-photo { width: 52%; margin: 0 0 -26px 4px; z-index: 1; }
+.as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: rgba(240,214,222,.55); rotate: -.6deg; }
+.as-dy-flip.is-lined .as-dy-leaf.is-l2 .as-dy-leaf__text { background-position: 0 19px; }
+.as-dy-leaf__text > .as-dy-tape { top: -14px; left: auto; right: 6%; width: 36%; translate: none; rotate: 4deg; }
+.as-dy-deco { display: block; width: 30%; margin: 6px 0 0 auto; rotate: var(--r); pointer-events: none; }
