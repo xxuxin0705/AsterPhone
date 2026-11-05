@@ -47,7 +47,7 @@
 - 花瓣、雪花、枫叶（petal* / snow* / leaf*）：作者用 GPT 生成（黑底，转成了透明底）。
 
 ## 日记的图（phone/assets/diary/）
-- 日记本封面（cover-*）、书桌白天 / 夜里（desk-*）、邮票框（stamp*）、和纸胶带（tape* / tape-pink* / strip*）、纸片小物（paper*）、干花（flower*）、蜡笔天气（weather-*）、三种纸（paper-*，从作者给的截图里裁出来，横线纸只留了线）、蕾丝（lace* / wlace*）、白蕾丝小物（wl*）、雪花 / 枫叶 / 樱花瓣（snow* / leaf* / petal*）：作者用 AI 生成或提供；黑底 / 白底的抠成了透明底，一张多个的拆成单个。
+- 日记本封面（cover-*）、书桌白天 / 夜里（desk-*）、邮票框（stamp*）、和纸胶带（tape* / tape-pink* / strip*）、纸片小物（paper*）、干花（flower*）、蜡笔天气（weather-*）、三种纸（paper-*，从作者给的截图里裁出来，横线纸只留了线）、蕾丝（lace* / wlace*）、白蕾丝小物（wl*）、雪花 / 枫叶 / 樱花瓣（snow* / leaf* / petal*）：作者用 AI 生成或提供；黑底 / 白底的抠成了透明底（白蕾丝 wl* / wlace* 换成作者重给的黑底版，按亮度抠，越亮越不透明，留住半透明的网纱），一张多个的拆成单个。
 
 ## 日记的主题色（core/diary.js 的 THEMES）
 - 作者挑的：「中国传统色 · 春季篇」（二十四节气配色，照抄色号和名字）、Vainny 的四组色卡（从截图上取色，名字是我按颜色起的：珊瑚、晚霞、海雾…）。

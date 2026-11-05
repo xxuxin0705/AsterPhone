@@ -15,7 +15,7 @@ import { log } from '../../core/log.js';
 const BASE = 'assets/diary/';
 const COVERS = ['navy', 'sky', 'linen', 'frost-blue', 'frost-pink', 'lace-blue', 'lace-pink', 'traveler'];
 const n_ = (k, n, skip = []) => [...Array(n).keys()].filter(i => !skip.includes(i)).map(i => k + i);
-const TAPES = [...n_('tape', 8), ...n_('tape-pink', 8)], LACES = [...n_('lace', 12), ...n_('wlace', 8)], STICKERS = n_('wl', 31, [25]);
+const TAPES = [...n_('tape', 8), ...n_('tape-pink', 8)], LACES = [...n_('lace', 12), ...n_('wlace', 8)], STICKERS = n_('wl', 30);
 const PAPERS_ST = n_('paper', 17, [1, 9, 10, 14]);   // 纸片小物（拍立得框、回形针、干花不当贴纸）
 const WEATHER = [[/台风/, 'typhoon'], [/雷/, 'thunder'], [/雪/, 'snow'], [/雾|霾/, 'fog'], [/太阳雨/, 'sun-rain'], [/夜.*雨/, 'night-rain'], [/小雨|毛毛|阵雨/, 'drizzle'], [/雨/, 'rain'],
   [/彩虹/, 'rainbow'], [/风/, 'wind'], [/夜.*[云阴]/, 'night-cloud'], [/夜|月|星/, 'moon'], [/晴.*云|云.*晴/, 'sunny-cloud'], [/云|阴/, 'cloudy'], [/晴|阳/, 'sun']];
