@@ -31,7 +31,7 @@
 | `phone/assets/music/together-l.webp`、`together-r.webp` | 一起听的有线耳机 | 作者让 GPT 画的，去掉了黑底、切成两半 |
 | `phone/assets/wallpapers/*`、`phone/assets/fab/*` | 壁纸、悬浮按钮 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
 
-| 歌词悬浮窗的内置字体（从 jsDelivr 按需下载，不放进仓库） | 思源黑体 / 思源宋体（@fontsource，OFL）；霞鹜文楷、得意黑、汇文明朝体、朱雀仿宋（@chinese-fonts 中文网字计划打包，字体本身 OFL / 免费商用） | 可以免费商用 |
+| 歌词的内置字体（歌词设置、悬浮窗、一起听共用；从 jsDelivr 按需下载，不放进仓库） | 思源黑体 / 思源宋体、站酷快乐体 / 站酷小薇 / 站酷庆科黄油体、马善政楷书、龙藏体、志莽行书（@fontsource，都是 OFL）；霞鹜文楷、得意黑、汇文明朝体、朱雀仿宋（@chinese-fonts 中文网字计划打包，字体本身 OFL / 免费商用） | 可以免费商用 |
 
 ## 四、用到的外部服务（不是代码，写在说明里比较好）
 
@@ -52,6 +52,6 @@
 ## 日记的主题色（core/diary.js 的 THEMES）
 - 作者挑的：「中国传统色 · 春季篇」（二十四节气配色，照抄色号和名字）、Vainny 的四组色卡（从截图上取色，名字是我按颜色起的：珊瑚、晚霞、海雾…）。
 
-## 日记的字体（apps/diary/diary.js 的 FONTS，从 jsDelivr 上「中文网字计划」@chinese-fonts 按需下载；v0.8.110 起音乐的歌词字体 core/floatlyric.js 的 FONTS 也有这几个）
+## 日记的字体（apps/diary/diary.js 的 FONTS，从 jsDelivr 上「中文网字计划」@chinese-fonts 按需下载）
 - 小赖字体（xiaolai）、悠哉字体（yozai，SIL OFL）、猫啃珠圆体（mkzyt，基于 RocknRoll，OFL）、霞鹜文楷（lxgwwenkai，OFL）
 - 千图笔锋手写体（qtbfsxt）：千图网出的，声明免费商用；包里没有正式的授权文件
