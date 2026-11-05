@@ -4,20 +4,35 @@
 .as-dy-desk .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; position: relative; z-index: 1; }
 .as-dy-desk .as-page__body { position: relative; z-index: 1; }
 .as-dy-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
-.as-dy-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 1.2s ease; }
+/* 用原图：按高铺满，靠左上对齐（窗户和树叶在左上角，别裁掉） */
+.as-dy-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; transition: opacity 1.2s ease; }
 .as-dy-bg img.is-night { opacity: 0; }
-.as-dy-bg.is-night img.is-night { opacity: 1; }
-.as-dy-bg.is-night ~ .as-navbar { color: #fff; text-shadow: 0 1px 6px rgba(20,24,50,.6); }
-.as-dy-bg.is-night ~ .as-navbar .as-navbar__back, .as-dy-bg.is-night ~ .as-navbar .as-navbar__btn { color: #fff; }
+.as-phone[data-mode="night"] .as-dy-bg img.is-night { opacity: 1; }
+.as-phone[data-mode="night"] .as-dy-desk .as-navbar { color: #fff; text-shadow: 0 1px 6px rgba(20,24,50,.6); }
+.as-phone[data-mode="night"] .as-dy-desk .as-navbar__back, .as-phone[data-mode="night"] .as-dy-desk .as-navbar__btn { color: #fff; }
+.as-dy-desk .as-page__body { overflow: hidden; }
+.as-dy-desk .as-page__body > .as-empty { position: absolute; inset: 0; margin: auto; height: max-content; }
 
-/* 桌上的本子 */
-.as-dy-shelf { display: grid; grid-template-columns: 1fr 1fr; gap: 30px 26px; padding: 26px 30px 40px; }
-.as-dy-book, .as-dy-add { display: grid; justify-items: center; gap: 10px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.as-dy-book img { width: 100%; aspect-ratio: 470 / 640; object-fit: contain; rotate: var(--r); filter: drop-shadow(0 10px 14px rgba(40,40,60,.28)); transition: transform .25s; }
-.as-dy-book:active img { transform: translateY(-4px) scale(1.02); }
-.as-dy-book__name { padding: 3px 14px; background: url(../../assets/diary/tape-pink2.webp) center / 100% 100%; color: #5a4650; font: 15px/1.4 "LXGW WenKai", "Kaiti SC", STKaiti, serif; }
-.as-dy-add { align-content: center; aspect-ratio: 470 / 640; border: 1.5px dashed rgba(90,80,90,.35); border-radius: 10px; color: rgba(70,60,70,.6); font-size: 14px; }
-.as-dy-bg.is-night ~ .as-page__body .as-dy-add { border-color: rgba(255,255,255,.45); color: rgba(255,255,255,.8); }
+/* 桌上的本子：躺着（往后倒、转一点、缩小），翻开时立起来铺满 */
+.as-dy-table { position: absolute; inset: 0; container-type: size; perspective: 1100px; perspective-origin: 50% 30%; }
+.as-dy-vol { position: absolute; left: 50%; top: 50%; width: min(calc(100cqw - 28px), calc((100cqh - 24px) * .734)); aspect-ratio: 470 / 640; perspective: 2000px;
+  transform: translate(calc(-50% + var(--dx, 0) * 1cqw), calc(-50% + var(--dy, 0) * 1cqh)) rotateX(52deg) rotateZ(var(--rz, 0deg)) scale(.52);
+  transition: transform 1s cubic-bezier(.32, .72, .2, 1), opacity .45s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.as-dy-vol.is-open { transform: translate(-50%, -50%); z-index: 20 !important; cursor: auto; }
+.as-dy-table.is-reading .as-dy-vol:not(.is-open) { opacity: 0; pointer-events: none; }
+/* 一页（封面也是一页）：绕书脊（左边）翻，正面背面各一张 */
+.as-dy-sheet { position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.3, .7, .2, 1); }
+.as-dy-sheet.is-turned { transform: rotateY(-180deg); }
+.as-dy-sheet.is-cover { z-index: 600; transition-duration: 1s; }
+.as-dy-pages.is-still .as-dy-sheet { transition: none; }
+.as-dy-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.as-dy-face.is-back { transform: rotateY(180deg); background: #f4f1ec url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto; border-radius: 10px 4px 4px 10px; box-shadow: inset -10px 0 14px -10px rgba(80,70,60,.25); }
+.as-dy-sheet.is-cover > .as-dy-face:first-child { filter: drop-shadow(0 18px 18px rgba(40,40,60,.32)); }
+.as-dy-sheet.is-cover img { width: 100%; height: 100%; object-fit: fill; display: block; }
+.as-dy-plate { position: absolute; left: 50%; bottom: 16%; translate: -50%; max-width: 70%; padding: 4px 14px; border-radius: 4px; background: rgba(255,253,248,.92); box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  color: #5a4650; font: 15px/1.4 "LXGW WenKai", "Kaiti SC", STKaiti, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-dy-pages { position: absolute; inset: 1.5% 2.5% 1.5% 1%; }
+.as-dy-pages > .as-dy-sheet > .as-dy-face:first-child { touch-action: pan-y; }
 
 /* 选封面 */
 .as-dy-covers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 4px 2px 12px; }
@@ -42,15 +57,12 @@
 .as-dy-add-st img { display: block; max-width: 100%; max-height: 64px; object-fit: contain; }
 .as-dy-src { padding: 0 0 10px; }
 
-/* 翻开：左右滑，一页一篇 */
-.as-dy-desk .as-page__body:has(.as-dy-flip) { overflow: hidden; }
-.as-dy-flip { position: absolute; inset: 0; display: flex; gap: 16px; padding: 6px 24px 22px; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; }
-.as-dy-flip::-webkit-scrollbar { display: none; }
-.as-dy-leaf { position: relative; flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: center; overflow-y: auto; overscroll-behavior: contain; padding: 30px 20px 26px; border-radius: 4px 10px 10px 4px;
-  background: #fbfaf7 url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto repeat-y local; box-shadow: 0 14px 30px rgba(40,40,60,.25), inset 10px 0 14px -10px rgba(80,70,60,.25);
-  color: #4a3f45; }
-.as-dy-flip.is-dots .as-dy-leaf { background-image: url(../../assets/diary/paper-dots.webp); }
-.as-dy-bg.is-night ~ .as-page__body .as-dy-leaf { filter: brightness(.9); }
+/* 一页日记 */
+.as-dy-leaf { position: relative; height: 100%; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 30px 20px 26px; border-radius: 4px 10px 10px 4px;
+  background: #fbfaf7 url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto repeat-y local; box-shadow: 0 10px 24px rgba(40,40,60,.22), inset 10px 0 14px -10px rgba(80,70,60,.25);
+  color: #4a3f45; user-select: none; -webkit-user-select: none; }
+.as-dy-pages.is-dots .as-dy-leaf { background-image: url(../../assets/diary/paper-dots.webp); }
+.as-phone[data-mode="night"] .as-dy-leaf { filter: brightness(.92); }
 .as-dy-leaf.is-blank { display: grid; place-content: center; justify-items: center; gap: 14px; font-size: 16px; color: #8a7d84; }
 .as-dy-tape { position: absolute; top: -12px; left: 50%; width: 34%; translate: -50%; rotate: var(--r); pointer-events: none; opacity: .92; }
 .as-dy-leaf__head { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 0 12px; }
@@ -70,16 +82,18 @@
 .as-dy-photo__none small { color: #a0959b; font: 10px/1.4 ui-monospace, Menlo, monospace; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 .as-dy-leaf__text { white-space: pre-wrap; font-size: 16px; line-height: 30px; }
 /* 横线纸：线只画在字底下（一行 30px，和图里的线距对上） */
-.as-dy-flip.is-lined .as-dy-leaf__text { background: url(../../assets/diary/paper-lined.webp) 0 15px / 377px 450px; }
+.as-dy-pages.is-lined .as-dy-leaf__text { background: url(../../assets/diary/paper-lined.webp) 0 15px / 377px 450px; }
 /* 排版 1：邮票贴在右边，字绕着走 */
 .as-dy-leaf.is-l1 > .as-dy-photo { float: right; width: 48%; margin: 0 -4px 8px 10px; }
 /* 排版 2：小拍立得在左上，字写在一块便签上，便签顶上贴一条胶带 */
 .as-dy-leaf.is-l2 > .as-dy-photo { width: 52%; margin: 0 0 -26px 4px; z-index: 1; }
 .as-dy-leaf.is-l2 .as-dy-leaf__text { position: relative; margin: 0 4px; padding: 34px 14px 12px; background-color: color-mix(in srgb, var(--t) 20%, transparent); rotate: -.6deg; }
-.as-dy-flip.is-lined .as-dy-leaf.is-l2 .as-dy-leaf__text { background-position: 0 19px; }
+.as-dy-pages.is-lined .as-dy-leaf.is-l2 .as-dy-leaf__text { background-position: 0 19px; }
 .as-dy-leaf__text > .as-dy-tape { top: -14px; left: auto; right: 6%; width: 36%; translate: none; rotate: 4deg; }
 /* 贴纸：能拖、能捏着缩放旋转（手指按上去就不让这一页跟着滑） */
 .as-dy-zone { position: relative; height: 170px; }
 .as-dy-st { position: absolute; z-index: 2; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent; filter: drop-shadow(0 2px 3px rgba(60,50,60,.12)); }
 .as-dy-st img { display: block; width: 100%; pointer-events: none; -webkit-user-drag: none; }
 .as-dy-st.is-photo .as-dy-st__pic { position: absolute; inset: 13%; width: 74%; height: 74%; object-fit: cover; z-index: 1; }
+/* 纸上的按钮不跟着深色模式变（纸一直是浅色的） */
+.as-dy-leaf .as-btn { background: rgba(255,255,255,.85); color: #5a4650; box-shadow: 0 1px 4px rgba(60,50,60,.15); }

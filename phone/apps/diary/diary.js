@@ -91,29 +91,37 @@ function stick(o, done, tap) {
   return el;
 }
 
-function desk(el) {
-  const bg = h('div.as-dy-bg', h('img', { src: BASE + 'desk-day.webp', alt: '' }), h('img.is-night', { src: BASE + 'desk-night.webp', alt: '' }));
-  el.prepend(bg);
-  return () => bg.classList.toggle('is-night', (el.closest('.as-phone') || document.body).dataset.mode === 'night');
-}
-
+/* ---------- 书桌：每本日记躺在桌上；点一本，它立起来、封面翻开，一页一篇，左右拖着翻页 ---------- */
+// 第几本放在桌上哪：离正中横着、竖着几 %（按桌子的宽高），转几度
+const SPOTS = [[0, 12, -5], [-22, -16, 8], [22, -20, -9], [-20, -44, 4], [20, -46, -3]];
 export function open() {
-  const p = page({ app: 'diary', id: 'diary-desk', title: '日记', large: true, back: true, cls: 'as-dy-desk', right: [navBtn('plus', '加一本', () => add())] });
-  const shelf = h('div.as-dy-shelf'), night = desk(p.el), els = new Map();
-  const add = () => { const list = free(); if (!list.length) { toast('每个人都有一本了'); return; }
-    actionSheet('给谁一本日记', list.map(c => ({ value: c.id, label: nameOf(c) }))).then(id => id && bookSheet(null, id, draw)); };
-  const bookEl = b => { const c = contact(b.who), k = b.who + b.cover + nameOf(c);
-    return els.get(k) || els.set(k, h('button.as-dy-book', { style: `--r:${hash(b.who) % 7 - 3}deg`, onclick: () => openBook(c) },
-      h('img', { src: cover(b.cover), alt: '' }), h('span.as-dy-book__name', nameOf(c)))).get(k); };
-  let seen = '';
+  const add = navBtn('plus', '加一本', () => { const list = free(); if (!list.length) { toast('每个人都有一本了'); return; }
+    actionSheet('给谁一本日记', list.map(c => ({ value: c.id, label: nameOf(c) }))).then(id => id && bookSheet(null, id, draw)); });
+  const p = page({ app: 'diary', id: 'diary-desk', title: '日记', large: true, back: true, cls: 'as-dy-desk', right: [add], onBack: () => (reading ? reading.close() : nav.pop()) });
+  // 白天 / 夜里的桌子跟着手机的深色模式走（只靠 CSS，不用再判断）
+  p.el.prepend(h('div.as-dy-bg', h('img', { src: BASE + 'desk-day.webp', alt: '' }), h('img.is-night', { src: BASE + 'desk-night.webp', alt: '' })));
+  const table = h('div.as-dy-table'), vols = new Map(), none = empty('还没有日记本');
+  let reading = null;
+  const volOf = b => {
+    const c = contact(b.who), img = h('img', { src: cover(b.cover), alt: '' }), plate = h('span.as-dy-plate', nameOf(c));
+    const v = { b, img, plate, cover: h('div.as-dy-sheet.is-cover', h('div.as-dy-face', img, plate), h('div.as-dy-face.is-back')) };
+    v.el = h('div.as-dy-vol', { role: 'button', 'aria-label': nameOf(c) + '的日记', onclick: () => { if (!reading) reading = openBook(c, v, p, table, () => { reading = null; draw(); }); } }, v.cover);
+    return v;
+  };
   function draw() {
-    night();
-    const list = books().filter(b => contact(b.who)), sig = JSON.stringify(list) + state.contacts.map(nameOf);
-    if (sig === seen) return;   // 返回这页时没变就一点都不动
-    seen = sig;
-    shelf.replaceChildren(...list.map(bookEl), ...(free().length ? [h('button.as-dy-add', { onclick: add }, icon('plus', 26, 1.6), h('span', '加一本'))] : list.length ? [] : [empty('还没有联系人')]));
+    if (reading) return;
+    const list = books().filter(b => contact(b.who));
+    vols.forEach((v, who) => { if (!list.some(b => b.who === who)) { v.el.remove(); vols.delete(who); } });
+    list.forEach((b, i) => {
+      const v = vols.get(b.who) || vols.set(b.who, volOf(b)).get(b.who), [dx, dy, rz] = SPOTS[i % SPOTS.length];
+      v.b = b; v.plate.textContent = nameOf(contact(b.who));
+      if (v.img.getAttribute('src') !== cover(b.cover)) { const im = new Image(); im.src = cover(b.cover); im.decode().catch(() => {}).then(() => { v.img.src = im.src; }); }
+      v.el.style.cssText = `--dx:${dx};--dy:${dy};--rz:${rz}deg;z-index:${10 - i}`;
+      if (!v.el.isConnected) table.append(v.el);
+    });
+    none.hidden = !!list.length;
   }
-  p.body.append(shelf);
+  p.body.append(table, none);
   draw(); p.el._onShow = draw;
   return p.el;
 }
@@ -145,31 +153,71 @@ function bookSheet(b, who, done) {
   ].filter(Boolean) });
 }
 
-/* ---------- 翻开一本 ---------- */
-function openBook(c) {
+/* ---------- 翻开一本：立起来 → 封面翻开 → 翻到最新一篇；往左拖翻下一页，往右拖翻回去 ---------- */
+function openBook(c, v, p, table, gone) {
+  const right = p.nav.querySelector('.as-navbar__right'), idle = [...right.childNodes];
   const wr = navBtn('edit', '写一篇', () => writeSheet(c));
   wr.dataset.dyWrite = c.id; wr._idle = [...wr.childNodes];
-  const p = page({ app: 'diary', id: 'diary-book', title: nameOf(c), back: true, cls: 'as-dy-desk', right: [wr, navBtn('gear', '设置', () => bookSheet(Dy.bookOf(c.id), c.id, how => {
-    if (how === 'gone') { nav.pop(); return; }
-    flip.className = 'as-dy-flip is-' + (how.paper || 'lined'); useFont(flip, how.font);   // 换纸、换字体只改这两样
-  }))] });
-  const flip = h('div.as-dy-flip.is-' + (Dy.bookOf(c.id).paper || 'lined')), night = desk(p.el), els = new Map(), blank = h('article.as-dy-leaf.is-blank', h('p', '还没写过'), btn('写一篇', 'secondary', () => writeSheet(c)));
-  useFont(flip, Dy.bookOf(c.id).font);
-  let seen = -1, n = 0;
+  right.replaceChildren(wr, navBtn('gear', '设置', () => bookSheet(Dy.bookOf(c.id), c.id, how => {
+    if (how === 'gone') { close(); return; }
+    pages.className = 'as-dy-pages is-' + (how.paper || 'lined'); useFont(pages, how.font);   // 换纸、换字体只改这两样
+    v.img.src = cover(how.cover);
+  })));
+  p.setTitle(nameOf(c));
+  // 在页上横着拖是翻页，不是返回（no-swipe）
+  const b0 = Dy.bookOf(c.id), pages = h('div.as-dy-pages.is-' + (b0.paper || 'lined'), { dataset: { noSwipe: '' } }), els = new Map(), shs = new Map();
+  const sheetOf = el => h('div.as-dy-sheet', h('div.as-dy-face', el), h('div.as-dy-face.is-back'));
+  const blank = sheetOf(h('article.as-dy-leaf.is-blank', h('p', '还没写过'), btn('写一篇', 'secondary', () => writeSheet(c))));
+  useFont(pages, b0.font);
+  v.el.prepend(pages);
+  table.classList.add('is-reading'); v.el.classList.add('is-open');
+  let seen = -1, idx = 0;
+  // 翻到第 idx 页：前面的都翻过去了；只留眼前这页和前后各一页，别的先不画。书立起来、合上的时候，翻过去的那页先藏起来（不然会从书边露出来）
+  const layout = (tuck = false) => [...pages.children].forEach((s, i) => { s.classList.toggle('is-turned', i < idx); s.style.zIndex = i < idx ? i : 500 - i; s.hidden = i < idx ? tuck || i < idx - 1 : i > idx + 1; });
   async function draw() {
-    night(); ping(c.id);
+    ping(c.id);
     await Dy.load(); if (Dy.ver === seen) return;
-    const first = seen === -1; seen = Dy.ver;
-    const list = Dy.pagesOf(c.id), want = list.length ? list.map(x => els.get(x) || els.set(x, leaf(x)).get(x)) : [blank];
+    const first = seen === -1, atEnd = idx >= pages.children.length - 1; seen = Dy.ver;
+    const list = Dy.pagesOf(c.id), want = list.length ? list.map(x => shs.get(x) || shs.set(x, sheetOf(els.set(x, leaf(x)).get(x))).get(x)) : [blank];
     list.forEach(x => { const ph = els.get(x).querySelector('.as-dy-photo'); if (ph._k !== key(x)) fill(x, ph); });   // 配好图、在配图：只换拍立得里面
-    [...flip.children].forEach(el => { if (!want.includes(el)) el.remove(); });
-    want.forEach((el, i) => { if (flip.children[i] !== el) flip.insertBefore(el, flip.children[i] || null); });
-    if (first) flip.scrollLeft = flip.scrollWidth;   // 打开翻到最新一篇
-    else if (list.length > n) flip.scrollTo({ left: flip.scrollWidth, behavior: 'smooth' });
-    n = list.length;
+    [...pages.children].forEach(el => { if (!want.includes(el)) el.remove(); });
+    want.forEach((el, i) => { if (pages.children[i] !== el) pages.insertBefore(el, pages.children[i] || null); });
+    if (first) { pages.classList.add('is-still'); idx = want.length - 1; layout(true); pages.offsetWidth; pages.classList.remove('is-still'); setTimeout(() => v.cover.classList.add('is-turned'), 260); setTimeout(layout, 1300); }
+    else { if (atEnd) idx = want.length - 1; idx = Math.min(idx, want.length - 1); layout(); }   // 正看着最后一页时来了新的一篇：翻过去
+  }
+  // 拖着翻页：横着拖才翻（竖着拖是滚这一页的字）；过了一小半就翻过去，不然弹回来
+  let drag = null, dragged = 0;
+  pages.addEventListener('pointerdown', e => { if (!e.target.closest('button, .as-dy-st, .as-dy-photo')) drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+  pages.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.s) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
+      if (Math.abs(dx) < 12) return;
+      drag.back = dx > 0; drag.s = pages.children[drag.back ? idx - 1 : idx < pages.children.length - 1 ? idx : -1];
+      if (!drag.s) { drag = null; return; }
+      pages.setPointerCapture(e.pointerId); drag.W = pages.clientWidth; drag.s.style.transition = 'none'; drag.s.style.zIndex = 999;
+    }
+    drag.a = drag.back ? Math.min(0, -180 + dx / drag.W * 180) : Math.max(-180, Math.min(0, dx / drag.W * 180));
+    drag.s.style.transform = `rotateY(${drag.a}deg)`;
+  });
+  const up = () => {
+    if (drag?.s) {
+      if (drag.back ? drag.a > -150 : drag.a < -30) idx += drag.back ? -1 : 1;
+      drag.s.style.transition = ''; drag.s.style.transform = ''; layout(); dragged = Date.now();
+    }
+    drag = null;
+  };
+  pages.addEventListener('pointerup', up); pages.addEventListener('pointercancel', up);
+  pages.addEventListener('click', e => { if (Date.now() - dragged < 300) e.stopPropagation(); }, true);   // 刚翻完页别当成点了按钮
+  // 合上：封面翻回来盖住 → 躺回桌上 → 把页拿掉，顶栏换回来
+  function close() {
+    off(); layout(true); v.cover.classList.remove('is-turned');
+    setTimeout(() => { v.el.classList.remove('is-open'); table.classList.remove('is-reading'); }, 450);
+    setTimeout(() => { pages.remove(); right.replaceChildren(...idle); p.setTitle('日记'); gone(); }, 1400);
   }
   // 一篇：改了就把这一页换掉
-  const redo = x => { const o = els.get(x), nw = leaf(x); els.set(x, nw); if (o) swap(o, nw); };
+  const redo = x => { const o = els.get(x), nw = leaf(x); els.set(x, nw); swap(o, nw); };
   function leaf(x) {
     const r = hash(x.id), lay = x.lay ?? r % 3, wx = (WEATHER.find(([re]) => re.test(x.weather)) || [])[1], d = new Date(x.at.replace(/-/g, '/'));
     const ph = h('div.as-dy-photo' + (lay === 1 ? '.is-stamp' : ''), { style: `--r:${r % 9 - 4}deg`, onclick: () => picMenu(x, ph) }, photo(x),
@@ -248,12 +296,11 @@ function openBook(c) {
     sheet({ title: '换主题色', content: [grid, field('自己调', colorWheel(Dy.themeOf(x), v => { grid.querySelector('.is-on')?.classList.remove('is-on'); set(v.slice(0, 7)); }))] });
   }
   const off = subscribe(w => { if (w === 'diary') draw(); });
-  p.body.append(flip);
-  draw(); p.el._onShow = draw; p.el._onLeave = off;
-  nav.push(p.el);
+  draw();
+  return { close };
 }
 
-/* ---------- 写一篇：从念念铃里挑几件事（不挑就按最近的正文和手机聊天写），写完接着配图 ---------- */
+/* ---------- 写一篇：最近的事 / 从念念铃挑几件事 / 选楼层；能先放几张自己的照片 ---------- */
 function ping(id) {
   document.querySelectorAll(`[data-dy-write="${id}"]`).forEach(b => b.replaceChildren(...(jobs.has(id) ? [h('span.as-spin')] : b._idle)));
 }
@@ -286,12 +333,8 @@ async function run(c, opts) {
   jobs.set(c.id, ac); ping(c.id);
   try {
     toast(`${nameOf(c)} 在写日记…`, stop);
-    const x = await Dy.write(c, opts, ac.signal);
-    if (opts.photos.length) { toast('写好了'); return; }
-    toast('写好了，在配图…', stop);
-    drawing.set(x.id, ac); commit('diary');
-    try { await Dy.draw(x, ac.signal); toast('写好了'); } catch (e) { if (!ac.signal.aborted) toast('写好了，配图没生成：' + e.message); }
-    drawing.delete(x.id); commit('diary');
+    await Dy.write(c, opts, ac.signal);
+    toast('写好了');   // 配图只写画面和提示词，点了「生图」才生
   } catch (e) { if (!ac.signal.aborted) toast(e.message); }
   finally {
     if (ac.signal.aborted) toast('已取消');
