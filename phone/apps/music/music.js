@@ -977,10 +977,17 @@ export function openPlayer() {
     const mark = () => {
       [...grid.children].forEach(x => x.classList.toggle('is-on', x.dataset.id === (S.bgId || '')));
       const cur = bgs().find(b => b.id === S.bgId);
-      const row = (label, k, o) => { const out = h('output', o.fmt(cur[k])); return h('div.as-settings-slider-row', h('span', label), slider({ ...o, value: cur[k], onInput: v => { cur[k] = v; out.textContent = o.fmt(v); paintBg(); commit('music'); } }), out); };
+      // 每行调过了（不是默认值）右边出一个恢复键，点了只恢复这一行
+      const row = (label, k, def, o) => {
+        const out = h('output', o.fmt(cur[k])), sl = slider({ ...o, value: cur[k], onInput: v => set(v) });
+        const back = h('button.as-mp-bgs__undo', { 'aria-label': '恢复' + label, onclick: () => { set(def); sl.value = def; } }, icon('undo', 16, 2));
+        const set = v => { cur[k] = v; out.textContent = o.fmt(v); back.style.visibility = v === def ? 'hidden' : ''; paintBg(); commit('music'); };
+        back.style.visibility = cur[k] === def ? 'hidden' : '';   // 藏起来也占着位置，滑条不会忽长忽短
+        return h('div.as-settings-slider-row', h('span', label), sl, out, back);
+      };
       adj.replaceChildren(...(cur ? [
-        row('模糊', 'blur', { min: 0, max: 20, step: 1, fmt: v => v ? v + '' : '不模糊' }),
-        row('亮度', 'bright', { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }),
+        row('模糊', 'blur', 0, { min: 0, max: 20, step: 1, fmt: v => v ? v + '' : '不模糊' }),
+        row('亮度', 'bright', 1, { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }),
         btn('恢复原图', 'secondary', () => { cur.blur = 0; cur.bright = 1; commit('music'); paintBg(); mark(); }),
       ] : []));
     };

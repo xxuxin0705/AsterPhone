@@ -339,6 +339,7 @@
 .as-mp-bgs__i { position: relative; aspect-ratio: 9 / 16; border: 0; border-radius: 10px; background: var(--as-color-surface-2) center / cover; color: var(--as-color-text-2); font: 400 12px/1.3 var(--font-ui); cursor: pointer; display: grid; place-items: center; }
 .as-mp-bgs__i.is-on { box-shadow: 0 0 0 2.5px var(--as-color-accent); }
 .as-mp-bgs__i i { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.45); color: #fff; }
+.as-mp-bgs__undo { flex: none; width: 28px; height: 28px; margin-left: -4px; border: 0; border-radius: 50%; background: none; color: var(--as-color-text-2); display: grid; place-items: center; cursor: pointer; }
 /* 有自己的背景图：字和按钮加一层淡阴影（渐变填色的那句用 drop-shadow，text-shadow 会盖住填色） */
 .as-mp.has-bg :is(.as-mp__top, .as-mp__name, .as-mp__artist, .as-mp__times, .as-mp__lrc, .as-tg__time, .as-fx__cur) { text-shadow: 0 1px 4px rgba(0,0,0,.45); }
 .as-mp.has-bg :is(.as-mp__lrc p.is-cur span, .as-ch.is-cur span) { text-shadow: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
