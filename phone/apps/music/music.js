@@ -185,15 +185,14 @@ async function heartMode() {
 function openCharOne(c, l) {
   const pill = (ic, t, fn) => h('button', { onclick: fn }, icon(ic, 17, 2), t);
   const v = openList(l.name, l.songs, { info: l, onRemove: s => { l.songs = l.songs.filter(x => x.id !== s.id); commit('contacts'); },
-    actions: h('div.as-mu-lp__acts', pill('edit', '编辑', () => editList(l, () => { commit('contacts'); v.head(); })), pill('plus', '加歌', async () => {
-      const w = ((await dialog({ title: '加歌', input: { placeholder: '歌名或歌手' }, confirm: '搜' })) || '').trim(); if (!w) return;
-      let L; try { L = await waiting(`正在搜「${w}」…`, () => P.search(w)); } catch (e) { log('warn', '音乐', `搜「${w}」失败：${e.message}`); toast(`没搜成：${e.message}`); return; }
-      if (!L) return; L = L.slice(0, 12);
-      if (!L.length) { toast('没搜到'); return; }
-      toast(`${L.length} 首`);
-      const id = await actionSheet('挑一首', L.map(s => ({ value: s.id, label: P.label(s) }))); const s = L.find(x => x.id === id); if (!s) return;
-      if (!P.addToChar(c, s, l.name)) { toast('这个歌单里已经有了'); return; }
-      v.fill(l.songs); toast(`加进「${l.name}」了`);
+    actions: h('div.as-mu-lp__acts', pill('edit', '编辑', () => editList(l, () => { commit('contacts'); v.head(); })), pill('plus', '加歌', () => {
+      // 加歌：同一个搜索页，点「+」加进来，可以连着加；加过了，回来时歌单再重画
+      const p = page({ app: 'music', id: 'music-add', back: true, cls: 'as-mu-root' }); let added = false;
+      p.el.dataset.tab = 'search';   // 跟搜索页一样的顶栏和边距
+      searchIn(p.nav.querySelector('.as-navbar__title'), p.body, p.el, { has: s => l.songs.some(x => x.id === s.id),
+        put: s => { if (!P.addToChar(c, s, l.name)) { toast('这个歌单里已经有了'); return false; } added = true; toast(`加进「${l.name}」了`); return true; } });
+      p.el._onLeave = () => added && v.fill(l.songs);
+      nav.push(p.el);
     })) });
 }
 /** 长按进多选：每行左边出勾，底下「全选 · 删除（几个）· 取消」，全勾上时「全选」变「全不选」。
@@ -235,11 +234,14 @@ function openCharList(c) {
   nav.push(p.el);
 }
 
-/* ================= 搜索：搜索历史、试试这些（语种风格 + 常听的歌手） ================= */
-function renderSearch(ctx) {
-  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); } });
-  ctx.title.append(h('label.as-mu-search', icon('search', 16, 2), input));
-  const hist = h('div');
+/* ================= 搜索：搜索历史、试试这些（语种风格 + 常听的歌手）；搜了结果就在搜索框下面 ================= */
+function renderSearch(ctx) { ctx.find = searchIn(ctx.title, ctx.body, ctx.el); }
+/** 搜索框放进 title，下面的东西放进 body，host 是这一页。add：角色歌单的「加歌」（结果每行一个「+」，不分单曲 / 歌单 / 歌手） */
+function searchIn(title, body, host, add) {
+  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); },
+    oninput: () => { if (!input.value) { home.hidden = false; res.hidden = true; } } });   // 删光了回到搜索历史
+  title.append(h('label.as-mu-search', icon('search', 16, 2), input));
+  const hist = h('div'), home = h('div'), res = h('div', { hidden: true });
   const paintHist = () => hist.replaceChildren(...(M().history.length ? [
     h('div.as-mu-h', '搜索历史', h('button.as-mu-h__btn', { 'aria-label': '清空搜索历史', onclick: () => { M().history = []; commit('music'); paintHist(); } }, icon('trash', 18, 1.8))),
     h('div.as-mu-tags.is-gray', M().history.map(w => h('button', { onclick: () => find(w) }, w)))] : []));
@@ -247,23 +249,38 @@ function renderSearch(ctx) {
   // 喜欢的歌里出现最多的两位歌手接在后面，没有就补两个风格
   const count = {}; M().liked.forEach(s => { const a = s.artist.split(/[/、,，&]/)[0].trim(); if (a && !s.local) count[a] = (count[a] || 0) + 1; });
   const words = [...STYLES, '治愈', '伤感', ...Object.keys(count).sort((a, b) => count[b] - count[a]), '民谣', '摇滚'].filter(w => !CATS.some(c => c[0] === w)).slice(0, 12);   // 下面分类卡片里有的不重复
-  ctx.body.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))),
+  home.append(hist, h('div.as-mu-h', '试试这些'), h('ol.as-mu-try', words.map((w, i) => h('li', { onclick: () => find(w) }, h('em', String(i + 1)), w))),
     h('div.as-mu-h', '分类'), h('div.as-mu-cats', CATS.map(([w, en, c]) => h('button', { style: { background: c }, onclick: () => find(w) }, h('b', w), h('span', en), h('i', w[0])))), h('div.as-mu-gap'));
-  ctx.find = find;
-  async function find(word) {
+  body.append(home, res);
+  return find;
+  // 单曲一页页往下搜；歌单只有装了酒馆插件才搜得到（没装就没有这一栏）；歌手从搜到的歌里挑名字对得上的
+  function find(word) {
     if (!word) return;
-    input.value = word; input.blur();
+    input.value = word; input.blur(); home.hidden = true; res.hidden = false; body.scrollTop = 0;
     M().history = [word, ...M().history.filter(x => x !== word)].slice(0, 10); commit('music'); paintHist();
-    try {
-      // 一批搜 3 页（同时发），和前面重复的不要；打开结果页后自己接着往下搜
-      let page = 0, all = [];
-      const batch = async () => { const got = (await Promise.all([1, 2, 3].map(k => P.search(word, page + k).catch(() => [])))).flat(); page += 3; const fresh = got.filter(s => !all.some(x => x.id === s.id) && (all.push(s), true)); return fresh; };
-      const r = await waiting('正在搜…', () => Promise.all([batch(), P.searchLists(word)])); if (!r) return;
-      const [songs, lists] = r;
-      toast(songs.length || lists.length ? `找到${lists.length ? ` ${lists.length} 个歌单、` : ' '}${songs.length} 首` : '没搜到');
-      if (songs.length || lists.length) openList(`搜「${word}」`, songs, { top: lists.length ? listRows(word, lists) : null, more: batch, tools: true });
-    }
-    catch (e) { log('error', '音乐', `搜「${word}」失败：${e.message}`); toast('搜索失败：' + e.message); }
+    const songs = [], seen = new Set(); let pg = 0;   // songs：搜到过的歌，挑歌手用
+    const more = async () => { const got = await P.search(word, ++pg); if (!got.length) return null; const L = got.filter(s => !seen.has(s.id) && seen.add(s.id)); songs.push(...L); return L; };
+    const box = { el: host, body: h('div') }, lists = h('div.as-mu-sheet', { hidden: true }), singers = h('div.as-mu-sheet', { hidden: true });
+    openList(`搜「${word}」`, [], add ? { into: box, more, add } : { into: box, more, tools: true });
+    if (add) { res.replaceChildren(box.body); return; }
+    const w = word.toLowerCase();
+    const paintSingers = keep(singers, () => songs.length, () => {
+      const m = new Map();
+      songs.forEach(s => s.artist.split(/\s*[/、,，&]\s*/).forEach(a => { const k = a.toLowerCase(); if (a && (k.includes(w) || (w.includes(k) && k.length > 1)) && !m.has(a)) m.set(a, s.pic); }));
+      return m.size ? [...m].map(([a, pic]) => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a) }, avatar(pic, a, 48), h('div', h('b', a), h('span', '歌手')), icon('chevron', 16, 2)))
+        : [empty('没找到这个名字的歌手')];
+    });
+    let listsGot = false;
+    const paintLists = async () => {
+      if (listsGot) return; listsGot = true; lists.replaceChildren(h('div.as-mu-morel', '正在加载…'));
+      const L = await P.searchLists(word);
+      lists.replaceChildren(...(L.length ? L.map(listRow) : [empty('没搜到歌单')]), h('div.as-mu-gap'));
+    };
+    const tabs = [['song', '单曲'], ...(P.ne ? [['list', '歌单']] : []), ['singer', '歌手']];
+    res.replaceChildren(h('div.as-mu-seg.is-res', segmented(tabs, 'song', k => {
+      box.body.hidden = k !== 'song'; lists.hidden = k !== 'list'; singers.hidden = k !== 'singer';
+      if (k === 'list') paintLists(); if (k === 'singer') paintSingers();
+    })), box.body, lists, singers);
   }
 }
 
@@ -557,15 +574,17 @@ function openFollows() {
   paint(); p.body.append(box); p.el._onShow = paint;
   nav.push(p.el);
 }
-async function openArtist(a) {
-  try {
-    const all = await waiting(`正在找${a}的歌…`, () => P.search(a)); if (!all) return;
-    const mine = all.filter(s => s.artist.split(/[/、,，&]/).some(x => x.trim() === a));
-    const songs = mine.length ? mine : all; toast(`${songs.length} 首`);
-    const on = () => follows().includes(a);
-    const b = navText(on() ? '已关注' : '关注', () => { follow(a); b.textContent = on() ? '已关注' : '关注'; });
-    openList(a, songs, { right: [b], sub: '歌手' });
-  } catch (e) { log('error', '音乐', `找${a}的歌失败：${e.message}`); toast('读不到：' + e.message); }
+// 歌手页：按名字一页页搜，只留 TA 唱的（第一页一首都对不上就全留着）；哪一页没有 TA 的歌了就不往下搜
+function openArtist(a) {
+  const on = () => follows().includes(a);
+  const b = navText(on() ? '已关注' : '关注', () => { follow(a); b.textContent = on() ? '已关注' : '关注'; });
+  const seen = new Set(); let pg = 0, all = false;
+  openList(a, [], { right: [b], sub: '歌手', more: async () => {
+    const got = await P.search(a, ++pg); if (!got.length) return null;
+    const mine = got.filter(s => s.artist.split(/[/、,，&]/).some(x => x.trim() === a));
+    if (pg === 1 && !mine.length) all = true; else if (!all && !mine.length) return null;
+    return (all ? got : mine).filter(s => !seen.has(s.id) && seen.add(s.id));
+  } });
 }
 function follow(a) {
   const F = follows(), i = F.indexOf(a);
@@ -593,21 +612,29 @@ function openLocal() {
 
 /* ================= 歌单页：上面是封面和名字（背景是封面糊开），下面白底列表 ================= */
 // 每行往左滑（或点 ⋯）出「下一首 / 喜欢 / 分享 / 移除」；tools：搜索结果——「移除」叫「去掉」（只从这次搜到的里拿掉），上面多一个「多选」勾几首直接建歌单
-function openList(title, list, { right, onRemove, count, sub, top, info, actions, more, tools } = {}) {
-  const p = page({ app: 'music', id: 'music-list', back: true, right, cls: 'as-mu-lp.is-dark' });
+// add：加歌——每行右边是「+」，点了加进歌单；into：不开新页，列表放进 into.body（搜索页里的结果）
+function openList(title, list, { right, onRemove, count, sub, top, info, actions, more, tools, add, into } = {}) {
+  const p = into || page({ app: 'music', id: 'music-list', back: true, right, cls: 'as-mu-lp.is-dark' });
   const bg = h('div.as-mu-lp__bg'), cov = h('span.as-mu-lcover.is-big'), n = h('span'), rows = h('div');
-  p.el.prepend(bg);
-  // 搜索结果：先放第一批，后面自己接着一批批往下搜，搜不到新的（或到 500 首）就停；搜到的接在后面（只加新的那几行，不重画）；离开这页就不搜了
-  const moreBtn = h('div.as-mu-morel');
-  const keepGoing = async () => {
-    while (p.el.isConnected && list.length < 500) {
-      moreBtn.textContent = `还在往下搜…已经 ${list.length} 首`;
-      let L; try { L = await more(); } catch (e) { log('warn', '音乐', '往下搜失败：' + e.message); break; }
-      if (!L.length) break;
+  if (!into) p.el.prepend(bg);
+  // 往下搜（搜索结果、歌手的歌）：滑到底露出最后一行才搜下一页，搜到的接在后面（只加新的那几行，不重画）；more() 回 null 是搜完了，到 500 首也停
+  const moreEl = h('button.as-mu-morel', { onclick: () => load() });
+  let busy = false, done = !more;
+  const near = () => !!moreEl.offsetParent && moreEl.getBoundingClientRect().top < moreEl.closest('.as-page__body').getBoundingClientRect().bottom + 200;
+  const load = async () => {
+    if (busy || done) return; busy = true; moreEl.textContent = '正在加载…';
+    let L; try { L = await more(); } catch (e) { log('warn', '音乐', '往下搜失败：' + e.message); busy = false; moreEl.textContent = '没搜成，点一下再试'; return; }
+    busy = false;
+    if (!L) done = true;
+    else if (L.length) {
       list.push(...L); rows.append(...L.map(row)); n.textContent = `${list.length} 首`;
+      if (!cov.style.backgroundImage) cov.style.backgroundImage = bg.style.backgroundImage = bgUrl(firstPic(list));
     }
-    moreBtn.textContent = `一共 ${list.length} 首`;
+    if (list.length >= 500) done = true;
+    moreEl.textContent = done ? (list.length ? `一共 ${list.length} 首` : '没搜到') : '';
+    if (!done && near()) load();   // 这一页没搜到新的、或者还没铺满一屏，接着搜
   };
+  if (more) new IntersectionObserver(([e]) => e.isIntersecting && load(), { rootMargin: '200px' }).observe(moreEl);
   // 歌单自己的封面、标签、一句话介绍（编辑歌单信息里改）
   const nameEl = h('b'), subEl = h('span');
   const head = () => {
@@ -623,10 +650,9 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
     for (let f = 18; !one() && f > 15;) nameEl.style.fontSize = --f + 'px';
     if (!one()) { nameEl.style.fontSize = ''; nameEl.classList.add('is-even'); }
   };
-  p.body.append(h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)),
-    actions || null,
+  p.body.append(...(into ? [] : [h('div.as-mu-lp__head', cov, h('div', nameEl, subEl)), actions || null]),
     h('div.as-mu-sheet', top, h('div.as-mu-all', { role: 'button', onclick: () => list.length && play(list, 0, title) }, h('i', icon('play', 15, 0)), h('div', h('b', '播放全部'), n),
-      tools ? h('button.as-mu-chip', { onclick: e => { e.stopPropagation(); pickMode(true); } }, icon('check', 13, 2.4), '多选') : null), rows, more ? moreBtn : null, h('div.as-mu-gap')));
+      tools ? h('button.as-mu-chip', { onclick: e => { e.stopPropagation(); pickMode(true); } }, icon('check', 13, 2.4), '多选') : null), rows, more ? moreEl : null, h('div.as-mu-gap')));
   // 多选：勾上的歌；滑开的那一行（同时只开一行）
   const picked = new Set(); let picking = false, opened = null;
   const close = () => { if (opened) { opened.style.transform = ''; opened = null; } };
@@ -638,11 +664,12 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
       play(list, list.indexOf(s), title);
     } }, ck, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(s.pic) } }, s.local ? icon('music', 18, 1.8) : null),
       h('div', h('b', s.name), h('span', s.artist)),
-      count ? h('em', count(s)) : h('button.as-mu-more', { 'aria-label': '更多', onclick: e => {
+      add ? h('button.as-mu-more.is-add' + (add.has(s) ? '.is-on' : ''), { 'aria-label': '加进歌单', onclick: e => { e.stopPropagation(); const b = e.currentTarget; if (add.put(s)) { b.classList.add('is-on'); b.replaceChildren(icon('check', 18, 2.4)); } } }, icon(add.has(s) ? 'check' : 'plus', 18, 2.4))
+      : count ? h('em', count(s)) : h('button.as-mu-more', { 'aria-label': '更多', onclick: e => {
         e.stopPropagation();
         const was = opened === el; close(); if (!was) { el.style.transform = `translateX(${-acts.offsetWidth}px)`; opened = el; }
       } }, icon('more', 18, 3)));
-    if (count) return el;
+    if (count || add) return el;
     const act = (t, cls, fn) => h('button.is-' + cls, { onclick: e => { close(); fn(e); } }, t);
     const acts = h('div.as-mu-swacts', act('下一首', 'next', () => { P.queueNext(s); toast('下一首放它'); }), act(P.liked(s) ? '已喜欢' : '喜欢', 'fav', e => { const on = P.like(s); e.target.textContent = on ? '已喜欢' : '喜欢'; toast(on ? '加到我喜欢了' : '从我喜欢里拿掉了'); }), act('分享', 'share', () => share(s)),
       tools || onRemove ? act(tools ? '去掉' : '移除', 'rm', () => { onRemove && onRemove(s); list.splice(list.indexOf(s), 1); picked.delete(s); wrap.remove(); n.textContent = `${list.length} 首`; }) : null);
@@ -689,20 +716,15 @@ function openList(title, list, { right, onRemove, count, sub, top, info, actions
   const fill = L => {
     list = L.slice(); const pic = (info && info.pic) || firstPic(L);
     cov.style.backgroundImage = bgUrl(pic); bg.style.backgroundImage = bgUrl((info && info.bg) || pic); n.textContent = `${L.length} 首`;
-    rows.replaceChildren(...(L.length ? L.map(row) : [empty('这里还没有歌')]));
+    rows.replaceChildren(...(L.length ? L.map(row) : more ? [] : [empty('这里还没有歌')]));
   };
   fill(list); head();
-  nav.push(p.el); fit();
-  if (more) keepGoing();
+  if (!into) { nav.push(p.el); fit(); }
   return { fill, head };
 }
-/** 搜出来的歌单：先列 5 个，多的点「查看更多」；下面接单曲 */
+/** 搜出来的歌单 */
 const listRow = l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, null, l.pic) }, h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(l.pic) } }),
   h('div', h('b', l.name), h('span', `${l.n} 首 · ${big(l.plays)} 次播放${l.by ? ' · ' + l.by : ''}`)));
-function listRows(word, lists) {
-  const more = () => { const p = page({ app: 'music', id: 'music-lists', title: `「${word}」的歌单`, back: true }); p.body.append(h('div.as-mu-sheet', lists.map(listRow), h('div.as-mu-gap'))); nav.push(p.el); };
-  return h('div', h('div.as-mu-sub', '歌单'), ...lists.slice(0, 5).map(listRow), lists.length > 5 ? h('button.as-mu-morel', { onclick: more }, '查看更多歌单') : null, h('div.as-mu-sub', '单曲'));
-}
 /** 榜单 / 导入的歌单：有存过的先马上显示，后台去读新的，读到了再换 */
 async function openRemote(name, id, l, pic) {
   // 上面两个按钮：不是我的歌单是「收藏」（加到我的歌单里），我的是「编辑」；都能「导出」

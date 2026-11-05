@@ -87,7 +87,7 @@
 .as-mu-cats span { font: 400 11px/1 var(--font-ui); color: rgba(255,255,255,.72); }
 .as-mu-cats i { position: absolute; right: -4px; bottom: -14px; font: 700 58px/1 var(--font-ui); font-style: normal; color: rgba(255,255,255,.14); pointer-events: none; }   /* 右下角一个淡淡的大字当装饰 */
 .as-mu-seg { margin: 10px 0 6px; }
-.as-mu-sub { margin: 14px 2px 6px; font: 600 16px/1.2 var(--font-ui); color: var(--mu-ink); }
+.as-mu-seg.is-res { margin: 4px 16px 0; }
 .as-mu-morel { display: block; margin: 4px auto 0; border: 0; background: none; padding: 8px; font: 400 13px/1 var(--font-ui); color: var(--mu-gray); cursor: pointer; }
 .as-mu-try li { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 12px; font: 400 16px/1 var(--font-ui); color: var(--mu-ink); cursor: pointer; white-space: nowrap; overflow: hidden; }
 .as-mu-try em { width: 18px; flex: none; font: 600 15px/1 var(--font-ui); font-style: normal; text-align: center; color: #a8a8ae; }
@@ -140,6 +140,8 @@
 .as-mu-li.is-song .as-mu-lcover { width: 48px; height: 48px; border-radius: 8px; }
 .as-mu-chip { flex: none; display: flex; align-items: center; gap: 3px; border: 0; border-radius: 16px; background: var(--mu-fill); padding: 7px 11px; font: 400 12px/1 var(--font-ui); color: var(--mu-ink); cursor: pointer; }
 .as-mu-more { flex: none; border: 0; background: none; color: #b5b5ba; padding: 6px 0 6px 6px; cursor: pointer; display: grid; transform: rotate(90deg); }
+.as-mu-more.is-add { transform: none; }
+.as-mu-more.is-add.is-on { color: var(--mu-red); }
 
 /* 歌单页：顶上是封面糊开压暗，下面白底列表 */
 .as-mu-lp .as-page__body { display: flex; flex-direction: column; padding: 0; }
