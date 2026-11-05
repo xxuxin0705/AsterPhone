@@ -876,7 +876,7 @@ export function openPlayer() {
     if ((S.name === 'cad') !== !!F) { F = S.name === 'cad' ? lyricFx(fx) : null; if (F) { li = -2; tick(); } }
   };
   // 歌词颜色：没选过就是每个样式自己的颜色（碎语、群唱默认蓝，唱片是白字，下雨天白天夜里不一样）
-  const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); R.color(S.color); };
+  const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color); };
   // 群唱：一起听时歌词一人一句，像聊天一样一条条冒出来（我的在右边）
   const choir = () => !!P.together() && S.tg !== 'plain';
   const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x), x.id]) : [[c.avatar, nameOf(c), c.id]];
@@ -948,10 +948,12 @@ export function openPlayer() {
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
-      // 上面一条预览：垫着播放页的背景，正在唱的这句唱到一半（唱过的是选的颜色）
-      const pv = h('div.as-mu-lypv', { style: { '--ly': S.color || '#7cc4ff' } }, h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
-      const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', pv, colorWheel(S.color || '#7cc4ff', c => { S.color = c; pv.style.setProperty('--ly', c); commit('music'); paintColor(); }),
-        btn('恢复默认', 'secondary', () => { S.color = ''; commit('music'); paintColor(); sh.close(); })) });
+      // 上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字」各一个色盘，切换只是换显示哪个（不重画色盘）。没唱的字只管全部歌词里正在唱的那句
+      const pv = h('div.as-mu-lypv', { style: { '--ly': S.color || '#7cc4ff', '--ly-dim': S.dim || null } }, h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
+      const wheel = (k, css, def) => colorWheel(S[k] || def, c => { S[k] = c; pv.style.setProperty(css, c); commit('music'); paintColor(); });
+      const wheels = [wheel('color', '--ly', '#7cc4ff'), wheel('dim', '--ly-dim', '#ffffff')]; wheels[1].hidden = true;
+      const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', pv, segmented([['ly', '唱到的字'], ['dim', '没唱的字']], 'ly', k => { wheels[0].hidden = k !== 'ly'; wheels[1].hidden = k === 'ly'; }), ...wheels,
+        btn('恢复默认', 'secondary', () => { S.color = S.dim = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
     if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }
