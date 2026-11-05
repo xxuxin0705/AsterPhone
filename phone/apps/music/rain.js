@@ -11,13 +11,13 @@ export const isNight = () => document.querySelector('.as-phone')?.dataset.mode =
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '';   // shade：字的阴影，'' 阴影 / 'glow' 发光 / 'none' 不加
+  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '', edge = '', face = FONT;   // shade：描边，'' 描边 / 'glow' 发光 / 'none' 不加；edge：自己选的描边颜色（'r,g,b'）；face：字体
   // tint：自己选的歌词颜色（'r,g,b'），字、字的光、水纹都换成它；没选就是白天 / 夜里各自的颜色
   const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
   const glow = a => `rgba(${tint || '170,205,255'},${a})`;
   // 字底下垫一圈影子当描边：字是浅色就垫深的，字是深色就垫白的（按字的颜色算，不按白天夜里）
-  const halo = a => (tint || (night ? '244,248,255' : '26,56,110')).split(',').reduce((s, v, i) => s + v * [.3, .59, .11][i], 0) > 128 ? `rgba(4,14,40,${a * .9})` : `rgba(255,255,255,${a * .8})`;
+  const halo = a => edge ? `rgba(${edge},${a * .9})` : (tint || (night ? '244,248,255' : '26,56,110')).split(',').reduce((s, v, i) => s + v * [.3, .59, .11][i], 0) > 128 ? `rgba(4,14,40,${a * .9})` : `rgba(255,255,255,${a * .8})`;
   // z：远近（0 远 1 近）。远的短、慢、淡，落在靠近水平线的地方；近的长、快，落得靠下
   const drop = top => { const z = Math.random(); return { x: Math.random() * W, y: top ? -Math.random() * H * .4 : Math.random() * H * .9, z, l: 6 + z * 18, v: 380 + z * 560, end: ground + 4 + z * (H - ground - 4) }; };
 
@@ -33,7 +33,7 @@ export function rain(cv, page) {
   // 一句排好：字号放不下就缩，每块记下落地位置、掉下来时的歪斜、碎开时水花往哪溅
   function layout(L, i) {
     const x = L[i]; if (lines.has(x)) return lines.get(x);
-    let fs = SIZE; ctx.font = `500 ${fs}px ${FONT}`;
+    let fs = SIZE; ctx.font = `500 ${fs}px ${face}`;
     const toks = x.w ? x.w.map(w => w.text) : x.text.match(TOK) || [];   // 有逐字时间就按它分块
     let ws = toks.map(t => ctx.measureText(t).width), sum = ws.reduce((a, b) => a + b, 0);
     // 尽量一行：放不下先把字缩小（最小 MIN），缩到 MIN 还放不下才分成差不多长的两行（上一行浮在水面上方，下一行落在水面）；两行还放不下再缩
@@ -46,11 +46,11 @@ export function rain(cv, page) {
     }
     const rowW = () => [ws.slice(0, cut).reduce((a, b) => a + b, 0), ws.slice(cut).reduce((a, b) => a + b, 0)];
     const widest = Math.max(...rowW());
-    if (widest > W - 40) { fs = Math.max(13, fs * (W - 40) / widest); ctx.font = `500 ${fs}px ${FONT}`; ws = toks.map(t => ctx.measureText(t).width); }
+    if (widest > W - 40) { fs = Math.max(13, fs * (W - 40) / widest); ctx.font = `500 ${fs}px ${face}`; ws = toks.map(t => ctx.measureText(t).width); }
     const [w0, w1] = rowW(), two = cut < toks.length;
     let at = (W - w0) / 2;
     // 翻译：字号固定，一行放不下就分两行（在离中间最近的空格处，没有空格就从中间分），不缩小
-    ctx.font = `400 ${TR}px ${FONT}`;
+    ctx.font = `400 ${TR}px ${face}`;
     const tc = [...(x.tr || '')], mid = tc.length / 2, sp = tc.reduce((b, c, k) => c === ' ' && Math.abs(k - mid) < Math.abs(b - mid) ? k : b, Math.round(mid));
     const tr = !x.tr ? [] : ctx.measureText(x.tr).width > W - 48 ? [tc.slice(0, sp).join('').trim(), tc.slice(sp).join('').trim()] : [x.tr];
     const out = { fs, tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
@@ -111,7 +111,7 @@ export function rain(cv, page) {
   function draw(L, i, t, clock, pop) {
     const x = L[i], lay = layout(L, i), n = lay.toks.length; if (!n) return;
     if (pop > n * GAP + POP) return;
-    ctx.font = `500 ${lay.fs}px ${FONT}`; ctx.textBaseline = 'alphabetic';
+    ctx.font = `500 ${lay.fs}px ${face}`; ctx.textBaseline = 'alphabetic';
     let landed = 0;
     lay.toks.forEach((k, j) => {
       const q = (t - (k.at - FALL)) / FALL; if (q <= 0) return;   // 提前 FALL 秒开始掉，唱到时刚好落地
@@ -129,8 +129,8 @@ export function rain(cv, page) {
     if (lay.tr.length && landed) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译放在倒影下面，不压着倒影
-      ctx.font = `400 ${TR}px ${FONT}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
+      ctx.font = `400 ${TR}px ${face}`;
+      ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' && !edge ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
       // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
       const al = (night ? .88 : .7) * (1 - fade);
       lay.tr.forEach((s, r) => {
@@ -156,7 +156,7 @@ export function rain(cv, page) {
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
     ctx.fillStyle = ink(a * sq);
     if (!shade) { ctx.shadowColor = halo(a); ctx.shadowBlur = 6; ctx.fillText(t, 0, 0); }   // 阴影：先垫一层，夜里 / 选了颜色再叠一层光
-    if (shade === 'glow' || (!shade && (night || tint))) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
+    if (shade === 'glow' || (!shade && (night || tint))) { ctx.shadowColor = shade === 'glow' && edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
     else if (shade === 'none') { ctx.shadowBlur = 0; ctx.fillText(t, 0, 0); }
     ctx.restore();
     if (onWater) {   // 倒影：压扁、晃一晃
@@ -167,6 +167,8 @@ export function rain(cv, page) {
 
   return {
     shade(v) { shade = v || ''; },
+    edge(hex) { edge = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
+    font(f) { const v = f ? `${f}, ${FONT}` : FONT; if (v !== face) { face = v; lines.clear(); } },   // 换了字体才重新排
     color(hex) { tint = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
     start() { night = isNight(); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } },
     stop() { cancelAnimationFrame(raf); raf = 0; ctx.clearRect(0, 0, W, H); },

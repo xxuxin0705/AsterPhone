@@ -11,7 +11,8 @@ import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 import { rain, isNight } from './rain.js';
 import { lyricFx } from './lyricfx.js';
-import { look, styleChoir, styleTop } from './tglook.js';
+import { look, styleChoir, styleTop, font } from './tglook.js';
+import { useFont } from '../../core/floatlyric.js';
 import { burst } from './island.js';
 import { clockCfg } from '../../core/time.js';
 
@@ -877,7 +878,11 @@ export function openPlayer() {
   };
   // 歌词颜色：没选过就是每个样式自己的颜色（碎语、群唱默认蓝，唱片是白字，下雨天白天夜里不一样）
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
-    ['glow', 'none'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade); };
+    ['glow', 'none'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
+    S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
+    // 字体装好了再换，不会先闪一下别的字
+    const want = S.font || '';
+    return useFont(document, want).then(f => { if (want !== (S.font || '')) return; f ? p.el.style.setProperty('--ly-font', `${f}, var(--font-ui)`) : p.el.style.removeProperty('--ly-font'); R.font(f); }); };
   // 群唱：一起听时歌词一人一句，像聊天一样一条条冒出来（我的在右边）
   const choir = () => !!P.together() && S.tg !== 'plain';
   const singers = c => c.type === 'group' ? c.members.map(contact).filter(Boolean).map(x => [x.avatar, nameOf(x), x.id]) : [[c.avatar, nameOf(c), c.id]];
@@ -939,7 +944,7 @@ export function openPlayer() {
     go();
   }
   async function skin() {
-    const tc = P.together(), rec = !/^(rain|cad)$/.test(S.name), color = { value: 'color', label: '歌词颜色', icon: 'palette' };
+    const tc = P.together(), rec = !/^(rain|cad)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
     const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
@@ -949,15 +954,18 @@ export function openPlayer() {
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
-      // 上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字」各一个色盘，切换只是换显示哪个（不重画色盘）。没唱的字只管全部歌词里正在唱的那句
-      const pv = h('div.as-mu-lypv', { style: { '--ly': S.color || '#7cc4ff', '--ly-dim': S.dim || null } }, h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
-      const wheel = (k, css, def) => colorWheel(S[k] || def, c => { S[k] = c; pv.style.setProperty(css, c); commit('music'); paintColor(); });
-      const wheels = [wheel('color', '--ly', '#7cc4ff'), wheel('dim', '--ly-dim', '#ffffff')]; wheels[1].hidden = true;
-      const shadePv = () => pv.style.setProperty('--sh', getComputedStyle(p.el).getPropertyValue('--sh'));   // 预览跟着「字的阴影」
-      const shade = h('div.as-settings-slider-row', h('span', '字的阴影'), segmented([['', '阴影'], ['glow', '发光'], ['none', '不加']], S.shade || '', k => { S.shade = k; commit('music'); paintColor(); shadePv(); }));
-      shadePv();
-      const sh = sheet({ title: '歌词颜色', content: h('div.as-mu-color', pv, segmented([['ly', '唱到的字'], ['dim', '没唱的字']], 'ly', k => { wheels[0].hidden = k !== 'ly'; wheels[1].hidden = k === 'ly'; }), ...wheels, shade,
-        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = ''; commit('music'); paintColor(); sh.close(); })) });
+      // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字 | 描边」各一个色盘，切换只是换显示哪个（不重画色盘）；
+      // 下面是描边的样子（描边 / 发光 / 不加）和字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
+      const pv = h('div.as-mu-lypv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
+      const pvPaint = () => ['--ly', '--ly-dim', '--sh', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
+      const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
+      const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
+      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('edge', '#0e1a3a')]; wheels[1].hidden = wheels[2].hidden = true;
+      const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
+      pvPaint();
+      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边']], 'color', k => wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim', 'edge'][i]; })), ...wheels,
+        segmented([['', '描边'], ['glow', '发光'], ['none', '不加']], S.shade || '', k => { S.shade = k; change(); }), fontRow,
+        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
     if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }

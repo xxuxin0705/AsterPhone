@@ -1,5 +1,5 @@
 // 一起听的样子（播放页一起听时「换样式」→「一起听的样子」）：耳机颜色、「一起听了多久」的颜色和字体、头像上那两句话的气泡颜色 / 字颜色 / 字体。
-// 对话式歌词的颜色（「换样式」→「歌词颜色」）：每个人一套（气泡、唱到的字、没唱的字、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
+// 对话式歌词的颜色（「换样式」→「歌词设置」）：每个人一套（气泡、唱到的字、没唱的字、字体）。给「所有人」调哪项，就把每个人那一项都换成这个（以最新的为准）。
 // 空着的项 = 用原来的样子。两页上面都是预览，调什么马上看到。
 import { h } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
@@ -46,7 +46,7 @@ function color(title, get, set, save, alpha) {
       btn('恢复默认', 'secondary', () => { set(''); right.replaceChildren(dot('')); save(); sh.close(); })) });
   } });
 }
-function font(get, set, save) {
+export function font(get, set, save) {
   const right = h('span', fontLabel(get()));
   return item({ title: '字体', right, chevron: true, onClick: async () => {
     const v = await actionSheet('字体', [...FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: (get() || '') === k })), ...userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: get() === 'u:' + u.id }))]);
@@ -83,7 +83,7 @@ export function openTgLook({ bgImage, bgFilter, c, me }) {
 
 /** 对话式歌词的颜色：上面是每人一行的预览（人多就上下滑），点哪行或「给谁调」就调谁 */
 export function openChoirLook({ bgImage, bgFilter, c, me }) {
-  const C = look().chars, p = page({ app: 'music', id: 'music-choirlook', title: '歌词颜色', back: true });
+  const C = look().chars, p = page({ app: 'music', id: 'music-choirlook', title: '歌词设置', back: true });
   // 名字写真实姓名（备注、网名会重名，也不好认）
   const people = [...(c.type === 'group' ? c.members.map(contact).filter(Boolean) : [c]).map(x => ({ id: x.id, name: x.name || nameOf(x), avatar: x.avatar })), { id: 'me', name: myName(), avatar: me.avatar, mine: true }];
   const L = lyricsNow().filter(x => x.text.trim());
