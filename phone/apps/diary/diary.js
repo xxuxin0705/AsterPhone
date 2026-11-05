@@ -45,8 +45,8 @@ const hash = s => [...String(s)].reduce((a, c) => (Math.imul(a, 31) + c.charCode
 const ymd = at => at ? at.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日') : '';
 const jobs = new Map(), drawing = new Map();   // 正在写的（按人）、正在配图的（按篇）：退出再进来还能取消
 // 能换色的（胶带、蕾丝、邮票框）：图先变灰，再按自己的形状叠一层主题色的淡色（--c0～--c2 由这一页的 --t 算出来，换主题色只改 --t）
-// 遮罩的地址写成完整的：写在 style 里的相对地址会按 diary.css 所在的文件夹去找
-const tint = (src, cls, slot, style = '') => h('span.as-dy-tint' + cls, { style: `--m:url(${new URL(src, location.href).href});--c:var(--c${slot});${style}` }, h('img', { src, alt: '' }));
+// 遮罩的地址写成完整的：写在 style 里的相对地址会按 diary.css 所在的文件夹去找。按 document.baseURI 算（手机页是 srcdoc 时 location.href 是 about:srcdoc，拿它拼会出错）
+const tint = (src, cls, slot, style = '') => h('span.as-dy-tint' + cls, { style: `--m:url(${new URL(src, document.baseURI).href});--c:var(--c${slot});${style}` }, h('img', { src, alt: '' }));
 const pickPhotos = () => new Promise(res => { const i = h('input', { type: 'file', accept: 'image/*', multiple: true }); i.onchange = () => res([...i.files].slice(0, 4)); i.click(); })
   .then(fs => Promise.all(fs.map(f => fileToDataURL(f, 1024)))).catch(() => { toast('有照片读不出来'); return []; });
 // 图都解码好了再换上去，不闪
