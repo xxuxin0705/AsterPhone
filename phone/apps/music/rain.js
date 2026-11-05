@@ -16,6 +16,8 @@ export function rain(cv, page) {
   const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
   const glow = a => `rgba(${tint || '170,205,255'},${a})`;
+  // 字底下垫一圈影子当描边：字是浅色就垫深的，字是深色就垫白的（按字的颜色算，不按白天夜里）
+  const halo = a => (tint || (night ? '244,248,255' : '26,56,110')).split(',').reduce((s, v, i) => s + v * [.3, .59, .11][i], 0) > 128 ? `rgba(4,14,40,${a * .9})` : `rgba(255,255,255,${a * .8})`;
   // z：远近（0 远 1 近）。远的短、慢、淡，落在靠近水平线的地方；近的长、快，落得靠下
   const drop = top => { const z = Math.random(); return { x: Math.random() * W, y: top ? -Math.random() * H * .4 : Math.random() * H * .9, z, l: 6 + z * 18, v: 380 + z * 560, end: ground + 4 + z * (H - ground - 4) }; };
 
@@ -128,7 +130,7 @@ export function rain(cv, page) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译放在倒影下面，不压着倒影
       ctx.font = `400 ${TR}px ${FONT}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = night ? 'rgba(4,14,40,.9)' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 6;   // 夜里水面月光亮，垫一层暗影才看得清
+      ctx.textAlign = 'center'; ctx.shadowColor = halo(1); ctx.shadowBlur = 6;
       // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
       const al = (night ? .88 : .7) * (1 - fade);
       lay.tr.forEach((s, r) => {
@@ -152,8 +154,8 @@ export function rain(cv, page) {
     const sq = 1 - Math.min(1, d * 1.8);   // 碎的时候前一小半就压扁没了
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
-    if (night || tint) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; }
-    ctx.fillStyle = ink(a * sq); ctx.fillText(t, 0, 0);
+    ctx.fillStyle = ink(a * sq); ctx.shadowColor = halo(a); ctx.shadowBlur = 6; ctx.fillText(t, 0, 0);   // 先垫描边那层影子，夜里 / 选了颜色再叠一层光
+    if (night || tint) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
     ctx.restore();
     if (onWater) {   // 倒影：压扁、晃一晃
       ctx.save(); ctx.translate(cx + Math.sin(clock * 2.2 + cx * .05) * 1.5, ground + 6); ctx.scale(1, -.55 * sq); ctx.textAlign = 'center'; ctx.shadowBlur = 0;
