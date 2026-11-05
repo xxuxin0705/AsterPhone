@@ -6,7 +6,7 @@ import * as P from '../../core/music.js';
 const FONT = '"Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif';
 const WIDE = '぀-ヿ㐀-鿿가-힯＀-￯　-〿“”‘’…—';
 const TOK = new RegExp(`[${WIDE}]|[^\\s${WIDE}]+|\\s+`, 'g');   // 中日韩一个字一块，外文一个词一块
-const FALL = .55, POP = .38, GAP = .045, SIZE = 26, TR = 16;
+const FALL = .55, POP = .38, GAP = .045, SIZE = 26, MIN = 18, TR = 18;
 export const isNight = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
 
 export function rain(cv, page) {
@@ -34,9 +34,9 @@ export function rain(cv, page) {
     let fs = SIZE; ctx.font = `500 ${fs}px ${FONT}`;
     const toks = x.w ? x.w.map(w => w.text) : x.text.match(TOK) || [];   // 有逐字时间就按它分块
     let ws = toks.map(t => ctx.measureText(t).width), sum = ws.reduce((a, b) => a + b, 0);
-    // 一行放不下：分成差不多长的两行（上一行浮在水面上方，下一行落在水面），不把字缩得挤成一团；两行还放不下才缩
+    // 尽量一行：放不下先把字缩小（最小 MIN），缩到 MIN 还放不下才分成差不多长的两行（上一行浮在水面上方，下一行落在水面）；两行还放不下再缩
     let cut = toks.length;
-    if (sum > W - 40) {
+    if (sum * MIN / SIZE > W - 40) {
       let acc = 0; cut = ws.findIndex(w => (acc += w) > sum / 2); if (cut < 1) cut = 1;
       // 有空格就在离中间最近的空格处分（日文歌词的空格是断句的地方），两行都放得下才算
       let best = Infinity; acc = 0;
