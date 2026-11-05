@@ -6,6 +6,17 @@ let list = [];                 // [{ id, name }]
 const faces = new Map();
 const family = id => 'AsterUser-' + id;
 export const userFonts = () => list;
+/** 有中文的那些：没中文的（比如苹果的 SF）只给锁屏时间用，写字的地方（整个手机、歌词、日记）不列出来。
+ *  看法：用它画一个「永」，跟找不到字时退回去的字体画的一模一样，就是没有中文（结果记下来，只算一次） */
+const han = new Map();
+export const hanFonts = () => list.filter(x => {
+  if (!han.has(x.id)) {
+    const c = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const draw = f => { c.clearRect(0, 0, 48, 48); c.font = `40px ${f}`; c.fillText('永', 4, 40); return c.getImageData(0, 0, 48, 48).data.join(); };
+    han.set(x.id, draw(`"${family(x.id)}", serif`) !== draw('serif'));
+  }
+  return han.get(x.id);
+});
 /** 给 CSS 用的字体名：导入的都叫 custom，真正的字体由 --font-clock-user 决定 */
 export const fontKey = f => (f || 'sf').startsWith('u:') ? 'custom' : f || 'sf';
 

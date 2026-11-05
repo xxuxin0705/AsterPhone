@@ -6,7 +6,7 @@ import { state, commit, contact } from '../../core/store.js';
 import { page, group, item, avatar, actionSheet, dialog, sheet, colorWheel, btn, toast } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { FONTS, useFont } from '../../core/floatlyric.js';
-import { userFonts, importClockFont } from '../../core/fonts.js';
+import { userFonts, hanFonts, importClockFont } from '../../core/fonts.js';
 import { lyricsNow } from '../../core/music.js';
 import { myName } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
@@ -50,7 +50,7 @@ function color(title, get, set, save, alpha) {
 export function font(get, set, save) {
   const right = h('span', fontLabel(get()));
   return item({ title: '字体', right, chevron: true, onClick: async () => {
-    let v = await actionSheet('字体', [...FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: (get() || '') === k })), ...userFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: get() === 'u:' + u.id })), { value: '__add', label: '导入字体文件' }]);
+    let v = await actionSheet('字体', [...FONTS.map(([k, n]) => ({ value: k || 'def', label: n, active: (get() || '') === k })), ...hanFonts().map(u => ({ value: 'u:' + u.id, label: u.name, active: get() === 'u:' + u.id })), { value: '__add', label: '导入字体文件' }]);
     if (v === '__add') {
       const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
       try { const x = await importClockFont(f); v = 'u:' + x.id; toast('已导入「' + x.name + '」'); } catch (e) { toast(e.message); return; }

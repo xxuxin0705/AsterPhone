@@ -9,10 +9,10 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
-import { importClockFont, removeClockFont, userFonts, fontKey, fontName } from '../../core/fonts.js';
+import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.109';
+export const VERSION = '0.8.110';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -360,7 +360,7 @@ function openLook() {
         // 整个手机的字：从资源库的字体库里挑，也可以当场导入（导入的会放进资源库）
         item({ title: '字体', value: fontName(S().uiFont) || '系统默认', chevron: true, onClick: async e => {
           const valEl = e.currentTarget.querySelector('.as-list-item__value');
-          const v = await actionSheet('整个手机用的字体', [{ label: '系统默认', value: '', active: !S().uiFont }, ...userFonts().map(x => ({ label: x.name, value: 'u:' + x.id, active: S().uiFont === 'u:' + x.id })), { label: '导入字体文件', value: '__add' }]);
+          const v = await actionSheet('整个手机用的字体', [{ label: '系统默认', value: '', active: !S().uiFont }, ...hanFonts().map(x => ({ label: x.name, value: 'u:' + x.id, active: S().uiFont === 'u:' + x.id })), { label: '导入字体文件', value: '__add' }]);
           if (v == null) return;
           if (v === '__add') {
             const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;

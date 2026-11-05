@@ -9,7 +9,7 @@ import * as nav from '../../core/nav.js';
 import * as Dy from '../../core/diary.js';
 import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
-import { userFonts } from '../../core/fonts.js';
+import { userFonts, hanFonts } from '../../core/fonts.js';
 import { log } from '../../core/log.js';
 
 const BASE = 'assets/diary/';
@@ -136,7 +136,7 @@ function bookSheet(b, who, done) {
   every.hidden = x.mode === 'hand';
   const fontRow = item({ title: '字体', value: fontOf(x.font)[0], chevron: true, onClick: async () => {
     const v = await actionSheet('字体', [...FONTS.map(f => ({ value: f[0], label: f[1], active: (x.font || 'xiaolai') === f[0] })),
-      ...userFonts().map(f => ({ value: 'u:' + f.id, label: f.name, active: x.font === 'u:' + f.id }))]);
+      ...hanFonts().map(f => ({ value: 'u:' + f.id, label: f.name, active: x.font === 'u:' + f.id }))]);
     if (v) { x.font = v; fontRow.querySelector('.as-list-item__value').textContent = fontOf(v)[0]; }
   } });
   const covers = h('div.as-dy-covers', COVERS.map(k => h('button.as-dy-cover' + (k === x.cover ? '.is-on' : ''), { 'aria-label': '封面', onclick: e => {

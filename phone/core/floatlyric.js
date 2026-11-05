@@ -14,6 +14,11 @@ export const FONTS = [
   ['Smiley Sans Oblique', '得意黑', '@chinese-fonts/dyh@3.0.0/dist/SmileySans-Oblique/result.css'],
   ['Huiwen-mincho', '汇文明朝体', '@chinese-fonts/hwmct@3.0.0/dist/%E6%B1%87%E6%96%87%E6%98%8E%E6%9C%9D%E4%BD%93/result.css'],
   ['Zhuque Fangsong (technical preview)', '朱雀仿宋', '@chinese-fonts/zqfs@3.0.0/dist/ZhuqueFangsong-Regular/result.css'],
+  // 日记里的手写体
+  ['Xiaolai SC', '小赖', '@chinese-fonts/xiaolai@3.0.0/dist/Xiaolai/result.css'],
+  ['Yozai Medium', '悠哉', '@chinese-fonts/yozai@3.0.0/dist/Yozai-Medium/result.css'],
+  ['MaokenZhuyuanTi', '猫啃珠圆', '@chinese-fonts/mkzyt@3.0.0/dist/%E7%8C%AB%E5%95%83%E7%8F%A0%E5%9C%86%E4%BD%93/result.css'],
+  ['qiantubifengshouxieti', '千图笔锋手写', '@chinese-fonts/qtbfsxt@3.0.0/dist/%E5%8D%83%E5%9B%BE%E7%AC%94%E9%94%8B%E6%89%8B%E5%86%99%E4%BD%93/result.css'],
 ];
 export const cfg = () => state.music.float || (state.music.float = { where: 'off', color: '#ffffff', size: 18, font: '', lock: false, x: .5, y: .78 });
 let el = null, li = -2, grip = null, lockBtn = null;
