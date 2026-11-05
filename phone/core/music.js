@@ -100,8 +100,8 @@ export function parseLrc(text) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
     const t = line.replace(/\[\d+:\d+(?:[.:]\d+)?\]/g, '').trim(); if (!t) continue;   // 有的歌词时间写成 [01:02:30]（冒号）
-    // 外语歌音源把翻译接在后面括号里：「原文 (中文)」→ 拆成原文和翻译两行
-    const m = t.match(/^(.*?)\s*[(（]([^()（）]*)[)）]$/), tr = m && /[\u3040-\u30ffA-Za-z\uac00-\ud7af]/.test(m[1]) && /[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff]/.test(m[2]);
+    // 外语歌音源把翻译接在后面括号里：「原文 (中文)」→ 拆成原文和翻译两行；翻译里还能再套一层括号：「原文 ((男方)中文)」
+    const m = t.match(/^(.*?)\s*[(（]((?:[^()（）]|[(（][^()（）]*[)）])*)[)）]$/), tr = m && /[\u3040-\u30ffA-Za-z\uac00-\ud7af]/.test(m[1]) && /[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff]/.test(m[2]);
     for (const x of line.matchAll(/\[(\d+):(\d+)(?:[.:](\d+))?\]/g)) out.push({ t: +x[1] * 60 + +x[2] + +('0.' + (x[3] || 0)), text: tr ? m[1] : t, tr: tr ? m[2] : '' });
   }
   return out.sort((a, b) => a.t - b.t);

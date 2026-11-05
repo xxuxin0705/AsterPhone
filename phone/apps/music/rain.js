@@ -6,7 +6,7 @@ import * as P from '../../core/music.js';
 const FONT = '"Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif';
 const WIDE = '぀-ヿ㐀-鿿가-힯＀-￯　-〿“”‘’…—';
 const TOK = new RegExp(`[${WIDE}]|[^\\s${WIDE}]+|\\s+`, 'g');   // 中日韩一个字一块，外文一个词一块
-const FALL = .55, POP = .38, GAP = .045, SIZE = 26;
+const FALL = .55, POP = .38, GAP = .045, SIZE = 26, TR = 16;
 export const isNight = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
 
 export function rain(cv, page) {
@@ -23,9 +23,9 @@ export function rain(cv, page) {
     const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
     if (r.width === W && r.height === H) return;
     W = r.width; H = r.height; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0);
-    // 背景图里水面在 64% 这一带；但字、倒影、翻译不能压到下面的歌名，屏幕矮时往上提
+    // 背景图里水面在 64% 这一带；但字、倒影、翻译（最多两行）不能压到下面的歌名，屏幕矮时往上提
     const info = page.querySelector('.as-mp__info');
-    ground = Math.round(Math.min(H * .64, info ? info.getBoundingClientRect().top - r.top - 74 : H));
+    ground = Math.round(Math.min(H * .64, info ? info.getBoundingClientRect().top - r.top - 74 - TR * 1.5 : H));
     drops = Array.from({ length: 70 }, () => drop(false)); lines.clear();
   }
   // 一句排好：字号放不下就缩，每块记下落地位置、掉下来时的歪斜、碎开时水花往哪溅
@@ -36,13 +36,22 @@ export function rain(cv, page) {
     let ws = toks.map(t => ctx.measureText(t).width), sum = ws.reduce((a, b) => a + b, 0);
     // 一行放不下：分成差不多长的两行（上一行浮在水面上方，下一行落在水面），不把字缩得挤成一团；两行还放不下才缩
     let cut = toks.length;
-    if (sum > W - 40) { let acc = 0; cut = ws.findIndex(w => (acc += w) > sum / 2); if (cut < 1) cut = 1; }
+    if (sum > W - 40) {
+      let acc = 0; cut = ws.findIndex(w => (acc += w) > sum / 2); if (cut < 1) cut = 1;
+      // 有空格就在离中间最近的空格处分（日文歌词的空格是断句的地方），两行都放得下才算
+      let best = Infinity; acc = 0;
+      toks.forEach((t, k) => { if (k && !t.trim() && Math.max(acc, sum - acc) <= W - 40 && Math.abs(acc - sum / 2) < best) { best = Math.abs(acc - sum / 2); cut = k; } acc += ws[k]; });
+    }
     const rowW = () => [ws.slice(0, cut).reduce((a, b) => a + b, 0), ws.slice(cut).reduce((a, b) => a + b, 0)];
     const widest = Math.max(...rowW());
     if (widest > W - 40) { fs = Math.max(13, fs * (W - 40) / widest); ctx.font = `500 ${fs}px ${FONT}`; ws = toks.map(t => ctx.measureText(t).width); }
     const [w0, w1] = rowW(), two = cut < toks.length;
     let at = (W - w0) / 2;
-    const out = { fs, tr: x.tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
+    // 翻译：字号固定，一行放不下就分两行（在离中间最近的空格处，没有空格就从中间分），不缩小
+    ctx.font = `400 ${TR}px ${FONT}`;
+    const tc = [...(x.tr || '')], mid = tc.length / 2, sp = tc.reduce((b, c, k) => c === ' ' && Math.abs(k - mid) < Math.abs(b - mid) ? k : b, Math.round(mid));
+    const tr = !x.tr ? [] : ctx.measureText(x.tr).width > W - 48 ? [tc.slice(0, sp).join('').trim(), tc.slice(sp).join('').trim()] : [x.tr];
+    const out = { fs, tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
     toks.forEach((t, k) => { if (k === cut) at = (W - w1) / 2;
       if (t.trim()) out.toks.push({ t: t.trim(), at: when[out.toks.length], x: at, w: ws[k], dy: two && k < cut ? -fs * 1.45 : 0, jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
       sp: Array.from({ length: 5 }, () => [(Math.random() - .5) * 2.4, .6 + Math.random() * .8]) }); at += ws[k]; });
@@ -115,16 +124,18 @@ export function rain(cv, page) {
       if (d > 0) burst(k, cx, d, lay.fs);
       if (d < 1) glyph(k.t, cx, y, rot, a, d, q >= 1 && !k.dy, clock);
     });
-    if (lay.tr && landed) {
+    if (lay.tr.length && landed) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
-      // 翻译放在倒影下面，不压着倒影；太长就缩小，一行放得下
-      let fs = 16; ctx.font = `400 ${fs}px ${FONT}`;
-      const tw = ctx.measureText(lay.tr).width; if (tw > W - 48) { fs = Math.max(11, fs * (W - 48) / tw); ctx.font = `400 ${fs}px ${FONT}`; }
+      // 翻译放在倒影下面，不压着倒影
+      ctx.font = `400 ${TR}px ${FONT}`;
       ctx.textAlign = 'center'; ctx.shadowColor = night ? 'rgba(4,14,40,.9)' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 6;   // 夜里水面月光亮，垫一层暗影才看得清
       // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
-      const al = (night ? .88 : .7) * (1 - fade), y = ground + lay.fs * .6 + 30, w = ctx.measureText(lay.tr).width;
-      ctx.fillStyle = ink(al * .4); ctx.fillText(lay.tr, W / 2, y);
-      ctx.save(); ctx.beginPath(); ctx.rect(W / 2 - w / 2, y - fs * 1.2, w * landed / n, fs * 2); ctx.clip(); ctx.fillStyle = ink(al); ctx.fillText(lay.tr, W / 2, y); ctx.restore();
+      const al = (night ? .88 : .7) * (1 - fade);
+      lay.tr.forEach((s, r) => {
+        const y = ground + SIZE * .6 + 30 + r * TR * 1.5, w = ctx.measureText(s).width;
+        ctx.fillStyle = ink(al * .4); ctx.fillText(s, W / 2, y);
+        ctx.save(); ctx.beginPath(); ctx.rect(W / 2 - w / 2, y - TR * 1.2, w * landed / n, TR * 2); ctx.clip(); ctx.fillStyle = ink(al); ctx.fillText(s, W / 2, y); ctx.restore();
+      });
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }
   }
