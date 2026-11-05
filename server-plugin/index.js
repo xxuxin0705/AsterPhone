@@ -95,6 +95,12 @@ async function init(router) {
   router.get('/search', wrap(async req => (((await api('cloudsearch', { keywords: req.query.word, limit: 30, offset: ((+req.query.page || 1) - 1) * 30 })).result || {}).songs || []).map(song)));   // page：第几页，一页 30 首
   router.get('/search/lists', wrap(async req => (((await api('cloudsearch', { keywords: req.query.word, type: 1000, limit: 20 })).result || {}).playlists || [])
     .map(p => ({ id: String(p.id), name: p.name, pic: https(p.coverImgUrl), n: p.trackCount, plays: p.playCount, by: (p.creator || {}).nickname || '' }))));
+  // 打字时的联想：网页版联想里挑最对得上的歌手 / 歌（order 是网易云排的先后），手机版联想给一串词
+  router.get('/suggest', wrap(async req => {
+    const [web, mob] = await Promise.all([api('search_suggest', { keywords: req.query.word }), api('search_suggest', { keywords: req.query.word, type: 'mobile' })]);
+    const r = web.result || {}, a = (r.artists || [])[0], s = (r.songs || [])[0], artist = a && { artist: a.name, pic: https(a.img1v1Url || a.picUrl) };
+    return { top: ((r.order || [])[0] === 'artists' && artist) || (s && { song: song(s) }) || artist || null, words: ((mob.result || {}).allMatch || []).map(x => x.keyword) };
+  }));
   // 分享出来的短链接（163cn.tv）：问出它跳到哪个网易云地址（只跟着网易云自己的地址走）
   router.get('/resolve', wrap(async req => {
     let u = String(req.query.url || '');

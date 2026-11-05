@@ -50,6 +50,12 @@
 .as-mu-tags { display: flex; flex-wrap: wrap; gap: 9px; padding: 0 16px; }
 .as-mu-tags button { border: 0; border-radius: 18px; background: var(--mu-card); padding: 9px 16px; font: 400 15px/1 var(--font-ui); color: var(--mu-ink); cursor: pointer; }
 .as-mu-tags.is-gray button { background: var(--mu-fill); }
+/* 打字时的联想：对上的字标红 */
+.as-mu-sug { padding: 0 16px; }
+.as-mu-sug .as-mu-li { border-bottom: 1px solid var(--mu-fill); }
+.as-mu-sug__w { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 0; border: 0; border-bottom: 1px solid var(--mu-fill); background: none; color: var(--mu-gray); text-align: left; cursor: pointer; }
+.as-mu-sug__w span { min-width: 0; font: 400 16px/1.25 var(--font-ui); color: var(--mu-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-mu-sug em, .as-mu-sug .as-mu-li b em { font: inherit; color: var(--mu-red); }
 /* 最近播放 / 角色的歌单：方封面 + 名字 + 歌手 */
 .as-mu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 10px; padding: 0 16px; }
 .as-mu-grid .as-mu-sq { width: auto; min-width: 0; }

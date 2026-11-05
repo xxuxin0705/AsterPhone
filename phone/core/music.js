@@ -55,6 +55,13 @@ export async function search(word, page = 1) {
 }
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
 export const searchLists = word => ne ? be('/search/lists?word=' + encodeURIComponent(word)).catch(e => { log('warn', '音乐', '插件搜歌单失败：' + e.message); return []; }) : Promise.resolve([]);
+/** 打字时的联想：{ top: 最对得上的歌手（{ artist, pic }）或歌（{ song }），words: 联想词 }。装了插件用网易云自己的联想；没装就搜一次歌，从搜到的里挑 */
+export async function suggest(word) {
+  if (ne) try { return await be('/suggest?word=' + encodeURIComponent(word)); } catch (e) { log('warn', '音乐', '插件联想失败，改成搜歌：' + e.message); }
+  const L = await search(word), w = word.toLowerCase();
+  const s = L.find(x => x.artist.toLowerCase().includes(w)), a = s && s.artist.split(/\s*[/、,，&]\s*/).find(x => x.toLowerCase().includes(w));
+  return { top: a ? { artist: a, pic: s.pic } : L[0] ? { song: L[0] } : null, words: [...new Set(L.map(x => x.name))].slice(0, 8) };
+}
 /** 按「歌名 - 歌手」找一首（AI 挑的歌、正文里提到的歌都走这）；找不到就是 null */
 export async function findSong(text) {
   const [name, artist = ''] = String(text).split(/\s[-–—]\s|[-–—]/).map(s => s.trim());
