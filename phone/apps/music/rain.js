@@ -11,7 +11,7 @@ export const isNight = () => document.querySelector('.as-phone')?.dataset.mode =
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '';
+  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '';   // shade：字的阴影，'' 阴影 / 'glow' 发光 / 'none' 不加
   // tint：自己选的歌词颜色（'r,g,b'），字、字的光、水纹都换成它；没选就是白天 / 夜里各自的颜色
   const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
@@ -130,7 +130,7 @@ export function rain(cv, page) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译放在倒影下面，不压着倒影
       ctx.font = `400 ${TR}px ${FONT}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = halo(1); ctx.shadowBlur = 6;
+      ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
       // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
       const al = (night ? .88 : .7) * (1 - fade);
       lay.tr.forEach((s, r) => {
@@ -154,8 +154,10 @@ export function rain(cv, page) {
     const sq = 1 - Math.min(1, d * 1.8);   // 碎的时候前一小半就压扁没了
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
-    ctx.fillStyle = ink(a * sq); ctx.shadowColor = halo(a); ctx.shadowBlur = 6; ctx.fillText(t, 0, 0);   // 先垫描边那层影子，夜里 / 选了颜色再叠一层光
-    if (night || tint) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
+    ctx.fillStyle = ink(a * sq);
+    if (!shade) { ctx.shadowColor = halo(a); ctx.shadowBlur = 6; ctx.fillText(t, 0, 0); }   // 阴影：先垫一层，夜里 / 选了颜色再叠一层光
+    if (shade === 'glow' || (!shade && (night || tint))) { ctx.shadowColor = glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
+    else if (shade === 'none') { ctx.shadowBlur = 0; ctx.fillText(t, 0, 0); }
     ctx.restore();
     if (onWater) {   // 倒影：压扁、晃一晃
       ctx.save(); ctx.translate(cx + Math.sin(clock * 2.2 + cx * .05) * 1.5, ground + 6); ctx.scale(1, -.55 * sq); ctx.textAlign = 'center'; ctx.shadowBlur = 0;
@@ -164,6 +166,7 @@ export function rain(cv, page) {
   }
 
   return {
+    shade(v) { shade = v || ''; },
     color(hex) { tint = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
     start() { night = isNight(); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } },
     stop() { cancelAnimationFrame(raf); raf = 0; ctx.clearRect(0, 0, W, H); },
