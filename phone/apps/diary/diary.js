@@ -10,6 +10,7 @@ import * as Dy from '../../core/diary.js';
 import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
 import { userFonts } from '../../core/fonts.js';
+import { log } from '../../core/log.js';
 
 const BASE = 'assets/diary/';
 const COVERS = ['navy', 'sky', 'linen', 'frost-blue', 'frost-pink', 'lace-blue', 'lace-pink', 'traveler'];
@@ -101,6 +102,8 @@ export function open() {
   // 白天 / 夜里的桌子跟着手机的深色模式走（只靠 CSS，不用再判断）
   p.el.prepend(h('div.as-dy-bg', h('img', { src: BASE + 'desk-day.webp', alt: '' }), h('img.is-night', { src: BASE + 'desk-night.webp', alt: '' })));
   const table = h('div.as-dy-table'), vols = new Map(), none = empty('还没有日记本');
+  // 书的大小、躺在桌上的位置按桌子的宽高算成 px（不用容器单位：有些手机的浏览器不认）
+  new ResizeObserver(() => { const W = table.clientWidth, H = table.clientHeight; table.style.setProperty('--w', Math.min(W - 28, (H - 24) * .734) + 'px'); table.style.setProperty('--W', W + 'px'); table.style.setProperty('--H', H + 'px'); }).observe(table);
   let reading = null;
   const volOf = b => {
     const c = contact(b.who), img = h('img', { src: cover(b.cover), alt: '' }), plate = h('span.as-dy-plate', nameOf(c));
@@ -182,7 +185,7 @@ function openBook(c, v, p, table, gone) {
     list.forEach(x => { const ph = els.get(x).querySelector('.as-dy-photo'); if (ph._k !== key(x)) fill(x, ph); });   // 配好图、在配图：只换拍立得里面
     [...pages.children].forEach(el => { if (!want.includes(el)) el.remove(); });
     want.forEach((el, i) => { if (pages.children[i] !== el) pages.insertBefore(el, pages.children[i] || null); });
-    if (first) { pages.classList.add('is-still'); idx = want.length - 1; layout(true); pages.offsetWidth; pages.classList.remove('is-still'); setTimeout(() => v.cover.classList.add('is-turned'), 260); setTimeout(layout, 1300); }
+    if (first) { pages.classList.add('is-still'); idx = want.length - 1; layout(true); pages.offsetWidth; pages.classList.remove('is-still'); setTimeout(layout, 1300); }
     else { if (atEnd) idx = want.length - 1; idx = Math.min(idx, want.length - 1); layout(); }   // 正看着最后一页时来了新的一篇：翻过去
   }
   // 拖着翻页：横着拖才翻（竖着拖是滚这一页的字）；过了一小半就翻过去，不然弹回来
@@ -295,8 +298,10 @@ function openBook(c, v, p, table, gone) {
     } }, h('i', { style: `background:${c}` }), h('span', k))));
     sheet({ title: '换主题色', content: [grid, field('自己调', colorWheel(Dy.themeOf(x), v => { grid.querySelector('.is-on')?.classList.remove('is-on'); set(v.slice(0, 7)); }))] });
   }
-  const off = subscribe(w => { if (w === 'diary') draw(); });
-  draw();
+  const show = () => draw().catch(e => { toast('这本打不开，详情见日志'); log('error', '日记', '翻开失败：' + e.message, e.stack); });
+  const off = subscribe(w => { if (w === 'diary') show(); });
+  show();
+  setTimeout(() => v.cover.classList.add('is-turned'), 260);   // 封面先翻开，不等里面的页
   return { close };
 }
 

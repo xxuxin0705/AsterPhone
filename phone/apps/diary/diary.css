@@ -14,9 +14,9 @@
 .as-dy-desk .as-page__body > .as-empty { position: absolute; inset: 0; margin: auto; height: max-content; }
 
 /* 桌上的本子：躺着（往后倒、转一点、缩小），翻开时立起来铺满 */
-.as-dy-table { position: absolute; inset: 0; container-type: size; perspective: 1100px; perspective-origin: 50% 30%; }
-.as-dy-vol { position: absolute; left: 50%; top: 50%; width: min(calc(100cqw - 28px), calc((100cqh - 24px) * .734)); aspect-ratio: 470 / 640; perspective: 2000px;
-  transform: translate(calc(-50% + var(--dx, 0) * 1cqw), calc(-50% + var(--dy, 0) * 1cqh)) rotateX(52deg) rotateZ(var(--rz, 0deg)) scale(.52);
+.as-dy-table { position: absolute; inset: 0; perspective: 1100px; perspective-origin: 50% 30%; }
+.as-dy-vol { position: absolute; left: 50%; top: 50%; width: var(--w, 340px); height: calc(var(--w, 340px) / .734); perspective: 2000px;
+  transform: translate(-50%, -50%) translate(calc(var(--W, 400px) * var(--dx, 0) / 100), calc(var(--H, 700px) * var(--dy, 0) / 100)) rotateX(52deg) rotateZ(var(--rz, 0deg)) scale(.52);
   transition: transform 1s cubic-bezier(.32, .72, .2, 1), opacity .45s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .as-dy-vol.is-open { transform: translate(-50%, -50%); z-index: 20 !important; cursor: auto; }
 .as-dy-table.is-reading .as-dy-vol:not(.is-open) { opacity: 0; pointer-events: none; }
