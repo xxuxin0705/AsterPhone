@@ -71,7 +71,7 @@ export async function write(c, { events = [], floors = null, photos = [] }, stop
   }
   const scan = floors || events.length ? about : story;
   const w = await worldText(scan).catch(() => ''), mem = await memoryFor([c], scan).catch(() => '');
-  const raw = await generate({ conn: resolveConn('text', 'diary'), system: '', app: '日记', maxTokens: 900, stop,
+  const raw = await generate({ conn: resolveConn('text', 'diary'), system: '', app: '日记', maxTokens: 1600, stop,
     prompt: compose('diaryWrite', { palettes: themeNames(), char: name, persona: (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）', world: (w ? `\n【世界书】\n${w}\n` : '') + mem, about, time: time.forPrompt() }) });
   const body = String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
   if (!body) throw new Error('AI 回了空的');

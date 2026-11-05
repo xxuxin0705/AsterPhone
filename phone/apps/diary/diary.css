@@ -17,8 +17,9 @@
 .as-dy-table { position: absolute; inset: 0; perspective: 1100px; perspective-origin: 50% 30%; }
 .as-dy-vol { position: absolute; left: 50%; top: 50%; width: var(--w, 340px); height: calc(var(--w, 340px) / .734); perspective: 2000px;
   transform: translate(-50%, -50%) translate(calc(var(--W, 400px) * var(--dx, 0) / 100), calc(var(--H, 700px) * var(--dy, 0) / 100)) rotateX(52deg) rotateZ(var(--rz, 0deg)) scale(.52);
-  transition: transform 1s cubic-bezier(.32, .72, .2, 1), opacity .45s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.as-dy-vol.is-open { transform: translate(-50%, -50%); z-index: 20 !important; cursor: auto; }
+  transition: transform 1s cubic-bezier(.32, .72, .2, 1), width 1s cubic-bezier(.32, .72, .2, 1), height 1s cubic-bezier(.32, .72, .2, 1), opacity .45s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+/* 翻开后铺满（顶栏下面整块），字多就在页里上下滑 */
+.as-dy-vol.is-open { transform: translate(-50%, -50%); width: calc(var(--W, 400px) - 10px); height: calc(var(--H, 700px) - 8px); z-index: 20 !important; cursor: auto; }
 .as-dy-table.is-reading .as-dy-vol:not(.is-open) { opacity: 0; pointer-events: none; }
 /* 一页（封面也是一页）：绕书脊（左边）翻，正面背面各一张 */
 .as-dy-sheet { position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.3, .7, .2, 1); }
@@ -28,7 +29,7 @@
 .as-dy-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .as-dy-face.is-back { transform: rotateY(180deg); background: #f4f1ec url(../../assets/diary/paper-plain.webp) 0 0 / 100% auto; border-radius: 10px 4px 4px 10px; box-shadow: inset -10px 0 14px -10px rgba(80,70,60,.25); }
 .as-dy-sheet.is-cover > .as-dy-face:first-child { filter: drop-shadow(0 18px 18px rgba(40,40,60,.32)); }
-.as-dy-sheet.is-cover img { width: 100%; height: 100%; object-fit: fill; display: block; }
+.as-dy-sheet.is-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .as-dy-plate { position: absolute; left: 50%; bottom: 16%; translate: -50%; max-width: 70%; padding: 4px 14px; border-radius: 4px; background: rgba(255,253,248,.92); box-shadow: 0 1px 3px rgba(0,0,0,.15);
   color: #5a4650; font: 15px/1.4 "LXGW WenKai", "Kaiti SC", STKaiti, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-dy-pages { position: absolute; inset: 1.5% 2.5% 1.5% 1%; }
@@ -75,7 +76,7 @@
 .as-dy-photo__frame { position: relative; display: block; width: 100%; pointer-events: none; }
 /* 拍立得里那个窗（透明的，照片垫在后面）、邮票里那块纸（不透明，照片盖在上面）：抠图量出来的位置 */
 .as-dy-photo__img, .as-dy-photo__none { position: absolute; left: 10.5%; top: 15.3%; width: 78.6%; height: 63%; box-sizing: border-box; }
-.as-dy-photo.is-stamp .as-dy-photo__img, .as-dy-photo.is-stamp .as-dy-photo__none { inset: 13%; width: auto; height: auto; z-index: 1; }
+.as-dy-photo.is-stamp .as-dy-photo__img, .as-dy-photo.is-stamp .as-dy-photo__none { left: 13%; top: 13%; width: 74%; height: 74%; z-index: 1; }
 .as-dy-photo__img { object-fit: cover; display: block; }
 .as-dy-photo__none { display: grid; align-content: center; gap: 6px; justify-items: center; padding: 10px; overflow: hidden; background: #f3eee6; color: #6d6168; font-size: 13px; line-height: 1.5; text-align: center; }
 .as-dy-photo__none p { margin: 0; }
