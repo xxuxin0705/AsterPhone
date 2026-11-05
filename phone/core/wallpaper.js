@@ -69,7 +69,7 @@ void main(){
   // 切换时的故障闪烁：一条条横块错位
   if (uGlitch > .001) {
     vec2 blk = floor(uv * vec2(5., 34.));
-    float hb = hash(blk + floor(uTime * 26.));
+    float hb = hash(blk + mod(floor(uTime * 26.), 256.));
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
   vec2 off = vec2(0.), offN = vec2(0.);
@@ -125,7 +125,8 @@ void main(){
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
     float lum = dot(col, vec3(.3,.59,.11));
     float sh = smoothstep(.58, .95, lum);
-    float n = noise(iuv*vec2(34.,90.) + vec2(uTime*.6, -uTime*.5));
+    // 时间要绕回来：开久了 uTime 很大，hash 里乘出来的数精度不够，闪光会变成一块一块的
+    float n = noise(iuv*vec2(34.,90.) + mod(vec2(uTime*.6, -uTime*.5), 256.));
     col += sh * pow(n, 4.) * .55;
   } else {
     // 云层上缓慢流动的光
