@@ -30,14 +30,13 @@ const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
 const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
 const FS = `
 precision highp float;
-uniform sampler2D uDay, uNight, uFish, uFlD, uFlN; uniform vec2 uFlSzD, uFlSzN;
+uniform sampler2D uDay, uNight, uFish, uFlD, uFlN, uNoise; uniform vec2 uFlSzD, uFlSzN;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
 uniform vec4 uCrop;   // 自己的壁纸调过位置：只用图里 (x, y, 宽, 高) 这一块
 uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
-// 输入先绕回 0~64：手机 GPU 小数精度有限，格子坐标 + 时间一大，乘出来的数就没小数了，闪光会变成一块一块的
-float hash(vec2 p){ p = fract(mod(p, 64.)*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
-float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
-  return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+// 随机数不在 GPU 上算，查一张 64×64 的随机图（算的话手机 GPU 小数精度不够，闪光会一块一块、一片白）
+float hash(vec2 p){ return texture2D(uNoise, (floor(p) + .5) / 64.).r; }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return texture2D(uNoise, (i + f + .5) / 64.).r; }
 float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
 vec3 tap(sampler2D t, vec2 uv, float b){
   if (b < .0004) return texture2D(t, uv).rgb;
@@ -70,7 +69,7 @@ void main(){
   // 切换时的故障闪烁：一条条横块错位
   if (uGlitch > .001) {
     vec2 blk = floor(uv * vec2(5., 34.));
-    float hb = hash(blk + mod(floor(uTime * 26.), 256.));
+    float hb = hash(blk + mod(floor(uTime * 26.), 64.));
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
   vec2 off = vec2(0.), offN = vec2(0.);
@@ -127,7 +126,7 @@ void main(){
     float lum = dot(col, vec3(.3,.59,.11));
     float sh = smoothstep(.58, .95, lum);
     // 时间要绕回来：开久了 uTime 很大，hash 里乘出来的数精度不够，闪光会变成一块一块的
-    float n = noise(iuv*vec2(34.,90.) + mod(vec2(uTime*.6, -uTime*.5), 256.));
+    float n = noise(iuv*vec2(34.,90.) + mod(vec2(uTime*.6, -uTime*.5), 64.));
     col += sh * pow(n, 4.) * .55;
   } else {
     // 云层上缓慢流动的光
@@ -252,13 +251,15 @@ export class Wallpaper {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     this.U = {};
-    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch', 'uCrop']
+    ['uDay', 'uNight', 'uFish', 'uFlD', 'uFlN', 'uNoise', 'uFlSzD', 'uFlSzN', 'uRes', 'uImgAspect', 'uTime', 'uKind', 'uMixFrom', 'uMixTo', 'uUnlock', 'uReveal', 'uRipples', 'uFD', 'uFN', 'uMoonDay', 'uMoonNight', 'uDrift', 'uZoom', 'uGlitch', 'uCrop']
       .forEach(n => { this.U[n] = gl.getUniformLocation(prog, n); });
-    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4);
+    gl.uniform1i(this.U.uDay, 0); gl.uniform1i(this.U.uNight, 1); gl.uniform1i(this.U.uFish, 2); gl.uniform1i(this.U.uFlD, 3); gl.uniform1i(this.U.uFlN, 4); gl.uniform1i(this.U.uNoise, 5);
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; };
     this.tex = { day: mk(), night: mk(), fish: mk(), flD: mk(), flN: mk() };
+    gl.activeTexture(gl.TEXTURE5); const nz = mk(); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 64, 64, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, crypto.getRandomValues(new Uint8Array(64 * 64))); gl.activeTexture(gl.TEXTURE0);
     this.fishCanvas = document.createElement('canvas'); this.fishCanvas.width = 512; this.fishCanvas.height = Math.round(512 / WALLPAPERS.water.aspect);
     this.fishCtx = this.fishCanvas.getContext('2d');
     gl.bindTexture(gl.TEXTURE_2D, this.tex.fish); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.fishCanvas);
