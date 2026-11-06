@@ -813,7 +813,7 @@ async function openRemote(name, id, l, pic) {
 
 /** 看 MV（QQ 的歌带 vid）：弹窗里放，先把歌暂停，关了接着放 */
 async function openMv(s) {
-  let url; try { url = await waiting('正在拿 MV…', () => P.mvUrl(s.vid)); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
+  let url; try { url = await waiting('正在拿 MV…', async () => P.mvUrl(await P.mvOf(s))); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
   if (url == null) return;
   if (!url) { toast('这首的 MV 放不了'); return; }
   toast('MV 来了');
@@ -945,7 +945,7 @@ export function openPlayer() {
   let lines = [];
   const paintSong = () => {
     const s = P.current(); if (!s) return;
-    topName.textContent = s.name; marquee(name, s.name); artistName.textContent = topArtist.textContent = s.artist; paintFollow(); mvBtn.hidden = !s.vid; cov.style.backgroundImage = bgUrl(s.pic);
+    topName.textContent = s.name; marquee(name, s.name); artistName.textContent = topArtist.textContent = s.artist; paintFollow(); mvBtn.hidden = true; P.mvOf(s).then(v => { if (v && P.current() === s) mvBtn.hidden = false; }); cov.style.backgroundImage = bgUrl(s.pic);
     top.replaceChildren(topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();

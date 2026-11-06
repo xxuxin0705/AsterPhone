@@ -83,7 +83,17 @@ const twinOf = s => (isQ(s) ? neSearch : qqSearch)(`${s.name} ${s.artist.split(/
 /** 搜歌手（QQ 的）：[{ name, mid, pic, n }]；歌手的歌一页页拿 */
 export const singers = word => qq('/search/singer', { word, num: 20 }).then(d => (d || []).map(x => ({ name: x.singerName, mid: x.singerMID, pic: https(x.singerPic), n: x.songNum })));
 export const singerSongs = (mid, page) => qq('/singer/songlist', { mid, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
-/** MV（QQ 的歌带 vid）：几档清晰度里挑中间那档 */
+/** 这首歌有没有 MV：QQ 的歌自己带 vid；网易云的去 QQ 找同一首看它有没有；再没有就问 QQ 的联想（mv 那栏）。问过的记住，不重复问 */
+const mvs = new Map();
+export const mvOf = s => s.vid ? Promise.resolve(s.vid) : mvs.get(s.id) || mvs.set(s.id, findMv(s)).get(s.id);
+async function findMv(s) {
+  try {
+    const t = isQ(s) ? null : await twinOf(s); if (t && t.vid) return t.vid;
+    const d = await qq('/search/smartbox', { word: s.name });
+    return ((((d || {}).mv || {}).itemlist || []).find(x => key({ name: x.name || '', artist: x.singer || '' }) === key(s)) || {}).vid || '';
+  } catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
+}
+/** MV 的地址：几档清晰度里挑中间那档 */
 export const mvUrl = vid => qq('/mv', { vid, type: 'mp4' }).then(d => { const u = (d.urls || []).map(x => x.url).filter(Boolean); return https(u[Math.floor(u.length / 2)] || ''); });
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
 export const searchLists = word => ne ? be('/search/lists?word=' + encodeURIComponent(word)).catch(e => { log('warn', '音乐', '插件搜歌单失败：' + e.message); return []; }) : Promise.resolve([]);
