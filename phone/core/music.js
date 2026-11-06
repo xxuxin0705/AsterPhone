@@ -31,6 +31,7 @@ const qsong = x => ({ id: String(x.mid || ''), src: 'qq', name: x.song || x.name
 export const isQ = s => !!s && s.src === 'qq';
 // 同一首歌两边都有：歌名 + 第一个歌手对得上就算同一首
 const key = s => (s.name + '|' + s.artist.split(/[/、,，&]/)[0]).toLowerCase().replace(/\s+/g, '');
+const loose = s => key(s).replace(/[(（][^)）]*[)）]/g, '');   // QQ 联想里歌手写成「RESCENE (리센느)」：括号里的不比
 
 /* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云 / QQ 音乐，登录后会员歌也能放 ----------
  * 没装、或者在 Tauri Tavern 里，问一次就知道（回的不是它的 JSON），之后全走上面的公共音源。 */
@@ -64,9 +65,12 @@ async function neSearch(word, page) {
   const j = await get(q(src('vkeys'), { word, page, num: 30 }), 'json');
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
-const qqSearch = (word, page) => qq('/search/song', { word, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
+// QQ 的搜歌接口词里带中文 / 空格就报错：报错了改用联想（什么词都认，但只有编号、歌名、歌手，封面和 MV 要再按编号查一次；只有第一页）
+const qqSearch = (word, page) => qq('/search/song', { word, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name),
+  e => page > 1 ? [] : qq('/search/smartbox', { word }).then(d => (((d || {}).song || {}).itemlist || []).map(x => ({ id: String(x.mid || ''), src: 'qq', name: x.name || '', artist: x.singer || '未知歌手', pic: '' })).filter(s => s.id && s.name), () => { throw e; }));
+const qqFill = s => qq('', { mid: s.id }).then(d => { s.pic = https(d.cover); if (d.vid) s.vid = d.vid; }, () => {});
 function merge(a, b, aFirst) {
-  const out = [], seen = new Set(), add = s => { const k = key(s); if (!seen.has(k)) { seen.add(k); out.push(s); } };
+  const out = [], seen = new Set(), add = s => { const k = loose(s); if (!seen.has(k)) { seen.add(k); out.push(s); } };
   if (aFirst) { a.forEach(add); b.forEach(add); }
   else for (let i = 0; i < Math.max(a.length, b.length); i++) { if (a[i]) add(a[i]); if (b[i]) add(b[i]); }
   return out;
@@ -76,25 +80,23 @@ export async function search(word, page = 1) {
   const [a, b] = await Promise.all([neSearch(word, page).catch(e => { why.push('网易云：' + e.message); return []; }), qqSearch(word, page).catch(e => { why.push('QQ：' + e.message); return []; })]);
   if (why.length === 2) throw new Error(why.join('；'));
   if (why.length) log('warn', '音乐', `搜「${word}」有一边没搜成（${why[0]}）`);
-  return merge(a, b, !!(ne && ne.me));
+  const out = merge(a, b, !!(ne && ne.me));
+  await Promise.all(out.filter(s => isQ(s) && !s.pic).map(qqFill));   // 联想来的没封面：留下来的那些按编号补上
+  return out;
 }
 /** 这首在另一边的同一首：这边放不了时换那边放 */
-const twinOf = s => (isQ(s) ? neSearch : qqSearch)(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`, 1).then(L => L.find(x => key(x) === key(s)) || null, () => null);
+const twinOf = s => (isQ(s) ? neSearch : qqSearch)(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`, 1).then(L => L.find(x => loose(x) === loose(s)) || null, () => null);
 /** 网易云的歌在 QQ 的编号：用联想接口找（搜歌接口词里带中文 / 空格就报错，联想什么词都认），歌名 + 歌手对得上才算 */
-const loose = s => key(s).replace(/[(（][^)）]*[)）]/g, '');   // QQ 联想里歌手写成「RESCENE (리센느)」：括号里的不比
 const qqTwinMid = s => isQ(s) ? Promise.resolve(s.id) : qq('/search/smartbox', { word: s.name }).then(d => ((((d || {}).song || {}).itemlist || []).find(x => loose({ name: x.name || '', artist: x.singer || '' }) === loose(s)) || {}).mid || '');
 /** 搜歌手（QQ 的）：[{ name, mid, pic, n }]；歌手的歌一页页拿 */
 export const singers = word => qq('/search/singer', { word, num: 20 }).then(d => (d || []).map(x => ({ name: x.singerName, mid: x.singerMID, pic: https(x.singerPic), n: x.songNum })));
 export const singerSongs = (mid, page) => qq('/singer/songlist', { mid, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
-/** 这首歌有没有 MV：QQ 的歌自己带 vid；网易云的去 QQ 找同一首看它有没有；再没有就问 QQ 的联想（mv 那栏）。问过的记住，不重复问 */
+/** 这首歌有没有 MV：找到它在 QQ 的编号，按编号查详情里的 vid。问过的记住，不重复问 */
 const mvs = new Map();
 export const mvOf = s => s.vid ? Promise.resolve(s.vid) : mvs.get(s.id) || mvs.set(s.id, findMv(s)).get(s.id);
 async function findMv(s) {
-  try {
-    const t = isQ(s) ? null : await twinOf(s); if (t && t.vid) return t.vid;
-    const d = await qq('/search/smartbox', { word: s.name });
-    return ((((d || {}).mv || {}).itemlist || []).find(x => loose({ name: x.name || '', artist: x.singer || '' }) === loose(s)) || {}).vid || '';
-  } catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
+  try { const mid = await qqTwinMid(s); return mid ? String((await qq('', { mid })).vid || '') : ''; }
+  catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
 }
 /** MV 的地址：几档清晰度里挑中间那档 */
 export const mvUrl = vid => qq('/mv', { vid, type: 'mp4' }).then(d => { const u = (d.urls || []).map(x => x.url).filter(Boolean); return https(u[Math.floor(u.length / 2)] || ''); });
