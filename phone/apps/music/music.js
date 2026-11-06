@@ -264,7 +264,7 @@ function searchIn(title, body, host, add) {
     const row = (ic, t) => h('button.as-mu-sug__w', { onclick: () => find(t) }, icon(ic, 17, 1.8), h('span', ...hl(t, w)));
     const past = M().history.filter(x => x !== w && x.toLowerCase().includes(w.toLowerCase())).slice(0, 3), top = r && r.top;
     sug.replaceChildren(...past.map(x => row('moments', x)),
-      ...(top ? [h('div.as-mu-li', { role: 'button', onclick: () => top.artist ? openArtist(top.artist) : play([top.song], 0, '搜索') },
+      ...(top ? [h('div.as-mu-li', { role: 'button', onclick: () => top.artist ? openArtist(top.artist, top.mid) : play([top.song], 0, '搜索') },
         top.artist ? avatar(top.pic, top.artist, 48) : h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(top.song.pic) } }),
         h('div', h('b', ...hl(top.artist || top.song.name, w)), h('span', top.artist ? '歌手' : '歌曲 · ' + top.song.artist)))] : []),
       ...(r ? r.words : []).filter(x => !past.includes(x)).map(x => row('search', x)));
@@ -291,12 +291,19 @@ function searchIn(title, body, host, add) {
     openList(`搜「${word}」`, [], add ? { into: box, more, add } : { into: box, more, tools: true });
     if (add) { res.replaceChildren(box.body); return; }
     const w = word.toLowerCase();
-    const paintSingers = keep(singers, () => songs.length, () => {
+    // 歌手：先问 QQ 的歌手搜索（有头像、歌数）；没拿到就从搜到的歌里挑名字对得上的
+    const singerRow = (a, pic, sub, mid) => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a, mid) }, avatar(pic, a, 48), h('div', h('b', a), h('span', sub)), icon('chevron', 16, 2));
+    const fromSongs = () => {
       const m = new Map();
       songs.forEach(s => s.artist.split(/\s*[/、,，&]\s*/).forEach(a => { const k = a.toLowerCase(); if (a && (k.includes(w) || (w.includes(k) && k.length > 1)) && !m.has(a)) m.set(a, s.pic); }));
-      return m.size ? [...m].map(([a, pic]) => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a) }, avatar(pic, a, 48), h('div', h('b', a), h('span', '歌手')), icon('chevron', 16, 2)))
-        : [empty('没找到这个名字的歌手')];
-    });
+      return m.size ? [...m].map(([a, pic]) => singerRow(a, pic, '歌手')) : [empty('没找到这个名字的歌手')];
+    };
+    let singersGot = false;
+    const paintSingers = async () => {
+      if (singersGot) return; singersGot = true; singers.replaceChildren(h('div.as-mu-morel', '正在找…'));
+      const L = await P.singers(word).catch(e => { log('warn', '音乐', `找歌手「${word}」没拿到，改从搜到的歌里挑：${e.message}`); return []; });
+      singers.replaceChildren(...(L.length ? L.map(x => singerRow(x.name, x.pic, `${x.n} 首`, x.mid)) : fromSongs()));
+    };
     let listsGot = false;
     const paintLists = async () => {
       if (listsGot) return; listsGot = true; lists.replaceChildren(h('div.as-mu-morel', '正在加载…'));
@@ -379,22 +386,22 @@ function renderMe(ctx) {
     M().lists.splice(M().lists.indexOf(l), 1); commit('music'); paint();
   }
   async function importList() {
-    const how = await actionSheet('导入歌单', [{ value: 'ne', label: '网易云歌单链接', icon: 'link' }, { value: 'file', label: '小手机导出的歌单文件', icon: 'box' }]);
+    const how = await actionSheet('导入歌单', [{ value: 'link', label: '网易云 / QQ 音乐的歌单链接', icon: 'link' }, { value: 'file', label: '小手机导出的歌单文件', icon: 'box' }]);
     if (how === 'file') { await importFile(); paint(); return; }
-    if (how !== 'ne') return;
-    const link = await dialog({ title: '导入网易云歌单', text: '歌单要设成公开；「我喜欢的音乐」也可以。', input: { placeholder: '歌单链接' } });
+    if (how !== 'link') return;
+    const link = await dialog({ title: '导入歌单', text: '歌单要设成公开；「我喜欢的音乐」也可以。', input: { placeholder: '歌单链接' } });
     if (!link) return;
     let id;
-    const short = /163cn\.tv/.test(link);   // 短链接要去问，慢
+    const short = P.SHORT.test(link);   // 短链接要去问，慢
     try { const r = short ? await waiting('正在认链接…', async () => [await P.playlistIdOf(link)]) : [await P.playlistIdOf(link)]; if (!r) return; id = r[0]; } catch (e) { log('error', '音乐', '认歌单链接失败：' + e.message); toast(e.message); return; }
     if (!id) { toast('没认出歌单，换成分享出来的链接试试'); return; }
     if (short) toast('认出来了');
     if (M().lists.some(l => l.id === id)) { toast('这个歌单已经导入过了'); return; }
-    const name = await dialog({ title: '给歌单起个名字', input: { value: '网易云歌单' } }); if (name == null) return;
     try {
       const songs = await waiting('正在读歌单…', () => P.playlist(id)); if (!songs) return;
       if (!songs.length) throw new Error('歌单是空的，或者没设成公开');
-      M().lists.push({ id, name: name.trim() || '网易云歌单', songs }); commit('music'); paint(); toast(`导入了 ${songs.length} 首`);
+      const name = await dialog({ title: '给歌单起个名字', input: { value: songs.title || '歌单' } }); if (name == null) return;
+      M().lists.push({ id, name: name.trim() || songs.title || '歌单', songs, pic: songs.pic || '' }); commit('music'); paint(); toast(`导入了 ${songs.length} 首`);
     } catch (e) { log('error', '音乐', '导入歌单失败：' + e.message); toast('导入失败：' + e.message); }
   }
 }
@@ -594,17 +601,19 @@ function editMe(after) {
 function openFollows() {
   const p = page({ app: 'music', id: 'music-follows', title: '关注的歌手', back: true });
   const box = h('div.as-mu-sheet');
-  const paint = () => box.replaceChildren(...(follows().length ? follows().map(a => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a) }, avatar('', a, 48), h('div', h('b', a)), icon('chevron', 16, 2)))
+  const paint = () => box.replaceChildren(...(follows().length ? follows().map(a => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a, (M().mids || {})[a]) }, avatar('', a, 48), h('div', h('b', a)), icon('chevron', 16, 2)))
     : [empty('还没有关注的歌手', h('div.as-muted', '播放页歌手名字旁边点「关注」'))]));
   paint(); p.body.append(box); p.el._onShow = paint;
   nav.push(p.el);
 }
-// 歌手页：按名字一页页搜，只留 TA 唱的（第一页一首都对不上就全留着）；哪一页没有 TA 的歌了就不往下搜
-function openArtist(a) {
+// 歌手页：有 QQ 的歌手编号（mid）就一页页拿 TA 的歌；没有就按名字一页页搜，只留 TA 唱的（第一页一首都对不上就全留着）；哪一页没有 TA 的歌了就不往下搜
+function openArtist(a, mid) {
   const on = () => follows().includes(a);
   const b = navText(on() ? '已关注' : '关注', () => { follow(a); b.textContent = on() ? '已关注' : '关注'; });
+  if (mid) { (M().mids || (M().mids = {}))[a] = mid; commit('music'); }   // 记着编号，关注列表里再点进来还能用
   const seen = new Set(); let pg = 0, all = false;
   openList(a, [], { right: [b], sub: '歌手', more: async () => {
+    if (mid) { const got = await P.singerSongs(mid, ++pg); return got.length ? got.filter(s => !seen.has(s.id) && seen.add(s.id)) : null; }
     const got = await P.search(a, ++pg); if (!got.length) return null;
     const mine = got.filter(s => s.artist.split(/[/、,，&]/).some(x => x.trim() === a));
     if (pg === 1 && !mine.length) all = true; else if (!all && !mine.length) return null;
@@ -782,6 +791,17 @@ async function openRemote(name, id, l, pic) {
   }
 }
 
+/** 看 MV（QQ 的歌带 vid）：弹窗里放，先把歌暂停，关了接着放 */
+async function openMv(s) {
+  let url; try { url = await waiting('正在拿 MV…', () => P.mvUrl(s.vid)); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
+  if (url == null) return;
+  if (!url) { toast('这首的 MV 放不了'); return; }
+  toast('MV 来了');
+  const was = P.playing(); if (was) P.toggle();
+  const v = h('video.as-mp__mv', { src: url, controls: true, autoplay: true, playsinline: true });
+  v.onerror = () => { log('error', '音乐', `《${s.name}》的 MV 放不出来（${url}）`); toast('MV 放不出来'); };
+  sheet({ title: s.name, content: v, onClose: () => { v.pause(); v.removeAttribute('src'); v.load(); if (was) P.toggle(); } });
+}
 /* ================= 播放页 ================= */
 // 唱臂：转轴在唱片正上方、离唱片有一段距离，长臂先直着往下、再往右弯，小方块唱头落在唱片右上那一圈。
 // 图的坐标以唱片直径为 100：这张图左边在唱片的 40、上边在 -36，转轴在图里的 (10, 8)
@@ -815,7 +835,7 @@ export function openPlayer() {
     const list = P.current().artist.split(/[/、,，&]/).map(x => x.trim()).filter(Boolean);
     const a = list.length > 1 ? await actionSheet('关注哪位', list.map(x => ({ value: x, label: x, active: follows().includes(x) }))) : list[0];
     if (a) { follow(a); paintFollow(); }
-  } }), artist = h('div.as-mp__artist', artistName, followBtn);
+  } }), mvBtn = h('button.as-mp__follow', { hidden: true, onclick: e => { e.stopPropagation(); openMv(P.current()); } }, 'MV'), artist = h('div.as-mp__artist', artistName, followBtn, mvBtn);
   const paintFollow = () => { const on = P.current().artist.split(/[/、,，&]/).some(x => follows().includes(x.trim())); followBtn.textContent = on ? '已关注' : '关注'; followBtn.classList.toggle('is-on', on); };
   const heart = h('button.as-mp__heart', { 'aria-label': '喜欢', onclick: () => { const on = P.like(); heart.classList.toggle('is-on', on); if (on) burst(heart); toast(on ? '加到我喜欢了' : '从我喜欢里拿掉了'); } }, icon('heart', 26, 1.8));
   // 进度条：细线 + 小圆点，按住拖
@@ -905,7 +925,7 @@ export function openPlayer() {
   let lines = [];
   const paintSong = () => {
     const s = P.current(); if (!s) return;
-    topName.textContent = s.name; marquee(name, s.name); artistName.textContent = topArtist.textContent = s.artist; paintFollow(); cov.style.backgroundImage = bgUrl(s.pic);
+    topName.textContent = s.name; marquee(name, s.name); artistName.textContent = topArtist.textContent = s.artist; paintFollow(); mvBtn.hidden = !s.vid; cov.style.backgroundImage = bgUrl(s.pic);
     top.replaceChildren(topName, topArtist);
     heart.classList.toggle('is-on', P.liked(s)); paintBg();
     const L = P.lyricsNow();

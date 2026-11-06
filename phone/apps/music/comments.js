@@ -35,8 +35,8 @@ export async function load(s) {
 /** s：这首歌；me：{ nick, avatar } */
 export async function openComments(s, me) {
   const d = (live[s.id] && (busy['w' + s.id] || busy['a' + s.id]) && live[s.id].d) || await load(s);
-  let real = [], why = s.local ? '本地的歌没有热评。' : '';
-  if (!s.local) {
+  let real = [], why = s.local ? '本地的歌没有热评。' : P.isQ(s) ? '热评只有网易云的歌有。' : '';
+  if (!s.local && !P.isQ(s)) {
     try { const got = await waiting('正在拿热评…', () => P.hotComments(s.id)); if (got) { real = got.map(x => ({ ...x, id: 'n' + uid(''), real: true, replies: [] })); toast(`${real.length} 条热评`); } }
     catch (e) { log('warn', '音乐', '拿热评失败：' + e.message); why = e.message + '。'; toast('拿不到网易云的热评'); }
     if (busy['w' + s.id]) toast('AI 正在写乐评…', { label: '取消', fn: () => busy['w' + s.id] && busy['w' + s.id].abort(), wait: true });

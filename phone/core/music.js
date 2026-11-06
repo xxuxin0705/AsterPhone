@@ -1,5 +1,6 @@
 // 音乐的播放器本体：关掉音乐 App、收起手机都接着放。
-// 音源（照旧插件）：vkeys 搜歌；Meting 取播放链接、歌词、歌单。地址在 state.music.src 里能改。
+// 音源（照旧插件）：vkeys 搜歌（网易云、QQ 两边一起搜，合在一起）；网易云的播放链接、歌词、歌单走 Meting，QQ 的全走 vkeys。地址在 state.music.src 里能改。
+// 每首歌记着自己是哪边的（src: 'qq' 是 QQ 的，没写就是网易云的）；这边放不了就去另一边找同一首放。
 // 播放链接直接塞给 <audio>（放别人家的音乐文件不会被跨域拦）；只有搜歌、歌词、歌单要读内容，走 xf（被拦时借酒馆代理）。
 // 角色的歌单存在联系人身上（c.lists，每人好几个，跟着聊天窗口走）；笔记在 state.musicNotes（也跟窗口走）。
 import { state, commit, kvGet, kvSet, kvDel, contact } from './store.js';
@@ -10,7 +11,7 @@ import { uid } from './util.js';
 import { ctx } from './bridge.js';
 import { stamp } from './time.js';
 
-export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/' };
+export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/', qq: 'https://api.vkeys.cn/v2/music/tencent' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
 const M = () => state.music;
 const src = k => (M().src && M().src[k]) || DEF_SRC[k];
@@ -24,6 +25,12 @@ async function get(url, as = 'json') {
 }
 export const WEEK = 7 * 864e5;
 export const label = s => `${s.name} - ${s.artist}`;
+/* ---------- QQ 音乐（vkeys）：回的是 { code, message, data }，不是 200 就把它的话当错误 ---------- */
+const qq = (p, o) => get(q(src('qq') + p, o), 'json').then(j => { if (j.code !== 200) throw new Error(j.message || `QQ 音源回 ${j.code}`); return j.data; });
+const qsong = x => ({ id: String(x.mid || ''), src: 'qq', name: x.song || x.name || '', artist: x.singer || '未知歌手', pic: https(x.cover || x.pic), ...(x.vid ? { vid: x.vid } : {}) });
+export const isQ = s => !!s && s.src === 'qq';
+// 同一首歌两边都有：歌名 + 第一个歌手对得上就算同一首
+const key = s => (s.name + '|' + s.artist.split(/[/、,，&]/)[0]).toLowerCase().replace(/\s+/g, '');
 
 /* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云，登录后会员歌也能放 ----------
  * 没装、或者在 Tauri Tavern 里，问一次就知道（回的不是它的 JSON），之后全走上面的公共音源。 */
@@ -47,18 +54,44 @@ export const neLogout = () => be('/logout', {}).then(j => { ne.me = null; ne.bor
 export const neDaily = () => be('/daily');
 export const neLists = () => be('/playlists');
 
-/* ---------- 找歌 ---------- */
-export async function search(word, page = 1) {
+/* ---------- 找歌：两边一起搜，混在一起（一首网易云一首 QQ 轮着来，同一首只留先来的）；登录了网易云就网易云的全排前面 ---------- */
+async function neSearch(word, page) {
   if (ne) try { return await be(`/search?word=${encodeURIComponent(word)}&page=${page}`); } catch (e) { log('warn', '音乐', '插件搜歌失败，改用公共音源：' + e.message); }
   const j = await get(q(src('vkeys'), { word, page, num: 30 }), 'json');
   return (j.data || []).map(x => ({ id: String(x.id || ''), name: x.song || x.name || '', artist: x.singer || x.artist || '未知歌手', pic: https(x.cover || x.pic) })).filter(s => s.id && s.name);
 }
+const qqSearch = (word, page) => qq('/search/song', { word, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
+function merge(a, b, aFirst) {
+  const out = [], seen = new Set(), add = s => { const k = key(s); if (!seen.has(k)) { seen.add(k); out.push(s); } };
+  if (aFirst) { a.forEach(add); b.forEach(add); }
+  else for (let i = 0; i < Math.max(a.length, b.length); i++) { if (a[i]) add(a[i]); if (b[i]) add(b[i]); }
+  return out;
+}
+export async function search(word, page = 1) {
+  const why = [];
+  const [a, b] = await Promise.all([neSearch(word, page).catch(e => { why.push('网易云：' + e.message); return []; }), qqSearch(word, page).catch(e => { why.push('QQ：' + e.message); return []; })]);
+  if (why.length === 2) throw new Error(why.join('；'));
+  if (why.length) log('warn', '音乐', `搜「${word}」有一边没搜成（${why[0]}）`);
+  return merge(a, b, !!(ne && ne.me));
+}
+/** 这首在另一边的同一首：这边放不了时换那边放 */
+const twinOf = s => (isQ(s) ? neSearch : qqSearch)(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`, 1).then(L => L.find(x => key(x) === key(s)) || null, () => null);
+/** 搜歌手（QQ 的）：[{ name, mid, pic, n }]；歌手的歌一页页拿 */
+export const singers = word => qq('/search/singer', { word, num: 20 }).then(d => (d || []).map(x => ({ name: x.singerName, mid: x.singerMID, pic: https(x.singerPic), n: x.songNum })));
+export const singerSongs = (mid, page) => qq('/singer/songlist', { mid, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
+/** MV（QQ 的歌带 vid）：几档清晰度里挑中间那档 */
+export const mvUrl = vid => qq('/mv', { vid, type: 'mp4' }).then(d => { const u = (d.urls || []).map(x => x.url).filter(Boolean); return https(u[Math.floor(u.length / 2)] || ''); });
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
 export const searchLists = word => ne ? be('/search/lists?word=' + encodeURIComponent(word)).catch(e => { log('warn', '音乐', '插件搜歌单失败：' + e.message); return []; }) : Promise.resolve([]);
-/** 打字时的联想：{ top: 最对得上的歌手（{ artist, pic }）或歌（{ song }），words: 联想词 }。装了插件用网易云自己的联想；没装就搜一次歌，从搜到的里挑 */
+/** 打字时的联想：{ top: 最对得上的歌手（{ artist, pic, mid }）或歌（{ song }），words: 联想词 }。装了插件用网易云自己的联想；没装用 QQ 的联想；都不行就搜一次歌，从搜到的里挑 */
 export async function suggest(word) {
   if (ne) try { return await be('/suggest?word=' + encodeURIComponent(word)); } catch (e) { log('warn', '音乐', '插件联想失败，改成搜歌：' + e.message); }
-  const L = await search(word), w = word.toLowerCase();
+  const w = word.toLowerCase();
+  try {
+    const d = await qq('/search/smartbox', { word }), sg = (d.singer || {}).itemlist || [], a = sg.find(x => x.name.toLowerCase().includes(w)) || sg[0];
+    return { top: a ? { artist: a.name, pic: https(a.pic), mid: a.mid } : null, words: [...new Set([...((d.song || {}).itemlist || []).map(x => x.name), ...sg.map(x => x.name)])].slice(0, 8) };
+  } catch (e) { log('warn', '音乐', 'QQ 联想没拿到，改成搜歌：' + e.message); }
+  const L = await search(word);
   const s = L.find(x => x.artist.toLowerCase().includes(w)), a = s && s.artist.split(/\s*[/、,，&]\s*/).find(x => x.toLowerCase().includes(w));
   return { top: a ? { artist: a, pic: s.pic } : L[0] ? { song: L[0] } : null, words: [...new Set(L.map(x => x.name))].slice(0, 8) };
 }
@@ -69,24 +102,31 @@ export async function findSong(text) {
   const list = await search(artist ? `${name} ${artist}` : name).catch(() => []);
   return list.find(s => s.name.toLowerCase() === name.toLowerCase()) || list[0] || null;
 }
-/** 歌单 / 榜单：读过的存在这台设备上，下次先给存的（马上出来），再去读新的 */
+/** 歌单 / 榜单：读过的存在这台设备上，下次先给存的（马上出来），再去读新的。QQ 的歌单编号前面带 q，一页页读完（最多 500 首），歌单名挂在 .title 上 */
 export async function playlist(id) {
-  const j = ne ? await be('/playlist?id=' + id).catch(() => null) : null;
-  const out = j && j.length ? j : (await get(meting('playlist', id), 'json').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  let out;
+  if (id[0] === 'q') {
+    out = []; let info;
+    for (let page = 1, got = 60; got === 60 && out.length < 500; page++) { const d = await qq('/dissinfo', { id: id.slice(1), page, num: 60 }); info = d.info || info; got = (d.list || []).length; out.push(...d.list.map(qsong).filter(s => s.id && s.name)); }
+    Object.assign(out, { title: (info || {}).title || '', pic: https((info || {}).picurl) });
+  } else {
+    const j = ne ? await be('/playlist?id=' + id).catch(() => null) : null;
+    out = j && j.length ? j : (await get(meting('playlist', id), 'json').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
+  }
   if (out.length) kvSet('mulist:' + id, out).catch(() => {});
   return out;
 }
 export const cachedList = id => kvGet('mulist:' + id).catch(() => null);
-/** 从网易云分享链接 / 一串数字里找出歌单编号 */
-/** 分享出来的短链接（163cn.tv）要先问出它跳到哪：网页自己问不了（跨域）。装了酒馆插件让插件问；
+/** 分享出来的短链接（网易云 163cn.tv、QQ c6.y.qq.com）要先问出它跳到哪：网页自己问不了（跨域）。装了酒馆插件让插件问；
  *  没装（Tauri）就挨个借公共的跨域转发去打开它，从跳到的地址或网页内容里找歌单编号（都是别人家的服务，可能慢、可能挂） */
 const RELAYS = [
   ['allorigins', u => `https://api.allorigins.win/get?url=${u}`, async r => { const j = await r.json(); return ((j.status || {}).url || '') + ' ' + (j.contents || ''); }],
   ['corsproxy', u => `https://corsproxy.io/?url=${u}`, r => r.text()],
   ['codetabs', u => `https://api.codetabs.com/v1/proxy/?quest=${u}`, r => r.text()],
 ];
+export const SHORT = /https?:\/\/(?:163cn\.tv\/\w+|c6\.y\.qq\.com\/base\/fcgi-bin\/u\?__=\w+)/;
 export async function playlistIdOf(text) {
-  const id = playlistId(text), short = (String(text).match(/https?:\/\/163cn\.tv\/\w+/) || [])[0];
+  const id = playlistId(text), short = (String(text).match(SHORT) || [])[0];
   if (id || !short) return id;
   if (ne) return playlistId((await be('/resolve?url=' + encodeURIComponent(short))).url);
   const why = [];
@@ -94,7 +134,7 @@ export async function playlistIdOf(text) {
     try {
       const r = await fetch(url(encodeURIComponent(short)), { signal: AbortSignal.timeout(8000) });
       if (!r.ok) throw new Error(`${r.status}`);
-      const got = (String(await read(r)).match(/playlist\?id=(\d{5,})/) || [])[1];
+      const got = playlistId(String(await read(r)));
       if (got) return got;
       why.push(`${name} 回来的内容里没有歌单`);
     } catch (e) { why.push(`${name} ${e.name === 'TimeoutError' ? '超时' : e.message}`); }
@@ -102,7 +142,9 @@ export async function playlistIdOf(text) {
   log('error', '音乐', '解析短链接失败：' + why.join('；'));
   throw new Error(`短链接没解析出来（${why.join('；')}），先在浏览器里打开它，把地址栏的链接复制过来`);
 }
-export const playlistId = t => ((String(t).match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || String(t).match(/[?&]id=(\d{5,})/) || String(t).trim().match(/^(\d{5,})$/)) || [])[1] || '';
+/** 从分享链接 / 一串数字里找出歌单编号：QQ 的（y.qq.com 的链接里 playlist/、disstid=、id= 后面的数）带 q，网易云的就是数字 */
+export const playlistId = t => { const s = String(t), qq = (s.match(/y\.qq\.com\/\S*?(?:playlist\/|disstid=|[?&]id=)(\d{5,})/i) || [])[1];
+  return qq ? 'q' + qq : ((s.match(/playlist[^0-9]*?(?:id=)?(\d{5,})/i) || s.match(/[?&]id=(\d{5,})/) || s.trim().match(/^(\d{5,})$/)) || [])[1] || ''; };
 export function parseLrc(text) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
@@ -208,12 +250,10 @@ function enter(s) {
   // 最准的是社区逐字歌词库（AMLL，人工对过每个字的时间，带翻译），有就用它；其次网易云自己的逐字；都没有就是普通歌词
   let base = [], yrc = [], ttml = [];
   const done = () => { if (current() !== s) return; const w = ttml.length ? ttml : yrc; lyrics = w.length ? w.map(x => ({ ...x, tr: x.tr || (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
+  const withTr = (lrc, trText) => { const tr = parseLrc(trText).filter(y => y.text !== '//'); return parseLrc(lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' })); };   // 翻译是另一份歌词，按时间配过去（QQ 没翻译的句子写 //）
+  if (isQ(s)) { qq('/lyric', { mid: s.id }).then(d => { base = withTr(d.lrc, d.trans); yrc = parseYrc(d.yrc); done(); }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`)); return; }
   fetch(TTML + s.id + '.ttml').then(r => r.ok ? r.text() : '').then(t => { if (t) { ttml = parseTtml(t); done(); } }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词库没连上：${e.message}`));
-  if (ne) be('/lyric?id=' + s.id).then(j => {
-    const tr = parseLrc(j.tr);
-    base = parseLrc(j.lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' }));
-    yrc = parseYrc(j.yrc); done();
-  }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
+  if (ne) be('/lyric?id=' + s.id).then(j => { base = withTr(j.lrc, j.tr); yrc = parseYrc(j.yrc); done(); }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
   else get(meting('lrc', s.id), 'text').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
   if (!ne) get(q(src('vkeys') + '/lyric', { id: s.id }), 'json').then(j => {
@@ -235,15 +275,24 @@ async function load(autoplay) {
   if (CHAIN && (!s.local || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
-/** 普通放法：先试 Meting 的链接，不行再试网易云外链；都放不出来就跳下一首（会员歌、下架的歌常这样） */
-function plain(s, f, autoplay) {
-  const urls = f ? [URL.createObjectURL(f)] : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
+/** QQ 的播放链接：先要默认音质，不给（高音质要会员）就退到标准音质；拿到的记几分钟（续接和普通放法会接连要两次） */
+const qurls = new Map();
+async function qqUrl(s) {
+  const c = qurls.get(s.id); if (c && Date.now() - c.at < 5 * 60e3) return c.url;
+  let url = '';
+  for (const quality of ['', 4]) { const d = await qq('/geturl', { mid: s.id, ...(quality ? { quality } : {}) }).catch(() => null); if (d && d.url) { url = https(d.url); break; } }
+  qurls.set(s.id, { url, at: Date.now() });
+  return url;
+}
+const urlsOf = async s => isQ(s) ? [await qqUrl(s)].filter(Boolean) : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
+/** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；还不行就跳下一首（会员歌、下架的歌常这样） */
+async function plain(s, f, autoplay, twin) {
+  const urls = f ? [URL.createObjectURL(f)] : await urlsOf(twin || s);
+  if (current() !== s) return;
+  const fail = () => { log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0; };
   const tryUrl = i => {
-    audio.onerror = () => {
-      if (i + 1 < urls.length) return tryUrl(i + 1);
-      log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error');
-      if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
-    };
+    if (i >= urls.length) return (!f && !twin) ? twinOf(s).then(t => { if (current() !== s) return; if (t) { log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); } else fail(); }) : fail();
+    audio.onerror = () => tryUrl(i + 1);
     audio.src = urls[i];
     if (autoplay) audio.play().catch(blocked);
   };
@@ -267,8 +316,9 @@ async function startChain(s, f, autoplay) {
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  let r = ne ? await fetch(`${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
-  if (!r || !r.ok) r = await fetch(meting('url', s.id), { signal });
+  let r = ne && !isQ(s) ? await fetch(`${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
+  const u = isQ(s) ? await qqUrl(s) : meting('url', s.id); if (!u) throw new Error('没有链接');
+  if (!r || !r.ok) r = await fetch(u, { signal });
   if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
   return r.body;
 }
