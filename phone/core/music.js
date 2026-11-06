@@ -80,6 +80,9 @@ export async function search(word, page = 1) {
 }
 /** 这首在另一边的同一首：这边放不了时换那边放 */
 const twinOf = s => (isQ(s) ? neSearch : qqSearch)(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`, 1).then(L => L.find(x => key(x) === key(s)) || null, () => null);
+/** 网易云的歌在 QQ 的编号：用联想接口找（搜歌接口词里带中文 / 空格就报错，联想什么词都认），歌名 + 歌手对得上才算 */
+const loose = s => key(s).replace(/[(（][^)）]*[)）]/g, '');   // QQ 联想里歌手写成「RESCENE (리센느)」：括号里的不比
+const qqTwinMid = s => isQ(s) ? Promise.resolve(s.id) : qq('/search/smartbox', { word: s.name }).then(d => ((((d || {}).song || {}).itemlist || []).find(x => loose({ name: x.name || '', artist: x.singer || '' }) === loose(s)) || {}).mid || '');
 /** 搜歌手（QQ 的）：[{ name, mid, pic, n }]；歌手的歌一页页拿 */
 export const singers = word => qq('/search/singer', { word, num: 20 }).then(d => (d || []).map(x => ({ name: x.singerName, mid: x.singerMID, pic: https(x.singerPic), n: x.songNum })));
 export const singerSongs = (mid, page) => qq('/singer/songlist', { mid, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
@@ -90,7 +93,7 @@ async function findMv(s) {
   try {
     const t = isQ(s) ? null : await twinOf(s); if (t && t.vid) return t.vid;
     const d = await qq('/search/smartbox', { word: s.name });
-    return ((((d || {}).mv || {}).itemlist || []).find(x => key({ name: x.name || '', artist: x.singer || '' }) === key(s)) || {}).vid || '';
+    return ((((d || {}).mv || {}).itemlist || []).find(x => loose({ name: x.name || '', artist: x.singer || '' }) === loose(s)) || {}).vid || '';
   } catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
 }
 /** MV 的地址：几档清晰度里挑中间那档 */
@@ -189,12 +192,12 @@ export function parseTtml(text) {
     return w.length && { t: w[0].t, text: w.map(x => x.text).join('').trim(), tr, w: w.filter(x => x.text.trim()) };
   }).filter(Boolean);
 }
-/** 网易云逐字歌词：[句开始,句时长](字开始,字时长,0)字(…)字…，单位毫秒 */
-export function parseYrc(text) {
+/** 逐字歌词，单位毫秒。网易云：[句开始,句时长](字开始,字时长,0)字(…)字…；QQ（qrc）：[句开始,句时长]字(字开始,字时长)字(…)… */
+export function parseYrc(text, qrc) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
     const m = line.match(/^\[(\d+),\d+\](.*)/); if (!m) continue;
-    const w = [...m[2].matchAll(/\((\d+),(\d+),\d+\)([^(]*)/g)].map(x => ({ t: x[1] / 1000, d: x[2] / 1000, text: x[3] })).filter(x => x.text.trim());
+    const w = [...m[2].matchAll(qrc ? /(.*?)\((\d+),(\d+)\)/g : /\((\d+),(\d+),\d+\)([^(]*)/g)].map(x => qrc ? { t: x[2] / 1000, d: x[3] / 1000, text: x[1] } : { t: x[1] / 1000, d: x[2] / 1000, text: x[3] }).filter(x => x.text.trim());
     if (w.length) out.push({ t: m[1] / 1000, text: w.map(x => x.text).join('').trim(), tr: '', w });
   }
   return out;
@@ -265,15 +268,16 @@ function enter(s) {
   sysInfo(s);
   if (s.local) return;
   // 普通歌词先出来；逐字的（每个字几点唱）到了再换上，翻译从普通歌词里按时间配过去
-  // 最准的是社区逐字歌词库（AMLL，人工对过每个字的时间，带翻译），有就用它；其次网易云自己的逐字；都没有就是普通歌词
-  let base = [], yrc = [], ttml = [];
-  const done = () => { if (current() !== s) return; const w = ttml.length ? ttml : yrc; lyrics = w.length ? w.map(x => ({ ...x, tr: x.tr || (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
+  // 最准的是社区逐字歌词库（AMLL，人工对过每个字的时间，带翻译），有就用它；其次网易云自己的逐字；再其次去 QQ 拿同一首的逐字（QQ 几乎每首都有）；都没有就是普通歌词
+  let base = [], yrc = [], ttml = [], qrc = [];
+  const done = () => { if (current() !== s) return; const w = ttml.length ? ttml : yrc.length ? yrc : qrc; lyrics = w.length ? w.map(x => ({ ...x, tr: x.tr || (base.find(b => Math.abs(b.t - x.t) < 1) || {}).tr || '' })) : base; tell('lyrics'); };
   const withTr = (lrc, trText) => { const tr = parseLrc(trText).filter(y => y.text !== '//'); return parseLrc(lrc).map(x => ({ ...x, tr: x.tr || (tr.find(y => Math.abs(y.t - x.t) < .3) || {}).text || '' })); };   // 翻译是另一份歌词，按时间配过去（QQ 没翻译的句子写 //）
-  if (isQ(s)) { qq('/lyric', { mid: s.id }).then(d => { base = withTr(d.lrc, d.trans); yrc = parseYrc(d.yrc); done(); }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`)); return; }
+  if (isQ(s)) { qq('/lyric', { mid: s.id }).then(d => { base = withTr(d.lrc, d.trans); yrc = parseYrc(d.yrc, true); done(); }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`)); return; }
   fetch(TTML + s.id + '.ttml').then(r => r.ok ? r.text() : '').then(t => { if (t) { ttml = parseTtml(t); done(); } }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词库没连上：${e.message}`));
   if (ne) be('/lyric?id=' + s.id).then(j => { base = withTr(j.lrc, j.tr); yrc = parseYrc(j.yrc); done(); }).catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
   else get(meting('lrc', s.id), 'text').then(t => { const L = parseLrc(t); if (L.length >= base.length) base = L; done(); })
     .catch(e => log('warn', '音乐', `《${s.name}》的歌词没拿到：${e.message}`));
+  qqTwinMid(s).then(mid => mid && qq('/lyric', { mid })).then(d => { if (d) { qrc = parseYrc(d.yrc, true); if (qrc.length) done(); } }).catch(e => log('warn', '音乐', `《${s.name}》QQ 的逐字歌词没拿到：${e.message}`));
   if (!ne) get(q(src('vkeys') + '/lyric', { id: s.id }), 'json').then(j => {
     const d = j.data || {}, y = (d.yrc && d.yrc.lyric) || d.yrc, l = (d.lrc && d.lrc.lyric) || d.lrc;
     yrc = typeof y === 'string' ? parseYrc(y) : [];
