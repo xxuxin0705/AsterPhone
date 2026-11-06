@@ -111,7 +111,7 @@ const charCard = c => { const n = P.charSongs(c).length; return songCard({ name:
 const charList = () => state.contacts.map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
-  const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el); return el; }));
+  const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el, kids => { kids.forEach((x, i) => { state.contacts.find(c => c.id === x.dataset.id).songOrder = i; }); commit('contacts'); }); return el; }));
   // 随剧情加歌：上面一行写着现在是谁、多久加一首；点「选择」→ 卡片左上角出勾，底下「全选 · 随剧情加歌 · 取消」，勾上的人就是会加歌的人
   const label = h('span'), freq = h('button.as-mu-chip', { onclick: async () => {
     const v = await actionSheet('多久加一首', [{ value: 'every', label: '每楼都加', active: M().songFreq !== 'maybe' }, { value: 'maybe', label: '想到才加', active: M().songFreq === 'maybe' }]);
@@ -141,44 +141,44 @@ function openAllChars() {
   p.body.append(h('div.as-mu-story', label, h('span.as-mu-story__r', freq, h('button.as-mu-chip', { onclick: () => pick(!picked) }, '选择'))), grid);
   paintBar();
   nav.push(p.el);
-  // 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的格子就让位，别的格子滑过去；松手落回空位，存顺序
-  function sortable(el) {
-    onLongPress(el, e0 => {
-      let x0 = e0.clientX, y0 = e0.clientY, px = x0, py = y0;
-      const place = () => { el.style.transform = `translate(${px - x0}px, ${py - y0}px) scale(1.08)`; };
-      el.classList.add('is-dragging'); el.style.transition = 'transform 150ms ease, box-shadow 150ms'; place();
-      setTimeout(() => { if (el.classList.contains('is-dragging')) el.style.transition = 'box-shadow 150ms'; }, 150);
-      navigator.vibrate && navigator.vibrate(10);
-      const move = e => {
-        e.stopPropagation();   // 别让「右滑返回」也收到
-        px = e.clientX; py = e.clientY; place();
-        const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return px > r.left && px < r.right && py > r.top && py < r.bottom; });
-        if (!over) return;
-        const r = over.getBoundingClientRect(), ref = px > r.left + r.width / 2 ? over.nextSibling : over;
-        if (ref === el || ref === el.nextSibling) return;   // 本来就在那儿
-        // 先记下每格的位置，挪完再让它们从旧位置滑到新位置
-        const kids = [...grid.children], was = new Map(kids.map(k => [k, k.getBoundingClientRect()]));
-        grid.insertBefore(el, ref);
-        kids.forEach(k => {
-          if (k === el) return;
-          const a = was.get(k), b = k.getBoundingClientRect(); if (a.left === b.left && a.top === b.top) return;
-          k.style.transition = 'none'; k.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
-          requestAnimationFrame(() => { k.style.transition = 'transform 220ms ease'; k.style.transform = ''; });
-        });
-        // 自己换了格子：起点跟着挪，还是在手指底下
-        const a = was.get(el), b = el.getBoundingClientRect(); x0 += b.left - a.left; y0 += b.top - a.top; place();
-      };
-      const noScroll = e => e.preventDefault();
-      const up = () => {
-        removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
-        el.style.transition = 'transform 200ms ease, box-shadow 200ms'; el.style.transform = ''; el.classList.remove('is-dragging');
-        setTimeout(() => { el.style.transition = ''; }, 220);
-        [...grid.children].forEach((x, i) => { state.contacts.find(c => c.id === x.dataset.id).songOrder = i; });
-        commit('contacts');
-      };
-      addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true); addEventListener('touchmove', noScroll, { passive: false });
-    });
-  }
+}
+/** 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的就让位，别的滑过去；松手落回空位，done 里存顺序。vert：上下排的一列（不是格子） */
+function sortable(el, done, vert) {
+  onLongPress(el, e0 => {
+    const grid = el.parentNode;
+    let x0 = e0.clientX, y0 = e0.clientY, px = x0, py = y0;
+    const place = () => { el.style.transform = `translate(${vert ? 0 : px - x0}px, ${py - y0}px) scale(${vert ? 1.03 : 1.08})`; };
+    el.classList.add('is-dragging'); el.style.transition = 'transform 150ms ease, box-shadow 150ms'; place();
+    setTimeout(() => { if (el.classList.contains('is-dragging')) el.style.transition = 'box-shadow 150ms'; }, 150);
+    navigator.vibrate && navigator.vibrate(10);
+    const move = e => {
+      e.stopPropagation();   // 别让「右滑返回」也收到
+      px = e.clientX; py = e.clientY; place();
+      const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return (vert || (px > r.left && px < r.right)) && py > r.top && py < r.bottom; });
+      if (!over) return;
+      const r = over.getBoundingClientRect(), ref = (vert ? py > r.top + r.height / 2 : px > r.left + r.width / 2) ? over.nextSibling : over;
+      if (ref === el || ref === el.nextSibling) return;   // 本来就在那儿
+      // 先记下每个的位置，挪完再让它们从旧位置滑到新位置
+      const kids = [...grid.children], was = new Map(kids.map(k => [k, k.getBoundingClientRect()]));
+      grid.insertBefore(el, ref);
+      kids.forEach(k => {
+        if (k === el) return;
+        const a = was.get(k), b = k.getBoundingClientRect(); if (a.left === b.left && a.top === b.top) return;
+        k.style.transition = 'none'; k.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
+        requestAnimationFrame(() => { k.style.transition = 'transform 220ms ease'; k.style.transform = ''; });
+      });
+      // 自己换了位置：起点跟着挪，还是在手指底下
+      const a = was.get(el), b = el.getBoundingClientRect(); x0 += b.left - a.left; y0 += b.top - a.top; place();
+    };
+    const noScroll = e => e.preventDefault();
+    const up = () => {
+      removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
+      el.style.transition = 'transform 200ms ease, box-shadow 200ms'; el.style.transform = ''; el.classList.remove('is-dragging');
+      setTimeout(() => { el.style.transition = ''; }, 220);
+      done([...grid.children]);
+    };
+    addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true); addEventListener('touchmove', noScroll, { passive: false });
+  });
 }
 async function heartMode() {
   try { const songs = await waiting('正在开启心动模式…', () => P.heartPick()); if (!songs) return; toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }
@@ -241,13 +241,12 @@ function openCharList(c) {
 function renderSearch(ctx) { ctx.find = searchIn(ctx.title, ctx.body, ctx.el); ctx.back = ctx.find.back; }
 /** 搜索框放进 title，下面的东西放进 body，host 是这一页。add：角色歌单的「加歌」（结果每行一个「+」，不分单曲 / 歌单 / 歌手） */
 function searchIn(title, body, host, add) {
-  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); },
-    oninput: e => !e.isComposing && typed(), oncompositionend: typed });   // 拼音还没选字的时候不联想
+  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); }, oninput: typed });   // 拼音还没选字也联想（安卓打英文也算还在选字，不然就像没联想）
   title.append(h('label.as-mu-search', icon('search', 16, 2), input));
   const hist = h('div'), home = h('div'), sug = h('div.as-mu-sug', { hidden: true }), res = h('div', { hidden: true });
   const show = el => [home, sug, res].forEach(x => { x.hidden = x !== el; });
   find.back = () => { if (home.hidden) { input.value = ''; show(home); return true; } };
-  // 联想：打字停半秒问一次，回来时字已经改了就不要；删光了回到搜索历史
+  // 联想：打字停一下问一次，回来时字已经改了就不要；删光了回到搜索历史
   let timer = 0;
   function typed() {
     clearTimeout(timer); const w = input.value.trim();
@@ -256,7 +255,7 @@ function searchIn(title, body, host, add) {
     timer = setTimeout(async () => {
       const r = await P.suggest(w).catch(e => { log('warn', '音乐', `「${w}」的联想没拿到：${e.message}`); return null; });
       if (input.value.trim() === w && !sug.hidden) paintSug(w, r);
-    }, 500);
+    }, 300);
   }
   const hl = (t, w) => { const i = t.toLowerCase().indexOf(w.toLowerCase()); return i < 0 ? [t] : [t.slice(0, i), h('em', t.slice(i, i + w.length)), t.slice(i + w.length)]; };
   // 搜索历史（钟表）· 最对得上的歌手 / 歌（点了进歌手页 / 直接放）· 联想词（点了就搜）
@@ -1085,19 +1084,18 @@ export function openPlayer() {
 function openQueue() {
   const Q = M().queue, box = h('div.as-mu-queue');
   const title = () => { s.el.querySelector('.as-sheet__title').textContent = `播放列表（${M().queue.length}）`; };
-  // ⋯：置顶（放到正在放的后面）/ 删除；只动这一行，不整个重画
+  // 长按一行拖着排顺序；⋯ 里删除；都只动这一行，不整个重画
   const row = x => {
     const el = h('div.as-mu-queue__row' + (x === P.current() ? '.is-cur' : ''), { role: 'button', onclick: () => { P.jump(M().queue.indexOf(x)); s.close(); } }, h('b', x.name), h('span', x.artist),
       h('button.as-mu-more', { 'aria-label': '更多', onclick: async e => {
         e.stopPropagation();
-        const v = await actionSheet(P.label(x), [{ value: 'top', label: '置顶', icon: 'next' }, { value: 'rm', label: '删除', icon: 'trash', danger: true }]);
-        if (v === 'top') { if (x === P.current()) { toast('正在放的就是它'); return; } P.queueNext(x); box.querySelector('.is-cur').after(el); toast('下一首放它'); }
-        if (v === 'rm') {
+        if ((await actionSheet(P.label(x), [{ value: 'rm', label: '删除', icon: 'trash', danger: true }])) === 'rm') {
           if (M().queue.length < 2) { toast('只剩这一首了'); return; }
           const cur = x === P.current(); P.queueDel(x); el.remove(); title();
           if (cur) box.children[M().idx]?.classList.add('is-cur');
         }
       } }, icon('more', 18, 3)));
+    el._s = x; sortable(el, kids => P.queueSet(kids.map(k => k._s)), true);
     return el;
   };
   box.append(...Q.map(row));

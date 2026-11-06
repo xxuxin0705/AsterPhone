@@ -257,6 +257,7 @@
 .as-mu-queue__row span { flex: 1; min-width: 0; font: 400 12px/1.3 var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-mu-queue__row .as-mu-more { flex: none; align-self: center; color: var(--as-color-text-2); }
 .as-mu-queue__row.is-cur b, .as-mu-queue__row.is-cur span { color: var(--as-color-accent); }
+.as-mu-queue__row.is-dragging { position: relative; z-index: 3; border-radius: 10px; background: var(--as-color-surface-solid); box-shadow: 0 8px 22px rgba(0,0,0,.16); }
 
 .as-mu-reviews { display: grid; gap: 14px; padding: 12px 14px 4px; }
 .as-mu-reviews:empty { padding: 0; }

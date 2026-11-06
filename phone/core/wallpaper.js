@@ -34,7 +34,8 @@ uniform sampler2D uDay, uNight, uFish, uFlD, uFlN; uniform vec2 uFlSzD, uFlSzN;
 uniform vec2 uRes; uniform float uImgAspect, uTime, uKind, uMixFrom, uMixTo, uUnlock;
 uniform vec4 uCrop;   // 自己的壁纸调过位置：只用图里 (x, y, 宽, 高) 这一块
 uniform vec3 uReveal; uniform vec4 uRipples[16]; uniform vec4 uFD[32], uFN[32]; uniform vec2 uMoonDay, uMoonNight; uniform vec2 uDrift; uniform float uZoom; uniform float uGlitch;
-float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+// 输入先绕回 0~64：手机 GPU 小数精度有限，格子坐标 + 时间一大，乘出来的数就没小数了，闪光会变成一块一块的
+float hash(vec2 p){ p = fract(mod(p, 64.)*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
 float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }

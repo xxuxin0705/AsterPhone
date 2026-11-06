@@ -417,6 +417,7 @@ export function queueNext(s) {
   const Q = M().queue.filter(x => x.id !== s.id); Q.splice(Q.indexOf(c) + 1, 0, s); requeue(Q);   // 不在播放列表里的歌（搜出来的）也能插进来
 }
 /** 从播放列表里删掉；删的是正在放的就先切到下一首 */
+export const queueSet = requeue;   // 播放列表里拖着排好的顺序
 export function queueDel(s) { if (s === current()) next(); requeue(M().queue.filter(x => x !== s)); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];
 export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); return MODES[(i + 1) % MODES.length]; }
