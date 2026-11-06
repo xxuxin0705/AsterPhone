@@ -458,7 +458,7 @@
 .as-isl__mini { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 8px 0 4px; }
 .as-isl__cov { width: 16px; height: 16px; border-radius: 4px; background: #333 center / cover; }
 .as-isl__wave { display: flex; align-items: center; gap: 2px; height: 12px; }
-.as-isl__wave i { width: 2.5px; height: 30%; border-radius: 2px; background: var(--isl, currentColor); }
+.as-isl__wave i { width: 2.5px; height: 30%; border-radius: 2px; background: color-mix(in srgb, var(--isl, currentColor) 55%, currentColor); }   /* 歌词选了浅色，白底的岛上也看得见（和岛的字色掺一半） */
 .is-playing .as-isl__wave i { animation: as-isl-wave 900ms ease-in-out infinite; }
 .is-playing .as-isl__wave i:nth-child(2) { animation-delay: -300ms; } .is-playing .as-isl__wave i:nth-child(3) { animation-delay: -600ms; } .is-playing .as-isl__wave i:nth-child(4) { animation-delay: -150ms; }
 @keyframes as-isl-wave { 0%, 100% { height: 25%; } 50% { height: 100%; } }
