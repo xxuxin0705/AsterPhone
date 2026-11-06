@@ -123,11 +123,6 @@ void main(){
   } else if (uKind > .5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
-    float lum = dot(col, vec3(.3,.59,.11));
-    float sh = smoothstep(.58, .95, lum);
-    // 时间要绕回来：开久了 uTime 很大，hash 里乘出来的数精度不够，闪光会变成一块一块的
-    float n = noise(iuv*vec2(34.,90.) + mod(vec2(uTime*.6, -uTime*.5), 64.));
-    col += sh * pow(n, 4.) * .55;
   } else {
     // 云层上缓慢流动的光
     float n = fbm(iuv*vec2(2.2,3.6) + vec2(uTime*.016, uTime*.005));
