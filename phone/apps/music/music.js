@@ -9,7 +9,7 @@ import * as P from '../../core/music.js';
 import { log } from '../../core/log.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
-import { rain, isNight } from './rain.js';
+import { rain, isNight, hidden } from './rain.js';
 import { lyricFx } from './lyricfx.js';
 import { look, styleChoir, styleTop, font } from './tglook.js';
 import { useFont } from '../../core/floatlyric.js';
@@ -981,7 +981,7 @@ export function openPlayer() {
   }
   function loop() {
     cancelAnimationFrame(raf);
-    const go = () => { tick(); if (P.playing() && !p.el.classList.contains('is-behind')) raf = requestAnimationFrame(go); };
+    const go = () => { if (!hidden()) tick(); if (P.playing() && !p.el.classList.contains('is-behind')) raf = requestAnimationFrame(go); };   // 手机收起 / 锁着时不动歌词，省得白忙
     go();
   }
   async function skin() {

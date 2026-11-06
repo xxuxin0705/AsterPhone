@@ -29,6 +29,7 @@ export function open(opts = {}) {
   unsub = subscribe(what => { if (what === 'chats' || what === 'all') renderTabBadge(); });
   renderTabBadge();
   P.el._onShow = () => { cur && TABS.find(t => t.id === cur).refresh?.(); rerender(); };
+  P.el._onLeave = () => { cleanup && cleanup(); cleanup = null; unsub(); unsub = null; };   // 关掉 App 就别再跟着数据变化重画了
   return P.el;
 }
 export function afterOpen(opts = {}) { if (opts.chat) { const c = chatOf(opts.chat); if (c) setTimeout(() => openRoom(c), 120); } }

@@ -27,9 +27,10 @@ export function initHome() {
   setInterval(renderWidget, 1000);
   renderWidget(); renderBadges();
 }
+let wKey = '';
 export function renderWidget() {
   if (!wTime) return;
-  const n = time.now();
+  const n = time.now(), k = n.hm + n.ap + n.date + n.sub; if (k === wKey) return; wKey = k;   // 每秒都来一次：没变就什么都不碰
   wTime.textContent = n.hm; if (n.ap) wTime.appendChild(h('small', n.ap)); wDate.textContent = n.date; wSub.textContent = n.sub;
 }
 export function renderBadges() {

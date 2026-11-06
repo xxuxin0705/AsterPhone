@@ -174,8 +174,8 @@ export function openBoard({ list }) {
     a.addEventListener('pointerup', stop); a.addEventListener('pointercancel', stop);
     a.addEventListener('contextmenu', e => e.preventDefault());
   }
-  window.addEventListener('pointermove', e => { if (!avDrag) return; const b = B(); avDrag.g.style.left = e.clientX - b.left + 'px'; avDrag.g.style.top = e.clientY - b.top + 'px'; });
-  window.addEventListener('pointerup', e => {
+  const avMove = e => { if (!avDrag) return; const b = B(); avDrag.g.style.left = e.clientX - b.left + 'px'; avDrag.g.style.top = e.clientY - b.top + 'px'; };
+  const avUp = e => {
     if (!avDrag) return;
     const { g, person } = avDrag; avDrag = null; g.remove(); quietUntil = performance.now() + 350;
     const t = tiles.find(o => o.kind === 'tts' && !o.el.hidden && (r => e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom)(o.el.getBoundingClientRect()));
@@ -184,7 +184,8 @@ export function openBoard({ list }) {
     const P = V().people[pk(person.id)] || (V().people[pk(person.id)] = { conn: '', voices: {} });
     P.conn = t.c.id === (defaultConn() || {}).id ? '' : t.c.id; saveVoice(); paintVoices();
     toast(P.conn ? `${person.name}改用「${t.c.name}」说话` : `${person.name}跟随「语音」线`);
-  }, true);
+  };
+  window.addEventListener('pointermove', avMove); window.addEventListener('pointerup', avUp, true);
   p.body.addEventListener('touchmove', e => { if (avDrag) e.preventDefault(); }, { passive: false });
   /** 格子上写着「哪几根线插在我这」 */
   function syncUses() {
@@ -644,7 +645,7 @@ export function openBoard({ list }) {
   nav.push(p.el);
   updateTiles();
   requestAnimationFrame(() => { resize(); placePlugs(true); layoutLabels(); last = performance.now(); raf = requestAnimationFrame(step); });
-  const mo = new MutationObserver(() => { if (!p.el.isConnected && p.el._wasIn) { alive = false; cancelAnimationFrame(raf); ocean.stop(); unsub(); mo.disconnect(); window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); } if (p.el.isConnected) p.el._wasIn = true; });
+  const mo = new MutationObserver(() => { if (!p.el.isConnected && p.el._wasIn) { alive = false; cancelAnimationFrame(raf); ocean.stop(); unsub(); mo.disconnect(); window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); window.removeEventListener('pointermove', avMove); window.removeEventListener('pointerup', avUp, true); } if (p.el.isConnected) p.el._wasIn = true; });
   setTimeout(() => { p.el._wasIn = p.el.isConnected; if (p.el.parentNode) mo.observe(p.el.parentNode, { childList: true }); }, 0);
   return p;
 }

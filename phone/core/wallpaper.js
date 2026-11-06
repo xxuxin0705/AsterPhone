@@ -197,7 +197,7 @@ export function drawFishBody(ctx, x, y, ang, L, phase) {
 export class Wallpaper {
   constructor({ gl: glc, fx: fxc, host, base }) {
     this.glc = glc; this.fxc = fxc; this.host = host; this.base = base;
-    this.kind = 'castle'; this.images = {}; this.atlas = {};
+    this.kind = 'castle'; this.images = {}; this.atlas = {}; this.bound = {};   // bound：哪套自带的图已经传给显卡了
     this.mix = { from: 0, to: 0, start: -10, dur: 1.1, cx: .5, cy: .2 };
     this.unlock = { from: 0, to: 0, start: -10, dur: .55 };
     this.glitchT = -10; this.ripples = new Float32Array(64); this.rIdx = 0; this.lastDrop = { t: -1, x: 0, y: 0 }; this.finger = null; this.prevFinger = null; this.initFlowers(); this.swingKick = 0; this.startle = 0;
@@ -224,15 +224,18 @@ export class Wallpaper {
     this.resize();
     try { this.initGL(); } catch (e) { console.warn('[AsterPhone] WebGL 不可用，改用静态壁纸', e); this.gl = null; }
     const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = this.base + src; });
-    const all = [];
-    for (const k of Object.keys(WALLPAPERS)) for (const f of ['day', 'night']) all.push(load(WALLPAPERS[k][f]).then(i => { this.images[k + f] = i; }));
+    // 只等现在要用的这套图（自己的图一张都不用等），另一套在后台慢慢读；读好时正好换到了它，就再绑一次
+    const sets = {};
+    for (const k of Object.keys(WALLPAPERS)) {
+      const C = WALLPAPERS[k], L = ['day', 'night'].map(f => load(C[f]).then(i => { this.images[k + f] = i; }));
+      // 城堡的花：底图（花头抠掉）+ 花头图集，四张都到了才让花动，不然就用原图静止
+      if (C.plateDay) L.push(Promise.all([C.plateDay, C.plateNight, C.flowersDay, C.flowersNight].map(load))
+        .then(([pd, pn, fd, fn]) => { this.plate = { day: pd, night: pn }; this.flImg = { day: fd, night: fn }; }).catch(() => {}));
+      sets[k] = Promise.allSettled(L).then(() => { if (this.kind === k && this.gl && !this.bound[k]) this.bind(); });
+    }
     load(WALLPAPERS.castle.starsDay).then(i => { this.atlas.day = i; }).catch(() => {});
     load(WALLPAPERS.castle.starsNight).then(i => { this.atlas.night = i; }).catch(() => {});
-    // 城堡的花：底图（花头抠掉）+ 花头图集，四张都到了才让花动，不然就用原图静止
-    const C = WALLPAPERS.castle;
-    all.push(Promise.all([C.plateDay, C.plateNight, C.flowersDay, C.flowersNight].map(load))
-      .then(([pd, pn, fd, fn]) => { this.plate = { day: pd, night: pn }; this.flImg = { day: fd, night: fn }; }).catch(() => {}));
-    await Promise.allSettled(all);
+    if (sets[this.kind]) await sets[this.kind];
     this.bind();
     this.resume();
   }
@@ -292,7 +295,7 @@ export class Wallpaper {
     this.glc.style.background = '';
     if (gl && this.images[k + 'day'] && this.images[k + 'night']) {
       const fl = k === 'castle' && this.plate && this.flImg;
-      this.flowersOn = !!fl;
+      this.flowersOn = !!fl; this.bound[k] = true;
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.day);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fl ? this.plate.day : this.images[k + 'day']);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.tex.night);

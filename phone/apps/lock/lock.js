@@ -93,11 +93,11 @@ function bindSwipe() {
 let shown = '';
 export function renderClock(force) {
   const n = time.now();
+  if (n.hm === shown && n.date === dateEl.textContent && !force) return;   // 每秒都来一次：时间没变就什么都不碰
   const sb = $('#sbTime'); if (sb) sb.textContent = n.hm;
   dateEl.textContent = n.date;
   clockEl.dataset.font = fontKey((state.settings.clock || {}).font);
   clockEl.dataset.ap = n.ap; clockEl.dataset.apSide = (state.settings.clock || {}).lang === 'en' ? 'after' : 'before';
-  if (n.hm === shown && !force) return;
   if (force || n.hm.length !== shown.length || clockEl.children.length !== n.hm.length) {
     clockEl.innerHTML = '';
     [...n.hm].forEach(ch => clockEl.appendChild(ch === ':' ? h('span.as-lock-clock__colon', ':') : h('span.as-lock-clock__digit', h('span', ch))));

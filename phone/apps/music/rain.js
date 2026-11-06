@@ -2,12 +2,14 @@
 // 当前这句跟着唱一个字一个字掉下来，刚好在唱到时落到水面排成一行（太长分两行），水里有倒影；
 // 下一句开始往下掉时，上一句从左到右像水珠一样「啪」地碎掉化开。字的位置全按播放时间算，拖进度、暂停都对得上。
 import * as P from '../../core/music.js';
+import { shell } from '../../core/shell.js';
 
 const FONT = '"Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif';
 const WIDE = '぀-ヿ㐀-鿿가-힯＀-￯　-〿“”‘’…—';
 const TOK = new RegExp(`[${WIDE}]|[^\\s${WIDE}]+|\\s+`, 'g');   // 中日韩一个字一块，外文一个词一块
 const FALL = .55, POP = .38, GAP = .045, SIZE = 26, MIN = 18, TR = 18;
 export const isNight = () => document.querySelector('.as-phone')?.dataset.mode === 'night';   // 跟着手机的白天 / 夜间模式
+export const hidden = () => !shell.visible || document.querySelector('.as-phone')?.classList.contains('is-locked');   // 手机收起了 / 锁着：看不见的动画别画
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
@@ -22,7 +24,7 @@ export function rain(cv, page) {
   const drop = top => { const z = Math.random(); return { x: Math.random() * W, y: top ? -Math.random() * H * .4 : Math.random() * H * .9, z, l: 6 + z * 18, v: 380 + z * 560, end: ground + 4 + z * (H - ground - 4) }; };
 
   function size() {
-    const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+    const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);   // 和壁纸一样最多 2 倍：3 倍屏画雨和字（带阴影）太费
     if (r.width === W && r.height === H) return;
     W = r.width; H = r.height; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0);
     // 背景图里水面在 64% 这一带；但字、倒影、翻译（最多两行）不能压到下面的歌名，屏幕矮时往上提
@@ -63,7 +65,10 @@ export function rain(cv, page) {
 
   function frame(now) {
     if (page.classList.contains('is-behind') || page.classList.contains('is-lrc') || !page.isConnected) { raf = 0; return; }
-    const dt = Math.min(.05, (now - last) / 1000 || 0); last = now; size();
+    raf = requestAnimationFrame(frame);
+    const dt = Math.min(.05, (now - last) / 1000 || 0); last = now;
+    if (hidden()) return;
+    size();
     ctx.clearRect(0, 0, W, H);
     for (const d of drops) {
       d.y += d.v * dt;
@@ -94,7 +99,6 @@ export function rain(cv, page) {
       b.vy += 600 * dt; b.x += b.vx * dt; b.y += b.vy * dt; ctx.fillRect(b.x, b.y, 1.3, 1.3);
     }
     words(P.now(), now / 1000);
-    raf = requestAnimationFrame(frame);
   }
 
   function words(t, clock) {

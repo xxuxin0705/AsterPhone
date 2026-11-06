@@ -95,9 +95,11 @@ const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', '
 export let win = { key: '', card: '', label: '' };
 let entered = false;
 async function saveNow() {
-  const s = JSON.parse(JSON.stringify(state)), w = { label: win.label };
-  SCOPED.forEach(k => { w[k] = s[k]; delete s[k]; });
-  await Promise.all([kvSet('state', s), entered && kvSet('win:' + win.key, w)]);   // 还没认出是哪个窗口前不写，免得空数据盖掉
+  // 浅拷贝就够（存进 IndexedDB 时它自己会复制一份）；整个 JSON 转一遍再转回来，放歌时每 5 秒一次，手机上会顿一下
+  const split = s => { const w = { label: win.label }; SCOPED.forEach(k => { w[k] = s[k]; delete s[k]; }); return [s, w]; };
+  const write = ([s, w]) => Promise.all([kvSet('state', s), entered && kvSet('win:' + win.key, w)]);   // 还没认出是哪个窗口前不写，免得空数据盖掉
+  try { await write(split({ ...state })); }
+  catch (e) { if (e.name !== 'DataCloneError') throw e; await write(split(JSON.parse(JSON.stringify(state)))); }   // 里面混进了存不了的东西（函数之类）：按老办法过一遍 JSON
 }
 const persist = debounce(() => saveNow().catch(e => console.error('[AsterPhone] 保存失败', e)), 300);
 /** 换到另一个窗口（w = bridge 的 chatWindow()，没开聊天是 null）。真的换了返回 true */

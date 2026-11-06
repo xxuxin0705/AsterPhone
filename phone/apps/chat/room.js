@@ -165,7 +165,17 @@ export async function openRoom(chat) {
     if (animId || !keepScroll || atBottom) list.scrollTo({ top: list.scrollHeight, behavior: animId ? 'smooth' : 'auto' });
     else list.scrollTop = oldTop + (list.scrollHeight - oldH);
   }
-  function append(m) { shown++; redraw(false, m.id); }
+  // 来了一条新消息：只往后加这一条（上一条的「送达 / 时间」要跟着变，就只换上一条那一行），不整个列表重画（头像重新解码会闪）
+  function append(m) {
+    shown++;
+    const i = msgs.indexOf(m), prev = msgs[i - 1], old = prev && list.querySelector(`.as-chat-msg[data-id="${prev.id}"]`);
+    if (i < 0 || (prev && !old)) { redraw(false, m.id); return; }
+    if (old) old.replaceWith(msgNode(prev, msgs[i - 2], m).pop());
+    list.querySelector('.as-chat-typing-row')?.remove();
+    list.append(...msgNode(m, prev, msgs[i + 1], true));
+    if (E.busy.has(chat.id)) list.appendChild(typingNode());
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  }
   const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them && !g ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
   function applyBg() { list.style.backgroundImage = chat.cfg.bg ? `url(${chat.cfg.bg})` : ''; }
 
