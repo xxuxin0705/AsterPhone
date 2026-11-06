@@ -41,7 +41,9 @@ P.onMusic(w => { if (w === 'blocked') toast('点一下播放键开始放'); if (
 const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['radio', '电台', renderRadio], ['me', '我的', renderMe]];
 let cur = null;
 export function open() {
-  const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root' });
+  // 搜索页看着结果 / 联想时按返回，先回到搜索历史，再按才退出 App（手势往回滑也一样）
+  const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root', onBack: () => (ctx.back && ctx.back()) || nav.back() });
+  p.el._onBack = () => ctx.back && ctx.back();
   const titleEl = p.nav.querySelector('.as-navbar__title'), rightEl = p.nav.querySelector('.as-navbar__right');
   const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.map(([id, label]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, label)));
   const mini = miniBar(), meBg = h('div.as-mu-mebg');
@@ -56,7 +58,7 @@ export function open() {
     if (cur === id) { p.body.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     cur = id;
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.tab === id));
-    p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me');
+    p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me'); ctx.back = null;
     titleEl.replaceChildren(); rightEl.replaceChildren(); p.body.innerHTML = ''; p.body.scrollTop = 0; p.el._onShow = null;
     TABS.find(t => t[0] === id)[2](ctx);
   }
@@ -236,7 +238,7 @@ function openCharList(c) {
 }
 
 /* ================= 搜索：搜索历史、试试这些（语种风格 + 常听的歌手）；搜了结果就在搜索框下面 ================= */
-function renderSearch(ctx) { ctx.find = searchIn(ctx.title, ctx.body, ctx.el); }
+function renderSearch(ctx) { ctx.find = searchIn(ctx.title, ctx.body, ctx.el); ctx.back = ctx.find.back; }
 /** 搜索框放进 title，下面的东西放进 body，host 是这一页。add：角色歌单的「加歌」（结果每行一个「+」，不分单曲 / 歌单 / 歌手） */
 function searchIn(title, body, host, add) {
   const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); },
@@ -244,6 +246,7 @@ function searchIn(title, body, host, add) {
   title.append(h('label.as-mu-search', icon('search', 16, 2), input));
   const hist = h('div'), home = h('div'), sug = h('div.as-mu-sug', { hidden: true }), res = h('div', { hidden: true });
   const show = el => [home, sug, res].forEach(x => { x.hidden = x !== el; });
+  find.back = () => { if (home.hidden) { input.value = ''; show(home); return true; } };
   // 联想：打字停半秒问一次，回来时字已经改了就不要；删光了回到搜索历史
   let timer = 0;
   function typed() {
@@ -301,10 +304,12 @@ function searchIn(title, body, host, add) {
       lists.replaceChildren(...(L.length ? L.map(listRow) : [empty('没搜到歌单')]), h('div.as-mu-gap'));
     };
     const tabs = [['song', '单曲'], ...(P.ne ? [['list', '歌单']] : []), ['singer', '歌手']];
-    res.replaceChildren(h('div.as-mu-seg.is-res', segmented(tabs, 'song', k => {
+    const bar = h('nav.as-mu-stabs', { role: 'tablist' }, tabs.map(([k, l]) => h('button' + (k === 'song' ? '.is-active' : ''), { role: 'tab', onclick: e => {
+      [...bar.children].forEach(b => b.classList.toggle('is-active', b === e.currentTarget));
       box.body.hidden = k !== 'song'; lists.hidden = k !== 'list'; singers.hidden = k !== 'singer';
       if (k === 'list') paintLists(); if (k === 'singer') paintSingers();
-    })), box.body, lists, singers);
+    } }, l)));
+    res.replaceChildren(bar, box.body, lists, singers);
   }
 }
 

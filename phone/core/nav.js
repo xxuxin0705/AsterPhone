@@ -135,7 +135,7 @@ function enableSwipe() {
   }
   function finish(go) {
     cur.el.style.transition = ''; if (prev) prev.el.style.transition = '';
-    if (go && single) { closeApp(true); return; }
+    if (go && single) { if (cur.el._onBack && cur.el._onBack()) { cur.el.style.transform = ''; cur.el.style.borderRadius = ''; return; } closeApp(true); return; }
     if (go) { cur.el.style.transform = ''; cur.el.style.borderRadius = ''; if (prev) prev.el.style.transform = ''; back(); }
     else { cur.el.style.transform = ''; cur.el.style.borderRadius = ''; if (prev) prev.el.style.transform = ''; }
   }
