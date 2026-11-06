@@ -11,12 +11,13 @@
 | 用在哪 | 是什么 | 许可 |
 |---|---|---|
 | `server-plugin`（扫码 / 手机号登录、搜歌、歌单、歌词、播放地址…） | NeteaseCloudMusicApi 4.32.0，https://www.npmjs.com/package/NeteaseCloudMusicApi | MIT |
+| `server-plugin`（QQ 音乐扫码登录、自己的歌单、会员播放地址） | @sansenjian/qq-music-api 2.6.0，https://www.npmjs.com/package/@sansenjian/qq-music-api | MIT |
 
 ## 二、只参考了思路、代码是自己写的（不强制，标上更礼貌）
 
 | 用在哪 | 参考了什么 | 来源 | 许可 |
 |---|---|---|---|
-| `server-plugin/index.js`（改用 NeteaseCloudMusicApi 这个主意、二维码用 web 方式） | 作者发的「你自己的音乐源」插件，https://github.com/libertyseeyou/yourownmusicapiforST | MIT | 只参考思路 |
+| `server-plugin/index.js`（改用 NeteaseCloudMusicApi 这个主意、二维码用 web 方式；QQ 登录用 qq-music-api、凭证存文件、从 cookie 里取 uin） | 作者发的「你自己的音乐源」插件，https://github.com/libertyseeyou/yourownmusicapiforST | MIT | 只参考思路 |
 | `server-plugin/index.js`（早先的网易云接口地址、扫码登录的流程） | 哪些网易云接口不用加密就能调、扫码登录各个状态码的意思 | Anko3o/music-mcp-netease，https://github.com/Anko3o/music-mcp-netease | CC BY-NC-SA 4.0（不能商用；**如果以后照搬它的代码**，整个项目也得用同样的许可、不能商用，所以只学思路） |
 | 电台（哄睡）页面的 2.5D 画风 | 小红书 Toska 的前端（窗台 / 书桌，three.js，AGPL-3.0） | 只参考画风，不用它的代码和图 |
 | 播放页「碎语 / 群唱」 | 全屏动态歌词的几种样子 | Folia（辞曲新境），AGPL-3.0 | 只参考样子，代码自己写，没用它的代码和图 |

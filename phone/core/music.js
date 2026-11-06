@@ -32,10 +32,10 @@ export const isQ = s => !!s && s.src === 'qq';
 // 同一首歌两边都有：歌名 + 第一个歌手对得上就算同一首
 const key = s => (s.name + '|' + s.artist.split(/[/、,，&]/)[0]).toLowerCase().replace(/\s+/g, '');
 
-/* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云，登录后会员歌也能放 ----------
+/* ---------- 酒馆插件（只有本地酒馆能装）：装了就让它替手机连网易云 / QQ 音乐，登录后会员歌也能放 ----------
  * 没装、或者在 Tauri Tavern 里，问一次就知道（回的不是它的 JSON），之后全走上面的公共音源。 */
 const BE = '/api/plugins/asterphone';
-export let ne = null;   // null = 没有插件；{ me } = 有插件（me 为空 = 没登录）
+export let ne = null;   // null = 没有插件；{ me, qq } = 有插件（me = 网易云的我，qq = QQ 的我；空 = 没登录）
 async function be(p, post) {
   const r = await fetch(BE + p, post ? { method: 'POST', headers: { ...(ctx()?.getRequestHeaders?.() || {}), 'Content-Type': 'application/json' }, body: JSON.stringify(post) } : {});
   if (!/json/.test(r.headers.get('content-type') || '')) throw new Error('没装酒馆插件');
@@ -53,6 +53,10 @@ export const nePhone = (phone, captcha) => be('/phone', { phone, captcha }).then
 export const neLogout = () => be('/logout', {}).then(j => { ne.me = null; ne.borrow = j.borrow; tell('ne'); });
 export const neDaily = () => be('/daily');
 export const neLists = () => be('/playlists');
+export const qqQr = () => be('/qq/qr');
+export const qqQrCheck = key => be('/qq/qr/check?key=' + encodeURIComponent(key)).then(j => { if (j.qq) { ne.qq = j.qq; tell('ne'); } return j; });
+export const qqLogout = () => be('/qq/logout', {}).then(() => { ne.qq = null; tell('ne'); });
+export const qqLists = () => be('/qq/playlists');
 
 /* ---------- 找歌：两边一起搜，混在一起（一首网易云一首 QQ 轮着来，同一首只留先来的）；登录了网易云就网易云的全排前面 ---------- */
 async function neSearch(word, page) {
@@ -106,9 +110,13 @@ export async function findSong(text) {
 export async function playlist(id) {
   let out;
   if (id[0] === 'q') {
-    out = []; let info;
-    for (let page = 1, got = 60; got === 60 && out.length < 500; page++) { const d = await qq('/dissinfo', { id: id.slice(1), page, num: 60 }); info = d.info || info; got = (d.list || []).length; out.push(...d.list.map(qsong).filter(s => s.id && s.name)); }
-    Object.assign(out, { title: (info || {}).title || '', pic: https((info || {}).picurl) });
+    const j = ne ? await be('/qq/playlist?id=' + id).catch(() => null) : null;   // 登录了 QQ 的话，自己没公开的歌单也读得到
+    out = j && j.songs.length ? Object.assign(j.songs, { title: j.title, pic: j.pic }) : null;
+    if (!out) {
+      out = []; let info;
+      for (let page = 1, got = 60; got === 60 && out.length < 500; page++) { const d = await qq('/dissinfo', { id: id.slice(1), page, num: 60 }); info = d.info || info; got = (d.list || []).length; out.push(...d.list.map(qsong).filter(s => s.id && s.name)); }
+      Object.assign(out, { title: (info || {}).title || '', pic: https((info || {}).picurl) });
+    }
   } else {
     const j = ne ? await be('/playlist?id=' + id).catch(() => null) : null;
     out = j && j.length ? j : (await get(meting('playlist', id), 'json').then(j => Array.isArray(j) ? j : [])).map(x => ({ id: String(x.id || (String(x.url).match(/id=(\d+)/) || [])[1] || ''), name: x.name || x.title || '', artist: x.artist || x.author || '未知歌手', pic: https(x.pic) })).filter(s => s.id && s.name);
@@ -284,7 +292,7 @@ async function qqUrl(s) {
   qurls.set(s.id, { url, at: Date.now() });
   return url;
 }
-const urlsOf = async s => isQ(s) ? [await qqUrl(s)].filter(Boolean) : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
+const urlsOf = async s => isQ(s) ? [...(ne && ne.qq ? [`${BE}/qq/audio?mid=${s.id}`] : []), await qqUrl(s)].filter(Boolean) : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
   const urls = f ? [URL.createObjectURL(f)] : await urlsOf(twin || s);
@@ -316,9 +324,8 @@ async function startChain(s, f, autoplay) {
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  let r = ne && !isQ(s) ? await fetch(`${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
-  const u = isQ(s) ? await qqUrl(s) : meting('url', s.id); if (!u) throw new Error('没有链接');
-  if (!r || !r.ok) r = await fetch(u, { signal });
+  let r = ne && (!isQ(s) || ne.qq) ? await fetch(isQ(s) ? `${BE}/qq/audio?mid=${s.id}` : `${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
+  if (!r || !r.ok) { const u = isQ(s) ? await qqUrl(s) : meting('url', s.id); if (!u) throw new Error('没有链接'); r = await fetch(u, { signal }); }
   if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
   return r.body;
 }

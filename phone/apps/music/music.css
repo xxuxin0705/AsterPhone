@@ -119,7 +119,7 @@
 .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet { border-radius: 26px 26px 0 0; background: rgba(255,255,255,.3);
   border: 1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -10px 30px rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.18);
   -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); }
-.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red) { background-color: rgba(255,255,255,.45); }
+.as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red, .is-green) { background-color: rgba(255,255,255,.45); }
 .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet :is(.as-mu-li > div span, .as-mu-sheet__h span) { color: rgba(0,0,0,.55); }
 .as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-dock { background: none; }
 .as-mu-root.is-dark:has(.as-mu-mebg.has-img) :is(.as-mu-mini, .as-mu-tabs) { background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.6);
@@ -127,7 +127,7 @@
 .as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-tabs { margin-top: 8px; border-radius: 22px; }
 .as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) :is(.as-mu-sheet, .as-mu-mini, .as-mu-tabs) { background: rgba(0,0,0,.32); border-color: rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.25); }
 .as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet :is(.as-mu-li > div span, .as-mu-sheet__h span) { color: rgba(255,255,255,.6); }
-.as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red) { background-color: rgba(255,255,255,.12); }
+.as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red, .is-green) { background-color: rgba(255,255,255,.12); }
 .as-mu-me { display: grid; justify-items: center; padding: 6px 16px 22px; color: #fff; }
 .as-mu-me .as-avatar { box-shadow: 0 0 0 2.5px #fff; margin-bottom: 14px; }
 .as-mu-me > b { font: 600 19px/1.3 var(--font-ui); }
@@ -270,6 +270,7 @@
 .as-mu-only { display: flex; align-items: center; gap: 8px; margin: 4px; font: 400 14px/1.3 var(--font-ui); color: var(--as-color-text); cursor: pointer; }
 
 .as-mu-lcover.is-red { background: var(--mu-red); }
+.as-mu-lcover.is-green { background: #31c27c; }
 .as-mu-lcover.is-plus { background: #eceef2; color: #fc3d49; }
 .as-mu-collect { display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
 .as-mu-login { display: grid; justify-items: center; gap: 10px; padding: 4px 16px 20px; }

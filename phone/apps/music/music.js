@@ -330,7 +330,7 @@ function renderMe(ctx) {
   const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const en = () => clockCfg().lang === 'en';   // 关注、粉丝、听歌时长跟着锁屏时间的语言
   const paintHeard = () => { hearEl.textContent = heard(en()); };
-  const paintAll = keep(box, () => JSON.stringify([en(), M().likedInfo, me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length]]), () => {
+  const paintAll = keep(box, () => JSON.stringify([en(), M().likedInfo, me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length, P.ne.qq?.name, (qqL || []).length]]), () => {
     const plays = M().liked.reduce((n, s) => n + ((M().plays[s.id] || {}).n || 0), 0);   // 只算喜欢的这些歌放了几次
     const cover = (pic, heart) => h('span.as-mu-lcover', { style: { backgroundImage: bgUrl(pic) } }, heart ? icon('heart', 26, 0) : null);
     const u = me();
@@ -351,6 +351,10 @@ function renderMe(ctx) {
           h('div.as-mu-li', { role: 'button', onclick: openDaily }, h('span.as-mu-lcover.is-red', icon('sparkle', 22, 1.8)), h('div', h('b', '每日推荐'), h('span', '网易云 · ' + P.ne.me.name)),
             h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); neMenu(); } }, icon('more', 18, 3))),
           ...(neL || []).map(l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, null, l.pic) }, cover(l.pic), h('div', h('b', l.name), h('span', `网易云 · ${l.n} 首`))))]),
+        ...(!P.ne ? [] : !P.ne.qq ? [h('div.as-mu-li', { role: 'button', onclick: () => qqLogin(loadNe) }, h('span.as-mu-lcover.is-green', icon('link', 22, 2)), h('div', h('b', '登录 QQ 音乐'), h('span', '会员歌也能放')))] : [
+          h('div.as-mu-li', { role: 'button', onclick: qqMenu }, h('span.as-mu-lcover.is-green', icon('headphones', 22, 1.8)), h('div', h('b', 'QQ 音乐'), h('span', P.ne.qq.name)),
+            h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); qqMenu(); } }, icon('more', 18, 3))),
+          ...(qqL || []).map(l => h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, null, l.pic) }, cover(l.pic), h('div', h('b', l.name), h('span', `QQ 音乐 · ${l.n} 首`))))]),
         ...M().lists.map(l => { const el = h('div.as-mu-li', { role: 'button', onclick: () => openRemote(l.name, l.id, l) }, cover(listPic(l)),
           h('div', h('b', l.name), h('span', `歌单 · ${(l.songs || []).length} 首`)),
           h('button.as-mu-more', { 'aria-label': '更多', onclick: e => { e.stopPropagation(); delList(l); } }, icon('more', 18, 3)));
@@ -369,12 +373,17 @@ function renderMe(ctx) {
   ctx.el._onShow = paint;
   const loadNe = () => P.neReady.then(async () => {
     if (P.ne?.me && !neL) neL = await P.neLists().catch(e => { log('warn', '音乐', '读网易云歌单失败：' + e.message); return []; });
+    if (P.ne?.qq && !qqL) qqL = await P.qqLists().catch(e => { log('warn', '音乐', '读 QQ 歌单失败：' + e.message); return []; });
     paint();
   });
   loadNe();
   async function neMenu() {
     if ((await actionSheet('网易云 · ' + P.ne.me.name, [{ value: 'out', label: '退出登录', icon: 'close', danger: true }])) !== 'out') return;
     try { await P.neLogout(); neL = null; paint(); toast('退出了'); } catch (e) { log('error', '音乐', '退出网易云失败：' + e.message); toast('退出失败：' + e.message); }
+  }
+  async function qqMenu() {
+    if ((await actionSheet('QQ 音乐 · ' + P.ne.qq.name, [{ value: 'out', label: '退出登录', icon: 'close', danger: true }])) !== 'out') return;
+    try { await P.qqLogout(); qqL = null; paint(); toast('退出了'); } catch (e) { log('error', '音乐', '退出 QQ 音乐失败：' + e.message); toast('退出失败：' + e.message); }
   }
 
   async function delList(l) {
@@ -405,7 +414,7 @@ function renderMe(ctx) {
     } catch (e) { log('error', '音乐', '导入歌单失败：' + e.message); toast('导入失败：' + e.message); }
   }
 }
-let neL = null;   // 网易云里自己的歌单（登录后读一次）
+let neL = null, qqL = null;   // 网易云 / QQ 里自己的歌单（登录后读一次）
 /* ---------- 登录网易云（酒馆插件替手机记着，哪台设备登一次都行） ---------- */
 async function neLogin(after) {
   let q; try { q = await waiting('正在拿二维码…', () => P.neQr()); if (!q) return; toast('二维码好了'); } catch (e) { log('error', '音乐', '拿登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
@@ -437,6 +446,18 @@ async function neLogin(after) {
     const code = (await dialog({ title: '短信验证码', input: { placeholder: '验证码' }, confirm: '登录' }) || '').trim(); if (!code) return;
     try { if (await waiting('正在登录…', () => P.nePhone(phone, code).then(() => true))) done(P.ne.me.name); } catch (e) { log('error', '音乐', '手机号登录失败：' + e.message); toast('登录失败：' + e.message); }
   }
+}
+/* ---------- 登录 QQ 音乐：只有扫码（QQ 不给手机号登录） ---------- */
+async function qqLogin(after) {
+  let q; try { q = await waiting('正在拿二维码…', () => P.qqQr()); if (!q) return; toast('二维码好了'); } catch (e) { log('error', '音乐', '拿 QQ 登录二维码失败：' + e.message); toast('拿不到二维码：' + e.message); return; }
+  let t = 0;
+  const st = h('div.as-mu-login__st', '用手机 QQ 扫一扫'), qr = h('img.as-mu-login__qr', { src: q.img, alt: '登录二维码' });
+  const s = sheet({ title: '登录 QQ 音乐', onClose: () => clearInterval(t), content: h('div.as-mu-login', qr, st) });
+  t = setInterval(async () => {
+    const j = await P.qqQrCheck(q.key).catch(e => { log('error', '音乐', 'QQ 扫码登录出错：' + e.message); st.textContent = '出错了：' + e.message; return null; }); if (!j) return;
+    if (j.code === 800) { clearInterval(t); st.textContent = '二维码过期了，关掉再开一次'; }
+    else if (j.code === 803) { clearInterval(t); s.close(); toast('登录了：' + (j.qq ? j.qq.name : '')); after(); }
+  }, 2000);
 }
 async function openDaily() {
   try { const L = await waiting('正在读每日推荐…', () => P.neDaily()); if (!L) return; toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }

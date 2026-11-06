@@ -1,12 +1,14 @@
-// AsterPhone 的酒馆服务器插件（可选）：替手机去连网易云。
+// AsterPhone 的酒馆服务器插件（可选）：替手机去连网易云和 QQ 音乐。
 // 只有本地酒馆装得上；Tauri Tavern 没有它，手机就照旧用公共音源。
-// 连网易云用开源库 NeteaseCloudMusicApi（裸接口扫码会被网易云拦）。
-// 登录后的凭证只存在这个文件夹的 .netease_cred 里，只发给网易云。
+// 连网易云用开源库 NeteaseCloudMusicApi（裸接口扫码会被网易云拦），连 QQ 音乐用 @sansenjian/qq-music-api（照「你自己的音乐源」插件的做法，见 docs/credits.md）。
+// 登录后的凭证只存在这个文件夹的 .netease_cred / .qq_cred 里，只发给网易云 / QQ。
 const fs = require('fs');
 const path = require('path');
 const ncm = require('NeteaseCloudMusicApi');
+const qqSdk = require('@sansenjian/qq-music-api/sdk');
+const qqSvc = require('@sansenjian/qq-music-api/services');
 
-const CRED = path.join(__dirname, '.netease_cred');
+const CRED = path.join(__dirname, '.netease_cred'), QCRED = path.join(__dirname, '.qq_cred');
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
 let cookie = '', me = null;   // me：登录的人（昵称、头像、uid），null = 没登录或过期
 try { cookie = fs.readFileSync(CRED, 'utf8').trim(); } catch { /* 还没登录过 */ }
@@ -41,6 +43,44 @@ const wrap = fn => async (req, res) => {
   try { res.json(await fn(req, res)); }
   catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); }
 };
+/** 把歌曲文件转一手给前端（网易云、QQ 给的地址在别的域名，前端读不了内容；和酒馆同一个地址就能边下边续） */
+async function pipe(res, req, u) {
+  const r = await fetch(https(u), { headers: { 'User-Agent': UA, Referer: 'https://y.qq.com/', ...(req.headers.range ? { Range: req.headers.range } : {}) } });
+  res.status(r.status);
+  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) if (r.headers.get(h)) res.setHeader(h, r.headers.get(h));
+  const reader = r.body.getReader();
+  req.on('close', () => reader.cancel().catch(() => {}));
+  for (let x; !(x = await reader.read()).done;) if (!res.write(x.value)) await new Promise(ok => res.once('drain', ok));
+  res.end();
+}
+
+/* ---------- QQ 音乐：扫码登录、你的歌单、会员音质。搜歌、歌词、联想手机自己走公共音源，这里不管 ---------- */
+let qcookie = '', qme = null;   // qme：{ uin, name, avatar }，null = 没登录
+try { qcookie = fs.readFileSync(QCRED, 'utf8').trim(); } catch { /* 还没登录过 */ }
+const quin = () => ((qcookie.match(/(?:^|;\s*)(?:uin|wxuin)=o?(\d+)/i) || [])[1] || '').replace(/^0+/, '');   // QQ 的 uin 前面会补 0
+const qbody = r => { const b = (r && r.body) || {}; if (b.error) throw new Error(typeof b.error === 'string' ? b.error : b.message || 'QQ 音乐回了错误'); return b; };
+const qsong = x => ({ id: String(x.mid || x.songmid || ''), src: 'qq', name: x.name || x.songname || x.title || '', artist: (x.singer || []).map(a => a.name).filter(Boolean).join(' / ') || '未知歌手',
+  pic: (x.album || {}).mid || x.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${(x.album || {}).mid || x.albummid}.jpg` : '', ...(x.vid || (x.mv || {}).vid ? { vid: x.vid || x.mv.vid } : {}) });
+const qlist = p => ({ id: 'q' + p.dissid, name: p.title || p.dissname || '', pic: https(p.picurl || p.logo), n: +(p.songnum || 0) });
+async function qwhoami() {
+  qme = null; const uin = quin();
+  if (!qcookie || !uin) return;
+  qme = { uin, name: 'QQ ' + uin, avatar: '' };
+  try { const d = (qbody(await qqSvc.getUserDetail({ uin, cookie: qcookie })).response || {}).data || {}, c = d.creator || {}; if (c.nick) qme.name = c.nick; if (c.headpic) qme.avatar = https(c.headpic); } catch { /* 读不到名字就显示 QQ 号 */ }
+}
+function qsave(c) {
+  qcookie = c;
+  if (c) fs.writeFileSync(QCRED, c, { mode: 0o600 }); else fs.rmSync(QCRED, { force: true });
+  return qwhoami();
+}
+/** QQ 的播放链接（带登录凭证，会员的歌、高音质要登录才给）：先要 320k，不给退到 128k */
+async function qurl(mid) {
+  for (const quality of ['320', '128']) {
+    const b = qbody(await qqSdk.getPlayUrl({ songmid: mid, quality, cookie: qcookie }));
+    const u = (((b.data || {}).playUrl || {})[mid] || {}).url; if (u) return u;
+  }
+  return '';
+}
 
 // 网易云最近常拦新的登录，但已经登录过的凭证还能用：酒馆里别的音乐插件登录过的话，借它存的那份
 const other = () => {
@@ -53,8 +93,35 @@ const other = () => {
 };
 
 async function init(router) {
-  whoami().catch(() => {});
-  router.get('/status', wrap(() => ({ ok: true, me, borrow: !me && !!other() })));
+  whoami().catch(() => {}); qwhoami().catch(() => {});
+  router.get('/status', wrap(() => ({ ok: true, me, qq: qme, borrow: !me && !!other() })));
+  // QQ 扫码登录：要一张二维码 → 前端每两秒问一次 → 扫完把 QQ 给的登录凭证存下
+  router.get('/qq/qr', wrap(async () => { const b = qbody(await qqSdk.getQQLoginQr()); if (!b.img) throw new Error('QQ 没给二维码'); return { key: Buffer.from(JSON.stringify({ ptqrtoken: b.ptqrtoken, qrsig: b.qrsig })).toString('base64url'), img: b.img }; }));
+  router.get('/qq/qr/check', wrap(async req => {
+    const b = qbody(await qqSdk.checkQQLoginQr(JSON.parse(Buffer.from(String(req.query.key || ''), 'base64url').toString('utf8'))));
+    if (b.isOk && b.session && b.session.cookie) { await qsave(b.session.cookie); if (!qme) { await qsave(''); throw new Error('登录了，但凭证里没有 QQ 号'); } }
+    return { code: b.isOk ? 803 : b.refresh ? 800 : 801, qq: qme };   // 和网易云一样的码：803 登录了、800 二维码过期、801 等着扫
+  }));
+  router.post('/qq/logout', wrap(async () => { await qsave(''); return { qq: qme }; }));
+  router.get('/qq/playlists', wrap(async () => {
+    if (!qme) return [];
+    // 自己建的 + 收藏的；两个都失败才算失败
+    const [a, b] = await Promise.allSettled([qqSvc.getUserPlaylists({ uin: qme.uin, limit: 200, cookie: qcookie }).then(r => (qbody(r).response.data || {}).playlists || []), qqSvc.getUserCollectedSongLists({ uin: qme.uin, limit: 200, cookie: qcookie }).then(r => ((qbody(r).response || {}).data || {}).cdlist || [])]);
+    if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
+    return [...(a.value || []), ...(b.value || [])].filter(p => p.dissid).map(qlist);
+  }));
+  router.get('/qq/playlist', wrap(async req => {
+    const pl = ((qbody(await qqSvc.songListDetail({ method: 'get', params: { disstid: String(req.query.id).replace(/^q/, '') }, option: qcookie ? { headers: { Cookie: qcookie } } : {} })).response || {}).cdlist || [])[0];
+    if (!pl || !Array.isArray(pl.songlist)) throw new Error('QQ 没回歌单（可能不是公开的）');
+    return { title: pl.dissname || '', pic: https(pl.logo), songs: pl.songlist.map(qsong).filter(s => s.id && s.name) };
+  }));
+  router.get('/qq/audio', async (req, res) => {
+    try {
+      const u = await qurl(String(req.query.mid || ''));
+      if (!u) return res.status(404).json({ error: qme ? '这首歌放不了（下架或要单曲付费）' : '要会员，先登录 QQ 音乐' });
+      await pipe(res, req, u);
+    } catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); else res.end(); }
+  });
   router.post('/borrow', wrap(async () => {
     const f = other(); if (!f) throw new Error('没找到别的插件存的登录');
     await save(fs.readFileSync(f, 'utf8').trim());
@@ -101,11 +168,11 @@ async function init(router) {
     const r = web.result || {}, a = (r.artists || [])[0], s = (r.songs || [])[0], artist = a && { artist: a.name, pic: https(a.img1v1Url || a.picUrl) };
     return { top: ((r.order || [])[0] === 'artists' && artist) || (s && { song: song(s) }) || artist || null, words: ((mob.result || {}).allMatch || []).map(x => x.keyword) };
   }));
-  // 分享出来的短链接（163cn.tv）：问出它跳到哪个网易云地址（只跟着网易云自己的地址走）
+  // 分享出来的短链接（网易云 163cn.tv、QQ c6.y.qq.com）：问出它跳到哪（只跟着网易云 / QQ 自己的地址走）
   router.get('/resolve', wrap(async req => {
     let u = String(req.query.url || '');
-    if (!/^https?:\/\/163cn\.tv\//.test(u)) throw new Error('不是网易云的分享链接');
-    for (let i = 0; i < 3 && /^https?:\/\/(163cn\.tv|([\w-]+\.)?music\.163\.com)\//.test(u); i++) {
+    if (!/^https?:\/\/(163cn\.tv|c6\.y\.qq\.com)\//.test(u)) throw new Error('不是网易云 / QQ 音乐的分享链接');
+    for (let i = 0; i < 3 && /^https?:\/\/(163cn\.tv|([\w-]+\.)?music\.163\.com|([\w-]+\.)?y\.qq\.com)\//.test(u); i++) {
       const loc = (await fetch(u, { redirect: 'manual', headers: { 'User-Agent': UA } })).headers.get('location');
       if (!loc) break;
       u = new URL(loc, u).href;
@@ -130,15 +197,9 @@ async function init(router) {
     try {
       const u = (((await api('song_url_v1', { id: req.query.id, level: 'exhigh' })).data || [])[0] || {}).url;
       if (!u) return res.status(404).json({ error: me ? '这首歌放不了（下架或要单曲付费）' : '要会员，先登录网易云' });
-      const r = await fetch(https(u), { headers: { 'User-Agent': UA, ...(req.headers.range ? { Range: req.headers.range } : {}) } });
-      res.status(r.status);
-      for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) if (r.headers.get(h)) res.setHeader(h, r.headers.get(h));
-      const reader = r.body.getReader();
-      req.on('close', () => reader.cancel().catch(() => {}));
-      for (let x; !(x = await reader.read()).done;) if (!res.write(x.value)) await new Promise(ok => res.once('drain', ok));
-      res.end();
+      await pipe(res, req, u);
     } catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); else res.end(); }
   });
 }
 
-module.exports = { init, exit: async () => {}, info: { id: 'asterphone', name: 'AsterPhone', description: 'AsterPhone 小手机的网易云登录和音源' } };
+module.exports = { init, exit: async () => {}, info: { id: 'asterphone', name: 'AsterPhone', description: 'AsterPhone 小手机的网易云 / QQ 音乐登录和音源' } };
