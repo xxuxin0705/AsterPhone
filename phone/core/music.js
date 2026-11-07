@@ -261,8 +261,9 @@ export const lyricsNow = () => lyrics;
 export const playing = () => !audio.paused;
 // 续接时一条声音里有好几首：这首歌自己的时间 = 整条的时间 - 这首开始的地方
 const seg = () => chain && chain.segs.find(g => g.i === M().idx && g.s === current());
-export const now = () => Math.max(0, (audio.currentTime || 0) - (seg()?.start || 0));
-export const dur = () => { const g = seg(); return g ? (g.end || audio.duration || 0) - (g.start || 0) : audio.duration || 0; };   // 还在下的那首，先按已经下到的算
+// 还在问链接时按 0 算：不然进度条按占位那 0.1 秒画，一下子跑到底
+export const now = () => loading() ? 0 : Math.max(0, (audio.currentTime || 0) - (seg()?.start || 0));
+export const dur = () => { if (loading()) return 0; const g = seg(); return g ? (g.end || audio.duration || 0) - (g.start || 0) : audio.duration || 0; };   // 还在下的那首，先按已经下到的算
 
 /** 放一组歌，从第 i 首开始；from 是从哪个歌单放的（播放页顶上显示） */
 export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
