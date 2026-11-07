@@ -1,6 +1,5 @@
 // 洛雪音源：洛雪自己不带歌，放歌全靠网上别人写的「音源脚本」。这里假装成洛雪，把 pdone/lx-music-source 合集（每天检测、跟着作者更新）里的几个脚本跑起来，问它们要整首的播放链接。
 // 脚本是陌生人写的、大多还加了混淆：关在沙盒框里跑（碰不到酒馆页面和存的密钥），它要连网时把请求递出来，这边替它连。
-import { xf } from './api.js';
 import { log } from './log.js';
 
 // 挑的是网易云、QQ 都支持、又不用加密工具（aes / rsa）的；太大的（几百 KB）不要
@@ -74,7 +73,9 @@ const boot = () => ready || (ready = new Promise(ok => {
 }));
 const once = (k, ms) => new Promise((ok, no) => { const t = setTimeout(() => { wait.delete(k); no(new Error('超时')); }, ms); wait.set(k, m => { clearTimeout(t); wait.delete(k); ok(m); }); });
 
-/** 替脚本连网：装了酒馆插件让插件连（不受跨域限制，请求头也原样带上）；没装就网页自己连，被拦了 xf 会借酒馆代理 */
+// Tauri Tavern 没有酒馆插件、也没有代理，这些音源的服务器又大多不让网页直接连：借公共的跨域转发（别人家的服务，可能慢、可能挂）
+const RELAYS = [u => 'https://corsproxy.io/?url=' + encodeURIComponent(u), u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)];
+/** 替脚本连网：装了酒馆插件让插件连（不受跨域限制，请求头也原样带上）；没装就网页自己连，被拦了换公共转发 */
 async function relay(url, o) {
   if (!/^https?:\/\//i.test(url)) throw new Error('只连 http(s)');
   let body = o.body; const headers = { ...(o.headers || {}) };
@@ -85,8 +86,12 @@ async function relay(url, o) {
   if (via) r = await via({ url, method, headers, body });
   else {
     for (const k of Object.keys(headers)) if (/^(user-agent|referer|cookie|origin|host)$/i.test(k)) delete headers[k];   // 网页不让设这些，留着反而多问一次跨域
-    const x = await xf(url, { method, headers, body, signal: AbortSignal.timeout(o.timeout || 15000) });
-    r = { statusCode: x.status, statusMessage: x.statusText, headers: Object.fromEntries(x.headers), body: await x.text() };
+    const why = [];
+    for (const u of [url, ...RELAYS.map(f => f(url))]) {
+      try { const x = await fetch(u, { method, headers, body, signal: AbortSignal.timeout(o.timeout || 15000) }); r = { statusCode: x.status, statusMessage: x.statusText, headers: Object.fromEntries(x.headers), body: await x.text() }; break; }
+      catch (e) { why.push(`${new URL(u).host} ${e.name === 'TimeoutError' ? '超时' : '连不上'}`); }
+    }
+    if (!r) throw new Error(why.join('，'));
   }
   try { r.body = JSON.parse(r.body); } catch { /* 不是 JSON 就给原文 */ }
   return r;

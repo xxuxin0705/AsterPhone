@@ -296,8 +296,12 @@ function enter(s) {
     if (yrc.length || base === alt) done();
   }).catch(e => log('warn', '音乐', `《${s.name}》的逐字歌词没拿到：${e.message}`));
 }
+// 一点就先放一段没声音的：手机浏览器只认「点完马上放」，问洛雪音源要等好几秒，等到了再放就被拦（要再点一下播放键）。先放过一次，之后换真的就不拦了
+const HUSH = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+const whenLoaded = f => audio.addEventListener('loadedmetadata', function go() { if (audio.src === HUSH) return; audio.removeEventListener('loadedmetadata', go); f(); });
 async function load(autoplay) {
   const s = current(); if (!s) return;
+  if (autoplay && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
@@ -432,7 +436,7 @@ function pick(i, auto) {
 
 export function toggle() {
   if (!current()) return;
-  if (!restored) { const pos = M().pos || 0; load(true); audio.addEventListener('loadedmetadata', () => seek(pos), { once: true }); return; }   // 刚打开手机：接着上次的地方
+  if (!restored) { const pos = M().pos || 0; load(true); whenLoaded(() => seek(pos)); return; }   // 刚打开手机：接着上次的地方
   audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
 }
 export function next(step = 1) {
@@ -445,7 +449,7 @@ export function seek(t) {
   if (!restored) return;
   const at = (seg()?.start || 0) + t, b = chain && chain.sb.buffered;
   // 往回拖到已经清掉的地方（缓冲满时清了 30 秒以前的）：这首重新读，读好了跳过去
-  if (b && b.length && at < b.start(0) - .5) { load(true); audio.addEventListener('loadedmetadata', () => seek(t), { once: true }); return; }
+  if (b && b.length && at < b.start(0) - .5) { load(true); whenLoaded(() => seek(t)); return; }
   audio.currentTime = at;
 }
 export function jump(i) { M().idx = i; load(true); }
@@ -475,6 +479,7 @@ export const liked = s => !!s && M().liked.some(x => x.id === s.id);
 // 听歌时长（「我的」里的小时数）：两次 timeupdate 之间真的在放才算
 let saveT = 0, lastT = 0, heard = 0;
 audio.addEventListener('timeupdate', () => {
+  if (audio.src === HUSH) return;
   const t = Date.now(); if (t - lastT < 2000) heard += t - lastT; lastT = t;
   if (t - saveT > 5000) {
     saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000;
@@ -496,7 +501,7 @@ audio.addEventListener('timeupdate', () => {
   tell('time');
 });
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
-audio.addEventListener('ended', () => next());
+audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(); });
 // 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
 let stuck = false;
 function blocked() { tell('blocked'); if (document.hidden) stuck = true; }

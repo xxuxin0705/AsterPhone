@@ -35,7 +35,7 @@ function marquee(el, text) {
 }
 const firstPic = L => ((L || []).find(s => s.pic) || {}).pic || '';
 const play = (list, i, from) => { P.playList(list, i, from); openPlayer(); };
-P.onMusic(w => { if (w === 'blocked') toast('点一下播放键开始放'); if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
+P.onMusic(w => { if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
 
 /* ================= 外壳：四个标签 ================= */
 const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['radio', '电台', renderRadio], ['me', '我的', renderMe]];
@@ -817,7 +817,8 @@ async function openMv(s) {
   if (urls == null) return;
   if (!urls.length) { toast('这首的 MV 放不了'); return; }
   const was = P.playing(); if (was) P.toggle();
-  const v = h('video.as-mp__mv', { controls: true, autoplay: true, playsinline: true });
+  // 不用视频自带的全屏：那是浏览器的全屏，退出来时小手机会被关掉、酒馆还会卡住不能点。放大就铺满小手机屏幕
+  const v = h('video.as-mp__mv', { controls: true, autoplay: true, playsinline: true, controlsList: 'nofullscreen', disablePictureInPicture: true });
   let i = 0, hls = null;
   // 一个地址放不出来就换下一个，全放不出来才报
   const bad = why => { if (++i < urls.length) { log('warn', '音乐', `《${s.name}》的 MV 换个地址再试：${why}`); load(); return; } log('error', '音乐', `《${s.name}》的 MV 放不出来：${why}`); toast('MV 放不出来'); };
@@ -834,7 +835,11 @@ async function openMv(s) {
   }
   v.onerror = () => { if (!hls) bad(`${v.src}（${(v.error || {}).code || '?'}）`); };
   let closed = false;
-  const box = h('div.as-mu-mvbox', { role: 'dialog', 'aria-label': s.name }, h('div.as-mu-mvbox__head', h('b', s.name), h('button.as-mu-mvbox__x', { 'aria-label': '关闭', onclick: () => close() }, icon('close', 18, 2.2))), v);
+  const big = h('button.as-mu-mvbox__x', { 'aria-label': '放大', onclick: () => zoom() }, icon('expand', 18, 2.2));
+  const box = h('div.as-mu-mvbox', { role: 'dialog', 'aria-label': s.name }, h('div.as-mu-mvbox__head', h('b', s.name), big, h('button.as-mu-mvbox__x', { 'aria-label': '关闭', onclick: () => close() }, icon('close', 18, 2.2))), v);
+  // 双击视频也会进浏览器全屏：进了就马上退出来，改成铺满小手机
+  v.onfullscreenchange = v.onwebkitfullscreenchange = () => { if ((document.fullscreenElement || document.webkitFullscreenElement) === v) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); if (!box.classList.contains('is-big')) zoom(); } };
+  function zoom() { const on = box.classList.toggle('is-big'); big.replaceChildren(icon(on ? 'shrink' : 'expand', 18, 2.2)); big.setAttribute('aria-label', on ? '缩小' : '放大'); }
   const mask = h('div.as-dialog-mask', { onclick: e => { if (e.target === mask) close(); } }, box);
   document.querySelector('.as-phone').append(mask);
   requestAnimationFrame(() => mask.classList.add('is-open'));
