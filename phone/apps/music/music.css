@@ -465,9 +465,17 @@
 .as-rp .as-empty__text { color: rgba(255,255,255,.7); }
 .as-tg__time[role="button"] { cursor: pointer; }
 /* 灵动岛：顶上正中的黑胶囊，小封面 + 跳动的音波（歌词颜色）；点开变大成小播放器 */
-.as-isl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 96px; height: calc(var(--as-sb-h) - 8px); border-radius: 16px; background: #000; color: #fff; overflow: hidden; cursor: pointer;
-  transition: width 380ms var(--as-ease-spring, ease), height 380ms var(--as-ease-spring, ease), border-radius 380ms, top 380ms; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
-.as-phone:not([data-mode="night"]) .as-isl { background: #fff; color: #1d1d1f; box-shadow: 0 2px 10px rgba(0,0,0,.12); }   /* 日间白底，夜间黑底 */
+/* 灵动岛、锁屏卡片是液态玻璃（照作者记的六层做法：投影、模糊提亮、着色、左上右下边缘光；「边缘折射」那层网页上要 SVG 滤镜，先不做）。夜里深玻璃白字，白天浅玻璃深字 */
+.as-isl, .as-lmc { --g-tint: rgb(20 20 24 / .34); --g-lens: blur(2px) saturate(160%) brightness(.8);
+  background: var(--g-tint); background-image: radial-gradient(at 0 0, rgb(255 255 255 / .22), transparent 55%); -webkit-backdrop-filter: var(--g-lens); backdrop-filter: var(--g-lens);
+  box-shadow: 0 0 .5px rgb(0 0 0 / .06), 0 6px 24px rgb(0 0 0 / .14), inset 1.5px 1.5px 1px -1px #fff, inset -1.5px -1.5px 1px -1px rgb(255 255 255 / .55); }
+.as-phone:not([data-mode="night"]) :is(.as-isl, .as-lmc) { --g-tint: rgb(255 255 255 / .2); --g-lens: blur(2px) saturate(180%) brightness(1.06); }
+/* 展开的岛、锁屏卡片底下有字有图，2px 的镜片会把底下的字透上来：这两处模糊加到 10px、着色重一点，小岛保持镜片 */
+.as-isl.is-open, .as-lmc { --g-tint: rgb(20 20 24 / .46); --g-lens: blur(10px) saturate(160%) brightness(.8); }
+.as-phone:not([data-mode="night"]) :is(.as-isl.is-open, .as-lmc) { --g-tint: rgb(255 255 255 / .34); --g-lens: blur(10px) saturate(180%) brightness(1.06); }
+.as-isl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 96px; height: calc(var(--as-sb-h) - 8px); border-radius: 16px; color: #fff; overflow: hidden; cursor: pointer;
+  transition: width 380ms var(--as-ease-spring, ease), height 380ms var(--as-ease-spring, ease), border-radius 380ms, top 380ms; }
+.as-phone:not([data-mode="night"]) .as-isl { color: #1d1d1f; }
 .as-isl[hidden] { display: none; }
 .as-phone.is-locked .as-isl { display: none; }
 .as-isl__mini { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 8px 0 4px; }
@@ -494,8 +502,7 @@
 .as-isl__ctrl button, .as-lmc__ctrl button { width: 44px; height: 44px; border: 0; background: none; color: inherit; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .as-isl__ctrl svg, .as-lmc__ctrl svg { fill: currentColor; }
 /* 锁屏的播放卡片（照 iPhone 锁屏，右下角那个不要，左下角是红心） */
-.as-lmc { position: absolute; z-index: 2; left: max(16px, 4.5%); right: max(16px, 4.5%); bottom: 23%; padding: 14px 16px 8px; border-radius: 22px;
-  background: var(--card); border: 1px solid var(--card-line); color: var(--card-ink); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); animation: as-notice-in 620ms var(--as-ease-spring) backwards; }
+.as-lmc { position: absolute; z-index: 2; left: max(16px, 4.5%); right: max(16px, 4.5%); bottom: 23%; padding: 14px 16px 8px; border-radius: 22px; color: var(--card-ink); animation: as-notice-in 620ms var(--as-ease-spring) backwards; }
 .as-lmc[hidden] { display: none; }
 .as-mu-lypv { position: relative; overflow: hidden; margin: 0 4px 6px; padding: 18px 14px; border-radius: 16px; background: #2b3138; text-align: center; }
 .as-mu-lypv i { position: absolute; inset: -20px; background: center / cover; }
