@@ -135,12 +135,12 @@ export function rain(cv, page) {
       // 翻译放在倒影下面，不压着倒影
       ctx.font = `400 ${TR}px ${face}`;
       ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' && !edge ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
-      // 跟着落下来的字一点点亮：先画一层淡的，再按进度裁出亮的那一截
+      // 跟着落下来的字一点点露出来：没唱到的部分不画，露出来的边上淡一点
       const al = (night ? .88 : .7) * (1 - fade);
       lay.tr.forEach((s, r) => {
-        const y = ground + SIZE * .6 + 30 + r * TR * 1.5, w = ctx.measureText(s).width;
-        ctx.fillStyle = ink(al * .4); ctx.fillText(s, W / 2, y);
-        ctx.save(); ctx.beginPath(); ctx.rect(W / 2 - w / 2, y - TR * 1.2, w * landed / n, TR * 2); ctx.clip(); ctx.fillStyle = ink(al); ctx.fillText(s, W / 2, y); ctx.restore();
+        const y = ground + SIZE * .6 + 30 + r * TR * 1.5, w = ctx.measureText(s).width, x0 = W / 2 - w / 2, x1 = x0 + w * landed / n;
+        const g = ctx.createLinearGradient(x1 - TR * 1.5, 0, x1, 0); g.addColorStop(0, ink(al)); g.addColorStop(1, ink(0));
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, y - TR * 1.2, x1 - x0, TR * 2); ctx.clip(); ctx.fillStyle = landed >= n ? ink(al) : g; ctx.fillText(s, W / 2, y); ctx.restore();
       });
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }

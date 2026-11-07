@@ -816,13 +816,37 @@ async function openMv(s) {
   let urls; try { urls = await waiting('正在拿 MV…', async () => P.mvUrls(await P.mvOf(s))); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
   if (urls == null) return;
   if (!urls.length) { toast('这首的 MV 放不了'); return; }
-  toast('MV 来了');
   const was = P.playing(); if (was) P.toggle();
-  const v = h('video.as-mp__mv', { src: urls[0], controls: true, autoplay: true, playsinline: true });
-  let i = 0;   // 一个地址放不出来就换下一个，全放不出来才报
-  v.onerror = () => { const why = `${v.src}（${(v.error || {}).code || '?'}）`; if (++i < urls.length) { log('warn', '音乐', `《${s.name}》的 MV 换个地址再试：${why}`); v.src = urls[i]; v.load(); v.play().catch(() => {}); return; } log('error', '音乐', `《${s.name}》的 MV 放不出来：${why}`); toast('MV 放不出来'); };
-  sheet({ title: s.name, content: v, onClose: () => { v.pause(); v.removeAttribute('src'); v.load(); if (was) P.toggle(); } });
+  const v = h('video.as-mp__mv', { controls: true, autoplay: true, playsinline: true });
+  let i = 0, hls = null;
+  // 一个地址放不出来就换下一个，全放不出来才报
+  const bad = why => { if (++i < urls.length) { log('warn', '音乐', `《${s.name}》的 MV 换个地址再试：${why}`); load(); return; } log('error', '音乐', `《${s.name}》的 MV 放不出来：${why}`); toast('MV 放不出来'); };
+  async function load() {
+    hls && hls.destroy(); hls = null;
+    const u = urls[i];
+    if (!/\.m3u8(\?|$)/i.test(u) || !window.MediaSource) { v.src = u; v.play().catch(() => {}); return; }
+    // QQ 的 MV 是 m3u8（切成小段的视频），安卓浏览器嘴上说能放、实际放不了（报 4）：用 hls.js 拼起来放（只在看 MV 时才下载它）
+    try { await mvLib(); } catch (e) { bad(`放 m3u8 的工具没下载下来（${e.message}）`); return; }
+    if (closed) return;
+    hls = new window.Hls(); hls.loadSource(u); hls.attachMedia(v);
+    hls.on(window.Hls.Events.ERROR, (_, d) => { if (d.fatal) bad(`${u}（${d.type}：${d.details}）`); });
+    v.play().catch(() => {});
+  }
+  v.onerror = () => { if (!hls) bad(`${v.src}（${(v.error || {}).code || '?'}）`); };
+  let closed = false;
+  const box = h('div.as-mu-mvbox', { role: 'dialog', 'aria-label': s.name }, h('div.as-mu-mvbox__head', h('b', s.name), h('button.as-mu-mvbox__x', { 'aria-label': '关闭', onclick: () => close() }, icon('close', 18, 2.2))), v);
+  const mask = h('div.as-dialog-mask', { onclick: e => { if (e.target === mask) close(); } }, box);
+  document.querySelector('.as-phone').append(mask);
+  requestAnimationFrame(() => mask.classList.add('is-open'));
+  function close() { if (closed) return; closed = true; hls && hls.destroy(); v.pause(); v.removeAttribute('src'); v.load(); mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 260); if (was) P.toggle(); }
+  toast('MV 来了');
+  load();
 }
+let mvLibP = null;
+const mvLib = () => window.Hls ? Promise.resolve() : mvLibP || (mvLibP = new Promise((ok, no) => {
+  const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js';
+  sc.onload = ok; sc.onerror = () => { mvLibP = null; sc.remove(); no(new Error('连不上 jsDelivr')); }; document.head.append(sc);
+}));
 /* ================= 播放页 ================= */
 // 唱臂：转轴在唱片正上方、离唱片有一段距离，长臂先直着往下、再往右弯，小方块唱头落在唱片右上那一圈。
 // 图的坐标以唱片直径为 100：这张图左边在唱片的 40、上边在 -36，转轴在图里的 (10, 8)

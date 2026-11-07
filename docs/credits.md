@@ -32,6 +32,7 @@
 | `phone/assets/music/together-l.webp`、`together-r.webp` | 一起听的有线耳机 | 作者让 GPT 画的，去掉了黑底、切成两半 |
 | `phone/assets/wallpapers/*`、`phone/assets/fab/*` | 壁纸、悬浮按钮 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
 
+| 音乐播放页的 MV（QQ 的 m3u8 视频；看 MV 时才从 jsDelivr 下载，不放进仓库） | hls.js 1.5.20，https://github.com/video-dev/hls.js | Apache-2.0 |
 | 歌词的内置字体（歌词设置、悬浮窗、一起听共用；从 jsDelivr 按需下载，不放进仓库） | 思源黑体 / 思源宋体、站酷快乐体 / 站酷小薇 / 站酷庆科黄油体、马善政楷书、龙藏体、志莽行书（@fontsource，都是 OFL）；霞鹜文楷、得意黑、汇文明朝体、朱雀仿宋（@chinese-fonts 中文网字计划打包，字体本身 OFL / 免费商用） | 可以免费商用 |
 
 ## 四、用到的外部服务（不是代码，写在说明里比较好）

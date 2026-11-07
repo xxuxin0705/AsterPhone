@@ -308,7 +308,8 @@ const qurls = new Map();
 async function qqUrl(s) {
   const c = qurls.get(s.id); if (c && Date.now() - c.at < 5 * 60e3) return c.url;
   let url = '';
-  for (const quality of ['', 4]) { const d = await qq('/geturl', { mid: s.id, ...(quality ? { quality } : {}) }).catch(() => null); if (d && d.url) { url = https(d.url); break; } }
+  // 会员歌没登录时 QQ 只给 1 分钟的试听片段（地址是 RS02 开头、写着「试听」）：不要它，好让后面换网易云的整首
+  for (const quality of ['', 4]) { const d = await qq('/geturl', { mid: s.id, ...(quality ? { quality } : {}) }).catch(() => null); if (d && d.url && !/\/RS02/i.test(d.url) && !/试听/.test(d.quality || '')) { url = https(d.url); break; } }
   qurls.set(s.id, { url, at: Date.now() });
   return url;
 }
