@@ -307,10 +307,10 @@ async function load(autoplay) {
 const qurls = new Map();
 async function qqUrl(s) {
   const c = qurls.get(s.id); if (c && Date.now() - c.at < 5 * 60e3) return c.url;
-  let url = '';
-  // 会员歌没登录时 QQ 只给 1 分钟的试听片段（地址是 RS02 开头、写着「试听」）：不要它，好让后面换网易云的整首
-  for (const quality of ['', 4]) { const d = await qq('/geturl', { mid: s.id, ...(quality ? { quality } : {}) }).catch(() => null); if (d && d.url && !/\/RS02/i.test(d.url) && !/试听/.test(d.quality || '')) { url = https(d.url); break; } }
-  qurls.set(s.id, { url, at: Date.now() });
+  let url = '', trial = '';
+  // 会员歌没登录时 QQ 只给 1 分钟的试听片段（地址是 RS02 开头、写着「试听」）：先不用它，好让后面换网易云的整首；哪边都没有整首才放它
+  for (const quality of ['', 4]) { const d = await qq('/geturl', { mid: s.id, ...(quality ? { quality } : {}) }).catch(() => null); if (!d || !d.url) continue; if (/\/RS02/i.test(d.url) || /试听/.test(d.quality || '')) { trial = trial || https(d.url); continue; } url = https(d.url); break; }
+  qurls.set(s.id, { url, trial, at: Date.now() });
   return url;
 }
 const urlsOf = async s => isQ(s) ? [...(ne && ne.qq ? [`${BE}/qq/audio?mid=${s.id}`] : []), await qqUrl(s)].filter(Boolean) : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
@@ -318,7 +318,11 @@ const urlsOf = async s => isQ(s) ? [...(ne && ne.qq ? [`${BE}/qq/audio?mid=${s.i
 async function plain(s, f, autoplay, twin) {
   const urls = f ? [URL.createObjectURL(f)] : await urlsOf(twin || s);
   if (current() !== s) return;
-  const fail = () => { log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0; };
+  const fail = () => {
+    const tr = !f && isQ(s) && (qurls.get(s.id) || {}).trial;
+    if (tr && audio.src !== tr) { log('warn', '音乐', `《${s.name}》是会员歌，两边都只拿到 1 分钟试听`); audio.onerror = () => { audio.onerror = null; fail(); }; audio.src = tr; if (autoplay) audio.play().catch(blocked); return; }
+    log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
+  };
   const tryUrl = i => {
     if (i >= urls.length) return (!f && !twin) ? twinOf(s).then(t => { if (current() !== s) return; if (t) { log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); } else fail(); }) : fail();
     audio.onerror = () => tryUrl(i + 1);
