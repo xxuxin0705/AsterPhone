@@ -573,11 +573,11 @@
 .as-rd-read .as-page__body { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 2vh; overflow: hidden; }
 .as-rd-book { position: relative; width: calc(100% + 24px); margin: 0 -12px; filter: drop-shadow(0 18px 30px rgba(0,0,0,.45)); }
 .as-rd-book > img { display: block; width: 100%; }
-.as-rd-pg { position: absolute; top: 10%; bottom: 15%; left: 12%; right: 54%; overflow-y: auto; scrollbar-width: none; font: 400 13px/1.65 "Songti SC", "Noto Serif SC", "Noto Serif JP", serif; color: #4a3a28; }
+.as-rd-pg { position: absolute; top: 6.5%; bottom: 13%; left: 12%; right: 54%; overflow-y: auto; scrollbar-width: none; font: 400 13px/1.65 "Songti SC", "Noto Serif SC", "Noto Serif JP", serif; color: #4a3a28; }
 .as-rd-pg.is-r { left: 57.5%; right: 10%; color: #6a5a46; }
 .as-rd-pg::-webkit-scrollbar { display: none; }
 .as-rd-pg p { margin: 0; }
-.as-rd-pg small { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 2px; color: #a0805a; }
+.as-rd-pg small { display: block; margin-bottom: 2px; font-size: 11px; letter-spacing: 2px; color: #a0805a; }
 .as-rd-pg .is-next { opacity: .45; }
 .as-rd-read .is-turn { animation: as-rd-turn .5s ease; }
 /* 翻页：从书的图上裁下半边当这一页（左右两面），绕书脊转；页面范围是书图的 横 6%~94%、竖 3%~86% */
@@ -588,7 +588,7 @@
 .as-rd-leaf > div { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; background: url(../../assets/radio/book.webp) no-repeat; background-size: 227.27% 120.48%; }
 .as-rd-leaf > div + div { transform: rotateY(180deg); }
 .as-rd-leaf .is-r { background-position: 89.29% 17.65%; } .as-rd-leaf .is-l { background-position: 10.71% 17.65%; }
-.as-rd-leaf .as-rd-pg { top: 8.4%; bottom: 1.2%; }
+.as-rd-leaf .as-rd-pg { top: 4.2%; bottom: 0; }
 .as-rd-leaf > div::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to right, rgba(60,40,20,.18), transparent 22%); }
 .as-rd-leaf .is-l::after { background: linear-gradient(to left, rgba(60,40,20,.18), transparent 22%); }
 .as-rd-leaf .is-r .as-rd-pg { left: 17%; right: 9%; color: #6a5a46; } .as-rd-leaf .is-l .as-rd-pg { left: 13.6%; right: 9.1%; }

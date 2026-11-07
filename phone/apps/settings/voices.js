@@ -1,7 +1,7 @@
 // 音色库 / 读音表的抽屉：插线板、列表模式、联系人资料都从这里打开（改的是同一份数据）
 import { h, uid } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog } from '../../core/ui.js';
+import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { VOICES, listVoices, tryVoice } from '../../core/api.js';
@@ -100,7 +100,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
   p.el._onShow = () => { paintChips(); paintDefaults(); paintPeople(); };   // 从接口设置回来：名字、默认渠道可能变了
   nav.push(p.el);
 }
-export { withInfo } from '../../core/ui.js';
+export { withInfo };
 
 /** 一个人的声音：（各自模式下）用哪个渠道 + 在那个渠道上存的几个音色，挑一个用。改完点保存 */
 export function openPerson(id, onDone = () => {}) {

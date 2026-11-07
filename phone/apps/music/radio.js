@@ -56,7 +56,9 @@ const segsOf = text => clean(text).split('\n').map(l => l.trim()).filter(Boolean
   return a;
 }, []);
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
-const ask = (c, prompt, maxTokens, stop) => generate({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt }).then(clean);
+// 连接中途断了时，有的接口会把一句「响应读取中断…请检查网络连接…」当成正文接在半截回复后面（作者那本的感想就混进了这句）：当失败，不存
+const ask = (c, prompt, maxTokens, stop) => generate({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt })
+  .then(t => { if (/响应读取中断|请检查网络连接/.test(t)) { log('warn', '电台', '回复里混进了接口的断线提示，没存：' + t.slice(-120)); throw new Error('连接中途断了，回来的不完整，再试一次'); } return clean(t); });
 
 /** 让角色讲一个：故事 + 中文翻译 + 感想，一次 API */
 async function compose1(c, what, recall, stop) {
@@ -145,6 +147,7 @@ async function ahead(b, i) {
   for (let j = i + 1; j < n && E.book === b && E.on; j++) await voice(b, j);
 }
 function halt() {
+  E.raw = null;
   if (E.src) { E.src.onended = null; E.src.stop(); E.src = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
@@ -159,12 +162,37 @@ async function playAt(i) {
   if (blob) try { buf = await ac.decodeAudioData(await blob.arrayBuffer()); } catch (e) { log('warn', '电台', '这段声音放不了：' + e.message); }
   if (run !== E.run) return;
   E.wait = false;
-  if (buf) { E.buf = buf; start(run); }
+  if (buf) { E.raw = buf; E.buf = stretch(buf, rate()); start(run); }
   else {
     if (S().voice === 'role' && !E.warned) { E.warned = true; toast('没合成出角色的声音，先用手机自带的声音念'); }
     say(run, lines(b)[i].t, b.lang);
   }
   tell(); save(); ahead(b, i);
+}
+const rate = () => S().rate || 1;
+/** 倍速不变调（WSOLA）：一小块一小块往后挪着拼，每块在附近找和上一块接得最顺的位置，再交叠加起来 */
+function stretch(buf, r) {
+  if (r === 1) return buf;
+  const x = buf.getChannelData(0), sr = buf.sampleRate, N = Math.round(sr * .04) & ~1, Hs = N / 2, tol = Math.round(sr * .01);
+  const out = new Float32Array(Math.ceil(x.length / r) + N), win = Float32Array.from({ length: N }, (_, i) => .5 - .5 * Math.cos(2 * Math.PI * i / N));
+  for (let k = 0, o = 0, prev = 0; ; k++, o += Hs) {
+    const nom = Math.round(k * Hs * r);
+    if (nom + N + tol >= x.length) break;
+    let best = nom;
+    if (k) for (let d = -tol, bc = -Infinity; d <= tol; d += 2) { const at = nom + d; if (at < 0) continue; let c = 0; for (let i = 0; i < Hs; i += 4) c += x[prev + Hs + i] * x[at + i]; if (c > bc) { bc = c; best = at; } }
+    for (let i = 0; i < N; i++) out[o + i] += x[best + i] * win[i];
+    prev = best;
+  }
+  const b = ac.createBuffer(1, out.length, sr); b.copyToChannel(out, 0);
+  return b;
+}
+function setRate(r) {
+  S().rate = r; commit('music');
+  if (!E.raw || !E.buf) return;
+  const k = (E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration, playing = !!E.src;
+  if (playing) { E.src.onended = null; E.src.stop(); E.src = null; }
+  E.buf = stretch(E.raw, r); E.off = k * E.buf.duration;
+  if (playing) start(E.run);
 }
 function start(run) {
   const s = E.src = ac.createBufferSource();
@@ -174,7 +202,7 @@ function start(run) {
 function say(run, text, lang) {
   if (!('speechSynthesis' in window)) { toast('这个浏览器不能朗读'); return stopStory(); }
   const u = new SpeechSynthesisUtterance(text), L = isZh(lang) ? 'zh-CN' : lang, v = speechSynthesis.getVoices().find(x => x.lang.replace('_', '-').startsWith(L.slice(0, 2)));
-  u.lang = L; if (v) u.voice = v;
+  u.lang = L; u.rate = rate(); if (v) u.voice = v;
   u.onend = () => { if (run === E.run && E.on) playAt(E.i + 1); };
   speechSynthesis.speak(u);
 }
@@ -368,7 +396,14 @@ const TTS = [['lazy', '点到才合成'], ['ahead', '提前合成两段'], ['all
 function openBook(b) {
   if (E.book !== b) { stopStory(); E.book = b; E.i = Math.min(b.pos || 0, lines(b).length - 1); }
   const c = contact(b.who) || {};
-  const more = async () => { const v = await actionSheet(b.title, [{ value: 'set', label: '设置' }, { value: 'del', label: '删除', danger: true }]); if (v === 'set') settings(); if (v === 'del' && await delBook(b)) nav.back(); };
+  const more = async () => {
+    const v = await actionSheet(b.title, [{ value: 'set', label: '设置' }, { value: 'timer', label: timer ? `定时关闭（还剩 ${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟）` : '定时关闭' },
+      b.after && { value: 'again', label: '重新说感想' }, { value: 'del', label: '删除', danger: true }].filter(Boolean));
+    if (v === 'set') settings();
+    if (v === 'timer') pickTimer();
+    if (v === 'again') task(`${nameOf(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
+    if (v === 'del' && await delBook(b)) nav.back();
+  };
   const p = page({ app: 'music', id: 'radio-read', title: b.title, cls: 'as-rd-read.is-dark', right: navBtn('more', '更多', more) });
   const L = h('div.as-rd-pg'), R = h('div.as-rd-pg.is-r'), count = h('span'), playB = h('button.as-rd-play', { 'aria-label': '播放 / 暂停', onclick: toggle });
   const sayT = h('span'), sayTr = h('span'), row = bubEl = h('div.as-rd-bub', avatar(c.avatar, nameOf(c), 34), h('p', sayT, h('small', sayTr)));
@@ -378,7 +413,11 @@ function openBook(b) {
     const v = await actionSheet('讲故事用的语言', ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, b.lang) })));
     if (v && !same(v, b.lang)) task(`${nameOf(c)} 在换成${lname(v)}…`, async stop => { await relang(b, v, stop); toast(`换成${lname(v)}了`); });
   } });
-  const timerB = h('button', { onclick: pickTimer }), ttsB = h('button', { onclick: async () => {
+  const RATES = [.75, 1, 1.25, 1.5, 2], rateL = r => r === 1 ? '倍速' : r + 'x';
+  const rateB = h('button', { onclick: async () => {
+    const v = await actionSheet('倍速', RATES.map(r => ({ value: r, label: r + 'x', active: rate() === r })));
+    if (v) { setRate(v); rateB.textContent = rateL(v); }
+  } }, rateL(rate())), ttsB = h('button', { onclick: async () => {
     const v = await actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
     if (v) { S().tts = v; commit('music'); ttsB.textContent = TTS.find(x => x[0] === v)[1]; if (E.on) ahead(b, E.i); }
   } }, TTS.find(x => x[0] === S().tts)[1]);
@@ -387,18 +426,21 @@ function openBook(b) {
   const book = h('div.as-rd-book', { 'data-no-swipe': '' }, h('img', { src: 'assets/radio/book.webp', alt: '' }), L, R);
   const say = h('div.as-rd-say', row);
   p.body.append(book, say,
-    h('div.as-rd-bottom', h('div.as-rd-count', count, langB), h('div.as-rd-tools', timerB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
+    h('div.as-rd-bottom', h('div.as-rd-count', count, langB), h('div.as-rd-tools', rateB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
       h('div.as-rd-ctl', h('button', { 'aria-label': '上一段', onclick: () => go(E.i - 1) }, icon('prev', 24, 2)), playB, h('button', { 'aria-label': '下一段', onclick: () => go(E.i + 1) }, icon('next', 24, 2)))));
   // 气泡要一眼看全：放不下就把字一点点调小（最小 10px），不让它滚动
-  row._fit = () => { const q = row.lastChild; let f = 15; q.style.fontSize = ''; while (row.offsetHeight > say.clientHeight && f > 10) q.style.fontSize = (f -= .5) + 'px'; gls && gls.refresh(); };
+  row._fit = () => { const q = row.lastChild, room = say.clientHeight - parseFloat(getComputedStyle(say).paddingTop) - parseFloat(getComputedStyle(say).paddingBottom); let f = 15; q.style.fontSize = ''; while (row.offsetHeight > room && f > 10) q.style.fontSize = (f -= .5) + 'px'; gls && gls.refresh(); };
   let gls = null;
   styleBub(row);
   row.addEventListener('animationend', () => gls && gls.refresh());
+  new ResizeObserver(() => row._fit()).observe(say);   // 页面刚排好、屏幕大小变了时再量一次
   function toggle() { if (E.on || E.wait) pause(); else resume(); }
   function go(i) { i = clamp(i, 0, lines(b).length - 1); if (E.on || E.wait) playAt(i); else { E.run++; halt(); E.i = b.pos = i; E.buf = null; E.off = 0; tell(); } }
   const zh = s => s ? s.tr || s.t : '';
   const left = i => [i >= b.segs.length && i < lines(b).length ? h('small', '感想') : '', h('p', zh(lines(b)[i]))], right = i => [h('p.is-next', zh(lines(b)[i]))];
-  const pages = i => { L.replaceChildren(...left(i)); R.replaceChildren(...right(i + 1)); };
+  // 一页放不下就把字调小一点（最小 10px）
+  const fitPg = x => { let f = 13; x.style.fontSize = ''; while (x.scrollHeight > x.clientHeight && f > 10) x.style.fontSize = (f -= .5) + 'px'; };
+  const pages = i => { L.replaceChildren(...left(i)); R.replaceChildren(...right(i + 1)); fitPg(L); fitPg(R); };
   // 翻页：dir 1 是右页绕书脊翻到左边（下一段），-1 是左页翻回右边（上一段）；i 是翻之前那一段。底下露出来的那页先换好
   let leaf = null, drag = null;
   function lift(dir, i) {
@@ -426,9 +468,10 @@ function openBook(b) {
     }
     bend(clamp(-dx * drag.dir / drag.w * 180, 0, 180));
   };
-  book.onpointerup = book.onpointercancel = () => {
+  book.onpointerup = book.onpointercancel = e => {
     const d = drag; drag = null;
     if (d && d.dir) { if (leaf.deg > 60) go(E.i + d.dir); else settle(0); }
+    else if (d && e.type === 'pointerup') { const r = book.getBoundingClientRect(); go(E.i + (e.clientX < r.left + r.width / 2 ? -1 : 1)); }   // 点左页上一段、点右页下一段
   };
   let shown = -1, nlines = -1, nlang = b.lang;
   function paint() {
@@ -452,8 +495,6 @@ function openBook(b) {
   // 气泡里的字跟着声音一点点变深（像一起听的歌词）；在合成时整段淡着，没在念、或者用手机自带的声音（不知道多长）就整段深色
   const tick = () => {
     if (!p.el.isConnected) { gls && gls.dispose(); return clearInterval(iv); }
-    const tl = timer ? `${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟` : '定时';
-    if (timerB.textContent !== tl) timerB.textContent = tl;
     const mine = E.book === b, k = mine && E.buf ? ((E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration) : mine && E.wait ? 0 : 1;
     row.style.setProperty('--p', Math.min(100, k * 100).toFixed(1) + '%');
   };
