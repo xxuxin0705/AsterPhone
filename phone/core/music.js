@@ -593,8 +593,15 @@ audio.addEventListener('timeupdate', () => {
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
 // 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
 let stuck = false;
-function blocked() { tell('blocked'); if (document.hidden) stuck = true; }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && stuck) { stuck = false; audio.play().catch(() => tell('blocked')); } });
+// 浏览器不让开始放（后台接下一首时 Tauri 常这样）：记下它的理由，回到 App、下一次碰屏幕时补一次
+function blocked(e) {
+  tell('blocked'); stuck = true;
+  log('warn', '音乐', `浏览器没让《${(current() || {}).name}》开始放（${document.hidden ? '在后台' : '在前台'}）`, `${e && e.name}: ${e && e.message}`);
+}
+const again = () => { if (!stuck || !audio.src) return; stuck = false; audio.play().catch(blocked); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
+addEventListener('focus', again);
+document.addEventListener('pointerdown', again, true);
 
 /* ---------- 系统的「正在播放」（锁屏、控制中心、灵动岛） ---------- */
 function sysInfo(s) {
@@ -614,7 +621,7 @@ if (navigator.mediaSession) {
 let ducked = false;
 function duck(e) {
   if (e.detail === 'start' && !audio.paused) { ducked = true; audio.pause(); }
-  else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(() => tell('blocked')); }
+  else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(blocked); }
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }
 
