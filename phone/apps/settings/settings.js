@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.181';
+export const VERSION = '0.8.182';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -122,9 +122,28 @@ function openApps() {
     body.append(
       group('应用', [
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
+        item({ icon: 'sparkle', color: 'gold', title: '幕间', sub: '文字：' + (state.apps.interlude.conn.text === 'follow' ? '跟随全局' : (state.connections.text.find(x => x.id === state.apps.interlude.conn.text) || {}).name || '跟随全局'), chevron: true, onClick: openInterludeApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
         item({ icon: 'list', color: 'teal', title: '日志', chevron: true, onClick: () => shell.openApp('log') }),
       ]));
+  });
+}
+function openInterludeApp() {
+  const a = state.apps.interlude;
+  sub('app-interlude', '幕间', (body, re) => {
+    const own = a.conn.text !== 'follow' && state.connections.text.find(x => x.id === a.conn.text);
+    body.append(group('使用的连接', [item({ title: '文字', value: own ? own.name : '跟随全局 →', chevron: true, onClick: async () => {
+      const r = await actionSheet('幕间用的文字连接', [{ value: 'follow', label: '跟随全局', active: !own }, ...state.connections.text.map(x => ({ value: x.id, label: x.name, active: own && own.id === x.id })), { value: '__go', label: '去管理连接…', icon: 'link' }]);
+      if (r === '__go') { connKind = 'text'; openConnections(); return; }
+      if (r) { a.conn.text = r; commit('apps'); re(); }
+    } })]), group('', [
+      toggleItem({ title: '打开时放开屏' }, a.splash, v => { a.splash = v; commit('apps'); }),
+      item({ title: '大成功 / 大失败', value: a.crit === 'book' ? '规则书' : a.crit === '3' ? '1～3 / 98～100' : '1～5 / 96～100', chevron: true, onClick: async () => {
+        const { CRITS } = await import('../interlude/rules.js');
+        const r = await actionSheet('大成功 / 大失败', CRITS.map(([v, l]) => ({ value: v, label: l, active: a.crit === v })));
+        if (r) { a.crit = r; commit('apps'); re(); }
+      } }),
+    ]));
   });
 }
 function openChatApp() {

@@ -1,0 +1,122 @@
+/* 幕间：书桌、开屏、车卡、玩的页面（方案见 docs/pages-interlude.md） */
+.as-int-serif { font-family: var(--font-cn); }
+.as-int-desk, .as-int-card, .as-int-play { background: #2a3447; }
+.as-int-desk .as-navbar, .as-int-card .as-navbar, .as-int-play .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; position: relative; z-index: 2; color: #f1ece2; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.as-int-desk .as-navbar__back, .as-int-desk .as-navbar__btn, .as-int-card .as-navbar__back, .as-int-play .as-navbar__back { color: #f1ece2; }
+.as-int-desk .as-page__body, .as-int-card .as-page__body, .as-int-play .as-page__body { position: relative; z-index: 1; overflow: hidden; }
+.as-int-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.as-int-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: opacity 1.2s ease; }
+.as-int-bg img.is-night { opacity: 0; }
+.as-phone[data-mode="night"] .as-int-bg img.is-night { opacity: 1; }
+
+/* ---------- 桌子 ---------- */
+.as-int-table { position: absolute; inset: 0; }
+.as-int-prop { position: absolute; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; transform: rotate(var(--r, 0deg)); transition: transform 260ms var(--as-ease-spring), filter 200ms; }
+.as-int-prop > img { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.as-int-prop:active { transform: rotate(var(--r, 0deg)) scale(.96); }
+.as-int-prop.is-dice { z-index: 3; }
+.as-int-dicehost { position: absolute; inset: -45%; pointer-events: none; }   /* 比盘子大一圈：骰子从桌上飞进盘里，不被盘子的边裁掉 */
+.as-int-dice { position: absolute; inset: 0; width: 100%; height: 100%; }
+.as-int-tag { position: absolute; left: 50%; bottom: 10%; transform: translateX(-50%) rotate(-3deg); max-width: 92%; padding: 2px 8px; background: #efe6d3; color: #3b2d1c; font: 500 11px/1.5 var(--font-cn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 5px rgba(0,0,0,.3); }
+.as-int-prop.is-chair > img { transform: rotate(-90deg); }   /* 椅背朝外，椅面对着桌子 */
+.as-int-seat { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.as-int-seat .as-avatar { box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+.as-int-prop.is-tray { cursor: default; z-index: 2; }
+.as-int-prop.is-tray:active { transform: none; }
+.as-int-tokens { position: absolute; inset: 9% 5%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; }
+.as-int-token { display: grid; place-items: center; min-width: 0; min-height: 0; padding: 4px; border: 0; background: none; cursor: pointer; border-radius: 10px; -webkit-tap-highlight-color: transparent; transition: transform 240ms var(--as-ease-spring), background 200ms; }
+.as-int-token { position: relative; }
+.as-int-token img { position: absolute; inset: 6%; width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }   /* 绝对定位：图再高也不把格子撑大 */
+.as-int-token.is-on { transform: translateY(-6px) scale(1.12); background: rgba(240,210,140,.22); box-shadow: 0 0 0 1px rgba(240,210,140,.5), 0 8px 16px rgba(0,0,0,.4); }
+.as-int-prop.is-seal { z-index: 4; }
+.as-int-prop.is-seal span { position: absolute; inset: 0; display: grid; place-items: center; color: #f3dcc7; font: 500 15px/1 var(--font-cn); letter-spacing: .1em; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.as-int-sheet .as-list-item .as-check { color: var(--as-color-accent, #4e7fd8); opacity: 0; }
+.as-int-sheet .as-list-item.is-on .as-check { opacity: 1; }
+
+/* ---------- 开屏：打字机 + 火漆 ---------- */
+.as-int-splash { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: #1b2232; transition: opacity 500ms ease; }
+.as-int-splash.is-out { opacity: 0; pointer-events: none; }
+.as-int-splash__skip { position: absolute; right: 14px; top: 10px; padding: 6px 12px; border: 1px solid rgba(241,236,226,.4); border-radius: 999px; background: none; color: #f1ece2; font: 500 12px/1 var(--font-ui); }
+.as-int-splash__paper { position: relative; width: 76%; padding: 46px 26px 110px; background: #ece4d2; color: #2b2419; box-shadow: 0 20px 50px rgba(0,0,0,.5); font: 400 15px/1.9 var(--font-cn); letter-spacing: .06em; }
+.as-int-splash__paper p { min-height: 1.9em; margin: 0; white-space: pre; }
+.as-int-splash__paper p:first-child { font-size: 13px; opacity: .7; }
+.as-int-splash__seal { position: absolute; right: 22px; bottom: 18px; width: 92px; transform: scale(2.4) rotate(-20deg); opacity: 0; transition: transform 160ms cubic-bezier(.3, 1.4, .5, 1), opacity 120ms; }
+.as-int-splash__seal.is-down { transform: scale(1) rotate(-12deg); opacity: 1; }
+.as-int-splash__seal img { display: block; width: 100%; filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
+.as-int-splash__seal span { position: absolute; inset: 0; display: grid; place-items: center; color: #f3dcc7; font-size: 18px; letter-spacing: .12em; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+
+/* ---------- 车卡：牛皮纸档案表，每块对着纸上的框 ---------- */
+.as-int-card .as-page__body > * { position: absolute; color: #2f2619; font-family: var(--font-cn); }
+.as-int-card__photo { left: 7%; top: 5%; width: 30%; height: 17%; display: grid; place-items: center; }
+.as-int-card__photo .as-avatar { width: 78% !important; height: auto !important; aspect-ratio: 1; filter: sepia(.4) contrast(.95); }
+.as-int-card__top { left: 45%; top: 10%; width: 48%; height: 15%; display: flex; flex-direction: column; gap: 4px; }
+.as-int-card__top .as-field { gap: 0; }
+.as-int-card__top .as-field__label { font-size: 11px; opacity: .7; }
+.as-int-card__top .as-input { padding: 2px 4px; height: 26px; background: none; border: 0; border-bottom: 1px solid rgba(47,38,25,.3); border-radius: 0; color: #2f2619; font-family: var(--font-cn); font-size: 15px; }
+.as-int-card__top .as-input:disabled { opacity: 1; -webkit-text-fill-color: #2f2619; }
+.as-int-card__tk { display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: .8; }
+.as-int-card__tk img { height: 22px; width: auto; }
+.as-int-card__attrs { left: 8%; top: 29%; width: 84%; height: 25%; }
+.as-int-attrs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; }
+.as-int-attr { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid rgba(47,38,25,.18); padding: 2px 4px; }
+.as-int-attr small { font-size: 12px; opacity: .75; }
+.as-int-attr b { font-size: 18px; font-weight: 500; min-width: 2ch; text-align: right; outline: 0; }
+.as-int-attrs.is-manual .as-int-attr b { border-bottom: 1px dashed #8a6d3b; }
+.as-int-card__derived { margin-top: 10px; font-size: 13px; opacity: .8; }
+.as-int-card__roll { left: 8%; top: 57%; width: 40%; height: 14%; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.as-int-card__skills { left: 53%; top: 57%; width: 40%; height: 14%; display: flex; flex-wrap: wrap; gap: 2px 8px; align-content: flex-start; font-size: 12px; line-height: 1.5; opacity: .9; }
+.as-int-card__foot { left: 8%; top: 75%; width: 84%; height: 16%; overflow: hidden; }
+.as-int-card__who { display: flex; gap: 6px; margin-bottom: 6px; }
+.as-int-card__bg { font-size: 12.5px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.as-int-card__bar { left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; }
+.as-int-card__bar .as-btn { min-width: 140px; }
+
+/* ---------- 抛骰子的大画面 ---------- */
+.as-int-roll { position: absolute; inset: 0; z-index: 25; display: grid; grid-template-rows: 1fr auto; background: rgba(12,18,32,.55); transition: opacity 260ms; }
+.as-int-roll.is-out { opacity: 0; }
+.as-int-roll__host { position: relative; }
+.as-int-roll__cap { margin: 0; padding: 0 24px 56px; text-align: center; color: #f1ece2; font: 500 16px/1.6 var(--font-cn); text-shadow: 0 1px 6px rgba(0,0,0,.6); min-height: 90px; }
+.as-int-roll.is-done .as-int-roll__cap { animation: as-int-pop 220ms ease; }
+@keyframes as-int-pop { from { transform: translateY(6px); opacity: .4; } }
+
+/* ---------- 演员表 ---------- */
+.as-int-cast { position: absolute; inset: 0; z-index: 26; display: grid; place-items: center; background: #0d1119; color: #f1ece2; transition: opacity 400ms; }
+.as-int-cast.is-out { opacity: 0; }
+.as-int-cast__card { text-align: center; animation: as-int-fade 1.5s ease both; }
+.as-int-cast__card small { display: block; font: 400 12px/1 var(--font-ui); letter-spacing: .3em; opacity: .6; margin-bottom: 14px; }
+.as-int-cast__card .as-int-serif { font-size: 24px; letter-spacing: .1em; }
+.as-int-cast__card.is-title .as-int-serif { font-size: 30px; }
+@keyframes as-int-fade { 0% { opacity: 0; transform: translateY(8px); } 20%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* ---------- 玩 ---------- */
+.as-int-play .as-int-bg img { transition: opacity 800ms ease; }
+.as-int-play .as-int-bg img.is-in { animation: as-int-in 800ms ease both; }
+@keyframes as-int-in { from { opacity: 0; } }
+.as-int-play .as-int-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,14,24,.35), transparent 30%, transparent 55%, rgba(10,14,24,.75)); }
+.as-int-hud { position: absolute; left: 12px; right: 12px; top: 4px; display: flex; align-items: center; gap: 10px; color: #f1ece2; font: 500 12px/1 var(--font-ui); text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.as-int-hud .is-mad { color: #f0a0a0; }
+.as-int-hud .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
+.as-int-stage { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 12px 12px; }
+.as-int-who { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: -14px; position: relative; z-index: 1; }
+.as-int-who__face { width: 118px; height: 118px; display: grid; place-items: center; }
+.as-int-who__face img, .as-int-who__face .as-avatar { width: 110px !important; height: 110px !important; border-radius: 8px !important; object-fit: cover; border: 2px solid #ece4d2; box-shadow: 0 8px 20px rgba(0,0,0,.5); font-size: 40px !important; }
+.as-int-who__face img[src$="kp.webp"] { object-fit: contain; background: #0d1119; }
+.as-int-who__none { width: 110px; height: 110px; display: grid; place-items: center; background: #3b4863; color: #f1ece2; border-radius: 8px; border: 2px solid #ece4d2; font: 500 40px/1 var(--font-cn); }
+.as-int-who__name { padding: 3px 12px; background: #ece4d2; color: #2f2619; font: 500 13px/1.4 var(--font-cn); letter-spacing: .08em; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.as-int-box { position: relative; min-height: 96px; padding: 24px 18px 18px; background: rgba(236,228,210,.96); color: #2f2619; font: 400 15px/1.7 var(--font-cn); box-shadow: 0 10px 30px rgba(0,0,0,.45); cursor: pointer; }
+.as-int-box p { margin: 0; }
+.as-int-box__more { position: absolute; right: 12px; bottom: 6px; font-size: 14px; opacity: .6; animation: as-int-bob 1s ease-in-out infinite alternate; }
+@keyframes as-int-bob { to { transform: translateY(3px); } }
+.as-int-act { margin-top: 10px; }
+.as-int-input { display: flex; gap: 8px; align-items: flex-end; }
+.as-int-input .as-textarea { flex: 1; min-height: 40px; max-height: 120px; background: rgba(236,228,210,.96); color: #2f2619; border: 0; }
+.as-int-dicebtn { width: 40px; height: 40px; border: 0; border-radius: 12px; background: rgba(236,228,210,.96); font-size: 20px; cursor: pointer; flex: none; }
+.as-int-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.as-int-opts .as-btn { padding: 6px 12px; min-height: 32px; font-size: 13px; }
+.as-int-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); }
+.as-int-ask small { width: 100%; font-size: 12px; opacity: .75; }
+.as-int-ask b { font-weight: 500; flex: 1; }
+.as-int-wait { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(236,228,210,.96); color: #2f2619; font: 400 14px/1 var(--font-cn); }
+.as-int-wait .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
+.as-int-end { padding: 14px 16px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); display: flex; flex-direction: column; gap: 8px; }
+.as-int-end p { margin: 0; font-size: 14px; line-height: 1.7; }

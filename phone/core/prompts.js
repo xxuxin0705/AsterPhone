@@ -14,7 +14,9 @@ export const VAR_INFO = {
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
-  recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
+  recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字 / 这局的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
+  mood: '这局的气氛（正经 / 轻松 / 整活）', cast: '上桌的角色：名字、人设、职业、血和理智', pc: '你的调查员：意象、属性、职业、技能', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
+  secret: '这局的真相', acts: '各幕的目标和出口', actNo: '现在第几幕', goal: '本幕目标', exit: '本幕出口', left: '本幕还剩几回合', must: '回合用完时要求结束本幕 / 给结局的那句话（自动填）', log: '前几回合的叙述和你做的事', input: '你这回合做的事和骰子结果',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
@@ -42,6 +44,8 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
+  { app: '幕间', items: [{ id: 'intStart', name: '开局', vars: ['user', 'mood', 'story', 'cast', 'pc', 'scenario', 'places', 'skills'] },
+    { id: 'intRound', name: '一回合', vars: ['user', 'mood', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -425,6 +429,61 @@ export const DEFAULT_PROMPTS = {
 [图片] 配图的画面（中文，一句话：拍了什么、在哪）
 [生图] 同一个画面的生图提示词（英文，逗号隔开的短词）
 主题色：从这些颜色里挑一个最合这篇心情和剧情氛围的，只写名字：{{palettes}}` },
+  // ---------- 幕间（跑团）：骰子由手机掷，AI 只收结果；整局不进正文、不进记忆 ----------
+  intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
+    text: `你是一位《克苏鲁的呼唤》第七版的守秘人（KP），现在要为 {{user}} 和 TA 的朋友们开一局。先把这一局的骨架和每个人的调查员卡写好。气氛：{{mood}}
+
+【正文里最近发生的事】（这局是从这里「暂停」开的，开场白要先用一两句接住它，再进入游戏）
+{{story}}
+
+【上桌的人】
+{{cast}}
+
+【{{user}} 的调查员】
+{{pc}}
+
+【本】
+{{scenario}}
+
+【场景】整局只能在这些地点里进行，每一幕选一个（写左边的代号）：
+{{places}}
+
+要求：
+- 3～5 幕，每幕有目标和「出口」（满足什么就进下一幕）；真相只有你知道；好 / 坏两种结局各写一句。
+- 调查员卡：按意象和属性给 {{user}} 起名、定职业、写两三句背景；上桌的每个人也按各自的性格定职业。技能只从这张表里挑：{{skills}}。职业技能最多 8 项、每项最高 75，总加点不超过教育×4 + 智力×2；没写的按基础值。
+- 开场白 100 字左右：先接正文，再把大家带进这一局的第一幕。
+- 只输出 JSON，不要别的文字、不要代码块：
+{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口"}],"secret":"真相","endings":{"good":"","bad":""},"pc":{"name":"","job":"","bg":"","skills":{"侦查":60}},"party":[{"name":"上桌的人的名字","job":"","skills":{}}]}` },
+  intRound: { name: '一回合', cats: ['intRound'], on: true, main: true,
+    text: `你是这局《克苏鲁的呼唤》的守秘人（KP），叙述并扮演所有 NPC 和上桌的角色（除了 {{user}}）。气氛：{{mood}}
+骰子都由手机掷，你不能自己报点数；需要检定就在 request 里提出，下一回合会收到结果。
+
+【这局】《{{title}}》
+真相（只有你知道，不要直接说出来）：{{secret}}
+各幕：
+{{acts}}
+【现在】第 {{actNo}} 幕「{{act}}」：{{goal}}；出口：{{exit}}。本幕还剩 {{left}} 回合{{must}}
+
+【{{user}} 的调查员】{{pc}}
+【上桌的角色】（用各自的性格说话、行动；他们的检定也由手机掷）
+{{cast}}
+
+【前几回合】
+{{log}}
+
+【这回合 {{user}} 做的】
+{{input}}
+
+写这一回合：KP 的叙述 + 每个上桌角色这回合说的话或做的事（who 写名字，KP 写「KP」），每段一两句，总共不超过 8 段。
+然后提出 request（只能一种）：
+- {"type":"free"}：随便做什么
+- {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么"}：有后果的行动才检定；对方弱用普通，势均力敌用困难，几乎不可能用极难
+- {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
+- {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
+- {"type":"choose","options":["…","…"]}：给几个选项
+场景换了就写 place（只能用：{{places}}）。有人受伤写 hurt。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
+只输出 JSON，不要别的文字、不要代码块：
+{"lines":[{"who":"KP","text":""}],"place":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

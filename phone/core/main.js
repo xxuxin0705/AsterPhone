@@ -24,6 +24,7 @@ const APP_LOADERS = {
   library: () => import('../apps/library/library.js'),
   memory: () => import('../apps/memory/memory.js'),
   diary: () => import('../apps/diary/diary.js'),
+  interlude: () => import('../apps/interlude/interlude.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 

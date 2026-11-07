@@ -67,3 +67,8 @@
 - 白噪音：雨、篝火、海浪、风、虫鸣、白 / 粉 / 棕噪音都是程序现算的，没有用录音。
 - 读书页字幕气泡的液态玻璃（phone/core/glass.js）：照作者给的 PDF《液态玻璃》技术指南（小红书 @whereyanlands）的做法和基准参数写的，边缘高光公式照抄指南里的 EDGE GLINT。
 - 电台的语气（phone/core/act.js）：照作者自己的「正文朗读」插件（github.com/xxuxin0705/reading 的 tts-adapt.js、deep-editor.js）——标签写法、各语音接口的换写法、一键演法、标签分类、张力 / 语速，和「调这一段的语气」面板（照 deep-editor.js 的单句演法：大标签切换、叠字结巴、试听对比）都是从那边改过来的。
+
+## 幕间的图和规则（phone/assets/interlude/、apps/interlude/）
+- 书桌白天 / 夜里（desk-*）、骰子盘（tray-dice）、丝绒托盘（tray）、火漆信（letter）、旧地图（map）、椅子（chair）、火漆印章（seal）、KP 剪影（kp）、图标（icon）、角色卡底纸（sheet）、八个意象小物件（tk-*，一张黑底拼图按亮度抠开）、十八张老照片场景（scene-*）：作者用 GPT 生成（交接单在 docs/gpt-image-brief-interlude.md），抠成透明底、转成 webp。
+- 十面骰（apps/interlude/dice.js）：WebGL 自己画的，材质照作者让 GPT 出的琥珀 / 血珀参考图；落盘的「嗒」是程序现算的噪声。
+- 规则（apps/interlude/rules.js）：用的是《克苏鲁的呼唤》第七版公开的基本规则（属性掷法、1D100 检定、困难 / 极难、对抗、理智检定、临时疯狂的 1D10 症状表），不含任何官方模组或书里的文字；三个内置本（雪夜第七病房、末班车不停、灯塔的信）是我们自己写的。
