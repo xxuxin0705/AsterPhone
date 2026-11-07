@@ -24,6 +24,7 @@
 | 电台（哄睡）页面的 2.5D 画风 | 小红书 Toska 的前端（窗台 / 书桌，three.js，AGPL-3.0） | 只参考画风，不用它的代码和图 |
 | `phone/core/lx.js`（假装成洛雪，给音源脚本的那套 `lx` 东西：事件名、`request`、`utils`、`inited` / `musicUrl` 的格式） | 洛雪音乐的「自定义源」写法 | lyswhut/lx-music-desktop 的文档，https://github.com/lyswhut/lx-music-desktop | Apache-2.0；只参考接口格式，代码自己写 |
 | `server-plugin/index.js`（B 站：先拿 buvid3 再搜、`search/type` 搜视频、`view` 拿 cid、`playurl` 取地址，要带 Referer） | 弦 Xian（拿 B 站当曲库的安卓播放器） | 作者发的小红书笔记，https://github.com/TIUCSIB/Xian | 仓库没写许可；只参考思路，代码自己写 |
+| `phone/core/music.js`（`qqFull` / `kuwoFull`：QQ 公共接口 tang.api.s01s.cn 按编号要整首、酷我接口 oiapi.net 按歌名搜再按序号要 mp3 的用法） | musicsquare（纯网页的音乐播放器） | 作者发的小红书笔记，https://github.com/CharlesPikachu/musicsquare | Apache-2.0；只参考接口用法，代码自己写 |
 | 播放页「碎语 / 群唱」 | 全屏动态歌词的几种样子 | Folia（辞曲新境），AGPL-3.0 | 只参考样子，代码自己写，没用它的代码和图 |
 | 音乐「一起听」 | 头像挨着、外侧耳机线的排法；头像上方白底气泡的样子 | 作者发的网易云「一起听」截图、一张带气泡的截图（来源未知） | 只参考样子，没用它们的图 |
 
