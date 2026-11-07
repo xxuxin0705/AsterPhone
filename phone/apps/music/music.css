@@ -555,9 +555,10 @@
 .as-rd__bottle { flex: 1; padding: 0; border: 0; background: none; cursor: pointer; transition: transform .25s, filter .25s; filter: brightness(.82) saturate(.8); }
 .as-rd__bottle img { display: block; width: 100%; }
 .as-rd__bottle.is-on { transform: translateY(-4px); filter: brightness(1.12) drop-shadow(0 0 7px rgba(255,236,170,.95)); }
-.as-rd__shelf { position: absolute; left: 0; right: 0; top: 29cqh; height: 21cqh; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 0 22px; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+/* 书架两排，多了上下滑；下沿停在怀表上面 */
+.as-rd__shelf { position: absolute; left: 0; right: 0; top: 25cqh; height: 34cqh; z-index: 1; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2cqh 8px; box-sizing: border-box; padding: 1.5cqh 22px; overflow: hidden auto; scrollbar-width: none; touch-action: pan-y; }
 .as-rd__shelf::-webkit-scrollbar { display: none; }
-.as-rd__spine { flex: none; position: relative; height: 16cqh; padding: 0; border: 0; background: none; cursor: pointer; rotate: var(--r, 0deg); animation: as-rd-bob 4.6s ease-in-out infinite alternate; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
+.as-rd__spine { flex: none; position: relative; height: 14.5cqh; padding: 0; border: 0; background: none; cursor: pointer; rotate: var(--r, 0deg); animation: as-rd-bob 4.6s ease-in-out infinite alternate; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
 .as-rd__spine img { display: block; height: 100%; }
 .as-rd__spine span { position: absolute; left: 50%; top: 17%; max-height: 64%; transform: translateX(-50%); writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font: 600 12px/1.15 "Songti SC", "Noto Serif SC", serif; letter-spacing: 1px; color: #fbf1d8; text-shadow: 0 1px 1px rgba(0,0,0,.5); }

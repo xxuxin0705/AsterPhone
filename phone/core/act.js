@@ -60,5 +60,30 @@ export const GROUPS = [['情绪', ['happy', 'excited', 'tender', 'gentle', 'teas
   'nervous', 'scared', 'surprised', 'angry', 'disdainful', 'sarcastic', 'indifferent', 'serious', 'lazy', 'mysterious']],
   ['声音', ['whisper', 'soft tone', 'breathy', 'loud', 'shouting', 'voice trembling', 'holding back tears', 'choked up', 'sobbing', 'sigh', 'gasp', 'chuckling', 'laughing',
   'bitter laugh', 'snicker', 'yawning', 'clear throat', 'drawn out']], ['停顿', ['pause', 'long pause']]].map(([n, l]) => [n, l.map(t => [ZH[t] || (t === 'pause' ? '短停顿' : '长停顿'), t])]);
-/** 给 AI 的一句：写故事时每段开头标语气 */
-export const ACT_HINT = `每段开头用方括号写 1~2 个英文语气标签，写这段该怎么念（情绪、音量、笑 / 叹气 / 哭腔这类声音），比如 [gentle][soft tone]、[teasing][chuckling]、[sad][voice trembling]；情绪中途变了可以在句中再插一个。常用：${GROUPS.slice(0, 2).flatMap(g => g[1].map(x => x[1])).join(', ')}。>> 开头的翻译行不写标签。`;
+/** 这个接口能认到什么程度（照正文朗读的 channelProfile）：inline 句中随便插；mm28 / mm 整句一个情绪（mm28 句中还认几个声音）；
+ *  sentence 句首最多两个，合成一句整句的语气说明；plain 不认标签 */
+export function kindOf(conn) {
+  if (!conn) return 'plain';
+  const type = conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type, m = String(conn.model || '');
+  if (type === 'fish') return /drama|^s1|speech-1/i.test(m) ? 'plain' : 'inline';
+  if (type === 'elevenlabs') return /v3/.test(m) ? 'inline' : 'plain';
+  if (type === 'mimo') return 'inline';
+  if (type.startsWith('minimax')) return /2\.8/.test(m) ? 'mm28' : 'mm';
+  if (type === 'doubao-tts') return conn.ver === 'v1' ? 'plain' : 'sentence';
+  if (type === 'indextts') return 'sentence';
+  return /gpt-4o|mini-tts/i.test(m) ? 'sentence' : 'plain';
+}
+const MM = [['开心', 'happy'], ['悲伤', 'sad'], ['生气', 'angry'], ['害怕', 'scared'], ['厌恶', 'disdainful'], ['惊讶', 'surprised'], ['平静', 'calm']];
+const PAUSE = GROUPS[2];
+/** 调语气时能点的：只放这个接口认的 */
+export const groupsFor = k => k === 'inline' || k === 'sentence' ? GROUPS : k === 'plain' ? [PAUSE]
+  : [['情绪', MM], ...(k === 'mm28' ? [['声音', GROUPS[1][1].filter(([, t]) => MM_SOUND[t])]] : []), PAUSE];
+const SOUNDS = 'laughing, chuckling, sigh, gasp, panting, sniffling, clear throat, groan';
+/** 给 AI 的一句：写故事时每段怎么标语气，按角色现在用的语音接口来 */
+export const hintFor = k => ({
+  inline: `每段开头用方括号写 1~2 个英文语气标签，写这段该怎么念（情绪、音量、笑 / 叹气 / 哭腔这类声音），比如 [gentle][soft tone]、[teasing][chuckling]、[sad][voice trembling]；情绪中途变了可以在句中再插一个。常用：${GROUPS.slice(0, 2).flatMap(g => g[1].map(x => x[1])).join(', ')}。>> 开头的翻译行不写标签。`,
+  sentence: `每段开头用方括号写最多 2 个英文语气标签（一个情绪 + 一个声音），比如 [gentle][soft tone]、[sad][voice trembling]，整段都按它念；句中不写标签，情绪变化用叠字、……、拟声字表达。>> 开头的翻译行不写标签。`,
+  mm28: `每段开头用方括号写 1 个英文情绪标签，只能从这些里挑：${MM.map(x => x[1]).join(', ')}，整段都按这个情绪念；句中只可以插这几个声音标签：${SOUNDS}，和 [pause]；别的声音用拟声字、叠字、……、！表达。>> 开头的翻译行不写标签。`,
+  mm: `每段开头用方括号写 1 个英文情绪标签，只能从这些里挑：${MM.map(x => x[1]).join(', ')}，整段都按这个情绪念；句中不写标签，声音用拟声字、叠字、……、！表达。>> 开头的翻译行不写标签。`,
+  plain: '不写任何方括号标签；语气用叠字、语气词、拟声字（哈哈、唉……、呜……）、……、！！表达出来。',
+})[k];

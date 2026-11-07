@@ -17,7 +17,7 @@ import { nameOf, personaOf } from '../chat/engine.js';
 import { isNight } from './rain.js';
 import { color, font, setFont } from './tglook.js';
 import { glass } from '../../core/glass.js';
-import { plain, PRESETS, GROUPS, ACT_HINT } from '../../core/act.js';
+import { plain, PRESETS, groupsFor, kindOf, hintFor } from '../../core/act.js';
 import { translate } from '../../core/translate.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
 import LIB from './radiolib.js';
@@ -60,6 +60,7 @@ const segsOf = text => clean(text).split('\n').map(l => l.trim()).filter(Boolean
   else { const s = l.replace(/\[\d+\]\s*/g, ''), t = plain(s); a.push(t === s ? { t, tr: '' } : { t, s, tr: '' }); }
   return a;
 }, []);
+const hint = c => hintFor(kindOf(connFor(c.id)));   // 每段怎么标语气：照这个角色现在用的语音接口
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
 // 连接中途断了时，有的接口会把一句「响应读取中断…请检查网络连接…」当成正文接在半截回复后面（作者那本的感想就混进了这句）：当失败，不存
 const ask = (c, prompt, maxTokens, stop) => generate({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt })
@@ -75,7 +76,7 @@ async function compose1(c, what, recall, stop) {
     about = [`【最近的剧情】\n${story || '（暂无）'}`, msgs.length && `【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : real(c)}：${m.text}`).join('\n')}`,
       await worldText(scan).catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
   }
-  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: ACT_HINT }), 8000, stop);
+  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), 8000, stop);
   const title = ((raw.match(/^\s*标题[:：]\s*(.+)$/m) || [])[1] || '').replace(/^[《「『【]|[》」』】]$/g, '').trim();
   const [head, rest] = raw.split(/^\s*故事[:：]\s*/m), [story, after = ''] = (rest ?? head.replace(/^\s*标题[:：].*$/m, '')).split(/^\s*感想[:：]\s*/m);
   const segs = segsOf(story);
@@ -85,7 +86,7 @@ async function compose1(c, what, recall, stop) {
 /** 书店的老故事、导入的文字：翻成 lang（原文就是 lang 的话只配中文翻译） */
 async function trans(c, ps, from, lang, stop) {
   const onlyZh = same(from, lang), raw = await ask(c, compose('radioTrans', { char: real(c), lang: lname(onlyZh ? 'zh-CN' : lang),
-    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : ACT_HINT, tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop);
+    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : hint(c), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop);
   const out = segsOf(raw);
   if (!out.length) throw new Error('AI 回了空的');
   if (onlyZh) return ps.map((t, i) => ({ t, tr: (out[i] || {}).t || '' }));
@@ -107,7 +108,7 @@ async function thoughts(b, stop) {
   const c = contact(b.who);
   if (!c) throw new Error('这个角色已经不在联系人里了');
   const out = segsOf(await ask(c, compose('radioAfter', { char: real(c), persona: personaOf(c) || '（没有更多资料）', title: b.title,
-    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang), act: ACT_HINT }), 2400, stop));
+    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang), act: hint(c) }), 2400, stop));
   if (!out.length) throw new Error('AI 回了空的');
   b.after = out; await save();
 }
@@ -302,7 +303,7 @@ export async function renderRadio(ctx) {
   const my = ++draws;
   await load();
   if (my !== draws || ctx.el.dataset.tab !== 'radio') return;
-  const face = h('span.as-rd__face'), shelf = h('div.as-rd__shelf', { 'data-no-swipe': '' });   // 书多了左右滑，别当成返回手势
+  const face = h('span.as-rd__face'), shelf = h('div.as-rd__shelf');
   const watch = h('button.as-rd__watch', { 'aria-label': '换人', onclick: pickWho }, h('img', { src: 'assets/radio/watch.webp', alt: '' }), face);
   const bottles = NOISE.map(([k, name], i) => {
     const b = h('button.as-rd__bottle', { 'aria-label': name, onclick: () => { noise(k, !live[k]); toast(live[k] ? name : `关掉${name}`); } }, h('img', { src: `assets/radio/bottle${i + 1}.webp`, alt: '' }));
@@ -485,14 +486,14 @@ function openBook(b) {
   function toggle() { if (E.on || E.wait) pause(); else resume(); }
   // 调这一段的语气（照正文朗读的 🎭）：一键套一组、或者在光标处插标签，也能改字；试听只合成不存，保存后这段下次重新合成
   function actSheet(i) {
-    const seg = lines(b)[i], ta = textarea({ value: seg.s || seg.t, rows: 5 });
+    const seg = lines(b)[i], ta = textarea({ value: seg.s || seg.t, rows: 5 }), k = kindOf(connFor(b.who));   // 只给这个接口认的标签
     const lead = v => v.replace(/^\s*(?:\[[^\]]+\]\s*)+/, '');
     const put = v => { const at = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, at) + v + ta.value.slice(at); ta.focus(); };
     const chips = (list, fn) => h('div.as-rd-chips', list.map(([label, v]) => h('button', { onclick: () => fn(v) }, label)));
     const tryB = btn('试听', 'secondary', () => { pause(); busy(tryB, stop => speakAs(b.who, ta.value, { acted: true, stop })); });
     const sh = sheet({ title: '调这一段的语气', content: h('div.as-rd-act', ta,
-      h('small', '一键'), chips(PRESETS, tags => { ta.value = tags.map(x => `[${x}]`).join('') + (tags.length ? ' ' : '') + lead(ta.value); }),
-      GROUPS.map(([name, list]) => [h('small', name), chips(list, x => put(`[${x}]`))]), tryB,
+      k === 'plain' ? null : [h('small', '一键'), chips(PRESETS, tags => { ta.value = tags.map(x => `[${x}]`).join('') + (tags.length ? ' ' : '') + lead(ta.value); })],
+      groupsFor(k).map(([name, list]) => [h('small', name), chips(list, x => put(`[${x}]`))]), tryB,
       h('div.as-rd-imp__row', btn('取消', 'secondary', () => sh.close()), btn('保存', 'primary', async () => {
         const v = ta.value.trim(), t = plain(v);
         if (!t) return toast('还没有字');
