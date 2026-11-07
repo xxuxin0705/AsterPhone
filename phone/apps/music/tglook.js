@@ -35,8 +35,13 @@ export function styleTop(tgEl, time, bubs) {
   const G = look();
   tgEl.style.setProperty('--ear', G.ear || ''); tgEl.classList.toggle('has-ear', !!G.ear);
   time.style.color = (G.time && G.time.color) || ''; setFont(time, G.time && G.time.font);
-  setFont(bubs, G.pair.font);
+  setFont(bubs, G.pair.font).then(() => aim(bubs));
 }
+// 气泡位置不动，只挪下面的小角，对准各自的头像（两个头像中心离两人正中间 36px）；气泡够不着头像就停在离头像最近的那头
+const aim = bubs => requestAnimationFrame(() => {
+  const r0 = bubs.parentNode.getBoundingClientRect(), mid = r0.left + r0.width / 2;
+  [...bubs.children].forEach((b, i) => { const r = b.getBoundingClientRect(); if (r.width) b.style.setProperty('--tail', Math.min(r.width - 22, Math.max(10, mid + (i ? 36 : -36) - r.left - 6)) + 'px'); });
+});
 // 一项颜色：右边一个小圆点（没设是「默认」），点开是色轮 + 恢复默认
 const dot = v => v ? h('span.as-tgl__dot', { style: { background: v } }) : h('span', '默认');
 function color(title, get, set, save, alpha) {

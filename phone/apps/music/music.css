@@ -303,13 +303,10 @@
 .as-tg__who { position: absolute; top: 44.52%; width: 84px; height: 84px; transform: translate(-50%, -50%); }
 .is-l .as-tg__who { left: 60.87%; } .is-r .as-tg__who { left: 39.13%; }
 /* 气泡：白天白底黑字、夜里黑底白字，底下小三角对着头像（以后资源库的「气泡」直接套这个） */
-/* 两个气泡以两个头像的正中间为界，各自靠里放；小角对着各自头像的中心（头像中心离正中间 36px） */
-.as-tg__bubs { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: 320px; display: grid; grid-template-columns: 1fr 1fr; align-items: end; column-gap: 10px; }
+.as-tg__bubs { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); display: flex; align-items: flex-end; gap: 10px; }
 .as-tg__bub { position: relative; padding: 8px 14px; border-radius: 14px; font: 400 12.5px/1.4 var(--font-ui); background: var(--bub-bg, #fff); color: var(--bub-ink, #222); box-shadow: 0 4px 14px rgba(0,0,0,.12); transition: background 300ms, color 300ms; }
 .as-tg__bub span { display: block; white-space: nowrap; max-width: 124px; overflow: hidden; text-overflow: ellipsis; }
-.as-tg__bub::after { content: ''; position: absolute; top: calc(100% - 1px); border: 6px solid transparent; border-top-color: var(--bub-bg, #fff); border-bottom-width: 0; transition: border-color 300ms; }
-.as-tg__bub.is-l { grid-column: 1; justify-self: end; } .as-tg__bub.is-r { grid-column: 2; justify-self: start; }
-.as-tg__bub.is-l::after { right: 25px; } .as-tg__bub.is-r::after { left: 25px; }
+.as-tg__bub::after { content: ''; position: absolute; top: calc(100% - 1px); border: 6px solid transparent; border-top-color: var(--bub-bg, #fff); border-bottom-width: 0; transition: border-color 300ms; left: var(--tail, 18px); }   /* 小角对准头像：tglook.js 的 styleTop 量好了设 --tail */
 .as-tg__time { margin-top: -8px; position: relative; text-align: center; font: 400 13px/1.4 var(--font-ui); color: rgba(var(--mp-ink),.75); }
 
 /* 群里一起听：不放头像，只写一起听了多久 */
