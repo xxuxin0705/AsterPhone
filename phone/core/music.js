@@ -503,7 +503,8 @@ async function feed(c, i, s, body, first) {
   }
 }
 /** 续一段进去（上一段续完才续下一段，不会一口气全塞进去）。
- *  缓冲满了（浏览器给一条声音的地方有限，长歌、高音质，或者正好在续下一首时会满）：把 30 秒以前已经放过的清掉再续；还没放到能清的地方就等一会儿再试 */
+ *  缓冲满了（浏览器给一条声音的地方有限，iPhone 尤其小；长歌、高音质，或者正好在续下一首时会满）：把 15 秒以前已经放过的清掉再续；还没放到能清的地方就等放一会儿再试。
+ *  等的时候不用 setTimeout（iPhone 切后台后计时器不走，下一首就一直塞不进去），而是等下一次 timeupdate（声音在放它就来） */
 function put(c, g, value) {
   return new Promise((ok, no) => {
     c.ac.signal.addEventListener('abort', ok, { once: true });   // 换歌了：别等了
@@ -512,9 +513,9 @@ function put(c, g, value) {
       try { if (g.start == null) g.start = c.sb.timestampOffset; c.sb.appendBuffer(value); ok(); }
       catch (e) {
         if (e.name !== 'QuotaExceededError') return no(e);
-        const b = c.sb.buffered, t = audio.currentTime - 30;
+        const b = c.sb.buffered, t = audio.currentTime - 15;
         if (b.length && b.start(0) < t - 1) { c.ops.unshift(go); c.sb.remove(b.start(0), t); }   // 清完 updateend 会接着跑 go
-        else setTimeout(() => op(c, go), 1500);
+        else c.retry = go;
       }
     };
     op(c, go);
@@ -562,7 +563,7 @@ export const prev = () => next(-1);
 export function seek(t) {
   if (!restored) return;
   const at = (seg()?.start || 0) + t, b = chain?.sb?.buffered;
-  // 往回拖到已经清掉的地方（缓冲满时清了 30 秒以前的）：这首重新读，读好了跳过去
+  // 往回拖到已经清掉的地方（缓冲满时清了 15 秒以前的）：这首重新读，读好了跳过去
   if (b && b.length && at < b.start(0) - .5) { load(true); whenLoaded(() => seek(t)); return; }
   audio.currentTime = at;
 }
@@ -604,6 +605,7 @@ audio.addEventListener('timeupdate', () => {
   if (c && g) {
     // 这首下完了就去把下一首续上（只提前一首）：不等「还剩 40 秒」，拖到结尾也来得及，声音不会断
     if (!c.nexting && g.end) chainNext(c);
+    if (c.retry) { const f = c.retry; c.retry = null; op(c, f); }   // 缓冲满了在等：放了一点，再试着塞
     // 放进了下一首：换歌名、歌词，把前一首的内容从这条声音里清掉（省内存）
     const nx = c.segs[c.segs.indexOf(g) + 1];
     if (nx && nx.start != null && audio.currentTime >= nx.start) {
