@@ -141,7 +141,7 @@ async function made(b, msg) {
   tell(); if (scene && scene.isConnected && nav.top()?.el.contains(scene)) openBook(b);
 }
 
-/* ---------- 声音：一个 AudioContext，故事和白噪音都接在 master 上（定时关闭时一起慢慢变小） ---------- */
+/* ---------- 声音：一个 AudioContext，故事和白噪音都接在 master 上 ---------- */
 let ac = null, master = null;
 function actx() {
   if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.connect(ac.destination); }
@@ -306,21 +306,6 @@ function noiseSheet() {
     slider({ value: vol(k), onInput: v => { S().vol[k] = v; if (live[k]) live[k].g.gain.value = v; saveVol(); } }), switchEl(!!live[k], on => noise(k, on), name)))) });
 }
 
-/* ---------- 定时关闭：到点慢慢变小声再停 ---------- */
-let timer = null;
-function setTimer(min) {
-  if (timer) clearTimeout(timer.t);
-  timer = min ? { end: Date.now() + min * 6e4, t: setTimeout(fade, min * 6e4) } : null; tell();
-}
-function fade() {
-  timer = null; if (!ac) return tell();
-  master.gain.setTargetAtTime(0, ac.currentTime, 2.5);
-  setTimeout(() => { if (E.book) pause(); NOISE.forEach(([k]) => noise(k, false)); master.gain.cancelScheduledValues(ac.currentTime); master.gain.value = 1; }, 9000);
-}
-async function pickTimer() {
-  const v = await actionSheet('定时关闭', [...[15, 30, 60].map(m => ({ value: m, label: `${m} 分钟` })), timer && { value: 0, label: '不定时' }].filter(Boolean));
-  if (v != null) { setTimer(v); toast(v ? `${v} 分钟后慢慢停下` : '不定时了'); }
-}
 
 /* ---------- 书店：背景、飘着的小东西、书架（一本书一个书脊）、柜台上的怀表和瓶子 ---------- */
 let scene = null, draws = 0, watching = false;
@@ -604,10 +589,9 @@ function openBook(b) {
   const c = contact(b.who) || {};
   let gls = null;   // 气泡的液态玻璃
   const more = async () => {
-    const v = await actionSheet(b.title, [{ value: 'set', label: '设置' }, { value: 'timer', label: timer ? `定时关闭（还剩 ${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟）` : '定时关闭' },
+    const v = await actionSheet(b.title, [{ value: 'set', label: '设置' },
       b.after && { value: 'again', label: '重新说感想' }, { value: 'del', label: '删除', danger: true }].filter(Boolean));
     if (v === 'set') settings(contact(b.who));
-    if (v === 'timer') pickTimer();
     if (v === 'again') task(`${nameOf(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
     if (v === 'del' && await delBooks([b])) nav.back();
   };
