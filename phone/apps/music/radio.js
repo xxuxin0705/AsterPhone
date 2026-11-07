@@ -33,14 +33,15 @@ async function load() {
   if (D && Dkey === win.key) return D;
   const k = win.key, d = await kvGet('radio:' + k).catch(() => null);
   if (k !== win.key) return load();
-  D = Object.assign({ books: [], who: '' }, d); Dkey = k;
+  D = Object.assign({ books: [], who: '', lang: {} }, d); Dkey = k;
   return D;
 }
 const save = () => kvSet('radio:' + Dkey, D).catch(e => toast('没存上：' + e.message));
 const cur = () => D.who === 'all' ? null : contact(D.who) || state.contacts[0] || null;
 const textLang = t => /[぀-ヿ]/.test(t) ? 'ja' : /[가-힯]/.test(t) ? 'ko' : (t.match(/[a-z]/gi) || []).length > (t.match(/[一-鿿]/g) || []).length ? 'en' : 'zh-CN';
-/** 角色讲故事用的语言：跟着和 TA 聊天的设置里「TA 的语言」，没设就是中文 */
-const langOf = c => (chatForContact(c.id, false) || { cfg: {} }).cfg.theirLang || 'zh-CN';
+/** 角色讲故事用的语言：在「讲什么」里换过就用换的；没换过跟着和 TA 聊天的设置里「TA 的语言」（只有打开了「发送前翻成 TA 的语言」才算数，
+ *  不然那一格是新建聊天时默认填的英语，不是谁选的）；都没有就是中文 */
+const langOf = c => { const cfg = (chatForContact(c.id, false) || { cfg: {} }).cfg; return D.lang[c.id] || (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
 const lines = b => [...b.segs, ...(b.after || [])];
 const end = b => S().say ? lines(b).length : b.segs.length;
 
@@ -325,16 +326,24 @@ const pickRole = async () => { const v = await actionSheet('谁来讲', state.co
 async function add() {
   const c = cur() || await pickRole();
   if (!c) return state.contacts.length || toast('先在聊天里加个联系人');
-  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
+  return what(c);
+}
+async function what(c) {
+  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'lang', label: `用${lname(langOf(c))}讲 · 换一种` }, { value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
+  if (v === 'lang') {
+    const l = await actionSheet(`${nameOf(c)} 讲故事用的语言`, ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, langOf(c)) })));
+    if (l) { D.lang[c.id] = l; save(); }
+    return what(c);
+  }
   if (v === 'rand') return tellNew(c, '随便讲一个：可以是你自己编的，也可以是各地的民间故事、寓言、童话。');
   if (v === 'lib') return libSheet(c);
   if (v === 'mine') return importSheet(c);
   if (v !== 'ask') return;
   const k = await actionSheet('想听什么', [['fairy', '童话'], ['day', '日常小事'], ['recall', '回忆你们之间的事'], ['sheep', '陪你数羊'], ['own', '自己写…']].map(([value, label]) => ({ value, label })));
   const me = myName(), own = k === 'own' && ((await dialog({ title: '想听什么', input: { placeholder: '想听什么' } })) || '').trim();
-  const what = { fairy: '讲一个童话。', day: '讲一件你自己的日常小事，像睡前聊天一样。', recall: `回忆一件你和 ${me} 之间真实发生过的事，从你的角度讲，只讲真发生过的，不编造。`,
+  const topic = { fairy: '讲一个童话。', day: '讲一件你自己的日常小事，像睡前聊天一样。', recall: `回忆一件你和 ${me} 之间真实发生过的事，从你的角度讲，只讲真发生过的，不编造。`,
     sheep: `陪 ${me} 数羊、哄 TA 睡觉：声音轻、节奏慢，一只一只地数，中间夹几句轻轻的话。`, own: `讲一个故事：${own}` }[k];
-  if (what && (k !== 'own' || own)) tellNew(c, what, k === 'recall');
+  if (topic && (k !== 'own' || own)) tellNew(c, topic, k === 'recall');
 }
 const tellNew = (c, what, recall) => task(`${nameOf(c)} 在想故事…`, async stop => made(await compose1(c, what, recall, stop), '讲好了'));
 function libSheet(c) {
