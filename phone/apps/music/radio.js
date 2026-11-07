@@ -9,7 +9,7 @@ import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName } from '../../core/promptstore.js';
-import { speakAs } from '../../core/voice.js';
+import { speakAs, connFor, voiceOf } from '../../core/voice.js';
 import { storyText, worldText } from '../../core/context.js';
 import { memoryFor } from '../../core/memory.js';
 import { log } from '../../core/log.js';
@@ -20,9 +20,10 @@ import { glass } from '../../core/glass.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
 import LIB from './radiolib.js';
 
-const S = () => state.music.radio || (state.music.radio = { voice: 'role', tts: 'ahead', say: true, len: 'mid', vol: {} });
+const S = () => state.music.radio || (state.music.radio = { tts: 'ahead', say: true, len: 'mid', vol: {} });
 // 语言用聊天设置里的写法（core/translate.js 的 LANGS：zh-CN、ja、en…）
 const isZh = l => /^zh/.test(l), same = (a, b) => a === b || isZh(a) && isZh(b), lname = l => langName(isZh(l) ? 'zh-CN' : l);
+const TTS = [['lazy', '点到才合成'], ['ahead', '提前合成两段'], ['all', '一次合成完']];
 const LEN = { short: '三四百字左右（按中文算）', mid: '七八百字左右（按中文算）', long: '一千五百字左右（按中文算）' };
 const real = c => c.name || c.nick || c.remark;
 const subs = new Set(), tell = () => subs.forEach(f => f());
@@ -133,9 +134,8 @@ function actx() {
 }
 const E = { book: null, i: 0, on: false, wait: false, src: null, buf: null, t0: 0, off: 0, run: 0, stop: null, warned: false };
 const pend = new Map();
-/** 第 i 段的声音：存过就拿存的；没有就用角色的声音合成一次存下来。用手机自带的声音、或者合成失败，返回空 */
+/** 第 i 段的声音：存过就拿存的；没有就用角色的声音合成一次存下来。合成失败返回空（那段先用手机自带的声音念） */
 async function voice(b, i) {
-  if (S().voice !== 'role') return null;
   const k = `radio:a:${b.id}:${b.lang}:${i}`, got = await kvGet(k).catch(() => null);
   if (got) return got;
   if (!pend.has(k)) pend.set(k, speakAs(b.who, lines(b)[i].t, { silent: true, cache: k, stop: (E.stop || (E.stop = new AbortController())).signal })
@@ -165,7 +165,7 @@ async function playAt(i) {
   E.wait = false;
   if (buf) { E.raw = buf; E.buf = stretch(buf, rate()); start(run); }
   else {
-    if (S().voice === 'role' && !E.warned) { E.warned = true; toast('没合成出角色的声音，先用手机自带的声音念'); }
+    if (!E.warned) { E.warned = true; toast('没合成出角色的声音，先用手机自带的声音念'); }
     say(run, lines(b)[i].t, b.lang);
   }
   tell(); save(); ahead(b, i);
@@ -322,6 +322,8 @@ export async function renderRadio(ctx) {
     D.who = v; save(); watch.classList.remove('is-tick'); void watch.offsetWidth; watch.classList.add('is-tick'); tell();
   }
 }
+const voiceLabel = c => { const conn = connFor(c.id); if (!conn) return '还没设语音接口'; const v = voiceOf(c.id, conn); return v.from === 'own' ? v.name || v.voice : '默认音色'; };
+const pickTts = () => actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
 const pickRole = async () => { const v = await actionSheet('谁来讲', state.contacts.map(c => ({ value: c.id, label: nameOf(c) }))); return v && contact(v); };
 async function add() {
   const c = cur() || await pickRole();
@@ -329,12 +331,15 @@ async function add() {
   return what(c);
 }
 async function what(c) {
-  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'lang', label: `用${lname(langOf(c))}讲 · 换一种` }, { value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
+  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'lang', label: `用${lname(langOf(c))}讲 · 换一种` }, { value: 'voice', label: `声音：${voiceLabel(c)} · 去音色库` },
+    { value: 'tts', label: `${TTS.find(x => x[0] === S().tts)[1]} · 换一种` }, { value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
   if (v === 'lang') {
     const l = await actionSheet(`${nameOf(c)} 讲故事用的语言`, ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, langOf(c)) })));
     if (l) { D.lang[c.id] = l; save(); }
     return what(c);
   }
+  if (v === 'voice') return (await import('../settings/voices.js')).openPerson(c.id, () => what(c));   // 改完音色存好，回到电台接着选
+  if (v === 'tts') { const t = await pickTts(); if (t) { S().tts = t; commit('music'); } return what(c); }
   if (v === 'rand') return tellNew(c, '随便讲一个：可以是你自己编的，也可以是各地的民间故事、寓言、童话。');
   if (v === 'lib') return libSheet(c);
   if (v === 'mine') return importSheet(c);
@@ -387,8 +392,7 @@ async function delBook(b) {
 function settings() {
   const set = (k, v) => { S()[k] = v; commit('music'); };
   sheet({ title: '电台设置', content: h('div.as-rd-set',
-    group('用谁的声音', [segmented([['role', '角色的声音'], ['phone', '手机自带的']], S().voice, v => set('voice', v))]),
-    group('', [toggleItem({ title: '念感想' }, S().say, v => set('say', v))]),
+    group('', [toggleItem({ title: '故事讲完接着念感想' }, S().say, v => set('say', v))]),
     group('随便讲的长短', [segmented([['short', '短'], ['mid', '中'], ['long', '长']], S().len, v => set('len', v))]),
     group('字幕气泡', [color('气泡颜色', () => B().bg, v => B().bg = v, saveBub), color('字的颜色', () => B().ink, v => B().ink = v, saveBub),
       font(() => B().font, v => B().font = v, saveBub), toggleItem({ title: '描边' }, !!B().line, v => { B().line = v; saveBub(); })])) });
@@ -404,7 +408,6 @@ function styleBub(el) {
 }
 
 /* ---------- 读书：书摊开（左页这一段、右页下一段，都只放中文）；书下面像一起听，TA 的头像 + 气泡里是正在念的原文和翻译；按钮都在最底下 ---------- */
-const TTS = [['lazy', '点到才合成'], ['ahead', '提前合成两段'], ['all', '一次合成完']];
 function openBook(b) {
   if (E.book !== b) { stopStory(); E.book = b; E.i = Math.min(b.pos || 0, lines(b).length - 1); }
   const c = contact(b.who) || {};
@@ -430,7 +433,7 @@ function openBook(b) {
     const v = await actionSheet('倍速', RATES.map(r => ({ value: r, label: r + 'x', active: rate() === r })));
     if (v) { setRate(v); rateB.textContent = rateL(v); }
   } }, rateL(rate())), ttsB = h('button', { onclick: async () => {
-    const v = await actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
+    const v = await pickTts();
     if (v) { S().tts = v; commit('music'); ttsB.textContent = TTS.find(x => x[0] === v)[1]; if (E.on) ahead(b, E.i); }
   } }, TTS.find(x => x[0] === S().tts)[1]);
   const bg = `assets/radio/bg-${isNight() ? 'night' : 'day'}.webp`, shade = ['rgba(12,10,24,.6)', 'rgba(12,10,24,.78)'];
