@@ -1028,7 +1028,7 @@ export function openPlayer() {
       // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字 | 描边」各一个色盘，切换只是换显示哪个（不重画色盘）；
       // 下面是描边的样子（描边 / 发光 / 不加）和字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
       const pv = h('div.as-mu-lypv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
-      const pvPaint = () => ['--ly', '--ly-dim', '--sh', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
+      const pvPaint = () => ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
       const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
       const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('edge', '#0e1a3a')]; wheels[1].hidden = wheels[2].hidden = true;

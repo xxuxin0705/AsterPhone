@@ -494,7 +494,7 @@
 .as-lmc[hidden] { display: none; }
 .as-mu-lypv { position: relative; overflow: hidden; margin: 0 4px 6px; padding: 18px 14px; border-radius: 16px; background: #2b3138; text-align: center; }
 .as-mu-lypv i { position: absolute; inset: -20px; background: center / cover; }
-.as-mu-lypv span { position: relative; display: inline-block; font: 600 18px/1.4 var(--ly-font, var(--font-ui)); background: linear-gradient(90deg, var(--ly) 55%, var(--ly-dim, rgba(255,255,255,.6)) 55%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(var(--sh, 0 0 6px rgba(4,14,40,.7))); }
+.as-mu-lypv span { position: relative; display: inline-block; font: 600 18px/1.4 var(--ly-font, var(--font-ui)); background: linear-gradient(90deg, var(--ly) 55%, var(--ly-dim, rgba(255,255,255,.6)) 55%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: var(--ds, none); }
 .as-lmc { touch-action: none; }
 .as-lmc__rm { position: absolute; top: 0; bottom: 0; left: calc(100% + 10px); width: 76px; border: 0; border-radius: 22px; background: #e0646b; color: #fff; font: 500 15px/1 var(--font-ui); cursor: pointer; opacity: 0; transition: opacity 150ms; }
 .as-lmc.is-swipe .as-lmc__rm { opacity: 1; }
