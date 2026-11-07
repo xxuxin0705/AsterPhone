@@ -813,13 +813,14 @@ async function openRemote(name, id, l, pic) {
 
 /** 看 MV（QQ 的歌带 vid）：弹窗里放，先把歌暂停，关了接着放 */
 async function openMv(s) {
-  let url; try { url = await waiting('正在拿 MV…', async () => P.mvUrl(await P.mvOf(s))); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
-  if (url == null) return;
-  if (!url) { toast('这首的 MV 放不了'); return; }
+  let urls; try { urls = await waiting('正在拿 MV…', async () => P.mvUrls(await P.mvOf(s))); } catch (e) { log('error', '音乐', `《${s.name}》的 MV 没拿到：${e.message}`); toast('MV 没拿到：' + e.message); return; }
+  if (urls == null) return;
+  if (!urls.length) { toast('这首的 MV 放不了'); return; }
   toast('MV 来了');
   const was = P.playing(); if (was) P.toggle();
-  const v = h('video.as-mp__mv', { src: url, controls: true, autoplay: true, playsinline: true });
-  v.onerror = () => { log('error', '音乐', `《${s.name}》的 MV 放不出来（${url}）`); toast('MV 放不出来'); };
+  const v = h('video.as-mp__mv', { src: urls[0], controls: true, autoplay: true, playsinline: true });
+  let i = 0;   // 一个地址放不出来就换下一个，全放不出来才报
+  v.onerror = () => { const why = `${v.src}（${(v.error || {}).code || '?'}）`; if (++i < urls.length) { log('warn', '音乐', `《${s.name}》的 MV 换个地址再试：${why}`); v.src = urls[i]; v.load(); v.play().catch(() => {}); return; } log('error', '音乐', `《${s.name}》的 MV 放不出来：${why}`); toast('MV 放不出来'); };
   sheet({ title: s.name, content: v, onClose: () => { v.pause(); v.removeAttribute('src'); v.load(); if (was) P.toggle(); } });
 }
 /* ================= 播放页 ================= */

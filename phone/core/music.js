@@ -99,7 +99,11 @@ async function findMv(s) {
   catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
 }
 /** MV 的地址：几档清晰度里挑中间那档 */
-export const mvUrl = vid => qq('/mv', { vid, type: 'mp4' }).then(d => { const u = (d.urls || []).map(x => x.url).filter(Boolean); return https(u[Math.floor(u.length / 2)] || ''); });
+/** MV 的地址们：中间那档清晰度排第一，放不出来就换下一个（有的地址不支持 https、有的域名放不了）；页面本身是 http 就不改成 https */
+export const mvUrls = vid => qq('/mv', { vid, type: 'mp4' }).then(d => {
+  const u = [...new Set((d.urls || []).map(x => location.protocol === 'https:' ? https(x.url) : String(x.url || '')).filter(Boolean))];
+  return u.length ? [...u.splice(Math.floor(u.length / 2), 1), ...u] : [];
+});
 /** 搜歌单：只有装了酒馆插件才搜得到，没装就是空的 */
 export const searchLists = word => ne ? be('/search/lists?word=' + encodeURIComponent(word)).catch(e => { log('warn', '音乐', '插件搜歌单失败：' + e.message); return []; }) : Promise.resolve([]);
 /** 打字时的联想：{ top: 最对得上的歌手（{ artist, pic, mid }）或歌（{ song }），words: 联想词 }。装了插件用网易云自己的联想；没装用 QQ 的联想；都不行就搜一次歌，从搜到的里挑 */
