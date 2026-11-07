@@ -335,7 +335,7 @@ const remember = (k, who, s, fn) => {
   full.set(k, { p, at: Date.now() });
   return p;
 };
-const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
+export const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
   const mid = await qqTwinMid(s); if (!mid) return '';
   const j = await get(q(PUB.qq, { msg: `${s.name} ${s.artist}`, type: 'json', mid }), 'json'), d = j.data || j;
   const u = https(d.song_play_url_hq || d.song_play_url || d.song_play_url_standard || '');
@@ -345,12 +345,12 @@ const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
 const word = s => `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
 // 酷我：先搜出它排第几，再按序号要。br 0 是默认音质，有的歌给的 ogg 浏览器放不了，放不了再要低一档（2）
 const kuwoAt = s => remember('ki' + s.src + s.id, '酷我', s, async () => ((await get(q(PUB.kuwo, { msg: word(s), page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s)) + 1);
-const kuwoFull = (s, br) => remember('k' + br + s.src + s.id, '酷我', s, async () => {
+export const kuwoFull = (s, br) => remember('k' + br + s.src + s.id, '酷我', s, async () => {
   const n = await kuwoAt(s); if (!n) return '';
   return https((((await get(q(PUB.kuwo, { msg: word(s), n, br }), 'json')).data || {}).url) || '');
 });
 // JOOX（腾讯海外版，服务器在香港，开着 VPN 也给整首；只有中文歌多）：歌手写的是繁体，中文歌手只比歌名
-const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
+export const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
   const qs = { msg: word(s), token: JOOX.token, br: JOOX.br }, cjk = /[\u3400-\u9fff]/.test(s.artist);
   const n = (((await get(q(PUB.joox, qs), 'json')).data || {}).songs || []).findIndex(x => loose({ name: x['歌曲名称'] || '', artist: cjk ? s.artist : x['歌手'] || '' }) === loose(s)) + 1;
   if (!n) return '';
