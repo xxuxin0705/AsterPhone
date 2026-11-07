@@ -216,13 +216,18 @@ export async function pickImage(title, { ratio = 1, size = 320, has = false } = 
 }
 function cropImage(file, ratio, size) {
   return new Promise(res => {
-    const url = URL.createObjectURL(file), img = h('img.as-crop__img', { alt: '' });
+    // 相册原图动辄四千像素，直接拖着缩放手机会卡：先缩到最长边 2048（存下来最多 1100，够用）画在画布上，拖的是这张小的
+    const url = URL.createObjectURL(file), pic = new Image(), img = h('canvas.as-crop__img');
     const fw = Math.min(root.clientWidth - 48, (root.clientHeight - 200) * ratio), fh = fw / ratio;
     const frame = h('div.as-crop__frame', { style: { width: fw + 'px', height: fh + 'px' } }, img);
     let s = 1, min = 1, x = 0, y = 0, gap = 0;   // 图片缩放倍数、左上角在框里的位置
-    const fit = () => { s = Math.max(s, min); x = Math.min(0, Math.max(fw - img.naturalWidth * s, x)); y = Math.min(0, Math.max(fh - img.naturalHeight * s, y)); img.style.transform = `translate(${x}px, ${y}px) scale(${s})`; };
-    img.onload = () => { min = s = Math.max(fw / img.naturalWidth, fh / img.naturalHeight); x = (fw - img.naturalWidth * s) / 2; y = (fh - img.naturalHeight * s) / 2; fit(); };
-    img.onerror = () => { toast('这张图打不开'); done(null); };
+    const fit = () => { s = Math.max(s, min); x = Math.min(0, Math.max(fw - img.width * s, x)); y = Math.min(0, Math.max(fh - img.height * s, y)); img.style.transform = `translate(${x}px, ${y}px) scale(${s})`; };
+    pic.onload = () => {
+      const k = Math.min(1, 2048 / Math.max(pic.naturalWidth, pic.naturalHeight));
+      img.width = Math.round(pic.naturalWidth * k); img.height = Math.round(pic.naturalHeight * k); img.getContext('2d').drawImage(pic, 0, 0, img.width, img.height);
+      min = s = Math.max(fw / img.width, fh / img.height); x = (fw - img.width * s) / 2; y = (fh - img.height * s) / 2; fit();
+    };
+    pic.onerror = () => { toast('这张图打不开'); done(null); };
     // 一根手指拖，两根手指捏着缩放（围着框的中间缩）
     const pts = new Map();
     frame.onpointerdown = e => { frame.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); gap = 0; };
@@ -241,8 +246,8 @@ function cropImage(file, ratio, size) {
       c.getContext('2d').drawImage(img, -x / s, -y / s, fw / s, fh / s, 0, 0, c.width, c.height);
       done(c.toDataURL('image/jpeg', .86));
     })));
-    function done(v) { URL.revokeObjectURL(url); box.remove(); res(v); }
-    root.append(box); img.src = url;
+    function done(v) { URL.revokeObjectURL(url); box.remove(); root.classList.remove('is-cropping'); res(v); }
+    root.classList.add('is-cropping'); root.append(box); pic.src = url;   // is-cropping：底下的动画（下雨天的雨和字）先停，不然拖图会卡
   });
 }
 

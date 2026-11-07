@@ -9,7 +9,7 @@ const WIDE = '぀-ヿ㐀-鿿가-힯＀-￯　-〿“”‘’…—';
 const TOK = new RegExp(`[${WIDE}]|[^\\s${WIDE}]+|\\s+`, 'g');   // 中日韩一个字一块，外文一个词一块
 const FALL = .55, POP = .38, GAP = .045, SIZE = 26, MIN = 18, TR = 18;
 export const isNight = () => document.querySelector('.as-phone')?.dataset.mode === 'night';   // 跟着手机的白天 / 夜间模式
-export const hidden = () => !shell.visible || document.querySelector('.as-phone')?.classList.contains('is-locked');   // 手机收起了 / 锁着：看不见的动画别画
+export const hidden = () => { const p = document.querySelector('.as-phone'); return !shell.visible || !!p && (p.classList.contains('is-locked') || p.classList.contains('is-cropping')); };   // 手机收起了 / 锁着 / 正在框图：看不见的动画别画
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
