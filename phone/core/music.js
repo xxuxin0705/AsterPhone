@@ -487,7 +487,7 @@ export function next(step = 1) {
   M().idx = step === 1 ? pick(M().idx, false) : (M().idx + step + n) % n;
   load(true);
 }
-export const prev = () => now() > 4 ? seek(0) : next(-1);
+export const prev = () => next(-1);
 export function seek(t) {
   if (!restored) return;
   const at = (seg()?.start || 0) + t, b = chain && chain.sb.buffered;
