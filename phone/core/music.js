@@ -10,6 +10,7 @@ import { compose } from './promptstore.js';
 import { uid } from './util.js';
 import { ctx } from './bridge.js';
 import { stamp } from './time.js';
+import { lxUrl } from './lx.js';
 
 export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/', qq: 'https://api.vkeys.cn/v2/music/tencent' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
@@ -91,16 +92,18 @@ const qqTwinMid = s => isQ(s) ? Promise.resolve(s.id) : qq('/search/smartbox', {
 /** 搜歌手（QQ 的）：[{ name, mid, pic, n }]；歌手的歌一页页拿 */
 export const singers = word => qq('/search/singer', { word, num: 20 }).then(d => (d || []).map(x => ({ name: x.singerName, mid: x.singerMID, pic: https(x.singerPic), n: x.songNum })));
 export const singerSongs = (mid, page) => qq('/singer/songlist', { mid, page, num: 30 }).then(d => (d || []).map(qsong).filter(s => s.id && s.name));
-/** 这首歌有没有 MV：找到它在 QQ 的编号，按编号查详情里的 vid。问过的记住，不重复问 */
+/** 这首歌有没有 MV：先找 QQ 的（找到它在 QQ 的编号，按编号查详情里的 vid）；没有的话本地酒馆再找网易云的（'ne:编号'），再没有就去 B 站搜（'bili:搜的词'，点了才搜）。问过的记住，不重复问 */
 const mvs = new Map();
 export const mvOf = s => s.vid ? Promise.resolve(s.vid) : mvs.get(s.id) || mvs.set(s.id, findMv(s)).get(s.id);
 async function findMv(s) {
-  try { const mid = await qqTwinMid(s); return mid ? String((await qq('', { mid })).vid || '') : ''; }
-  catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); return ''; }
+  try { const mid = await qqTwinMid(s), vid = mid ? String((await qq('', { mid })).vid || '') : ''; if (vid) return vid; }
+  catch (e) { log('warn', '音乐', `找《${s.name}》的 MV 失败：${e.message}`); }
+  if (!ne) return '';
+  const j = await be('/mv?' + new URLSearchParams({ id: isQ(s) ? '' : s.id, name: s.name, artist: s.artist })).catch(e => { log('warn', '音乐', `找《${s.name}》网易云的 MV 失败：${e.message}`); return {}; });
+  return j.mv ? 'ne:' + j.mv : `bili:${s.name} ${s.artist.split(/[/、,，&]/)[0]} MV`;
 }
-/** MV 的地址：几档清晰度里挑中间那档 */
 /** MV 的地址们：中间那档清晰度排第一，放不出来就换下一个（有的地址不支持 https、有的域名放不了）；页面本身是 http 就不改成 https */
-export const mvUrls = vid => qq('/mv', { vid, type: 'mp4' }).then(d => {
+export const mvUrls = vid => vid.startsWith('ne:') ? be('/mv/url?id=' + vid.slice(3)).then(j => [j.url].filter(Boolean)) : vid.startsWith('bili:') ? Promise.resolve([`${BE}/bili/mv?word=${encodeURIComponent(vid.slice(5))}`]) : qq('/mv', { vid, type: 'mp4' }).then(d => {
   const u = [...new Set((d.urls || []).map(x => location.protocol === 'https:' ? https(x.url) : String(x.url || '')).filter(Boolean))];
   return u.length ? [...u.splice(Math.floor(u.length / 2), 1), ...u] : [];
 });
@@ -313,20 +316,28 @@ async function qqUrl(s) {
   qurls.set(s.id, { url, trial, at: Date.now() });
   return url;
 }
-const urlsOf = async s => isQ(s) ? [...(ne && ne.qq ? [`${BE}/qq/audio?mid=${s.id}`] : []), await qqUrl(s)].filter(Boolean) : [...(ne ? [`${BE}/audio?id=${s.id}`] : []), meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`];
-/** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；还不行就跳下一首（会员歌、下架的歌常这样） */
+/** 一首歌的地址，按先后挨个试：登录了的号 → 洛雪音源 → 没登录的插件、公共音源。要现问的放成函数，轮到才问 */
+const urlsOf = s => {
+  const lx = () => lxUrl(s, ne && (p => be('/fetch', p)));
+  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, lx, () => qqUrl(s)].filter(Boolean)
+    : [ne && ne.me && `${BE}/audio?id=${s.id}`, lx, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
+};
+/** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
-  const urls = f ? [URL.createObjectURL(f)] : await urlsOf(twin || s);
+  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
   if (current() !== s) return;
   const fail = () => {
     const tr = !f && isQ(s) && (qurls.get(s.id) || {}).trial;
     if (tr && audio.src !== tr) { log('warn', '音乐', `《${s.name}》是会员歌，两边都只拿到 1 分钟试听`); audio.onerror = () => { audio.onerror = null; fail(); }; audio.src = tr; if (autoplay) audio.play().catch(blocked); return; }
     log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
   };
-  const tryUrl = i => {
-    if (i >= urls.length) return (!f && !twin) ? twinOf(s).then(t => { if (current() !== s) return; if (t) { log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); } else fail(); }) : fail();
+  const tryUrl = async i => {
+    if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
+    const u = typeof urls[i] === 'function' ? await urls[i]() : urls[i];
+    if (current() !== s) return;
+    if (!u) return tryUrl(i + 1);
     audio.onerror = () => tryUrl(i + 1);
-    audio.src = urls[i];
+    audio.src = u;
     if (autoplay) audio.play().catch(blocked);
   };
   tryUrl(0);
@@ -349,10 +360,15 @@ async function startChain(s, f, autoplay) {
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  let r = ne && (!isQ(s) || ne.qq) ? await fetch(isQ(s) ? `${BE}/qq/audio?mid=${s.id}` : `${BE}/audio?id=${s.id}`, { signal }).catch(() => null) : null;
-  if (!r || !r.ok) { const u = isQ(s) ? await qqUrl(s) : meting('url', s.id); if (!u) throw new Error('没有链接'); r = await fetch(u, { signal }); }
-  if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
-  return r.body;
+  for (const x of urlsOf(s)) {
+    const u = typeof x === 'function' ? await x() : x;
+    if (!u) continue;
+    const r = await fetch(u, { signal });   // 读不了内容（洛雪给的地址常跨域）就扔出去，让普通放法用 <audio> 放
+    if (!r.ok) continue;
+    if (!/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
+    return r.body;
+  }
+  throw new Error('没有链接');
 }
 // 往同一条声音里续东西要一件一件来（上一件没弄完不能动）
 function op(c, fn) { c.ops.push(fn); run(c); }

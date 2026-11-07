@@ -13,6 +13,8 @@
 | `server-plugin`（扫码 / 手机号登录、搜歌、歌单、歌词、播放地址…） | NeteaseCloudMusicApi 4.32.0，https://www.npmjs.com/package/NeteaseCloudMusicApi | MIT |
 | `server-plugin`（QQ 音乐扫码登录、自己的歌单、会员播放地址） | @sansenjian/qq-music-api 2.6.0，https://www.npmjs.com/package/@sansenjian/qq-music-api | MIT |
 
+**听歌时现下载的洛雪音源脚本**（不在我们仓库里，用的时候从 jsDelivr 下载，在沙盒里跑）：`phone/core/lx.js` 里列的那几个（huibq、huanyin、helloworld、hyw、changqing、flower、qdy、xinghai、lx、jiexiang、juhe），取自 pdone 整理的合集 https://github.com/pdone/lx-music-source ，每个脚本归各自作者。合集没写许可，脚本作者也大多没写；发布时在说明里写一句「洛雪音源来自 pdone/lx-music-source，归原作者」。
+
 ## 二、只参考了思路、代码是自己写的（不强制，标上更礼貌）
 
 | 用在哪 | 参考了什么 | 来源 | 许可 |
@@ -20,6 +22,8 @@
 | `server-plugin/index.js`（改用 NeteaseCloudMusicApi 这个主意、二维码用 web 方式；QQ 登录用 qq-music-api、凭证存文件、从 cookie 里取 uin） | 作者发的「你自己的音乐源」插件，https://github.com/libertyseeyou/yourownmusicapiforST | MIT | 只参考思路 |
 | `server-plugin/index.js`（早先的网易云接口地址、扫码登录的流程） | 哪些网易云接口不用加密就能调、扫码登录各个状态码的意思 | Anko3o/music-mcp-netease，https://github.com/Anko3o/music-mcp-netease | CC BY-NC-SA 4.0（不能商用；**如果以后照搬它的代码**，整个项目也得用同样的许可、不能商用，所以只学思路） |
 | 电台（哄睡）页面的 2.5D 画风 | 小红书 Toska 的前端（窗台 / 书桌，three.js，AGPL-3.0） | 只参考画风，不用它的代码和图 |
+| `phone/core/lx.js`（假装成洛雪，给音源脚本的那套 `lx` 东西：事件名、`request`、`utils`、`inited` / `musicUrl` 的格式） | 洛雪音乐的「自定义源」写法 | lyswhut/lx-music-desktop 的文档，https://github.com/lyswhut/lx-music-desktop | Apache-2.0；只参考接口格式，代码自己写 |
+| `server-plugin/index.js`（B 站：先拿 buvid3 再搜、`search/type` 搜视频、`view` 拿 cid、`playurl` 取地址，要带 Referer） | 弦 Xian（拿 B 站当曲库的安卓播放器） | 作者发的小红书笔记，https://github.com/TIUCSIB/Xian | 仓库没写许可；只参考思路，代码自己写 |
 | 播放页「碎语 / 群唱」 | 全屏动态歌词的几种样子 | Folia（辞曲新境），AGPL-3.0 | 只参考样子，代码自己写，没用它的代码和图 |
 | 音乐「一起听」 | 头像挨着、外侧耳机线的排法；头像上方白底气泡的样子 | 作者发的网易云「一起听」截图、一张带气泡的截图（来源未知） | 只参考样子，没用它们的图 |
 

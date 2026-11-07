@@ -44,8 +44,8 @@ const wrap = fn => async (req, res) => {
   catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); }
 };
 /** 把歌曲文件转一手给前端（网易云、QQ 给的地址在别的域名，前端读不了内容；和酒馆同一个地址就能边下边续） */
-async function pipe(res, req, u) {
-  const r = await fetch(https(u), { headers: { 'User-Agent': UA, Referer: 'https://y.qq.com/', ...(req.headers.range ? { Range: req.headers.range } : {}) } });
+async function pipe(res, req, u, ref = 'https://y.qq.com/') {
+  const r = await fetch(https(u), { headers: { 'User-Agent': UA, Referer: ref, ...(req.headers.range ? { Range: req.headers.range } : {}) } });
   res.status(r.status);
   for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) if (r.headers.get(h)) res.setHeader(h, r.headers.get(h));
   const reader = r.body.getReader();
@@ -81,6 +81,35 @@ async function qurl(mid) {
   }
   return '';
 }
+
+/* ---------- B 站：网易云 / QQ 都放不了的歌、找不到 MV 的歌，去 B 站搜同名视频（匿名就行；搜索要带 buvid3，不然回 -412）。
+ * B 站的文件要带 Referer 才给，所以都由这里转一手 ---------- */
+let buvid = '';
+async function bili(p, ref = 'https://www.bilibili.com/') {
+  if (!buvid) buvid = ((await (await fetch('https://api.bilibili.com/x/frontend/finger/spi', { headers: { 'User-Agent': UA } })).json()).data || {}).b_3 || '';
+  const j = await (await fetch('https://api.bilibili.com/x' + p, { headers: { 'User-Agent': UA, Referer: ref, Cookie: 'buvid3=' + buvid } })).json();
+  if (j.code !== 0) throw new Error(j.message || `B 站回 ${j.code}`);
+  return j.data;
+}
+const found = new Map();   // 搜过的词 → 视频；拖进度条时播放器会接连要好几次，别每次都去搜
+async function biliFind(word) {
+  const c = found.get(word); if (c && Date.now() - c.at < 3600e3) return c;
+  const v = ((await bili('/web-interface/search/type?' + new URLSearchParams({ search_type: 'video', keyword: word, page: 1 }), 'https://search.bilibili.com/')).result || [])[0];
+  if (!v) throw new Error('B 站没搜到');
+  const r = { bvid: v.bvid, cid: (await bili('/web-interface/view?bvid=' + v.bvid)).cid, at: Date.now() };
+  found.set(word, r);
+  return r;
+}
+/** 搜到的视频转给前端：audio = 只要声音（m4a），否则要能直接放的 mp4 */
+const biliPipe = audio => async (req, res) => {
+  try {
+    const v = await biliFind(String(req.query.word || '')), ref = 'https://www.bilibili.com/video/' + v.bvid;
+    const d = await bili('/player/playurl?' + new URLSearchParams({ bvid: v.bvid, cid: v.cid, ...(audio ? { fnval: 16, platform: 'pc' } : { fnval: 1, qn: 64, platform: 'html5' }) }), ref);
+    const u = audio ? ((((d.dash || {}).audio || []).sort((a, b) => b.bandwidth - a.bandwidth)[0]) || {}).baseUrl : ((d.durl || [])[0] || {}).url;
+    if (!u) return res.status(404).json({ error: 'B 站没给能放的地址' });
+    await pipe(res, req, u, ref);
+  } catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); else res.end(); }
+};
 
 // 网易云最近常拦新的登录，但已经登录过的凭证还能用：酒馆里别的音乐插件登录过的话，借它存的那份
 const other = () => {
@@ -188,6 +217,22 @@ async function init(router) {
   router.get('/lyric', wrap(async req => {
     const j = await api('lyric_new', { id: req.query.id });
     return { lrc: (j.lrc || {}).lyric || '', tr: (j.tlyric || {}).lyric || '', yrc: (j.yrc || {}).lyric || '' };
+  }));
+  // MV：网易云的歌按编号查；QQ 的歌按歌名 + 歌手在网易云搜，歌名对得上、带 MV 的才算
+  router.get('/mv', wrap(async req => {
+    const { id, name, artist } = req.query;
+    const L = id ? (await api('song_detail', { ids: id })).songs || [] : ((await api('cloudsearch', { keywords: `${name} ${artist}`, limit: 10 })).result || {}).songs || [];
+    return { mv: ((id ? L[0] : L.find(x => x.name === name && x.mv)) || {}).mv || 0 };
+  }));
+  router.get('/mv/url', wrap(async req => ({ url: https(((await api('mv_url', { id: req.query.id })).data || {}).url) })));
+  router.get('/bili/audio', biliPipe(true));
+  router.get('/bili/mv', biliPipe(false));
+  // 替洛雪音源脚本连网（网页自己连常被跨域拦，请求头也带不全）
+  router.post('/fetch', wrap(async req => {
+    const b = await body(req), url = String(b.url || '');
+    if (!/^https?:\/\//i.test(url)) throw new Error('只连 http(s)');
+    const r = await fetch(url, { method: b.method || 'GET', headers: { 'User-Agent': UA, ...(b.headers || {}) }, body: b.body || undefined, signal: AbortSignal.timeout(15000) });
+    return { statusCode: r.status, statusMessage: r.statusText, headers: Object.fromEntries(r.headers), body: await r.text() };
   }));
   router.get('/comments', wrap(async req => api('comment_hot', { id: req.query.id, type: 0, limit: 20 })));
   router.post('/like', wrap(async req => { const b = await body(req); return { code: (await api('like', { id: b.id, like: String(!!b.like) })).code }; }));
