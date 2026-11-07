@@ -107,6 +107,16 @@ const load = name => loaded.get(name) || loaded.set(name, (async () => {
   if (m.err) throw new Error(m.err);
   return m.src;
 })().catch(e => { loaded.delete(name); throw e; })).get(name);
+// 先读一下开头：放不出来、卡着不动、只有 1 分钟试听的都不算（有的音源不查就把自己的接口地址当链接给出来；https 页面里 http 的地址会被拦）
+const probe = url => new Promise((ok, no) => {
+  if (location.protocol === 'https:' && url.startsWith('http:')) return no(new Error('是 http 地址，这里放不了'));
+  const a = new Audio(), t = setTimeout(() => end('读不动'), 8000);
+  const end = why => { clearTimeout(t); a.onloadedmetadata = a.onerror = null; a.removeAttribute('src'); a.load(); why ? no(new Error(why)) : ok(url); };
+  a.muted = true; a.preload = 'metadata';
+  a.onloadedmetadata = () => end(isFinite(a.duration) && a.duration < 62 ? `只有 ${Math.round(a.duration)} 秒，是试听` : '');
+  a.onerror = () => end(`放不出来（${(a.error || {}).code || '?'}）`);
+  a.src = url;
+});
 async function ask(name, source, info) {
   if (!(await load(name)).includes(source)) throw new Error('不支持这个平台');
   const id = ++seq, w = once(id, 10000);
@@ -114,7 +124,7 @@ async function ask(name, source, info) {
   const m = await w;
   if (m.err || !/^https?:\/\//.test(m.url)) throw new Error(m.err || '没给链接');
   if (/\/RS02/i.test(m.url)) throw new Error('只给了 QQ 的 1 分钟试听');
-  return m.url;
+  return probe(m.url);
 }
 
 const dead = new Map();   // 这首歌 → 给过放不出来的链接的那些音源（有的音源不查就把自己的接口地址当链接给出来）
