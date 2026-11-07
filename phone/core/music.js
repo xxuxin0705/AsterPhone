@@ -376,6 +376,7 @@ const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
 // 繁体 → 简体，只收常见的姓、名、歌名用字（一对一对写）
 const FJ = '陳陈張张劉刘楊杨黃黄趙赵吳吴孫孙馬马鄭郑謝谢羅罗鄧邓馮冯葉叶盧卢蕭萧龍龙鍾钟嚴严華华錢钱衛卫蘇苏韓韩賴赖蔣蒋譚谭傑杰麗丽綺绮貞贞綠绿鳳凤傳传偉伟國国強强靜静雲云蘭兰鈞钧東东寧宁軒轩儀仪藝艺戀恋夢梦詩诗語语樂乐亞亚興兴瑋玮莊庄歐欧陽阳爾尔單单齊齐關关區区義义愛爱說说説说風风捲卷寫写從从運运蘋苹燈灯時时間间會会這这個个們们來来對对沒没開开還还點点無无為为與与過过後后見见聽听話话認认識识頭头發发髮发雙双邊边遠远裡里變变讓让長长離离萬万倫伦騰腾鈺钰瑩莹鋒锋澤泽慶庆誠诚淵渊瑤瑶凱凯鴻鸿鳴鸣誼谊權权剛刚聰聪穎颖瓊琼鈴铃擱搁淺浅';
 const simp = t => [...t].map(c => { const i = FJ.indexOf(c); return i >= 0 && !(i % 2) ? FJ[i + 1] : c; }).join('');
+const trad = t => [...t].map(c => { const i = FJ.indexOf(c); return i > 0 && i % 2 ? FJ[i - 1] : c; }).join('');
 const word = s => `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
 // 酷我：先搜出它排第几，再按序号要。br 0 是默认音质，有的歌给的 ogg 浏览器放不了，放不了再要低一档（2）
 const kuwoAt = s => remember('ki' + s.src + s.id, '酷我', s, async () => ((await get(q(PUB.kuwo, { msg: word(s), page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s)) + 1);
@@ -391,13 +392,14 @@ const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
   const same = x => { const [n, a] = simp(loose({ name: x['歌曲名称'] || '', artist: x['歌手'] || '' })).split('|'); return like(a, a0) && n.length === n0.length && (a === a0 || like(n, n0)); };
   let msg, n = 0;
   const name = s.name.replace(/[(（][^)）]*[)）]/g, '').trim();   // 「说好不哭 (with 五月天阿信)」带着括号搜不到
-  for (msg of [name, `${name} ${s.artist.split(/[/、,，&]/)[0]}`]) {
+  // 简体有时搜不到（「不能说的秘密」不行、「不能說的秘密」行）：再用繁体搜一次
+  for (msg of [...new Set([name, trad(name), `${name} ${s.artist.split(/[/、,，&]/)[0]}`])]) {
     const j = await get(q(PUB.joox, { ...qs, msg }), 'json').catch(e => { if (/^500/.test(e.message)) return {}; throw e; });
     if ((n = ((j.data || {}).songs || []).findIndex(same) + 1)) break;
   }
   if (!n) return '';
   const L = (((await get(q(PUB.joox, { ...qs, msg, n }), 'json')).data || {})['播放链接']) || {};
-  return https(L['MP3 320'] || L['MP3 128'] || L['AAC 192'] || '');
+  return https(L['MP3 128'] || L['MP3 320'] || L['AAC 192'] || '');   // 128k 文件小三倍：下得快，切后台前更容易把下一首下完（后台时网不动）
 });
 // 几个一起问，谁先给出链接用谁；都没有才是空
 const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.then(u => { if (u) ok(u); else if (!--n) ok(''); })); });
@@ -612,7 +614,7 @@ audio.addEventListener('timeupdate', () => {
   }
   tell('time');
 });
-['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; if (ev === 'pause') { stuck = !asked && !audio.ended && document.hidden; asked = false; } else stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
+['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; if (ev === 'pause') { stuck = !asked && !audio.ended && document.hidden; asked = false; if (stuck) { const b = audio.buffered, g = seg(); log('warn', '音乐', `《${(current() || {}).name}》在后台被停了，回到 App 会接着放`, `放到 ${now().toFixed(1)} 秒；声音里已有 ${b.length ? b.end(b.length - 1).toFixed(1) : 0} 秒（这首从 ${g ? g.start.toFixed(1) : '?'} 开始，${g && g.end ? '下完了' : '还没下完'}）；${chain ? `续了 ${chain.segs.length} 首` : '没在续接'}`); } } else stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
 // 后台时停了却不是自己叫的（续接时下一首的内容没及时到、或者浏览器不让开始放）：回到 App、碰屏幕时补放
 let stuck = false, asked = false;
