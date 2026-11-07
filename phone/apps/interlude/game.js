@@ -108,18 +108,18 @@ export async function play(g, input) {
 /** 不玩了：标成放弃 */
 export async function quit(g) { g.done = { kind: 'quit', text: '', at: Date.now() }; await save(); }
 
-/** 检定的结果写成一句话给 KP（也给人看） */
+/** 检定的结果写成一句话给 KP（也给人看）；v 是盖在掷骰画面上的那两个字（大成功 / 困难成功 / 失败…） */
 export function resolve(g, req, { skill } = {}) {
   const p = who(g, req.who) || g.pc, name = p === g.pc ? '你' : p.name, sk = skill || req.skill || '侦查';
   if (req.type === 'san') {
     const r = R.sanCheck(p.san, req.loss, g.crit); p.san = Math.max(0, p.san - r.lost);
     if (r.lost >= 5 && !p.mad) p.mad = R.madness();
-    return { r, text: `${name}的理智检定：掷出 ${r.v}（理智 ${r.need}），${r.ok ? '成功' : '失败'}，掉了 ${r.lost} 点${r.lost >= 5 ? `，临时疯狂：${p.mad.name}` : ''}${p.san <= 0 ? '，理智归零' : ''}`, lost: r.lost };
+    return { r, v: r.grade === '大成功' || r.grade === '大失败' ? r.grade : r.ok ? '成功' : '失败', text: `${name}的理智检定：掷出 ${r.v}（理智 ${r.need}），${r.ok ? '成功' : '失败'}，掉了 ${r.lost} 点${r.lost >= 5 ? `，临时疯狂：${p.mad.name}` : ''}${p.san <= 0 ? '，理智归零' : ''}`, lost: r.lost };
   }
   if (req.type === 'opposed') {
     const r = R.opposed(p.skills[sk] ?? R.SKILLS[sk] ?? 20, +req.vs || 50, g.crit);
-    return { r: r.a, text: `${name}的${sk}对抗：掷出 ${r.a.v}（${r.a.grade}），对方掷出 ${r.b.v}（${r.b.grade}），${r.win ? '赢了' : '输了'}` };
+    return { r: r.a, v: r.win ? '赢了' : '输了', text: `${name}的${sk}对抗：掷出 ${r.a.v}（${r.a.grade}），对方掷出 ${r.b.v}（${r.b.grade}），${r.win ? '赢了' : '输了'}` };
   }
   const val = p.skills[sk] ?? R.SKILLS[sk] ?? 20, r = R.check(val, req.level, g.crit);
-  return { r, text: `${name}的${sk}检定（${req.level || '普通'}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
+  return { r, v: r.grade, text: `${name}的${sk}检定（${req.level || '普通'}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
 }

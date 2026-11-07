@@ -108,6 +108,13 @@
 .as-int-roll__host .as-int-die.is-u { width: 28%; }
 .as-int-roll__foot { padding: 0 24px 60px; text-align: center; min-height: 140px; }
 .as-int-roll__num { display: block; font: 600 64px/1 Georgia, "Times New Roman", serif; color: #16244a; -webkit-text-stroke: 1.6px #e6c27a; paint-order: stroke fill; text-shadow: 0 0 18px rgba(230,194,122,.35); }
+.as-int-roll__stamp { display: none; margin: 10px auto 0; padding: 4px 18px; border: 2px solid; border-radius: 6px; font: 700 22px/1.3 "Noto Serif SC", serif; letter-spacing: .2em; transform: rotate(-4deg); animation: as-int-stamp 260ms cubic-bezier(.3, 1.6, .5, 1) both; }
+.as-int-roll__stamp[class*="is-"] { display: inline-block; }
+.as-int-roll__stamp.is-crit { color: #f6d27a; border-color: #f6d27a; box-shadow: 0 0 24px rgba(246,210,122,.55); text-shadow: 0 0 10px rgba(246,210,122,.7); }
+.as-int-roll__stamp.is-ok { color: #8fd6c4; border-color: #8fd6c4; }
+.as-int-roll__stamp.is-fail { color: #b9b4ab; border-color: #b9b4ab; }
+.as-int-roll__stamp.is-fumble { color: #e2615a; border-color: #e2615a; box-shadow: 0 0 24px rgba(226,97,90,.45); }
+@keyframes as-int-stamp { from { transform: rotate(-4deg) scale(2.2); opacity: 0; } }
 .as-int-roll__cap { margin: 8px 0 0; color: #f1ece2; font: 500 16px/1.6 var(--font-cn); text-shadow: 0 1px 6px rgba(0,0,0,.6); }
 .as-int-roll.is-done .as-int-roll__foot { animation: as-int-pop 220ms ease; }
 @keyframes as-int-pop { from { transform: translateY(6px); opacity: .4; } }

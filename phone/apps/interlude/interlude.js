@@ -347,15 +347,18 @@ function cardPage(back) {
 }
 
 /** 抛骰子的大画面：盖在页面上，抛完亮出结果 */
-function rollOverlay(host, t, u, caption, result) {
+// 成没成：盖一个章。大成功金色、成功青色、失败灰、大失败暗红
+const VERDICT = v => /大成功/.test(v) ? 'is-crit' : /大失败/.test(v) ? 'is-fumble' : /成功|赢/.test(v) ? 'is-ok' : 'is-fail';
+function rollOverlay(host, t, u, caption, result, verdict) {
   return new Promise(res => {
-    const big = h('b.as-int-roll__num'), cap = h('p.as-int-roll__cap', caption || ''), stage = h('div.as-int-roll__host');
-    const el = h('div.as-int-roll', { 'data-no-swipe': '' }, stage, h('div.as-int-roll__foot', big, cap));
+    const big = h('b.as-int-roll__num'), stamp = h('span.as-int-roll__stamp'), cap = h('p.as-int-roll__cap', caption || ''), stage = h('div.as-int-roll__host');
+    const el = h('div.as-int-roll', { 'data-no-swipe': '' }, stage, h('div.as-int-roll__foot', big, stamp, cap));
     host.append(el);
     const done = () => { el.classList.add('is-out'); setTimeout(() => { el.remove(); res(); }, 260); };
     throwDice(stage, t, u).then(() => {
       big.textContent = t === 0 && u === 0 ? '100' : String(t * 10 + u).padStart(2, '0');
       if (result) cap.textContent = result;
+      if (verdict) { stamp.textContent = verdict; stamp.className = 'as-int-roll__stamp ' + VERDICT(verdict); }
       el.classList.add('is-done'); el.onclick = done; setTimeout(done, result ? 2400 : 1100);
     });
   });
@@ -409,8 +412,8 @@ function playPage(g) {
       const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
         const r = G.resolve(g, q); await G.save(); paintHud();
-        await rollOverlay(p.el, r.r.t, r.r.u, label, r.text);
-        pending = r.text; g.req = { type: 'free' }; say({ who: 'KP', text: r.text }); prompt();
+        await rollOverlay(p.el, r.r.t, r.r.u, label, r.text, r.v);
+        pending = r.text; g.req = { type: 'free' }; send('');   // 掷完直接交给 KP，接着讲成功 / 失败之后怎样
       })));
       return;
     }
@@ -419,17 +422,17 @@ function playPage(g) {
     const dice = h('button.as-int-dicebtn', { 'aria-label': '主动掷骰', onclick: async () => {
       const sk = await actionSheet('掷什么', Object.entries(g.pc.skills).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ value: k, label: `${k} ${v}` })));
       if (!sk) return;
-      const r = G.resolve(g, { type: 'check', skill: sk, level: '普通' }); await rollOverlay(p.el, r.r.t, r.r.u, sk, r.text);
+      const r = G.resolve(g, { type: 'check', skill: sk, level: '普通' }); await rollOverlay(p.el, r.r.t, r.r.u, sk, r.text, r.v);
       pending = [pending, r.text].filter(Boolean).join('；'); ta.placeholder = '再说点什么（可不填）';
     } }, '🎲');
     act.append(h('div.as-int-input', dice, ta, btn('发送', 'primary', () => send(ta.value.trim()))));
   }
   async function send(what) {
     if (G.running()) { G.cancel(); return; }
-    const inp = [pending, what].filter(Boolean).join('；') || '（什么都没做，让 KP 继续）'; pending = '';
+    const inp = [pending, what].filter(Boolean).join('；') || '（什么都没做，让 KP 继续）';
     act.replaceChildren(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel)));
     try {
-      const lines = await (inflight = G.play(g, inp));
+      const lines = await (inflight = G.play(g, inp)); pending = '';   // 没写成时骰子结果留着，下次发送一起带上
       scene(g.place); paintHud(); show(lines);
     } catch (e) {
       if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', '这回合失败：' + e.message, e); toast('这回合没写成：' + e.message); }
