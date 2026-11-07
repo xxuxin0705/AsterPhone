@@ -88,7 +88,7 @@ async function relay(url, o) {
     for (const k of Object.keys(headers)) if (/^(user-agent|referer|cookie|origin|host)$/i.test(k)) delete headers[k];   // 网页不让设这些，留着反而多问一次跨域
     const why = [];
     for (const u of [url, ...RELAYS.map(f => f(url))]) {
-      try { const x = await fetch(u, { method, headers, body, signal: AbortSignal.timeout(o.timeout || 15000) }); r = { statusCode: x.status, statusMessage: x.statusText, headers: Object.fromEntries(x.headers), body: await x.text() }; break; }
+      try { const x = await fetch(u, { method, headers, body, signal: AbortSignal.timeout(Math.min(o.timeout || 8000, 8000)) }); r = { statusCode: x.status, statusMessage: x.statusText, headers: Object.fromEntries(x.headers), body: await x.text() }; break; }
       catch (e) { why.push(`${new URL(u).host} ${e.name === 'TimeoutError' ? '超时' : '连不上'}`); }
     }
     if (!r) throw new Error(why.join('，'));
@@ -101,7 +101,7 @@ const load = name => loaded.get(name) || loaded.set(name, (async () => {
   await boot();
   const r = await fetch(CDN(name));
   if (!r.ok) throw new Error(`下载失败 ${r.status}`);
-  const code = await r.text(), w = once('i:' + name, 15000);
+  const code = await r.text(), w = once('i:' + name, 8000);
   down({ t: 'load', name, code });
   const m = await w;
   if (m.err) throw new Error(m.err);
@@ -109,22 +109,32 @@ const load = name => loaded.get(name) || loaded.set(name, (async () => {
 })().catch(e => { loaded.delete(name); throw e; })).get(name);
 async function ask(name, source, info) {
   if (!(await load(name)).includes(source)) throw new Error('不支持这个平台');
-  const id = ++seq, w = once(id, 15000);
+  const id = ++seq, w = once(id, 10000);
   down({ t: 'ask', id, name, source, info });
   const m = await w;
   if (m.err || !/^https?:\/\//.test(m.url)) throw new Error(m.err || '没给链接');
+  if (/\/RS02/i.test(m.url)) throw new Error('只给了 QQ 的 1 分钟试听');
   return m.url;
 }
 
+const dead = new Map();   // 这首歌 → 给过放不出来的链接的那些音源（有的音源不查就把自己的接口地址当链接给出来）
+/** 上次给的链接放不出来：记下是谁给的，下回不问它 */
+export function lxBad(s) {
+  const k = (s.src === 'qq' ? 'tx' : 'wy') + s.id, c = got.get(k);
+  if (!c) return;
+  got.delete(k); if (good === c.name) good = '';
+  dead.set(k, (dead.get(k) || new Set()).add(c.name));
+  log('warn', '音乐', `洛雪音源 ${c.name} 给的《${s.name}》放不出来，换别的`, c.url);
+}
 /** 问洛雪音源要这首的整首链接：上次给过的那个先问；不行就四个一批一起问，谁先给用谁。问到的记几分钟。都没有回 '' */
 export async function lxUrl(s, viaPlugin) {
-  const source = s.src === 'qq' ? 'tx' : 'wy', k = source + s.id, c = got.get(k);
+  const source = s.src === 'qq' ? 'tx' : 'wy', k = source + s.id, c = got.get(k), no = dead.get(k) || new Set();
   if (c && Date.now() - c.at < 5 * 60e3) return c.url;
   via = viaPlugin || null;
   const info = { type: '320k', musicInfo: { songmid: s.id, strMediaMid: s.id, hash: s.id, name: s.name, singer: s.artist, albumName: '', img: s.pic || '', source, interval: '', types: [{ type: '128k' }, { type: '320k' }], _types: { '128k': {}, '320k': {} }, meta: { songId: s.id, strMediaMid: s.id, picUrl: s.pic || '', albumName: '' } } };
-  const why = [], hit = name => ask(name, source, info).then(url => { good = name; got.set(k, { url, at: Date.now() }); return url; }, e => { why.push(`${name}：${e.message}`); throw e; });
-  if (good) try { return await hit(good); } catch { /* 换别的 */ }
-  const rest = NAMES.filter(n => n !== good);
+  const why = [], hit = name => ask(name, source, info).then(url => { good = name; got.set(k, { url, name, at: Date.now() }); return url; }, e => { why.push(`${name}：${e.message}`); throw e; });
+  if (good && !no.has(good)) try { return await hit(good); } catch { /* 换别的 */ }
+  const rest = NAMES.filter(n => n !== good && !no.has(n));
   for (let i = 0; i < rest.length; i += 4) try { return await Promise.any(rest.slice(i, i + 4).map(hit)); } catch { /* 这批都不行，下一批 */ }
   log('warn', '音乐', `洛雪音源都没给《${s.name}》的链接`, why.join('\n'));
   return '';

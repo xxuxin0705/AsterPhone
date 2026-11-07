@@ -10,7 +10,7 @@ import { compose } from './promptstore.js';
 import { uid } from './util.js';
 import { ctx } from './bridge.js';
 import { stamp } from './time.js';
-import { lxUrl } from './lx.js';
+import { lxUrl, lxBad } from './lx.js';
 
 export const DEF_SRC = { vkeys: 'https://api.vkeys.cn/v2/music/netease', meting: 'https://api.qijieya.cn/meting/', qq: 'https://api.vkeys.cn/v2/music/tencent' };
 export const TOPLISTS = [['19723756', '飙升榜'], ['3779629', '新歌榜'], ['3778678', '热歌榜'], ['2884035', '原创榜']];
@@ -322,7 +322,7 @@ async function qqUrl(s) {
 }
 /** 一首歌的地址，按先后挨个试：登录了的号 → 洛雪音源 → 没登录的插件、公共音源。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
-  const lx = () => lxUrl(s, ne && (p => be('/fetch', p)));
+  const lx = Object.assign(() => lxUrl(s, ne && (p => be('/fetch', p))), { bad: () => lxBad(s) });
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, lx, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, lx, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
@@ -337,10 +337,10 @@ async function plain(s, f, autoplay, twin) {
   };
   const tryUrl = async i => {
     if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
-    const u = typeof urls[i] === 'function' ? await urls[i]() : urls[i];
+    const x = urls[i], u = typeof x === 'function' ? await x() : x;
     if (current() !== s) return;
     if (!u) return tryUrl(i + 1);
-    audio.onerror = () => tryUrl(i + 1);
+    audio.onerror = () => { if (x.bad) { x.bad(); tryUrl(i); } else tryUrl(i + 1); };   // 洛雪给的放不出来：换个音源再问
     audio.src = u;
     if (autoplay) audio.play().catch(blocked);
   };
