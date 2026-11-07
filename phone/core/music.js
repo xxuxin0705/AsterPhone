@@ -487,14 +487,14 @@ async function feed(c, i, s, body, first) {
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (c !== chain) return reader.cancel();
+      if (c !== chain || g.dead) return reader.cancel();
       if (done) break;
       await put(c, g, value);
       if (first) { const f0 = first; first = null; op(c, () => { f0(); run(c); }); }
     }
-    op(c, () => { g.end = c.sb.timestampOffset; tell('time'); run(c); });
+    op(c, () => { if (!g.dead) { g.end = c.sb.timestampOffset; tell('time'); } run(c); });
   } catch (e) {
-    if (c !== chain) return;
+    if (c !== chain || g.dead) return;
     log('warn', '音乐', `《${s.name}》读到一半断了：${e.message}`);
     op(c, () => { g.end = c.sb.timestampOffset; run(c); });
   }
@@ -505,6 +505,7 @@ function put(c, g, value) {
   return new Promise((ok, no) => {
     c.ac.signal.addEventListener('abort', ok, { once: true });   // 换歌了：别等了
     const go = () => {
+      if (g.dead) return ok();
       try { if (g.start == null) g.start = c.sb.timestampOffset; c.sb.appendBuffer(value); ok(); }
       catch (e) {
         if (e.name !== 'QuotaExceededError') return no(e);
@@ -518,12 +519,22 @@ function put(c, g, value) {
 }
 /** 这首下完了：把下一首续在后面。下一首读不到（存的不是 mp3、地址网页读不了）就封口，放完走普通放法；不跳过它去续再下一首，播放列表的顺序不能乱 */
 async function chainNext(c) {
-  c.nexting = true;
-  const i = pick(M().idx, true), s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
+  const i = pick(M().idx, true), s = c.nexting = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
   const body = (s.local && !f) || (f && f.type !== 'audio/mpeg') ? null : await songBody(s, f, c.ac.signal).catch(e => { log('warn', '音乐', `《${s.name}》接不上（${e.message}）：上一首放完要重新起步，在后台会停`); return null; });
-  if (c !== chain) return;
+  if (c !== chain || c.nexting !== s) return body && body.cancel();   // 换歌了 / 等的时候播放列表改了，这首不是下一首了
   if (body) return feed(c, i, s, body);
   op(c, () => { if (c.ms.readyState === 'open') c.ms.endOfStream(); });
+}
+/** 播放列表、播放模式变了：接在后面的那首不是下一首了就拆掉（已经续进去的删掉，还在下的不要了），让真正的下一首接上 */
+function unchain() {
+  const c = chain, g = seg(); if (!c || !g || M().mode === 'shuffle') return;
+  const nx = c.segs[c.segs.indexOf(g) + 1], have = nx ? nx.s : c.nexting;
+  if (!have || have === M().queue[pick(M().idx, true)]) return;
+  if (nx) {
+    nx.dead = true; c.segs.splice(c.segs.indexOf(nx));
+    if (nx.start != null) { op(c, () => c.sb.remove(nx.start, Infinity)); op(c, () => { c.sb.timestampOffset = nx.start; run(c); }); }   // 删掉后接着从这首的结尾续
+  }
+  c.nexting = false;
 }
 /** 下一首是第几首；auto = 放完自动换（单曲循环就还是这首） */
 function pick(i, auto) {
@@ -554,7 +565,7 @@ export function seek(t) {
 }
 export function jump(i) { M().idx = i; load(true); }
 /** 播放列表改顺序：正在放的不动，已经续上的那几首重新对一下是第几首 */
-function requeue(Q) { const c = current(); M().queue = Q; M().idx = Q.indexOf(c); if (chain) chain.segs.forEach(g => { g.i = Q.indexOf(g.s); }); commit('music'); }
+function requeue(Q) { const c = current(); M().queue = Q; M().idx = Q.indexOf(c); if (chain) { chain.segs.forEach(g => { g.i = Q.indexOf(g.s); }); unchain(); } commit('music'); }
 /** 置顶：放到正在放的这首后面，下一首就是它 */
 export function queueNext(s) {
   const c = current(); if (!c) { playList([s]); return; }
@@ -565,7 +576,7 @@ export function queueNext(s) {
 export const queueSet = requeue;   // 播放列表里拖着排好的顺序
 export function queueDel(s) { if (s === current()) next(); requeue(M().queue.filter(x => x !== s)); }
 export const MODES = [['list', '列表循环', 'repeat'], ['one', '单曲循环', 'repeatOne'], ['shuffle', '随机播放', 'shuffle']];
-export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); return MODES[(i + 1) % MODES.length]; }
+export function cycleMode() { const i = MODES.findIndex(m => m[0] === M().mode); M().mode = MODES[(i + 1) % MODES.length][0]; commit('music'); unchain(); return MODES[(i + 1) % MODES.length]; }
 export function like(s = current()) {
   if (!s) return false;
   const L = M().liked, i = L.findIndex(x => x.id === s.id);
