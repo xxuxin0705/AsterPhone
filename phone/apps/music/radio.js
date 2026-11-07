@@ -313,7 +313,7 @@ export async function renderRadio(ctx) {
     FALL.map(([n, x, w, t, s]) => h('img.as-rd__fall', { src: `assets/radio/prop${n}.webp`, alt: '', style: { left: x + '%', width: w + '%', animationDelay: -t + 's', animationDuration: s + 's' } })),
     watch, h('div.as-rd__bottles', bottles));
   scene = h('section.as-rd', room, shelf);
-  ctx.body.append(scene); ctx.right.append(navBtn('more', '设置', settings));
+  ctx.body.append(scene); ctx.right.append(navBtn('more', '设置', () => settings()));
 
   const paintWho = () => { const c = cur(); face.replaceChildren(c ? avatar(c.avatar, nameOf(c), 64) : icon('users', 30, 1.8)); ctx.title.textContent = c ? nameOf(c) : '所有人'; };
   function paintShelf() {
@@ -362,15 +362,7 @@ async function add() {
   return what(c);
 }
 async function what(c) {
-  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'lang', label: `用${lname(langOf(c))}讲 · 换一种` }, { value: 'voice', label: `声音：${voiceLabel(c)} · 去音色库` },
-    { value: 'tts', label: `${TTS.find(x => x[0] === S().tts)[1]} · 换一种` }, { value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
-  if (v === 'lang') {
-    const l = await actionSheet(`${nameOf(c)} 讲故事用的语言`, ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, langOf(c)) })));
-    if (l) { D.lang[c.id] = l; save(); }
-    return what(c);
-  }
-  if (v === 'voice') return (await import('../settings/voices.js')).openPerson(c.id, () => what(c));   // 改完音色存好，回到电台接着选
-  if (v === 'tts') { const t = await pickTts(); if (t) { S().tts = t; commit('music'); } return what(c); }
+  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
   if (v === 'rand') return tellNew(c, '随便讲一个：可以是你自己编的，也可以是各地的民间故事、寓言、童话。');
   if (v === 'lib') return libSheet(c);
   if (v === 'mine') return importSheet(c);
@@ -421,9 +413,19 @@ async function delBooks(list) {
   for (const k of await kvKeys().catch(() => [])) if (ids.some(x => String(k).startsWith(x))) await kvDel(k).catch(() => {});
   return true;
 }
-function settings() {
-  const set = (k, v) => { S()[k] = v; commit('music'); };
-  sheet({ title: '电台设置', content: h('div.as-rd-set',
+/** 电台设置（右上角 ⋯）：c 是正在看的这个角色（书架上选的人、或者正开着的这本书的人） */
+function settings(c = cur()) {
+  const set = (k, v) => { S()[k] = v; commit('music'); tell(); };
+  // 这个角色用什么语言讲、用哪个声音：点了换，只改右边那几个字
+  const langV = c && h('span', lname(langOf(c))), voiceV = c && h('span', voiceLabel(c));
+  const who = c && group(nameOf(c), [
+    item({ title: '讲故事用的语言', right: langV, chevron: true, onClick: async () => {
+      const l = await actionSheet('讲故事用的语言', ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, langOf(c)) })));
+      if (l) { D.lang[c.id] = l; save(); langV.textContent = lname(l); }
+    } }),
+    item({ title: '声音', right: voiceV, chevron: true, onClick: async () => (await import('../settings/voices.js')).openPerson(c.id, () => { voiceV.textContent = voiceLabel(c); }) })]);
+  sheet({ title: '电台设置', content: h('div.as-rd-set', who,
+    group('什么时候合成', [segmented(TTS, S().tts, v => set('tts', v))]),
     group('', [toggleItem({ title: '故事讲完接着念感想' }, S().say, v => set('say', v))]),
     group('随便讲的长短', [segmented([['short', '短'], ['mid', '中'], ['long', '长']], S().len, v => set('len', v))]),
     group('字幕气泡', [color('气泡颜色', () => B().bg, v => B().bg = v, saveBub), color('字的颜色', () => B().ink, v => B().ink = v, saveBub),
@@ -446,7 +448,7 @@ function openBook(b) {
   const more = async () => {
     const v = await actionSheet(b.title, [{ value: 'set', label: '设置' }, { value: 'timer', label: timer ? `定时关闭（还剩 ${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟）` : '定时关闭' },
       b.after && { value: 'again', label: '重新说感想' }, { value: 'del', label: '删除', danger: true }].filter(Boolean));
-    if (v === 'set') settings();
+    if (v === 'set') settings(contact(b.who));
     if (v === 'timer') pickTimer();
     if (v === 'again') task(`${nameOf(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
     if (v === 'del' && await delBooks([b])) nav.back();
@@ -560,7 +562,7 @@ function openBook(b) {
     }
     count.textContent = `${E.i + 1} / ${all.length}`;
     playB.replaceChildren(E.wait ? h('span.as-spin') : icon(E.on ? 'pause' : 'play', 26, 2.4));
-    afterB.textContent = b.after ? '看感想' : '说说感想'; langB.textContent = lname(b.lang);
+    afterB.textContent = b.after ? '看感想' : '说说感想'; langB.textContent = lname(b.lang); ttsB.textContent = TTS.find(x => x[0] === S().tts)[1];
   }
   // 气泡只放正在念的这一两句（像歌词）：原文按句子分成几小块（一块最多 60 字），翻译按长短比例分到同样几块，跟着念的进度换块
   let chunks = [], ci = -1;

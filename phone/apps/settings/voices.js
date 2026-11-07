@@ -122,7 +122,7 @@ export function openPerson(id, onDone = () => {}) {
     const defLabel = `默认（${fb.voice ? FROM[fb.from] : '接口自带'}）`;
     const pick = h('button.as-pbd__select', { onclick: async () => {
       const v = await actionSheet('当前音色', [{ value: '', label: defLabel, active: !mine },
-        ...S.list.map(x => ({ value: x.id, label: x.name !== x.voice ? `${x.name} · ${x.voice}` : x.name, active: x === mine })),
+        ...S.list.map(x => ({ value: x.id, label: x.name || x.voice, active: x === mine })),   // 只写备注（音色 ID 太长，放进来会折成两行）
         { value: '+', label: '＋ 新增音色' }]);
       if (v == null) return;
       if (v === '+') adding = true; else S.cur = v;
