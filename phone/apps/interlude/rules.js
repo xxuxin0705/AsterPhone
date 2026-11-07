@@ -6,17 +6,36 @@ export const d100 = () => { const t = Math.floor(Math.random() * 10), u = Math.f
 export const ATTRS = [['STR', '力量'], ['CON', '体质'], ['DEX', '敏捷'], ['APP', '外貌'], ['POW', '意志'], ['SIZ', '体型'], ['INT', '智力'], ['EDU', '教育'], ['LUCK', '幸运']];
 /** 掷一套属性：力量 / 体质 / 敏捷 / 外貌 / 意志 / 幸运 3D6×5，体型 / 智力 / 教育 (2D6+6)×5 */
 export const rollAttrs = () => Object.fromEntries(ATTRS.map(([k]) => [k, (['SIZ', 'INT', 'EDU'].includes(k) ? roll(2, 6) + 6 : roll(3, 6)) * 5]));
-/** 由属性算出来的：血、理智、魔法、闪避、母语 */
-export const derived = a => ({ hp: Math.floor((a.CON + a.SIZ) / 10), san: a.POW, mp: Math.floor(a.POW / 5) });
+/** 由属性算出来的：血、理智、魔法、移动力 */
+export const derived = a => ({ hp: Math.floor((a.CON + a.SIZ) / 10), san: a.POW, mp: Math.floor(a.POW / 5), mov: a.DEX < a.SIZ && a.STR < a.SIZ ? 7 : a.DEX > a.SIZ && a.STR > a.SIZ ? 9 : 8 });
+/** 天命五选一：一次掷五套 */
+export const fiveSets = () => Array.from({ length: 5 }, rollAttrs);
 
-// 技能和基础值（第七版）。职业点 EDU×4、兴趣点 INT×2 由 AI 按职业分配，手机只管不超上限
+// 技能和基础值（第七版）。点数：职业 EDU×4 + 兴趣 INT×2，每项最高 80（新手卡的常见房规）
 export const SKILLS = { 侦查: 25, 聆听: 20, 图书馆使用: 20, 话术: 5, 说服: 10, 恐吓: 15, 魅惑: 15, 心理学: 10, 潜行: 20, 急救: 30, 医学: 1, 神秘学: 5, 克苏鲁神话: 0,
-  机械维修: 10, 开锁: 1, 攀爬: 20, 跳跃: 20, 游泳: 20, 驾驶: 20, 斗殴: 25, 手枪: 20, 历史: 5, 追踪: 10, 乔装: 5, 信用评级: 0 };
+  机械维修: 10, 开锁: 1, 妙手: 10, 攀爬: 20, 跳跃: 20, 游泳: 20, 驾驶: 20, 导航: 10, 生存: 10, 斗殴: 25, 手枪: 20, 步枪: 25, 历史: 5, 考古学: 1, 估价: 5, 法律: 5,
+  科学: 1, 艺术: 5, 外语: 1, 追踪: 10, 乔装: 5, 信用评级: 0 };
+export const MAX_SKILL = 80;
 export const baseSkills = a => ({ ...SKILLS, 闪避: Math.floor(a.DEX / 2), 母语: a.EDU });
-/** AI 分好的技能：只认表里有的，1～90 之间，没给的用基础值 */
+export const points = a => a.EDU * 4 + a.INT * 2;
+export const spent = (a, sk) => { const b = baseSkills(a); return Object.entries(sk).reduce((n, [k, v]) => n + Math.max(0, v - (b[k] ?? 0)), 0); };
+/** AI 分好的技能：只认表里有的，最高 80，没给的用基础值 */
 export function fixSkills(a, given = {}) {
   const out = baseSkills(a);
-  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(90, Math.round(+v)));
+  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(MAX_SKILL, Math.round(+v)));
+  return out;
+}
+/** 常见职业和它的本职技能（换职业时按这个重新分职业点） */
+export const JOBS = [['私家侦探', '侦查 聆听 心理学 乔装 开锁 话术 手枪 法律'], ['记者', '侦查 聆听 话术 心理学 图书馆使用 历史 母语 潜行'], ['医生', '医学 急救 心理学 科学 外语 说服 聆听 信用评级'],
+  ['警探', '侦查 聆听 心理学 恐吓 手枪 斗殴 法律 驾驶'], ['教授', '图书馆使用 历史 外语 说服 心理学 考古学 科学 信用评级'], ['学生', '图书馆使用 外语 侦查 聆听 心理学 科学 历史 说服'],
+  ['作家', '图书馆使用 历史 心理学 神秘学 艺术 母语 侦查 话术'], ['律师', '法律 说服 心理学 图书馆使用 话术 信用评级 侦查 聆听'], ['古董商', '估价 历史 考古学 侦查 话术 说服 图书馆使用 外语'],
+  ['护士', '急救 医学 心理学 聆听 侦查 说服 科学 潜行'], ['艺术家', '艺术 心理学 侦查 魅惑 历史 话术 聆听 外语'], ['退伍军人', '步枪 手枪 斗殴 急救 生存 攀爬 潜行 恐吓'],
+  ['神秘学家', '神秘学 历史 图书馆使用 外语 心理学 侦查 考古学 说服'], ['司机', '驾驶 机械维修 导航 侦查 聆听 话术 斗殴 心理学']];
+/** 按职业分职业点：越靠前的本职技能分得越多；兴趣点留着自己加 */
+export function jobSkills(a, job) {
+  const out = baseSkills(a), list = ((JOBS.find(j => j[0] === job) || [])[1] || '').split(' ').filter(k => k in out);
+  const w = [.2, .18, .15, .13, .1, .09, .08, .07]; let left = a.EDU * 4;
+  list.forEach((k, i) => { const add = Math.min(MAX_SKILL - out[k], Math.round(a.EDU * 4 * w[i] / 5) * 5, left); out[k] += add; left -= add; });
   return out;
 }
 
@@ -50,9 +69,6 @@ export function sanCheck(san, loss, crit) {
 export const MADNESS = ['失忆', '假性残疾', '暴力倾向', '偏执', '依恋某个人', '昏厥', '逃跑', '歇斯底里', '恐惧症', '躁狂'];
 export const madness = () => ({ name: MADNESS[d(10) - 1], left: d(10) });
 
-/** 意象小物件：拿起哪件，就按它来车卡 */
-export const TOKENS = [['key', '黄铜钥匙', '锁匠、私家侦探、管家'], ['watch', '银怀表', '医生、钟表匠、会计'], ['feather', '乌鸦羽毛', '记者、作家、占卜师'], ['bottle', '药瓶', '药剂师、护士、化学家'],
-  ['match', '火柴盒', '流浪汉、消防员、走私贩'], ['bullet', '子弹壳', '退伍军人、警探、猎人'], ['glasses', '金丝眼镜', '学者、图书馆员、教授'], ['lipstick', '口红', '演员、歌女、交际花']];
 export const MOODS = [['serious', '正经'], ['light', '轻松'], ['fun', '整活']];
 export const MOOD_TEXT = { serious: '正经的克苏鲁：压抑、恐惧、慢慢逼近的不对劲；角色们认真对待一切。', light: '轻松：有惊无险，角色们可以打趣、耍宝，但主线仍然推进。', fun: '相声团：怎么离谱怎么来，角色们大胆玩梗、互相拆台，KP 也一起玩，但规则照掷。' };
 

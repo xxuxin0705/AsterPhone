@@ -15,7 +15,7 @@ export const VAR_INFO = {
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
   recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字 / 这局的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
-  mood: '这局的气氛（正经 / 轻松 / 整活）', cast: '上桌的角色：名字、人设、职业、血和理智', pc: '你的调查员：意象、属性、职业、技能', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
+  mood: '这局的气氛（正经 / 轻松 / 整活）', jobs: '常见职业', roster: '要车卡的人：名字、人设、掷好的属性、能加的技能点', cast: '上桌的角色：名字、人设、职业、血和理智', pc: '你的调查员：职业、属性、技能、背景', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
   secret: '这局的真相', acts: '各幕的目标和出口', actNo: '现在第几幕', goal: '本幕目标', exit: '本幕出口', left: '本幕还剩几回合', must: '回合用完时要求结束本幕 / 给结局的那句话（自动填）', log: '前几回合的叙述和你做的事', input: '你这回合做的事和骰子结果',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
@@ -44,7 +44,7 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
-  { app: '幕间', items: [{ id: 'intStart', name: '开局', vars: ['user', 'mood', 'story', 'cast', 'pc', 'scenario', 'places', 'skills'] },
+  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'mood', 'story', 'cast', 'pc', 'scenario', 'places'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'mood', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
@@ -430,17 +430,31 @@ export const DEFAULT_PROMPTS = {
 [生图] 同一个画面的生图提示词（英文，逗号隔开的短词）
 主题色：从这些颜色里挑一个最合这篇心情和剧情氛围的，只写名字：{{palettes}}` },
   // ---------- 幕间（跑团）：骰子由手机掷，AI 只收结果；整局不进正文、不进记忆 ----------
+  intCards: { name: '车卡', cats: ['intCards'], on: true, main: true,
+    text: `你是一位《克苏鲁的呼唤》第七版的守秘人（KP），要给下面这几个人各车一张调查员卡。卡要贴着正文里现在的剧情和每个人的人设来写：他们在这一局里大概就是「换了个身份的自己」。
+
+【正文里最近发生的事】
+{{story}}
+
+【要车卡的人】（属性已经由骰子掷好，不要改）
+{{roster}}
+
+要求：
+- 名字默认用本人的名字（剧情需要化名时可以起），年龄 15～89，性别照人设。
+- 职业：最好从这些常见职业里挑最贴合人设的一个：{{jobs}}；实在都不合适可以自己写。
+- 背景四项各一两句：身份、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。
+- 技能只从这张表里挑：{{skills}}。职业技能 8 项、兴趣技能几项；每人加的点总共不超过「教育×4 + 智力×2」（每人后面写了上限），每项最高 80；没写的按基础值。
+- 只输出 JSON，不要别的文字、不要代码块：
+{"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","bg":{"who":"","past":"","goal":"","secret":""},"skills":{"侦查":60}}]}` },
   intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
-    text: `你是一位《克苏鲁的呼唤》第七版的守秘人（KP），现在要为 {{user}} 和 TA 的朋友们开一局。先把这一局的骨架和每个人的调查员卡写好。气氛：{{mood}}
+    text: `你是一位《克苏鲁的呼唤》第七版的守秘人（KP），现在要为 {{user}} 和 TA 的朋友们开一局。先把这一局的骨架写好。气氛：{{mood}}
 
 【正文里最近发生的事】（这局是从这里「暂停」开的，开场白要先用一两句接住它，再进入游戏）
 {{story}}
 
-【上桌的人】
-{{cast}}
-
-【{{user}} 的调查员】
+【调查员】
 {{pc}}
+{{cast}}
 
 【本】
 {{scenario}}
@@ -449,11 +463,10 @@ export const DEFAULT_PROMPTS = {
 {{places}}
 
 要求：
-- 3～5 幕，每幕有目标和「出口」（满足什么就进下一幕）；真相只有你知道；好 / 坏两种结局各写一句。
-- 调查员卡：按意象和属性给 {{user}} 起名、定职业、写两三句背景；上桌的每个人也按各自的性格定职业。技能只从这张表里挑：{{skills}}。职业技能最多 8 项、每项最高 75，总加点不超过教育×4 + 智力×2；没写的按基础值。
+- 3～5 幕，每幕有目标和「出口」（满足什么就进下一幕）；真相只有你知道；好 / 坏两种结局各写一句。可以用上调查员背景里的目标和秘密。
 - 开场白 100 字左右：先接正文，再把大家带进这一局的第一幕。
 - 只输出 JSON，不要别的文字、不要代码块：
-{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口"}],"secret":"真相","endings":{"good":"","bad":""},"pc":{"name":"","job":"","bg":"","skills":{"侦查":60}},"party":[{"name":"上桌的人的名字","job":"","skills":{}}]}` },
+{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口"}],"secret":"真相","endings":{"good":"","bad":""}}` },
   intRound: { name: '一回合', cats: ['intRound'], on: true, main: true,
     text: `你是这局《克苏鲁的呼唤》的守秘人（KP），叙述并扮演所有 NPC 和上桌的角色（除了 {{user}}）。气氛：{{mood}}
 骰子都由手机掷，你不能自己报点数；需要检定就在 request 里提出，下一回合会收到结果。
