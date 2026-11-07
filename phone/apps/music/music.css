@@ -180,10 +180,10 @@
 .as-mp__bg { position: absolute; inset: -40px; z-index: 0; background: #5a2a3a center / cover; filter: blur(46px) brightness(.62) saturate(1.35); transform: scale(1.15); }
 .as-mp__bg.is-custom { inset: 0; filter: none; transform: none; }
 .as-mp > .as-navbar, .as-mp > .as-page__body { position: relative; z-index: 1; }
-.as-mp { --mp-ink: 255,255,255; }
+.as-mp { --mp-ink: 255,255,255; --mp-paper: #0b1020; }   /* paper：没唱的字调成实色用的底色（半透明的字会把底下的描边透出来） */
 .as-mp .as-navbar__back { color: rgb(var(--mp-ink)) !important; }
 /* 下雨天：背景就是那张雨景图（不糊不压暗，只在最下面压一点让按钮清楚）；白天那张浅，字和按钮换深蓝 */
-.as-mp.is-day { --mp-ink: 26,56,110; }
+.as-mp.is-day { --mp-ink: 26,56,110; --mp-paper: #eef3fa; }
 .as-mp__bg.is-scene::after { background: linear-gradient(transparent 62%, rgba(10,22,52,.35)); }
 .as-mp.is-day .as-mp__bg.is-scene::after { background: linear-gradient(rgba(255,255,255,.15), transparent 30%, transparent 70%, rgba(255,255,255,.35)); }
 .as-mp__rain { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -220,7 +220,7 @@
 .as-mp__lrc small { display: block; margin-top: 4px; font-size: 14px; }
 .as-mp__lrc p.is-cur { font-size: 17.5px; font-weight: 600; color: rgb(var(--mp-ink)); }
 /* 唱到哪亮到哪，翻译跟着一起亮；颜色没选过就是白字，没唱的字没选过是半透明白 */
-.as-mp__lrc p.is-cur > span, .as-mp__lrc p.is-cur small > span { background: linear-gradient(90deg, var(--ly, rgb(var(--mp-ink))) var(--p, 0%), var(--ly-dim, rgba(var(--mp-ink),.62)) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.as-mp__lrc p.is-cur > span, .as-mp__lrc p.is-cur small > span { background: linear-gradient(90deg, var(--ly, rgb(var(--mp-ink))) var(--p, 0%), var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper))) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .as-mp__lrc p.is-none { color: rgba(var(--mp-ink),.6); }
 
 .as-mp__info { display: flex; align-items: center; gap: 14px; margin: 0 22px; padding-top: 10px; }
@@ -333,7 +333,7 @@
 .as-fx__cur { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 7px; font: 600 28px/1.35 var(--ly-font, var(--font-ui)); }   /* 字之间留够空，歪了也不粘在一起 */
 .as-fx__cur.is-tr { margin-top: 22px; gap: 4px 3px; font: 400 16px/1.4 var(--ly-font, var(--font-ui)); }
 .as-fx__cur.is-next { margin-top: 44px; font-size: 22px; opacity: .8; }
-.as-fx__cur span { display: inline-block; min-width: .3em; color: rgba(var(--mp-ink),.3); transform: translateY(var(--y)) rotate(var(--r)) scale(var(--s)); transition: color 250ms, text-shadow 250ms; }
+.as-fx__cur span { display: inline-block; min-width: .3em; color: var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 35%, var(--mp-paper))); transform: translateY(var(--y)) rotate(var(--r)) scale(var(--s)); transition: color 250ms, text-shadow 250ms; }
 .as-fx__cur.is-in span { animation: as-cad-in 700ms var(--d) both ease-out; }
 @keyframes as-cad-in { from { opacity: 0; transform: translateY(calc(var(--y) * 3)) rotate(calc(var(--r) * 3)) scale(.4); filter: blur(6px); } }
 .as-fx__cur span.is-lit { color: var(--ly, #7cc4ff); text-shadow: var(--sh), 0 0 14px var(--ly, #7cc4ff); }
@@ -369,8 +369,12 @@
 .as-mp.is-day { --halo: rgba(255,255,255,.9); }
 .as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); }
 .as-mp.is-shade-none { --sh: 0 0 transparent; --ds: none; }
-.as-mp__lrc p, .as-fx__cur span { text-shadow: var(--sh); }
-.as-mp__lrc p.is-cur span { text-shadow: none; filter: var(--ds); }
+/* 没唱的字自己一份（只有碎语是一个字一个字画的，分得开；普通歌词正在唱的那句是一整笔，跟着「唱到的字」的）；没在唱的那几行不描边 */
+.as-mp { --sh-dim: var(--sh); }
+.as-mp.is-dimshade-glow { --sh-dim: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); }
+.as-mp.is-dimshade-none { --sh-dim: 0 0 transparent; }
+.as-fx__cur span { text-shadow: var(--sh-dim); }
+.as-mp__lrc p.is-cur span { filter: var(--ds); }
 .as-mp.has-bg :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */
 .as-cm .as-page__body { padding: 0 0 120px; background: var(--mu-card); }

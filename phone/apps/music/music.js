@@ -949,7 +949,7 @@ export function openPlayer() {
   };
   // 歌词颜色：没选过就是每个样式自己的颜色（碎语、群唱默认蓝，唱片是白字，下雨天白天夜里不一样）
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
-    ['glow', 'none'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
+    ['glow', 'none'].forEach(k => { p.el.classList.toggle('is-shade-' + k, S.shade === k); p.el.classList.toggle('is-dimshade-' + k, S.dimShade === k); }); R.shade(S.shade);
     S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
     // 字体装好了再换，不会先闪一下别的字
     const want = S.font || '';
@@ -1034,9 +1034,10 @@ export function openPlayer() {
       const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('edge', '#0e1a3a')]; wheels[1].hidden = wheels[2].hidden = true;
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
-      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边']], 'color', k => wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim', 'edge'][i]; })), ...wheels,
-        segmented([['', '描边'], ['glow', '发光'], ['none', '不加']], S.shade || '', k => { S.shade = k; change(); }), fontRow,
-        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = ''; commit('music'); paintColor(); sh.close(); })) });
+      // 描边的样子每种字各一份：唱到的字 → shade（整句、下雨天都跟它）；没唱的字 → dimShade（只有碎语分得开）；描边颜色那页没有这一行
+      const shades = [segmented([['', '描边'], ['glow', '发光'], ['none', '不加']], S.shade || '', k => { S.shade = k; change(); }), segmented([['', '描边'], ['glow', '发光'], ['none', '不加']], S.dimShade || '', k => { S.dimShade = k; change(); })]; shades[1].hidden = true;
+      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边']], 'color', k => { const i = ['color', 'dim', 'edge'].indexOf(k); wheels.forEach((w, j) => { w.hidden = j !== i; }); shades.forEach((r, j) => { r.hidden = j !== i; }); }), ...wheels, ...shades, fontRow,
+        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.dimShade = S.edge = S.font = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
     if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }
