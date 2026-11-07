@@ -147,7 +147,7 @@ async function ahead(b, i) {
   for (let j = i + 1; j < n && E.book === b && E.on; j++) await voice(b, j);
 }
 function halt() {
-  E.raw = null;
+  E.raw = E.spk = null;
   if (E.src) { E.src.onended = null; E.src.stop(); E.src = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
@@ -204,6 +204,9 @@ function say(run, text, lang) {
   const u = new SpeechSynthesisUtterance(text), L = isZh(lang) ? 'zh-CN' : lang, v = speechSynthesis.getVoices().find(x => x.lang.replace('_', '-').startsWith(L.slice(0, 2)));
   u.lang = L; u.rate = rate(); if (v) u.voice = v;
   u.onend = () => { if (run === E.run && E.on) playAt(E.i + 1); };
+  // 手机自带的声音不知道多长：念到哪个字有通知就按通知算，没有就按每个字大概多久估
+  const spk = E.spk = { at: performance.now(), n: text.length || 1, per: (isZh(lang) || lang === 'ja' || lang === 'ko' ? 230 : 65) / rate() };
+  u.onboundary = e => { spk.ci = e.charIndex; };
   speechSynthesis.speak(u);
 }
 function pause() {
@@ -484,19 +487,41 @@ function openBook(b) {
       else if (!leaf && last !== -1 && Math.abs(d) === 1) { lift(d, last); settle(180); }   // 念到下一段、点上一段 / 下一段：自己翻
       else { if (leaf) { leaf.remove(); leaf = null; } pages(E.i); }
       shown = E.i; nlines = all.length; nlang = b.lang;
-      sayT.textContent = s.t; sayTr.textContent = s.tr; sayTr.parentNode.hidden = !s.tr;
-      row._fit();
+      cut(s); ci = -1; tick();
       if (last !== -1) { row.classList.remove('is-turn'); void row.offsetWidth; row.classList.add('is-turn'); }
     }
     count.textContent = `${E.i + 1} / ${all.length}`;
     playB.replaceChildren(E.wait ? h('span.as-spin') : icon(E.on ? 'pause' : 'play', 26, 2.4));
     afterB.textContent = b.after ? '看感想' : '说说感想'; langB.textContent = lname(b.lang);
   }
-  // 气泡里的字跟着声音一点点变深（像一起听的歌词）；在合成时整段淡着，没在念、或者用手机自带的声音（不知道多长）就整段深色
+  // 气泡只放正在念的这一两句（像歌词）：原文按句子分成几小块（一块最多 60 字），翻译按长短比例分到同样几块，跟着念的进度换块
+  let chunks = [], ci = -1;
+  function cut(s) {
+    const o = sents(s.t).reduce((a, x) => { if (a.length && (a[a.length - 1] + x).length <= 60) a[a.length - 1] += x; else a.push(x); return a; }, []).map(x => x.trim());
+    const n = o.length, len = o.join('').length || 1, tr = o.map(() => '');
+    let at = 0;
+    chunks = o.map((t, i) => { const a = at / len; at += t.length; return { t, a, b: i === n - 1 ? 1 : at / len }; });
+    // 翻译切到逗号这么细（中文常一逗到底），每一小截按它在整段里的位置分给对应的块
+    const ts = s.tr && (s.tr.match(/[^，,、；;。！？!?…]+[，,、；;。！？!?…」』”"]*\s*/g) || [s.tr]);
+    if (s.tr) { let q = 0; const tl = s.tr.length; for (const x of ts) { const mid = (q + x.length / 2) / tl; q += x.length; tr[Math.max(0, chunks.findIndex(c => mid <= c.b))] += x; } }
+    chunks.forEach((c, i) => { c.tr = tr[i].trim(); });
+  }
+  // 念到这一段的哪儿了（0~1）；还在合成是 0，没在念就是 null
+  const where = () => {
+    if (E.book !== b) return null;
+    if (E.buf) return (E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration;
+    if (E.spk) return E.spk.ci != null ? E.spk.ci / E.spk.n : (performance.now() - E.spk.at) / (E.spk.n * E.spk.per);
+    return E.wait ? 0 : null;
+  };
   const tick = () => {
     if (!p.el.isConnected) { gls && gls.dispose(); return clearInterval(iv); }
-    const mine = E.book === b, k = mine && E.buf ? ((E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration) : mine && E.wait ? 0 : 1;
-    row.style.setProperty('--p', Math.min(100, k * 100).toFixed(1) + '%');
+    const k = where(), j = k == null ? 0 : Math.max(0, chunks.findIndex(c => k < c.b)), c = chunks[j];
+    if (!c) return;
+    if (j !== ci) {
+      ci = j; sayT.textContent = c.t; sayTr.textContent = c.tr; sayTr.parentNode.hidden = !c.tr; row._fit();
+      if (k != null && j) { row.classList.remove('is-turn'); void row.offsetWidth; row.classList.add('is-turn'); }
+    }
+    row.style.setProperty('--p', (k == null ? 100 : Math.min(100, Math.max(0, (k - c.a) / (c.b - c.a)) * 100)).toFixed(1) + '%');
   };
   const iv = setInterval(tick, 200);
   nav.push(p.el); gls = glass(row.lastChild, p.el, bg, shade); subs.add(paint); paint(); tick();
