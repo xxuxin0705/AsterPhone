@@ -304,10 +304,11 @@ export const loading = () => audio.src === HUSH;
 let gen = 0;   // 每次 load 加一：加载中点了取消、换了歌，之前还在问的那条线就不往下走了
 // 清掉声音上挂着的东西（取消加载、全放不出来时），不触发 onerror
 const unload = () => { audio.onerror = null; audio.removeAttribute('src'); audio.load(); };
-async function load(autoplay) {
+// hush：先放那段占位。只在人点了歌 / 上一首下一首时用；上一首自己放完接下一首不用（后台时那一下会把浏览器「允许接着放」的资格弄没，真歌到了反而不让放）
+async function load(autoplay, hush = true) {
   const s = current(); if (!s) return;
   const g = ++gen;
-  if (autoplay && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
+  if (autoplay && hush && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
@@ -330,7 +331,7 @@ async function qqUrl(s) {
 const PUB = { qq: 'https://tang.api.s01s.cn/music_open_api.php', kuwo: 'https://oiapi.net/api/Kuwo', joox: 'https://apicx.asia/api/joox_music' }, JOOX = { token: 'f84ao9lMF_q7husBWRfgUw', br: 4 };
 const full = new Map();
 const remember = (k, who, s, fn) => {
-  const c = full.get(k); if (c && Date.now() - c.at < 5 * 60e3) return c.p;
+  const c = full.get(k); if (c && Date.now() - c.at < 30 * 60e3) return c.p;
   const p = fn().catch(e => { log('warn', '音乐', `${who}没给《${s.name}》：${e.message}`); return ''; });
   full.set(k, { p, at: Date.now() });
   return p;
@@ -361,7 +362,8 @@ const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
 const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.then(u => { if (u) ok(u); else if (!--n) ok(''); })); });
 /** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问；不行再酷我低一档、JOOX）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
-  const pub = [() => first([qqFull(s), kuwoFull(s, 0)]), () => kuwoFull(s, 2), () => jooxFull(s)];
+  const lz = (f, ...keys) => Object.assign(f, { bad: () => keys.forEach(k => full.delete(k)) });   // 记住的链接放不出来就作废，下回重新问
+  const pub = [lz(() => first([qqFull(s), kuwoFull(s, 0)]), 'q' + s.id, 'k0' + s.src + s.id), lz(() => kuwoFull(s, 2), 'k2' + s.src + s.id), lz(() => jooxFull(s), 'j' + s.src + s.id)];
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
@@ -374,18 +376,27 @@ async function plain(s, f, autoplay, twin) {
     const tr = !f && isQ(s) && (qurls.get(s.id) || {}).trial;
     if (tr && audio.src !== tr) { log('warn', '音乐', `《${s.name}》是会员歌，两边都只拿到 1 分钟试听`); audio.onerror = () => { audio.onerror = null; fail(); }; audio.src = tr; if (autoplay) audio.play().catch(blocked); return; }
     unload();
-    log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
+    log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(1, true); else fails = 0;
   };
   const tryUrl = async i => {
     if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s || g !== gen) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
     const x = urls[i], u = typeof x === 'function' ? await x() : x;
     if (current() !== s || g !== gen) return;
     if (!u) return tryUrl(i + 1);
-    audio.onerror = () => tryUrl(i + 1);
+    audio.onerror = () => { x.bad && x.bad(); tryUrl(i + 1); };
     audio.src = u;
     if (autoplay) audio.play().catch(blocked);
+    warmNext();
   };
   tryUrl(0);
+}
+/** 这首放起来了就提前把下一首的链接问好，按「下一首」秒开（随机播放不知道下一首是谁，不问） */
+let warmT = 0;
+function warmNext() {
+  clearTimeout(warmT);
+  if (M().mode === 'shuffle') return;
+  const nx = M().queue[pick(M().idx, true)]; if (!nx || nx === current() || nx.local) return;
+  warmT = setTimeout(async () => { for (const x of urlsOf(nx)) if (typeof x === 'function' ? await x() : x) return; }, 3000);
 }
 /** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
 async function startChain(s, f, autoplay) {
@@ -404,12 +415,12 @@ async function startChain(s, f, autoplay) {
   return true;
 }
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
+/** 歌曲文件的内容（边下边读）；只读酒馆插件转的（别人家的地址跨域读不了，试一下就是白等一趟服务器），不是 mp3 也不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  for (const x of urlsOf(s)) {
-    const u = typeof x === 'function' ? await x() : x;
-    if (!u) continue;
-    const r = await fetch(u, { signal });   // 读不了内容（别人家的地址常跨域）就扔出去，让普通放法用 <audio> 放
+  for (const u of urlsOf(s)) {
+    if (typeof u !== 'string' || !u.startsWith(BE)) continue;
+    const r = await fetch(u, { signal });
     if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) continue;
     return r.body;
   }
@@ -482,10 +493,10 @@ export function toggle() {
   if (!audio.src) return load(true);   // 刚才取消了：再点重新问
   audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
 }
-export function next(step = 1) {
+export function next(step = 1, auto = false) {
   const n = M().queue.length; if (!n) return;
   M().idx = step === 1 ? pick(M().idx, false) : (M().idx + step + n) % n;
-  load(true);
+  load(true, !auto);
 }
 export const prev = () => next(-1);
 export function seek(t) {
@@ -536,7 +547,7 @@ audio.addEventListener('timeupdate', () => {
     // 放进了下一首：换歌名、歌词，把前一首的内容从这条声音里清掉（省内存）
     const nx = c.segs[c.segs.indexOf(g) + 1];
     if (nx && nx.start != null && audio.currentTime >= nx.start) {
-      if (nx.i < 0) { next(); tell('time'); return; }   // 已经续上的那首后来从播放列表里删了：跳过它
+      if (nx.i < 0) { next(1, true); tell('time'); return; }   // 已经续上的那首后来从播放列表里删了：跳过它
       M().idx = nx.i; c.nexting = false; fails = 0; c.segs.splice(0, c.segs.indexOf(nx)); enter(nx.s);
       op(c, () => { if (nx.start > 2) c.sb.remove(0, nx.start - 1); else run(c); });
     }
@@ -544,7 +555,7 @@ audio.addEventListener('timeupdate', () => {
   tell('time');
 });
 ['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
-audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(); });
+audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
 // 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
 let stuck = false;
 function blocked() { tell('blocked'); if (document.hidden) stuck = true; }

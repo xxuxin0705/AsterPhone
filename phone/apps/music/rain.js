@@ -107,7 +107,7 @@ export function rain(cv, page) {
   }
 
   function words(t, clock) {
-    if (P.loading()) return;   // 还在问链接：别按 0 秒把第一句掉下来
+    if (P.loading() || (!P.playing() && !P.now())) return;   // 还在问链接 / 还没出声：别按 0 秒把第一句掉下来
     let L = P.lyricsNow();
     if (!L.length) { const s = P.current() || {}; L = [{ t: 0, text: s.name || '', tr: s.artist || '' }]; }
     if (L !== forL) { forL = L; lines.clear(); }

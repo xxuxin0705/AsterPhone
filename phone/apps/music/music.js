@@ -1025,17 +1025,17 @@ export function openPlayer() {
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
-      // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字」各一个色盘，切换只是换显示哪个（不重画色盘）；
-      // 下面是描边（不加 / 描边 / 发光，整句一份），选了描边或发光才出描边颜色的色盘；再下面字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
+      // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字 | 描边」：前两个各一个色盘，切换只是换显示哪个（不重画色盘）；
+      // 「描边」里是不加 / 描边 / 发光（整句一份），选了描边或发光才出描边颜色的色盘；最下面字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
       const pv = h('div.as-mu-lypv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
       const pvPaint = () => ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
       const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
-      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = true; edgeWheel.hidden = !S.shade;
+      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = true;
+      const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, edgeWheel); edgeWheel.hidden = !S.shade;
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
-      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字']], 'color', k => wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim'][i]; })), ...wheels,
-        segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeWheel, fontRow,
+      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边']], 'color', k => { wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim'][i]; }); edgeBox.hidden = k !== 'edge'; }), ...wheels, edgeBox, fontRow,
         btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
