@@ -338,7 +338,7 @@
 @keyframes as-cad-in { from { opacity: 0; transform: translateY(calc(var(--y) * 3)) rotate(calc(var(--r) * 3)) scale(.4); filter: blur(6px); } }
 .as-fx__cur span.is-lit { color: var(--ly, #7cc4ff); text-shadow: var(--sh), 0 0 14px var(--ly, #7cc4ff); }
 .as-fx__cur.is-tr span.is-lit { text-shadow: var(--sh), 0 0 8px var(--ly, #7cc4ff); }
-.as-mp.is-shade-none .as-fx__cur span.is-lit { text-shadow: none; }
+.as-mp:not(.is-shade-edge):not(.is-shade-glow) .as-fx__cur span.is-lit { text-shadow: none; }
 .as-fx__dust { position: absolute; inset: 0; overflow: hidden; }
 .as-fx__dust i { position: absolute; font: 600 1em/1 var(--font-ui); font-style: normal; color: rgba(var(--mp-ink),.12); filter: blur(2px); animation: as-dust 14s ease-in-out infinite alternate; }
 @keyframes as-dust { to { transform: translate(18px, -26px) scale(1.15); opacity: .45; } }
@@ -365,18 +365,15 @@
 .as-mp.has-bg .as-ch.is-cur span { text-shadow: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
 /* 描边（歌词设置里选，普通歌词、碎语都管；下雨天在 rain.js 里画）：描边 = 字边上一圈实线，浅字描深的、深字描白的（自己选了描边颜色就用它）；发光 = 跟字同色的淡光；不加 = 都没有。
  * 实线是八个方向各挪 0.6px 的硬影子拼出来的（要细：中文笔画密，边粗一点字就糊成一团）；渐变填色的那句 text-shadow 会盖住填色，只能用 drop-shadow，所以另备一份 --ds（四个方向，filter 贵）。描边时字距稍松一点，不挤 */
-.as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --ls: .03em;
+.as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --sh: 0 0 transparent; --ds: none; --ls: 0; }   /* 默认不加 */
+.as-mp.is-day { --halo: rgba(255,255,255,.9); }
+.as-mp.is-shade-edge { --ls: .03em;
   --sh: .6px 0 0 var(--ec), -.6px 0 0 var(--ec), 0 .6px 0 var(--ec), 0 -.6px 0 var(--ec), .45px .45px 0 var(--ec), -.45px .45px 0 var(--ec), .45px -.45px 0 var(--ec), -.45px -.45px 0 var(--ec);
   --ds: drop-shadow(.7px 0 0 var(--ec)) drop-shadow(-.7px 0 0 var(--ec)) drop-shadow(0 .7px 0 var(--ec)) drop-shadow(0 -.7px 0 var(--ec)); }
-.as-mp.is-day { --halo: rgba(255,255,255,.9); }
-.as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); --ls: 0; }
-.as-mp.is-shade-none { --sh: 0 0 transparent; --ds: none; --ls: 0; }
+.as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); }
 .as-mp__lrc p.is-cur, .as-fx__cur { letter-spacing: var(--ls); }
-/* 没唱的字自己一份（只有碎语是一个字一个字画的，分得开；普通歌词正在唱的那句是一整笔，跟着「唱到的字」的）；没在唱的那几行不描边 */
-.as-mp { --sh-dim: var(--sh); }
-.as-mp.is-dimshade-glow { --sh-dim: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); }
-.as-mp.is-dimshade-none { --sh-dim: 0 0 transparent; }
-.as-fx__cur span { text-shadow: var(--sh-dim); }
+/* 整句一份；没在唱的那几行不描边 */
+.as-fx__cur span { text-shadow: var(--sh); }
 .as-mp__lrc p.is-cur span { filter: var(--ds); }
 .as-mp.has-bg :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */

@@ -13,7 +13,7 @@ export const hidden = () => { const p = document.querySelector('.as-phone'); ret
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '', edge = '', face = FONT;   // shade：描边，'' 描边 / 'glow' 发光 / 'none' 不加；edge：自己选的描边颜色（'r,g,b'）；face：字体
+  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '', edge = '', face = FONT;   // shade：'' 不加 / 'edge' 描边 / 'glow' 发光；edge：自己选的描边颜色（'r,g,b'）；face：字体
   // tint：自己选的歌词颜色（'r,g,b'），字、字的光、水纹都换成它；没选就是白天 / 夜里各自的颜色
   const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
@@ -146,7 +146,7 @@ export function rain(cv, page) {
         const g = ground + SIZE * .6 + 30 + c.r * TR * 1.5;
         const y = q < 1 ? -20 + (g + 20) * q * q : g, a = Math.min(1, q * 3);
         ctx.save(); ctx.translate(c.x + c.jx * Math.max(0, 1 - q), y); ctx.rotate(c.r0 * Math.max(0, 1 - q));
-        if (!shade) { ctx.strokeStyle = halo(al * a); ctx.strokeText(c.t, 0, 0); }
+        if (shade === 'edge') { ctx.strokeStyle = halo(al * a); ctx.strokeText(c.t, 0, 0); }
         ctx.fillStyle = ink(al * a); ctx.fillText(c.t, 0, 0); ctx.restore();
       }
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
@@ -166,7 +166,7 @@ export function rain(cv, page) {
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
     ctx.fillStyle = ink(a * sq); ctx.shadowBlur = 0;
-    if (!shade) { ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
+    if (shade === 'edge') { ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
     else if (shade === 'glow') { ctx.shadowColor = edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; }
     ctx.fillText(t, 0, 0);
     ctx.restore();
