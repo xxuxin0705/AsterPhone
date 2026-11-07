@@ -4,7 +4,7 @@
 // 声音都走一个 AudioContext：故事一段接一段、白噪音垫在底下，切到后台也能接着放下一段（新开 <audio> 在后台会被拦）。
 import { h, uid, clamp, pickFile, onLongPress, debounce } from '../../core/util.js';
 import { state, win, commit, contact, kvGet, kvSet, kvDel, kvKeys, chatForContact, getMsgs } from '../../core/store.js';
-import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem } from '../../core/ui.js';
+import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem, busy } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { generate, resolveConn } from '../../core/api.js';
@@ -17,6 +17,8 @@ import { nameOf, personaOf } from '../chat/engine.js';
 import { isNight } from './rain.js';
 import { color, font, setFont } from './tglook.js';
 import { glass } from '../../core/glass.js';
+import { plain, PRESETS, GROUPS, ACT_HINT } from '../../core/act.js';
+import { translate } from '../../core/translate.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
 import LIB from './radiolib.js';
 
@@ -52,9 +54,10 @@ const sents = t => t.match(/[^。！？!?….]+[。！？!?….」』”"'）)]*
 const paras = text => String(text).split(/\n+/).map(s => s.trim()).filter(Boolean)
   .flatMap(p => sents(p).reduce((a, s) => { if (a.length && (a[a.length - 1] + s).length <= 100) a[a.length - 1] += s; else a.push(s); return a; }, []).map(s => s.trim()).filter(Boolean));
 const clean = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
-/** 一行一段，下面 >> 开头的是它的中文翻译 */
+/** 一行一段，下面 >> 开头的是它的中文翻译；段里带 [语气] 标签的原样留在 s（念的时候用），t 是去掉标签给人看的 */
 const segsOf = text => clean(text).split('\n').map(l => l.trim()).filter(Boolean).reduce((a, l) => {
-  if (l.startsWith('>>')) { if (a.length) a[a.length - 1].tr = l.replace(/^>>\s*/, ''); } else a.push({ t: l.replace(/^\[\d+\]\s*/, ''), tr: '' });
+  if (l.startsWith('>>')) { if (a.length) a[a.length - 1].tr = plain(l.replace(/^>>\s*/, '')); }
+  else { const s = l.replace(/\[\d+\]\s*/g, ''), t = plain(s); a.push(t === s ? { t, tr: '' } : { t, s, tr: '' }); }
   return a;
 }, []);
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
@@ -72,7 +75,7 @@ async function compose1(c, what, recall, stop) {
     about = [`【最近的剧情】\n${story || '（暂无）'}`, msgs.length && `【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : real(c)}：${m.text}`).join('\n')}`,
       await worldText(scan).catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
   }
-  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang) }), 8000, stop);
+  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: ACT_HINT }), 8000, stop);
   const title = ((raw.match(/^\s*标题[:：]\s*(.+)$/m) || [])[1] || '').replace(/^[《「『【]|[》」』】]$/g, '').trim();
   const [head, rest] = raw.split(/^\s*故事[:：]\s*/m), [story, after = ''] = (rest ?? head.replace(/^\s*标题[:：].*$/m, '')).split(/^\s*感想[:：]\s*/m);
   const segs = segsOf(story);
@@ -82,30 +85,42 @@ async function compose1(c, what, recall, stop) {
 /** 书店的老故事、导入的文字：翻成 lang（原文就是 lang 的话只配中文翻译） */
 async function trans(c, ps, from, lang, stop) {
   const onlyZh = same(from, lang), raw = await ask(c, compose('radioTrans', { char: real(c), lang: lname(onlyZh ? 'zh-CN' : lang),
-    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop);
+    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : ACT_HINT, tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop);
   const out = segsOf(raw);
   if (!out.length) throw new Error('AI 回了空的');
   if (onlyZh) return ps.map((t, i) => ({ t, tr: (out[i] || {}).t || '' }));
   return isZh(from) ? out.map((s, i) => ({ t: s.t, tr: ps[i] || '' })) : out;
 }
+/** 免费机翻（不花 API，没有口吻和语气）：整段一起翻，行数对不上就一段段翻 */
+async function mt(ps, to) {
+  const code = isZh(to) ? 'zh-CN' : to, all = (await translate(ps.join('\n'), code)).split('\n').map(x => x.trim()).filter(Boolean);
+  return all.length === ps.length ? all : Promise.all(ps.map(p => translate(p, code)));
+}
+async function transMt(ps, from, lang, stop, trs) {   // trs：原来就配好的中文翻译，有就接着用
+  const t = same(from, lang) ? ps : await mt(ps, lang), tr = isZh(lang) ? [] : isZh(from) ? ps : trs && trs.every(Boolean) ? trs : await mt(ps, 'zh-CN');
+  if (stop.aborted) throw new Error('已取消');
+  return t.map((x, i) => ({ t: x, tr: tr[i] || '' }));
+}
+const howTrans = () => actionSheet('怎么翻', [{ value: 'mt', label: '免费机翻（不花 API）' }, { value: 'ai', label: 'AI 翻（用一次 API，带 TA 的口吻和语气）' }]);
+const transBy = (how, c, ps, from, lang, stop, trs) => how === 'mt' ? transMt(ps, from, lang, stop, trs) : trans(c, ps, from, lang, stop);
 async function thoughts(b, stop) {
   const c = contact(b.who);
   if (!c) throw new Error('这个角色已经不在联系人里了');
   const out = segsOf(await ask(c, compose('radioAfter', { char: real(c), persona: personaOf(c) || '（没有更多资料）', title: b.title,
-    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang) }), 2400, stop));
+    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang), act: ACT_HINT }), 2400, stop));
   if (!out.length) throw new Error('AI 回了空的');
   b.after = out; await save();
 }
 /** 这本换一种语言讲：翻过的语言存在 vers 里，换回去不再花钱 */
-async function relang(b, to, stop) {
+async function relang(b, to, how, stop) {
   const c = contact(b.who);
   if (!c) throw new Error('这个角色已经不在联系人里了');
   (b.vers || (b.vers = {}))[b.lang] = { segs: b.segs, after: b.after };
   let v = b.vers[Object.keys(b.vers).find(k => same(k, to))];
   const zh = L => isZh(to) && L.every(s => s.tr) ? L.map(s => ({ t: s.tr, tr: '' })) : null;   // 换成中文、每段本来就配了中文翻译：直接用，不花钱
   if (!v && zh(lines(b))) v = { segs: zh(b.segs), after: b.after && zh(b.after) };
-  if (!v) { const out = await trans(c, lines(b).map(s => s.t), b.lang, to, stop); v = { segs: out.slice(0, b.segs.length), after: b.after ? out.slice(b.segs.length) : null }; }
-  else if (b.after && !v.after) v.after = zh(b.after) || await trans(c, b.after.map(s => s.t), b.lang, to, stop);   // 感想是换语言以后才写的：只翻感想
+  if (!v) { const out = await transBy(how, c, lines(b).map(s => s.t), b.lang, to, stop, lines(b).map(s => s.tr)); v = { segs: out.slice(0, b.segs.length), after: b.after ? out.slice(b.segs.length) : null }; }
+  else if (b.after && !v.after) v.after = zh(b.after) || await transBy(how, c, b.after.map(s => s.t), b.lang, to, stop, b.after.map(s => s.tr));   // 感想是换语言以后才写的：只翻感想
   if (E.book === b) { stopStory(); E.i = Math.min(E.i, v.segs.length + (v.after || []).length - 1); }
   Object.assign(b, { lang: to, segs: v.segs, after: v.after }); await save(); tell();
 }
@@ -138,7 +153,7 @@ const pend = new Map();
 async function voice(b, i) {
   const k = `radio:a:${b.id}:${b.lang}:${i}`, got = await kvGet(k).catch(() => null);
   if (got) return got;
-  if (!pend.has(k)) pend.set(k, speakAs(b.who, lines(b)[i].t, { silent: true, cache: k, stop: (E.stop || (E.stop = new AbortController())).signal })
+  if (!pend.has(k)) pend.set(k, speakAs(b.who, lines(b)[i].s || lines(b)[i].t, { silent: true, acted: true, cache: k, stop: (E.stop || (E.stop = new AbortController())).signal })
     .then(() => kvGet(k).catch(() => null)).finally(() => pend.delete(k)));
   return pend.get(k);
 }
@@ -287,7 +302,7 @@ export async function renderRadio(ctx) {
   const my = ++draws;
   await load();
   if (my !== draws || ctx.el.dataset.tab !== 'radio') return;
-  const face = h('span.as-rd__face'), shelf = h('div.as-rd__shelf');
+  const face = h('span.as-rd__face'), shelf = h('div.as-rd__shelf', { 'data-no-swipe': '' });   // 书多了左右滑，别当成返回手势
   const watch = h('button.as-rd__watch', { 'aria-label': '换人', onclick: pickWho }, h('img', { src: 'assets/radio/watch.webp', alt: '' }), face);
   const bottles = NOISE.map(([k, name], i) => {
     const b = h('button.as-rd__bottle', { 'aria-label': name, onclick: () => { noise(k, !live[k]); toast(live[k] ? name : `关掉${name}`); } }, h('img', { src: `assets/radio/bottle${i + 1}.webp`, alt: '' }));
@@ -303,16 +318,31 @@ export async function renderRadio(ctx) {
   function paintShelf() {
     const c = cur(), list = D.books.filter(b => !c || b.who === c.id).sort((a, b) => b.at - a.at);
     shelf.replaceChildren(h('button.as-rd__spine.is-add', { onclick: add }, h('img', { src: 'assets/radio/spine7.webp', alt: '' }), h('span', '＋ 讲一个')),
-      ...list.map(b => { const n = hash(b.id), el = h('button.as-rd__spine', { dataset: { id: b.id }, style: { '--r': (n % 7 - 3) + 'deg', animationDelay: -(n % 50) / 10 + 's' }, onclick: () => openBook(b) },
+      ...list.map(b => { const n = hash(b.id), el = h('button.as-rd__spine', { dataset: { id: b.id }, style: { '--r': (n % 7 - 3) + 'deg', animationDelay: -(n % 50) / 10 + 's' },
+        onclick: () => { if (!sel) return openBook(b); sel.has(b) ? sel.delete(b) : sel.add(b); mark(); } },
         h('img', { src: `assets/radio/spine${SPINES[n % SPINES.length]}.webp`, alt: '' }), h('span', b.title));
-      onLongPress(el, () => bookMenu(b)); return el; }));
+      onLongPress(el, () => sel || bookMenu(b)); return el; }));
     mark();
   }
+  const shown = () => D.books.filter(b => !cur() || b.who === cur().id);
+  // 长按一本：改名 / 多选 / 删除。多选时每本书脊上出个圈，底下「全选 · 删除（几本）· 取消」（和音乐里歌单的多选一样）
+  let sel = null;
+  const cnt = h('span'), allB = h('button', { onclick: () => { sel = new Set(sel.size < shown().length ? shown() : []); mark(); } }, '全选');
+  const bar = h('div.as-mu-pickbar', allB, h('button.is-main', { onclick: async () => { if (!sel.size) return toast('先勾几本'); if (await delBooks([...sel])) pick(false); } }, '删除', cnt), h('button', { onclick: () => pick(false) }, '取消'));
+  function pick(on, first) { sel = on ? new Set([first]) : null; scene.classList.toggle('is-picking', on); if (on) scene.append(bar); else bar.remove(); mark(); }
+  async function bookMenu(b) {
+    const v = await actionSheet(b.title, [{ value: 'name', label: '改名' }, { value: 'pick', label: '多选' }, { value: 'del', label: '删除', danger: true }]);
+    if (v === 'pick') pick(true, b);
+    if (v === 'del') delBooks([b]);
+    if (v === 'name') { const t = ((await dialog({ title: '改名', input: { value: b.title, placeholder: '书名' } })) || '').trim(); if (t && t !== b.title) { b.title = t; await save(); tell(); } }
+  }
   // 正在讲的那本亮着、开着的瓶子亮着：只换这几个的样子
-  const mark = () => { [...shelf.children].forEach(el => el.classList.toggle('is-on', !!E.book && el.dataset.id === E.book.id && (E.on || E.wait)));
+  const mark = () => { [...shelf.children].forEach(el => { el.classList.toggle('is-on', !!E.book && el.dataset.id === E.book.id && (E.on || E.wait)); el.classList.toggle('is-picked', !!sel && [...sel].some(b => b.id === el.dataset.id)); });
+    if (sel) { cnt.textContent = sel.size ? `（${sel.size}）` : ''; allB.textContent = sel.size && sel.size === shown().length ? '全不选' : '全选'; }
     bottles.forEach((b, i) => b.classList.toggle('is-on', !!live[NOISE[i][0]])); };
-  let n = D.books.length, who = D.who;
-  const f = () => { if (!scene.isConnected || scene.dataset.my !== String(my)) return subs.delete(f); if (D.books.length !== n || D.who !== who) { n = D.books.length; who = D.who; paintWho(); paintShelf(); } else mark(); };
+  const sig = () => D.who + D.books.map(b => b.id + b.title).join();
+  let last = sig();
+  const f = () => { if (!scene.isConnected || scene.dataset.my !== String(my)) return subs.delete(f); if (sig() !== last) { last = sig(); paintWho(); paintShelf(); } else mark(); };
   scene.dataset.my = my; subs.add(f);
   paintWho(); paintShelf();
 
@@ -358,12 +388,14 @@ function libSheet(c) {
 async function fromLib(c, x) {
   const L = langOf(c), had = D.books.find(b => b.who === c.id && b.lib === x.id && same(b.lang, L));
   if (had) return openBook(had);
-  const ps = paras(x.text), key = `radio:lib:${x.id}:${L}`;   // 翻好的存一份，别的角色、别的窗口再挑同一本不再花钱
+  const ps = paras(x.text);
   const make = segs => made({ id: uid('rb'), who: c.id, title: x.title, lang: L, src: 'lib', lib: x.id, segs, after: null, pos: 0, at: Date.now() }, `《${x.title}》放上书架了`);
   if (isZh(L) && isZh(x.lang)) return make(ps.map(t => ({ t, tr: '' })));
-  const got = await kvGet(key).catch(() => null);
-  if (got) return make(got);
-  task(`${nameOf(c)} 在翻《${x.title}》…`, async stop => { const segs = await trans(c, ps, x.lang, L, stop); await kvSet(key, segs).catch(() => {}); await make(segs); });
+  // 翻好的存一份，别的角色、别的窗口再挑同一本不再翻（AI 翻的优先）
+  const keys = ['ai', 'mt'].map(k => `radio:lib:${x.id}:${L}${k === 'ai' ? '' : ':mt'}`);
+  for (const k of keys) { const got = await kvGet(k).catch(() => null); if (got) return make(got); }
+  const how = await howTrans();
+  if (how) task(`${nameOf(c)} 在翻《${x.title}》…`, async stop => { const segs = await transBy(how, c, ps, x.lang, L, stop); await kvSet(keys[how === 'ai' ? 0 : 1], segs).catch(() => {}); await make(segs); });
 }
 function importSheet(c) {
   const t = input({ placeholder: '书名' }), body = textarea({ placeholder: '故事', rows: 8 });
@@ -374,19 +406,18 @@ function importSheet(c) {
 async function fromText(c, title, ps) {
   const from = textLang(ps.join('')), L = langOf(c);
   const make = (segs, lang) => made({ id: uid('rb'), who: c.id, title, lang, src: 'mine', segs, after: null, pos: 0, at: Date.now() }, `《${title}》放上书架了`);
-  const v = same(from, L) ? isZh(L) ? 'raw' : await actionSheet('要中文翻译吗', [{ value: 'to', label: '配中文翻译（用一次 API）' }, { value: 'raw', label: '不用翻译' }])
-    : await actionSheet(`原文是${lname(from)}`, [{ value: 'to', label: `让 TA 翻成${lname(L)}讲（用一次 API）` }, { value: 'raw', label: '照原文念' }]);
+  const v = same(from, L) ? isZh(L) ? 'raw' : await actionSheet('要中文翻译吗', [{ value: 'to', label: '配中文翻译' }, { value: 'raw', label: '不用翻译' }])
+    : await actionSheet(`原文是${lname(from)}`, [{ value: 'to', label: `让 TA 翻成${lname(L)}讲` }, { value: 'raw', label: '照原文念' }]);
   if (v === 'raw') return make(ps.map(t => ({ t, tr: '' })), from);
-  if (v === 'to') task(`${nameOf(c)} 在翻《${title}》…`, async stop => make(await trans(c, ps, from, L, stop), L));
+  const how = v === 'to' && await howTrans();
+  if (how) task(`${nameOf(c)} 在翻《${title}》…`, async stop => make(await transBy(how, c, ps, from, L, stop), L));
 }
-async function bookMenu(b) {
-  if (await actionSheet(b.title, [{ value: 'del', label: '删除', danger: true }]) === 'del') delBook(b);
-}
-async function delBook(b) {
-  if (!(await dialog({ title: `删除《${b.title}》？`, text: '合成好的声音也一起删掉', confirm: '删除', danger: true }))) return false;
-  if (E.book === b) { stopStory(); E.book = null; }
-  D.books = D.books.filter(x => x !== b); await save(); tell();
-  for (const k of await kvKeys().catch(() => [])) if (String(k).startsWith(`radio:a:${b.id}:`)) await kvDel(k).catch(() => {});
+async function delBooks(list) {
+  if (!(await dialog({ title: list.length > 1 ? `删除这 ${list.length} 本？` : `删除《${list[0].title}》？`, text: '合成好的声音也一起删掉', confirm: '删除', danger: true }))) return false;
+  if (list.includes(E.book)) { stopStory(); E.book = null; }
+  D.books = D.books.filter(x => !list.includes(x)); await save(); tell();
+  const ids = list.map(b => `radio:a:${b.id}:`);
+  for (const k of await kvKeys().catch(() => [])) if (ids.some(x => String(k).startsWith(x))) await kvDel(k).catch(() => {});
   return true;
 }
 function settings() {
@@ -417,7 +448,7 @@ function openBook(b) {
     if (v === 'set') settings();
     if (v === 'timer') pickTimer();
     if (v === 'again') task(`${nameOf(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
-    if (v === 'del' && await delBook(b)) nav.back();
+    if (v === 'del' && await delBooks([b])) nav.back();
   };
   const p = page({ app: 'music', id: 'radio-read', title: b.title, cls: 'as-rd-read.is-dark', right: navBtn('more', '更多', more) });
   const L = h('div.as-rd-pg'), R = h('div.as-rd-pg.is-r'), count = h('span'), playB = h('button.as-rd-play', { 'aria-label': '播放 / 暂停', onclick: toggle });
@@ -426,7 +457,9 @@ function openBook(b) {
   const afterB = h('button', { onclick: () => b.after ? go(b.segs.length) : task(`${nameOf(c)} 在想感想…`, async stop => { await thoughts(b, stop); toast('想好了，翻到感想了'); tell(); go(b.segs.length); }) });
   const langB = h('button.as-rd-lang', { onclick: async () => {
     const v = await actionSheet('讲故事用的语言', ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, b.lang) })));
-    if (v && !same(v, b.lang)) task(`${nameOf(c)} 在换成${lname(v)}…`, async stop => { await relang(b, v, stop); toast(`换成${lname(v)}了`); });
+    if (!v || same(v, b.lang)) return;
+    const done = Object.keys(b.vers || {}).some(k => same(k, v)) || isZh(v) && lines(b).every(s => s.tr), how = done ? 'ai' : await howTrans();   // 翻过、或者换成中文直接用翻译的，不用问
+    if (how) task(`${nameOf(c)} 在换成${lname(v)}…`, async stop => { await relang(b, v, how, stop); toast(`换成${lname(v)}了`); });
   } });
   const RATES = [.75, 1, 1.25, 1.5, 2], rateL = r => r === 1 ? '倍速' : r + 'x';
   const rateB = h('button', { onclick: async () => {
@@ -441,7 +474,7 @@ function openBook(b) {
   const book = h('div.as-rd-book', { 'data-no-swipe': '' }, h('img', { src: 'assets/radio/book.webp', alt: '' }), L, R);
   const say = h('div.as-rd-say', row);
   p.body.append(book, say,
-    h('div.as-rd-bottom', h('div.as-rd-count', count, langB), h('div.as-rd-tools', rateB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
+    h('div.as-rd-bottom', h('div.as-rd-count', count, langB, h('button.as-rd-lang', { onclick: () => actSheet(E.i) }, '调语气')), h('div.as-rd-tools', rateB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
       h('div.as-rd-ctl', h('button', { 'aria-label': '上一段', onclick: () => go(E.i - 1) }, icon('prev', 24, 2)), playB, h('button', { 'aria-label': '下一段', onclick: () => go(E.i + 1) }, icon('next', 24, 2)))));
   // 气泡要一眼看全：放不下就把字一点点调小（最小 10px），不让它滚动
   row._fit = () => { const q = row.lastChild, room = say.clientHeight - parseFloat(getComputedStyle(say).paddingTop) - parseFloat(getComputedStyle(say).paddingBottom); let f = 15; q.style.fontSize = ''; while (row.offsetHeight > room && f > 10) q.style.fontSize = (f -= .5) + 'px'; gls && gls.refresh(); };
@@ -450,6 +483,28 @@ function openBook(b) {
   row.addEventListener('animationend', () => gls && gls.refresh());
   new ResizeObserver(() => row._fit()).observe(say);   // 页面刚排好、屏幕大小变了时再量一次
   function toggle() { if (E.on || E.wait) pause(); else resume(); }
+  // 调这一段的语气（照正文朗读的 🎭）：一键套一组、或者在光标处插标签，也能改字；试听只合成不存，保存后这段下次重新合成
+  function actSheet(i) {
+    const seg = lines(b)[i], ta = textarea({ value: seg.s || seg.t, rows: 5 });
+    const lead = v => v.replace(/^\s*(?:\[[^\]]+\]\s*)+/, '');
+    const put = v => { const at = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, at) + v + ta.value.slice(at); ta.focus(); };
+    const chips = (list, fn) => h('div.as-rd-chips', list.map(([label, v]) => h('button', { onclick: () => fn(v) }, label)));
+    const tryB = btn('试听', 'secondary', () => { pause(); busy(tryB, stop => speakAs(b.who, ta.value, { acted: true, stop })); });
+    const sh = sheet({ title: '调这一段的语气', content: h('div.as-rd-act', ta,
+      h('small', '一键'), chips(PRESETS, tags => { ta.value = tags.map(x => `[${x}]`).join('') + (tags.length ? ' ' : '') + lead(ta.value); }),
+      GROUPS.map(([name, list]) => [h('small', name), chips(list, x => put(`[${x}]`))]), tryB,
+      h('div.as-rd-imp__row', btn('取消', 'secondary', () => sh.close()), btn('保存', 'primary', async () => {
+        const v = ta.value.trim(), t = plain(v);
+        if (!t) return toast('还没有字');
+        if (v !== (seg.s || seg.t)) {
+          Object.assign(seg, { t, s: v === t ? undefined : v });
+          await kvDel(`radio:a:${b.id}:${b.lang}:${i}`).catch(() => {});
+          if (E.book === b && E.i === i && !E.on) { E.raw = E.buf = null; E.off = 0; }
+          await save(); shown = -1; tell();
+        }
+        sh.close(); toast('存好了');
+      }))) });
+  }
   function go(i) { i = clamp(i, 0, lines(b).length - 1); if (E.on || E.wait) playAt(i); else { E.run++; halt(); E.i = b.pos = i; E.buf = null; E.off = 0; tell(); } }
   const zh = s => s ? s.tr || s.t : '';
   const left = i => [i >= b.segs.length && i < lines(b).length ? h('small', '感想') : '', h('p', zh(lines(b)[i]))], right = i => [h('p.is-next', zh(lines(b)[i]))];

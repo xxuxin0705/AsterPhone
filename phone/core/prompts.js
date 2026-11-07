@@ -14,7 +14,7 @@ export const VAR_INFO = {
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
-  recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字', tale: '故事全文',
+  recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
@@ -33,9 +33,9 @@ export const PROMPT_CATS = [
     { id: 'charSongs', name: '角色歌单', vars: ['char', 'persona', 'story', 'existing'] },
     { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'contacts', 'story'] },
     { id: 'songReply', name: '乐评回复', vars: ['user', 'song', 'artist', 'contacts', 'threads', 'must'] },
-    { id: 'radioStory', name: '电台 · 讲一个故事', vars: ['char', 'user', 'persona', 'recall', 'ask', 'lang', 'len', 'zh'] },
-    { id: 'radioTrans', name: '电台 · 翻译老故事', vars: ['char', 'user', 'lang', 'zh', 'tale'] },
-    { id: 'radioAfter', name: '电台 · 讲完的感想', vars: ['char', 'user', 'persona', 'title', 'tale', 'lang', 'zh'] },
+    { id: 'radioStory', name: '电台 · 讲一个故事', vars: ['char', 'user', 'persona', 'recall', 'ask', 'lang', 'len', 'zh', 'act'] },
+    { id: 'radioTrans', name: '电台 · 翻译老故事', vars: ['char', 'user', 'lang', 'zh', 'act', 'tale'] },
+    { id: 'radioAfter', name: '电台 · 讲完的感想', vars: ['char', 'user', 'persona', 'title', 'tale', 'lang', 'zh', 'act'] },
   ] },
   { app: '念念铃', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people'] },
@@ -228,6 +228,7 @@ export const DEFAULT_PROMPTS = {
 - 用 {{char}} 的口吻讲，语言用{{lang}}（这是 {{char}} 平时说话的语言；故事是哪国的，也用这种语言讲）。
 - 长度：{{len}}。分成很多小段，每段一到三句话，适合念出来；不要小标题，不要动作描写和旁白说明。
 - 讲完以后，用 {{char}} 自己的口吻说说对这个故事的感想，至少两段，可以联想到自己和 {{user}}。
+- {{act}}
 {{zh}}
 
 格式（只输出这些，不要别的文字）：
@@ -241,6 +242,7 @@ export const DEFAULT_PROMPTS = {
 第二段` },
   radioTrans: { name: '翻译老故事', cats: ['radioTrans'], on: true, main: true,
     text: `下面是一个故事，已经分好段，每段前面有编号。把每一段翻成{{lang}}，像 {{char}} 给 {{user}} 念故事时会说的话：意思不变，口吻自然，适合念出来。
+{{act}}
 {{zh}}
 
 【故事】
@@ -258,6 +260,7 @@ export const DEFAULT_PROMPTS = {
 {{persona}}
 
 用 {{char}} 自己的口吻说说对这个故事的感想，至少两段，每段两三句话，可以联想到自己和 {{user}}。语言用{{lang}}。
+{{act}}
 {{zh}}
 只输出感想，一段一行，不要别的文字。` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,

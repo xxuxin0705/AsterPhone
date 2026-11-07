@@ -3,6 +3,7 @@
 import { state, kvGet, kvSet } from './store.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
 import { apiLog as log, log as note, startCall, orAbort, abortCall } from './log.js';
+import { adapt, plain } from './act.js';
 
 /** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
  *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
@@ -474,12 +475,13 @@ const audioOf = async res => {
 /** 用某个语音接口把一段文字变成声音，返回可以播放的地址 */
 /** 一次合成语音记成日志里的一条调用 */
 export async function synthesize(conn, text, opts = {}) {
+  if (opts.acted) ({ text, act: opts.act } = adapt(conn, text));   // 带 [语气] 标签的（电台）：换成这个接口认的写法，见 core/act.js
   const call = startCall({ app: '语音', what: '合成语音', src: conn.name, model: conn.model || '', req: text + (opts.voice || (conn.tts || {}).voice ? `\n\n（音色：${opts.voice || conn.tts.voice}）` : '') });
   opts.stop && opts.stop.addEventListener('abort', () => abortCall(call.id), { once: true });
   try { const u = await orAbort(synthRaw(conn, text, opts), call.signal); call.done('[一段声音]'); return u; }
   catch (e) { call.fail(e.message); throw Object.assign(e, { logId: call.id }); }
 }
-async function synthRaw(conn, text, { voice } = {}) {
+async function synthRaw(conn, text, { voice, act = {} } = {}) {
   const T = conn.tts || {}, v = voice || T.voice || conn.voice || (CHANNELS.tts.find(x => x.v === conn.type) || {}).voice || '';
   const key = keysOf(conn)[0] || '', base = trim(conn.base), speed = T.speed || 1;
   const bad = async res => { throw new Error(await readErr(res)); };
@@ -487,7 +489,7 @@ async function synthRaw(conn, text, { voice } = {}) {
   switch (conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type) {
     case 'minimax-cn': case 'minimax-intl': {
       const res = await xf(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-        body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0 }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
+        body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0, ...(act.emotion && { emotion: act.emotion }) }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
       if (!res.ok) await bad(res);
       const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
       if (!j.data || !j.data.audio) throw new Error('MiniMax 没有返回声音');
@@ -515,7 +517,7 @@ async function synthRaw(conn, text, { voice } = {}) {
       if (conn.ver !== 'v1') {   // V3 单向流式（2.0 音色）：一行一个 JSON，声音分段放在 data 里
         const res = await xf(base.replace(/\/api\/v\d\/?$/, '') + '/api/v3/tts/unidirectional', { method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Api-App-Id': conn.appId, 'X-Api-Access-Key': key, 'X-Api-Resource-Id': conn.resId || 'seed-tts-2.0' },
-          body: JSON.stringify({ user: { uid: 'asterphone' }, req_params: { text, speaker: v || 'zh_female_xiaohe_uranus_bigtts', audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: Math.round((speed - 1) * 100) } } }) });
+          body: JSON.stringify({ user: { uid: 'asterphone' }, req_params: { text, speaker: v || 'zh_female_xiaohe_uranus_bigtts', audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: Math.round((speed - 1) * 100) }, ...(act.context && { additions: JSON.stringify({ context_texts: [act.context] }) }) } }) });
         if (!res.ok) await bad(res);
         const parts = (await res.text()).match(/\{[^{}]*\}/g) || [], bytes = [];
         for (const t of parts) { const j = JSON.parse(t); if (j.data) bytes.push(b64ToBlob(j.data)); else if (j.code && j.code !== 20000000) throw new Error(`${j.code} ${j.message || ''}`); }
@@ -531,7 +533,7 @@ async function synthRaw(conn, text, { voice } = {}) {
     }
     default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
       const res = await xf(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed }) });
+        body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed, ...(act.instructions && { instructions: act.instructions }), ...(act.emoText && { emo_text: act.emoText, use_emo_text: true }) }) });
       if (!res.ok) await bad(res); return audioOf(res);
     }
   }
@@ -613,7 +615,7 @@ export async function speak(text, opts = {}) {
   say('start');
   try { return await speakRaw(text, opts); } finally { say('end'); }
 }
-async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop } = {}) {
+async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted } = {}) {
   if (!silent) stopSpeak();
   const play = async (url, c) => {
     if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));
@@ -624,13 +626,13 @@ async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache,
   const saved = cache && await kvGet(cache).catch(() => null);
   if (saved) { cache = null; return play(URL.createObjectURL(saved), conn); }
   if (conn) {
-    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice, stop })), conn); }
+    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice, stop, acted })), conn); }
     catch (e) {
       if (stop && stop.aborted) return;   // 自己点了停：不换副 API、不用浏览器念
       log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
       const bk = backupOf('tts');   // 语音线断了 → 先换副 API（用它自己的音色），再不行才用浏览器朗读
       if (bk && bk.id !== conn.id) try {
-        const r = await play(await synthesize(bk, text), bk);
+        const r = await play(await synthesize(bk, text, { acted }), bk);
         log('warn', '语音', `改用副 API「${bk.name}」`);
         return r;
       } catch (e2) { log('warn', '语音', `副 API「${bk.name}」也失败了：${e2.message}`); }
@@ -641,7 +643,7 @@ async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache,
   if (silent) return;
   if (!('speechSynthesis' in window)) throw new Error('这个浏览器不能朗读');
   return new Promise(r => {
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = 1.02;
+    const u = new SpeechSynthesisUtterance(acted ? plain(text) : text); u.lang = 'zh-CN'; u.rate = 1.02;
     const v = speechSynthesis.getVoices().find(x => /zh|Chinese/i.test(x.lang + x.name)); if (v) u.voice = v;
     u.onend = r; u.onerror = r; playing = u; speechSynthesis.speak(u);
   });

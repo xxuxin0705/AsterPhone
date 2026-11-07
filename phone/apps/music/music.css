@@ -623,3 +623,12 @@
 .as-rd-imp__row { display: flex; gap: 10px; }
 .as-rd-imp__row .as-btn { flex: 1; }
 .as-rd-lang { border: 1px solid rgba(255,255,255,.28); border-radius: 12px; padding: 4px 10px; background: rgba(255,255,255,.12); color: #fff; font: 500 12px/1 var(--font-ui); cursor: pointer; }
+.as-rd-act { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+.as-rd-act small { margin-top: 4px; font-size: 12px; color: var(--as-color-text-2); }
+.as-rd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-rd-chips button { border: 1px solid var(--as-color-glass-line); border-radius: 14px; padding: 6px 10px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 400 13px/1 var(--font-ui, inherit); cursor: pointer; }
+/* 书架多选：书脊上出个圈，勾上变红；底下换成「全选 · 删除 · 取消」，迷你播放条和标签先收起来 */
+.as-rd.is-picking .as-rd__spine:not(.is-add)::before { content: ''; position: absolute; z-index: 1; top: 6px; left: 50%; width: 20px; height: 20px; margin-left: -10px; box-sizing: border-box; border-radius: 50%; border: 1.6px solid #fff; background: rgba(0,0,0,.25); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.as-rd.is-picking .as-rd__spine.is-picked::before { border-color: var(--mu-red); background: var(--mu-red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; }
+.as-rd.is-picking .as-rd__spine.is-add { opacity: .35; pointer-events: none; }
+.as-mu-root:has(.as-rd.is-picking) .as-mu-dock { display: none; }

@@ -178,7 +178,7 @@ export function sheet({ title, content, onClose, cls = '' }) {
   const close = () => {
     if (closed) return; closed = true;
     mask.classList.remove('is-open'); el.classList.remove('is-open'); el.style.transform = '';
-    setTimeout(() => { mask.remove(); el.remove(); }, 420); onClose && onClose();
+    setTimeout(() => { mask.remove(); el.remove(); }, 280); onClose && onClose();
   };
   // 长按弹出来的抽屉：手指抬起时那一下 click 会落在遮罩上，别当成「点外面关掉」
   const t0 = Date.now(); mask.addEventListener('click', () => { if (Date.now() - t0 > 500) close(); });
@@ -283,7 +283,7 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
       h('div.as-dialog__actions', cancel && h('button.as-dialog__btn', { onclick: () => done(null) }, cancel), ok));
     mask.appendChild(box); root.appendChild(mask);
     requestAnimationFrame(() => { mask.classList.add('is-open'); field1 && focusStill(field1); });
-    function done(v) { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 260); res(v === true ? true : v == null ? (typed || inp ? null : false) : v); }
+    function done(v) { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 200); res(v === true ? true : v == null ? (typed || inp ? null : false) : v); }
   });
 }
 
