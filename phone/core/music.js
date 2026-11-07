@@ -330,12 +330,13 @@ async function cached(s) {
   if (f) { i.at = Date.now(); kvSet(CK + 'idx', cidx).catch(() => {}); }
   return f;
 }
+/** 存一首：u 是地址（自己去下），或者已经拿到的文件内容（续接时顺手留的一份，不用再下一遍） */
 async function stash(s, u) {
   const k = ck(s); if ((await cacheIdx()).some(x => x.k === k)) return;
   let b;
-  try { const r = await fetch(ne && !u.startsWith(BE) ? `${BE}/pipe?url=${encodeURIComponent(u)}` : u); if (!r.ok || !/audio|mpeg|mp4|flac|ogg/.test(r.headers.get('content-type') || '')) return; b = await r.blob(); }
+  try { b = u instanceof Blob ? u : await fetch(ne && !u.startsWith(BE) ? `${BE}/pipe?url=${encodeURIComponent(u)}` : u).then(r => r.ok && /audio|mpeg|mp4|flac|ogg/.test(r.headers.get('content-type') || '') ? r.blob() : null); }
   catch { return; }   // 读不了内容（跨域）就算了
-  if (cidx.some(x => x.k === k)) return;
+  if (!b || cidx.some(x => x.k === k)) return;
   const keep = M().keep ?? 50;
   while (keep && cidx.length >= keep) await kvDel(cidx.sort((a, c) => a.at - c.at).shift().k).catch(() => {});
   await kvSet(k, b); cidx.push({ k, size: b.size, at: Date.now() }); await kvSet(CK + 'idx', cidx);
@@ -391,7 +392,8 @@ const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.the
 const urlsOf = s => {
   const lz = (f, ...keys) => Object.assign(f, { bad: () => keys.forEach(k => full.delete(k)) });   // 记住的链接放不出来就作废，下回重新问
   const qk = lz(() => first([qqFull(s), kuwoFull(s, 0)]), 'q' + s.id, 'k0' + s.src + s.id), k2 = lz(() => kuwoFull(s, 2), 'k2' + s.src + s.id), jx = lz(() => jooxFull(s), 'j' + s.src + s.id);
-  const pub = ne ? [qk, k2, jx] : [jx, qk, k2];   // Tauri 里 JOOX 排第一：只有它的文件存得下来（开着 VPN 也快）
+  jx.readable = true;   // JOOX 的文件网页读得到内容：能续接、能存
+  const pub = ne ? [qk, k2, jx] : [jx, qk, k2];   // Tauri 里 JOOX 排第一：只有它能续接、存得下来（开着 VPN 也快）
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
@@ -445,15 +447,19 @@ async function startChain(s, f, autoplay) {
   return true;
 }
 /** 歌曲文件的内容（边下边读）；不是 mp3 就不要 */
-/** 歌曲文件的内容（边下边读）；只读酒馆插件转的（别人家的地址跨域读不了，试一下就是白等一趟服务器），不是 mp3 也不要 */
+/** 歌曲文件的内容（边下边读）。只读第一条能放的地址：酒馆插件转的直接读；本地酒馆别的地址让插件 /pipe 转一手；Tauri 只有 JOOX 的读得到（别的跨域，试一下就是白等一趟服务器）。
+ *  读到的顺手留一份存起来（不用再下一遍）；不是 mp3 不要 */
 async function songBody(s, f, signal) {
   if (f) return f.stream();
-  for (const u of urlsOf(s)) {
-    if (typeof u !== 'string' || !u.startsWith(BE)) continue;
-    const r = await fetch(u, { signal });
-    if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) continue;
-    setTimeout(() => { if (current() === s) stash(s, u); }, 5000);
-    return r.body;
+  for (const x of urlsOf(s)) {
+    const u = typeof x === 'function' ? await x() : x; if (!u) continue;
+    const via = u.startsWith(BE) ? u : ne ? `${BE}/pipe?url=${encodeURIComponent(u)}` : x.readable ? u : '';
+    if (!via) throw new Error('读不了内容');
+    const r = await fetch(via, { signal });
+    if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
+    const [a, b] = r.body.tee();
+    new Response(b).blob().then(blob => stash(s, blob), () => {});
+    return a;
   }
   throw new Error('没有链接');
 }
@@ -497,17 +503,13 @@ function put(c, g, value) {
     op(c, go);
   });
 }
-/** 这首快放完了：把下一首续在后面。下一首读不到就封口，放完走普通放法 */
+/** 这首快放完了：把下一首续在后面。下一首读不到（存的不是 mp3、地址网页读不了）就封口，放完走普通放法；不跳过它去续再下一首，播放列表的顺序不能乱 */
 async function chainNext(c) {
   c.nexting = true;
-  let i = pick(M().idx, true);
-  for (let k = 0; k < 3; k++, i = pick(i, true)) {
-    const s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
-    if (s.local && (!f || f.type !== 'audio/mpeg')) continue;
-    const body = await songBody(s, f, c.ac.signal).catch(() => null);
-    if (c !== chain) return;
-    if (body) return feed(c, i, s, body);
-  }
+  const i = pick(M().idx, true), s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
+  const body = (s.local && !f) || (f && f.type !== 'audio/mpeg') ? null : await songBody(s, f, c.ac.signal).catch(() => null);
+  if (c !== chain) return;
+  if (body) return feed(c, i, s, body);
   op(c, () => { if (c.ms.readyState === 'open') c.ms.endOfStream(); });
 }
 /** 下一首是第几首；auto = 放完自动换（单曲循环就还是这首） */
