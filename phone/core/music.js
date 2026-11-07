@@ -390,7 +390,8 @@ const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
   const like = (a, b) => a.length === b.length && [...a].some((c, i) => c === b[i]);
   const same = x => { const [n, a] = simp(loose({ name: x['歌曲名称'] || '', artist: x['歌手'] || '' })).split('|'); return like(a, a0) && n.length === n0.length && (a === a0 || like(n, n0)); };
   let msg, n = 0;
-  for (msg of [s.name, word(s)]) {
+  const name = s.name.replace(/[(（][^)）]*[)）]/g, '').trim();   // 「说好不哭 (with 五月天阿信)」带着括号搜不到
+  for (msg of [name, `${name} ${s.artist.split(/[/、,，&]/)[0]}`]) {
     const j = await get(q(PUB.joox, { ...qs, msg }), 'json').catch(e => { if (/^500/.test(e.message)) return {}; throw e; });
     if ((n = ((j.data || {}).songs || []).findIndex(same) + 1)) break;
   }
@@ -446,10 +447,11 @@ function warmNext() {
 async function startChain(s, f, autoplay) {
   const ms = new MediaSource(), ac = new AbortController(), g = gen;
   const c = { ms, ac, segs: [], ops: [], nexting: false };
-  const body = await songBody(s, f, ac.signal).catch(() => null);
+  let why = '';
+  const body = await songBody(s, f, ac.signal).catch(e => { why = e.message; return null; });
   if (current() !== s || g !== gen) return true;   // 取消了 / 换歌了：普通放法也别再跑
-  if (!body) return false;
-  chain = c; audio.onerror = null;
+  if (!body) { log('warn', '音乐', `《${s.name}》续接不了（${why}），直接播：这首放完在后台接不上下一首`); return false; }
+  chain = c; audio.onerror = null; warmNext();
   audio.src = URL.createObjectURL(ms);
   await new Promise(r => ms.addEventListener('sourceopen', r, { once: true }));
   try { c.sb = ms.addSourceBuffer('audio/mpeg'); c.sb.mode = 'sequence'; }
@@ -518,7 +520,7 @@ function put(c, g, value) {
 async function chainNext(c) {
   c.nexting = true;
   const i = pick(M().idx, true), s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
-  const body = (s.local && !f) || (f && f.type !== 'audio/mpeg') ? null : await songBody(s, f, c.ac.signal).catch(() => null);
+  const body = (s.local && !f) || (f && f.type !== 'audio/mpeg') ? null : await songBody(s, f, c.ac.signal).catch(e => { log('warn', '音乐', `《${s.name}》接不上（${e.message}）：上一首放完要重新起步，在后台会停`); return null; });
   if (c !== chain) return;
   if (body) return feed(c, i, s, body);
   op(c, () => { if (c.ms.readyState === 'open') c.ms.endOfStream(); });
@@ -535,7 +537,7 @@ export function toggle() {
   if (loading()) { gen++; unload(); tell('state'); return; }   // 还在问链接：再点一下就不等了
   if (!restored) { const pos = M().pos || 0; load(true); whenLoaded(() => seek(pos)); return; }   // 刚打开手机：接着上次的地方
   if (!audio.src) return load(true);   // 刚才取消了：再点重新问
-  audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
+  audio.paused ? audio.play().catch(() => tell('blocked')) : halt();
 }
 export function next(step = 1, auto = false) {
   const n = M().queue.length; if (!n) return;
@@ -598,10 +600,11 @@ audio.addEventListener('timeupdate', () => {
   }
   tell('time');
 });
-['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
+['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; if (ev === 'pause') { stuck = !asked && !audio.ended && document.hidden; asked = false; } else stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
-// 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
-let stuck = false;
+// 后台时停了却不是自己叫的（续接时下一首的内容没及时到、或者浏览器不让开始放）：回到 App、碰屏幕时补放
+let stuck = false, asked = false;
+const halt = () => { asked = true; audio.pause(); };   // 自己叫的停
 // 浏览器不让开始放（后台接下一首时 Tauri 常这样）：记下它的理由，回到 App、下一次碰屏幕时补一次
 function blocked(e) {
   tell('blocked'); stuck = true;
@@ -619,7 +622,7 @@ function sysInfo(s) {
 }
 if (navigator.mediaSession) {
   const ms = navigator.mediaSession, set = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) { /* 这个浏览器不支持这一项 */ } };
-  set('play', () => toggle()); set('pause', () => audio.pause());
+  set('play', () => toggle()); set('pause', halt);
   set('previoustrack', () => prev()); set('nexttrack', () => next());
   set('seekto', d => seek(d.seekTime));
 }
@@ -629,7 +632,7 @@ if (navigator.mediaSession) {
  * 音乐先停、记住位置，念完接着放。 */
 let ducked = false;
 function duck(e) {
-  if (e.detail === 'start' && !audio.paused) { ducked = true; audio.pause(); }
+  if (e.detail === 'start' && !audio.paused) { ducked = true; halt(); }
   else if (e.detail === 'end' && ducked) { ducked = false; audio.play().catch(blocked); }
 }
 try { (window.parent || window).addEventListener('asterphone-voice', duck); } catch (e) { window.addEventListener('asterphone-voice', duck); }
