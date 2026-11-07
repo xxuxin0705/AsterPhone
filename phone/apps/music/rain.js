@@ -139,7 +139,7 @@ export function rain(cv, page) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译的字跟着对应的歌词字一起掉，落在倒影下面（不压着倒影）；换句时整句淡掉
       ctx.font = `400 ${TR}px ${face}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = edge ? halo(.8) : glow(.8); ctx.shadowBlur = shade === 'glow' ? 6 : 0; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+      ctx.textAlign = 'center'; ctx.shadowColor = edge ? halo(.8) : glow(.8); ctx.shadowBlur = shade === 'glow' ? 6 : 0; ctx.lineWidth = 1.1; ctx.lineJoin = 'round';
       const al = (night ? .88 : .7) * (1 - fade);
       for (const c of lay.trc) {
         const q = (t - (c.at - FALL)) / FALL; if (q <= 0) continue;
@@ -166,7 +166,7 @@ export function rain(cv, page) {
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
     ctx.fillStyle = ink(a * sq); ctx.shadowBlur = 0;
-    if (!shade) { ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
+    if (!shade) { ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
     else if (shade === 'glow') { ctx.shadowColor = edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; }
     ctx.fillText(t, 0, 0);
     ctx.restore();
