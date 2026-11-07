@@ -870,6 +870,7 @@ const ARM = '<svg viewBox="0 0 50 66" aria-hidden="true"><circle cx="10" cy="8" 
   + '<g transform="rotate(-52 36.5 55.5)"><rect x="34.2" y="51" width="4.6" height="9" rx="1" fill="#fff"/><path d="M35.8 56.5v2M37.3 56.5v2" stroke="#c8c8c8" stroke-width=".45" stroke-linecap="round"/></g></svg>';
 export function openPlayer() {
   if (!P.current()) { toast('还没有在放的歌'); return; }
+  if (nav.top()?.el.dataset.asPage === 'music-player') return;   // 已经在播放页了：别再叠一层
   const S = M().skin;
   const p = page({ app: 'music', id: 'music-player', back: true, cls: 'as-mp.is-dark' });
   const top = h('div.as-mp__top'), topName = h('b'), topArtist = h('span');
