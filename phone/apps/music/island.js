@@ -9,30 +9,41 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 const wave = () => h('span.as-isl__wave', [0, 1, 2, 3].map(() => h('i')));
 const btn = (ic, label, fn, size = 22) => h('button', { 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic, size, 2));
 let isl = null, card = null;
+/** 进度条能拖：按着拖、松手跳过去；拖的时候条跟手，不被播放进度抢回去 */
+function seekable(bar, fill, show) {
+  const at = e => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
+  const move = e => { fill.style.width = at(e) * 100 + '%'; show && show(at(e) * P.dur()); };
+  bar.addEventListener('pointerdown', e => { e.stopPropagation(); bar.setPointerCapture(e.pointerId); bar.dataset.drag = '1'; move(e); });
+  bar.addEventListener('pointermove', e => { if (bar.dataset.drag) move(e); });
+  bar.addEventListener('pointerup', e => { if (!bar.dataset.drag) return; delete bar.dataset.drag; P.seek(at(e) * P.dur()); });
+  bar.addEventListener('click', e => e.stopPropagation());   // 松手那一下不算点了灵动岛 / 卡片
+}
 
 function build() {
   const sb = document.querySelector('#statusbar'), lock = document.querySelector('#lock');
   if (!sb || !lock || !lock.querySelector('.as-lock__head')) return false;
   // 灵动岛
   const cov = h('span.as-isl__cov'), bigCov = h('span.as-isl__bigcov', { role: 'button', onclick: async e => { e.stopPropagation(); close(); (await import('./music.js')).openPlayer(); } });
-  const name = h('b'), artist = h('span'), bar = h('i'), play = h('span');
+  const name = h('b'), artist = h('span'), bar = h('i'), play = h('span'), barBox = h('div.as-isl__bar', bar);
+  seekable(barBox, bar);
   const el = h('div.as-isl', { role: 'button', 'aria-label': '正在播放', onclick: () => { if (!el.classList.contains('is-open')) { el.classList.add('is-open'); paint(); } } },
     h('div.as-isl__mini', cov, wave()),
-    h('div.as-isl__big', h('div.as-isl__row', bigCov, h('div.as-isl__info', name, artist), wave()), h('div.as-isl__bar', bar),
+    h('div.as-isl__big', h('div.as-isl__row', bigCov, h('div.as-isl__info', name, artist), wave()), barBox,
       h('div.as-isl__ctrl', btn('prev', '上一首', () => P.prev(), 24), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, play), btn('next', '下一首', () => P.next(), 24))));
   const close = () => { el.classList.remove('is-open'); paint(); };
   document.addEventListener('pointerdown', e => { if (el.classList.contains('is-open') && !el.contains(e.target)) close(); }, true);
   sb.append(el);
   isl = { el, cov, bigCov, name, artist, bar, play };
   // 锁屏卡片
-  const lc = h('span.as-lmc__cov'), ln = h('b'), la = h('span'), lb = h('i'), t0 = h('span'), t1 = h('span'), lp = h('span');
+  const lc = h('span.as-lmc__cov'), ln = h('b'), la = h('span'), lb = h('i'), t0 = h('span'), t1 = h('span'), lp = h('span'), lbBox = h('div.as-lmc__bar', lb);
+  seekable(lbBox, lb, t => { t0.textContent = fmt(t); t1.textContent = '-' + fmt(Math.max(0, P.dur() - t)); });
   const heart = h('button.as-lmc__heart', { 'aria-label': '喜欢', onclick: e => {
     e.stopPropagation(); const on = P.like(); heart.classList.toggle('is-on', on);
     if (on) burst(heart);
   } }, icon('heart', 30, 1.8));
   const c = h('div.as-lmc', { onclick: e => e.stopPropagation() },
     h('div.as-lmc__row', lc, h('div.as-lmc__info', ln, la), wave()),
-    h('div.as-lmc__prog', t0, h('div.as-lmc__bar', lb), t1),
+    h('div.as-lmc__prog', t0, lbBox, t1),
     h('div.as-lmc__ctrl', heart, btn('prev', '上一首', () => P.prev(), 30), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, lp), btn('next', '下一首', () => P.next(), 30), h('span')));
   lock.querySelector('.as-lock__head').after(c);
   // 往左划：划到一半露出「移除」，点了才收起卡片（歌照放，换歌或者暂停后再放时回来）；划回去、点卡片就合上
@@ -91,8 +102,8 @@ function time() {
   if (!isl) return;
   const t = P.now(), d = P.dur() || 0, r = d ? Math.min(1, t / d) * 100 + '%' : '0%', ly = (state.music.skin || {}).color || '';
   isl.el.style.setProperty('--isl', ly); card.el.style.setProperty('--isl', ly);   // 播放页改了歌词颜色，这里跟着变
-  if (isl.el.classList.contains('is-open')) isl.bar.style.width = r;
-  if (document.querySelector('.as-phone.is-locked')) { card.bar.style.width = r; card.t0.textContent = fmt(t); card.t1.textContent = '-' + fmt(Math.max(0, d - t)); }
+  if (isl.el.classList.contains('is-open') && !isl.bar.parentElement.dataset.drag) isl.bar.style.width = r;
+  if (document.querySelector('.as-phone.is-locked') && !card.bar.parentElement.dataset.drag) { card.bar.style.width = r; card.t0.textContent = fmt(t); card.t1.textContent = '-' + fmt(Math.max(0, d - t)); }
 }
 P.onMusic(w => { if (w === 'time') time(); else paint(); });
 paint();
