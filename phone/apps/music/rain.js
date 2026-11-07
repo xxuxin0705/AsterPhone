@@ -139,13 +139,15 @@ export function rain(cv, page) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译的字跟着对应的歌词字一起掉，落在倒影下面（不压着倒影）；换句时整句淡掉
       ctx.font = `400 ${TR}px ${face}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' && !edge ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
+      ctx.textAlign = 'center'; ctx.shadowColor = edge ? halo(.8) : glow(.8); ctx.shadowBlur = shade === 'glow' ? 6 : 0; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
       const al = (night ? .88 : .7) * (1 - fade);
       for (const c of lay.trc) {
         const q = (t - (c.at - FALL)) / FALL; if (q <= 0) continue;
         const g = ground + SIZE * .6 + 30 + c.r * TR * 1.5;
         const y = q < 1 ? -20 + (g + 20) * q * q : g, a = Math.min(1, q * 3);
-        ctx.save(); ctx.translate(c.x + c.jx * Math.max(0, 1 - q), y); ctx.rotate(c.r0 * Math.max(0, 1 - q)); ctx.fillStyle = ink(al * a); ctx.fillText(c.t, 0, 0); ctx.restore();
+        ctx.save(); ctx.translate(c.x + c.jx * Math.max(0, 1 - q), y); ctx.rotate(c.r0 * Math.max(0, 1 - q));
+        if (!shade) { ctx.strokeStyle = halo(al * a); ctx.strokeText(c.t, 0, 0); }
+        ctx.fillStyle = ink(al * a); ctx.fillText(c.t, 0, 0); ctx.restore();
       }
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }
@@ -163,10 +165,10 @@ export function rain(cv, page) {
     const sq = 1 - Math.min(1, d * 1.8);   // 碎的时候前一小半就压扁没了
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
-    ctx.fillStyle = ink(a * sq);
-    if (!shade) { ctx.shadowColor = halo(a); ctx.shadowBlur = 6; ctx.fillText(t, 0, 0); }   // 阴影：先垫一层，夜里 / 选了颜色再叠一层光
-    if (shade === 'glow' || (!shade && (night || tint))) { ctx.shadowColor = shade === 'glow' && edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; ctx.fillText(t, 0, 0); }
-    else if (shade === 'none') { ctx.shadowBlur = 0; ctx.fillText(t, 0, 0); }
+    ctx.fillStyle = ink(a * sq); ctx.shadowBlur = 0;
+    if (!shade) { ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
+    else if (shade === 'glow') { ctx.shadowColor = edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; }
+    ctx.fillText(t, 0, 0);
     ctx.restore();
     if (onWater) {   // 倒影：压扁、晃一晃
       ctx.save(); ctx.translate(cx + Math.sin(clock * 2.2 + cx * .05) * 1.5, ground + 6); ctx.scale(1, -.55 * sq); ctx.textAlign = 'center'; ctx.shadowBlur = 0;

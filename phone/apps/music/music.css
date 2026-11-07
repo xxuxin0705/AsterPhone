@@ -363,13 +363,14 @@
 /* 有自己的背景图：字和按钮加一层淡阴影（渐变填色的那句用 drop-shadow，text-shadow 会盖住填色）；歌词的阴影看下面「字的阴影」 */
 .as-mp.has-bg :is(.as-mp__top, .as-mp__name, .as-mp__artist, .as-mp__times, .as-tg__time) { text-shadow: 0 1px 4px rgba(0,0,0,.45); }
 .as-mp.has-bg .as-ch.is-cur span { text-shadow: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
-/* 描边（歌词设置里选，普通歌词、碎语都管；下雨天在 rain.js 里画）：描边 = 浅字垫深的、深字垫白的（自己选了描边颜色就用它）；发光 = 跟字同色的淡光；不加 = 都没有。其实是一圈模糊的影子 */
-.as-mp { --halo: rgba(4,14,40,.7); --sh: 0 0 6px var(--edge, var(--halo)); }
-.as-mp.is-day { --halo: rgba(255,255,255,.8); }
-.as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); }
-.as-mp.is-shade-none { --sh: 0 0 transparent; }
+/* 描边（歌词设置里选，普通歌词、碎语都管；下雨天在 rain.js 里画）：描边 = 字边上一圈实线，浅字描深的、深字描白的（自己选了描边颜色就用它）；发光 = 跟字同色的淡光；不加 = 都没有。
+ * 实线是四个方向各挪 1px 的硬影子拼出来的；渐变填色的那句 text-shadow 会盖住填色，只能用 drop-shadow，所以另备一份 --ds */
+.as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --sh: -1px -1px 0 var(--ec), 1px -1px 0 var(--ec), -1px 1px 0 var(--ec), 1px 1px 0 var(--ec); --ds: drop-shadow(1px 0 0 var(--ec)) drop-shadow(-1px 0 0 var(--ec)) drop-shadow(0 1px 0 var(--ec)) drop-shadow(0 -1px 0 var(--ec)); }
+.as-mp.is-day { --halo: rgba(255,255,255,.9); }
+.as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); }
+.as-mp.is-shade-none { --sh: 0 0 transparent; --ds: none; }
 .as-mp__lrc p, .as-fx__cur span { text-shadow: var(--sh); }
-.as-mp__lrc p.is-cur span { text-shadow: none; filter: drop-shadow(var(--sh)); }
+.as-mp__lrc p.is-cur span { text-shadow: none; filter: var(--ds); }
 .as-mp.has-bg :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */
 .as-cm .as-page__body { padding: 0 0 120px; background: var(--mu-card); }
