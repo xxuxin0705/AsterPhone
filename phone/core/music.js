@@ -326,8 +326,8 @@ async function qqUrl(s) {
   qurls.set(s.id, { url, trial, at: Date.now() });
   return url;
 }
-/* ---------- 整首的公共音源（照 musicsquare 的做法，网页能直接连，两三秒出结果）：QQ 按编号要；酷我按歌名搜，歌名 + 歌手对得上才要。问过的记几分钟（续接和普通放法会接连要两次） ---------- */
-const PUB = { qq: 'https://tang.api.s01s.cn/music_open_api.php', kuwo: 'https://oiapi.net/api/Kuwo' };
+/* ---------- 整首的公共音源（照 musicsquare 的做法，网页能直接连，两三秒出结果）：QQ 按编号要；酷我、JOOX 按歌名搜，歌名 + 歌手对得上才要。问过的记几分钟（续接和普通放法会接连要两次） ---------- */
+const PUB = { qq: 'https://tang.api.s01s.cn/music_open_api.php', kuwo: 'https://oiapi.net/api/Kuwo', joox: 'https://apicx.asia/api/joox_music' }, JOOX = { token: 'f84ao9lMF_q7husBWRfgUw', br: 4 };
 const full = new Map();
 const remember = (k, who, s, fn) => {
   const c = full.get(k); if (c && Date.now() - c.at < 5 * 60e3) return c.p;
@@ -339,21 +339,31 @@ const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
   const mid = await qqTwinMid(s); if (!mid) return '';
   const j = await get(q(PUB.qq, { msg: `${s.name} ${s.artist}`, type: 'json', mid }), 'json'), d = j.data || j;
   const u = https(d.song_play_url_hq || d.song_play_url || d.song_play_url_standard || '');
-  return /\/RS02/i.test(u) ? '' : u;
+  if (/\/RS02/i.test(u)) { log('warn', '音乐', `QQ 公共音源只给了《${s.name}》的试听（开着 VPN 时 QQ 常这样）`); return ''; }
+  return u;
 });
-const kuwoFull = s => remember('k' + s.src + s.id, '酷我', s, async () => {
-  const word = `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
-  const i = ((await get(q(PUB.kuwo, { msg: word, page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s));
-  if (i < 0) return '';
-  return https((((await get(q(PUB.kuwo, { msg: word, n: i + 1, br: 0 }), 'json')).data || {}).url) || '');
+const word = s => `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
+// 酷我：先搜出它排第几，再按序号要。br 0 是默认音质，有的歌给的 ogg 浏览器放不了，放不了再要低一档（2）
+const kuwoAt = s => remember('ki' + s.src + s.id, '酷我', s, async () => ((await get(q(PUB.kuwo, { msg: word(s), page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s)) + 1);
+const kuwoFull = (s, br) => remember('k' + br + s.src + s.id, '酷我', s, async () => {
+  const n = await kuwoAt(s); if (!n) return '';
+  return https((((await get(q(PUB.kuwo, { msg: word(s), n, br }), 'json')).data || {}).url) || '');
+});
+// JOOX（腾讯海外版，服务器在香港，开着 VPN 也给整首；只有中文歌多）：歌手写的是繁体，中文歌手只比歌名
+const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
+  const qs = { msg: word(s), token: JOOX.token, br: JOOX.br }, cjk = /[\u3400-\u9fff]/.test(s.artist);
+  const n = (((await get(q(PUB.joox, qs), 'json')).data || {}).songs || []).findIndex(x => loose({ name: x['歌曲名称'] || '', artist: cjk ? s.artist : x['歌手'] || '' }) === loose(s)) + 1;
+  if (!n) return '';
+  const L = (((await get(q(PUB.joox, { ...qs, n }), 'json')).data || {})['播放链接']) || {};
+  return https(L['MP3 320'] || L['MP3 128'] || L['AAC 192'] || '');
 });
 // 几个一起问，谁先给出链接用谁；都没有才是空
 const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.then(u => { if (u) ok(u); else if (!--n) ok(''); })); });
-/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
+/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问；不行再酷我低一档、JOOX）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
-  const pub = () => first([qqFull(s), kuwoFull(s)]);
-  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, pub, () => qqUrl(s)].filter(Boolean)
-    : [ne && ne.me && `${BE}/audio?id=${s.id}`, pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
+  const pub = [() => first([qqFull(s), kuwoFull(s, 0)]), () => kuwoFull(s, 2), () => jooxFull(s)];
+  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
+    : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
