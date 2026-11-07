@@ -227,13 +227,6 @@ async function init(router) {
   router.get('/mv/url', wrap(async req => ({ url: https(((await api('mv_url', { id: req.query.id })).data || {}).url) })));
   router.get('/bili/audio', biliPipe(true));
   router.get('/bili/mv', biliPipe(false));
-  // 替洛雪音源脚本连网（网页自己连常被跨域拦，请求头也带不全）
-  router.post('/fetch', wrap(async req => {
-    const b = await body(req), url = String(b.url || '');
-    if (!/^https?:\/\//i.test(url)) throw new Error('只连 http(s)');
-    const r = await fetch(url, { method: b.method || 'GET', headers: { 'User-Agent': UA, ...(b.headers || {}) }, body: b.body || undefined, signal: AbortSignal.timeout(15000) });
-    return { statusCode: r.status, statusMessage: r.statusText, headers: Object.fromEntries(r.headers), body: await r.text() };
-  }));
   router.get('/comments', wrap(async req => api('comment_hot', { id: req.query.id, type: 0, limit: 20 })));
   router.post('/like', wrap(async req => { const b = await body(req); return { code: (await api('like', { id: b.id, like: String(!!b.like) })).code }; }));
 
