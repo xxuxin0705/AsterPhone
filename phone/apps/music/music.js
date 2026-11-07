@@ -14,6 +14,7 @@ import { lyricFx } from './lyricfx.js';
 import { look, styleChoir, styleTop, font } from './tglook.js';
 import { useFont } from '../../core/floatlyric.js';
 import { burst } from './island.js';
+import { renderRadio } from './radio.js';
 import { clockCfg } from '../../core/time.js';
 
 const M = () => state.music;
@@ -58,7 +59,7 @@ export function open() {
     if (cur === id) { p.body.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     cur = id;
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.tab === id));
-    p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me'); ctx.back = null;
+    p.el.dataset.asPage = 'music-' + id; p.el.dataset.tab = id; p.el.classList.toggle('is-dark', id === 'me' || id === 'radio'); ctx.back = null;
     titleEl.replaceChildren(); rightEl.replaceChildren(); p.body.innerHTML = ''; p.body.scrollTop = 0; p.el._onShow = null;
     TABS.find(t => t[0] === id)[2](ctx);
   }
@@ -318,9 +319,6 @@ function searchIn(title, body, host, add) {
     res.replaceChildren(bar, box.body, lists, singers);
   }
 }
-
-/* ================= 电台（以后放哄睡故事） ================= */
-function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
 
 /* ================= 我的 ================= */
 function renderMe(ctx) {

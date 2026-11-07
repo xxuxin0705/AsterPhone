@@ -121,11 +121,11 @@
   -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); }
 .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red, .is-green) { background-color: rgba(255,255,255,.45); }
 .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet :is(.as-mu-li > div span, .as-mu-sheet__h span) { color: rgba(0,0,0,.55); }
-.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-dock { background: none; }
-.as-mu-root.is-dark:has(.as-mu-mebg.has-img) :is(.as-mu-mini, .as-mu-tabs) { background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.6);
+.as-mu-root.is-dark:is(:has(.as-mu-mebg.has-img), [data-tab="radio"]) .as-mu-dock { background: none; }
+.as-mu-root.is-dark:is(:has(.as-mu-mebg.has-img), [data-tab="radio"]) :is(.as-mu-mini, .as-mu-tabs) { background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.6);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 24px rgba(0,0,0,.15); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); }
-.as-mu-root.is-dark:has(.as-mu-mebg.has-img) .as-mu-tabs { margin-top: 8px; border-radius: 22px; }
-.as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) :is(.as-mu-sheet, .as-mu-mini, .as-mu-tabs) { background: rgba(0,0,0,.32); border-color: rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.25); }
+.as-mu-root.is-dark:is(:has(.as-mu-mebg.has-img), [data-tab="radio"]) .as-mu-tabs { margin-top: 8px; border-radius: 22px; }
+.as-phone[data-mode="night"] .as-mu-root:is(:has(.as-mu-mebg.has-img), [data-tab="radio"]) :is(.as-mu-sheet, .as-mu-mini, .as-mu-tabs) { background: rgba(0,0,0,.32); border-color: rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 36px rgba(0,0,0,.25); }
 .as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet :is(.as-mu-li > div span, .as-mu-sheet__h span) { color: rgba(255,255,255,.6); }
 .as-phone[data-mode="night"] .as-mu-root:has(.as-mu-mebg.has-img) .as-mu-sheet .as-mu-lcover:not(.is-red, .is-green) { background-color: rgba(255,255,255,.12); }
 .as-mu-me { display: grid; justify-items: center; padding: 6px 16px 22px; color: #fff; }
@@ -535,3 +535,66 @@
 @keyframes as-hb { 0% { transform: scale(0); } 18% { transform: scale(.2); } 62% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(.35); opacity: 0; } }
 .as-hd { position: absolute; left: var(--cx, 50%); top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #ff9b3d; pointer-events: none; opacity: 0; animation: as-hd 620ms 430ms ease-out forwards; }
 @keyframes as-hd { 0% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(.5); opacity: 0; } }
+
+/* 电台：兔子洞里的书店。背景按 2:3 铺满（底边对齐），怀表、瓶子、飘落的小东西都按背景图的百分比放，换屏幕也对得上柜台 */
+.as-mu-root[data-tab="radio"] > .as-mu-mebg { display: none; }
+.as-mu-root[data-tab="radio"] .as-page__body { position: static; }   /* 书店铺满整页（连顶上的标题栏后面） */
+.as-mu-root[data-tab="radio"] .as-navbar__title { color: #fff; }
+.as-rd { position: absolute; inset: 0; z-index: 0; overflow: hidden; container-type: size; background: #1c2230; }
+.as-rd::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 130px; background: linear-gradient(rgba(0,0,0,.42), rgba(0,0,0,0)); pointer-events: none; }
+.as-rd__room { position: absolute; left: 50%; bottom: 0; width: max(100cqw, 66.667cqh); aspect-ratio: 2 / 3; transform: translateX(-50%); background: center / 100% 100% no-repeat; }
+.as-rd__fall { position: absolute; top: 0; opacity: 0; pointer-events: none; animation: as-rd-fall linear infinite; will-change: transform, opacity; }
+@keyframes as-rd-fall { 0% { transform: translateY(6cqh) rotate(0); opacity: 0; } 12%, 78% { opacity: .95; } 100% { transform: translateY(60cqh) rotate(200deg); opacity: 0; } }
+.as-rd__watch { position: absolute; left: 25.5%; bottom: 28.4%; width: 13%; padding: 0; border: 0; background: none; cursor: pointer; rotate: -7deg; transform-origin: 50% 100%; }
+.as-rd__watch img { position: relative; z-index: 1; display: block; width: 100%; filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); }
+.as-rd__face { position: absolute; left: 44.5%; top: 62.8%; width: 66%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #f4ead6; color: #7a5a35; }
+.as-rd__face .as-avatar { width: 100% !important; height: 100% !important; border-radius: 0; }
+.as-rd__face .as-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.as-rd__watch.is-tick { animation: as-rd-tick .6s ease; }
+@keyframes as-rd-tick { 25% { rotate: -16deg; } 60% { rotate: 3deg; } }
+.as-rd__bottles { position: absolute; left: 39.5%; width: 35%; bottom: 28.6%; display: flex; align-items: flex-end; gap: 1px; }
+.as-rd__bottle { flex: 1; padding: 0; border: 0; background: none; cursor: pointer; transition: transform .25s, filter .25s; filter: brightness(.82) saturate(.8); }
+.as-rd__bottle img { display: block; width: 100%; }
+.as-rd__bottle.is-on { transform: translateY(-4px); filter: brightness(1.12) drop-shadow(0 0 7px rgba(255,236,170,.95)); }
+.as-rd__shelf { position: absolute; left: 0; right: 0; top: 29cqh; height: 21cqh; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 0 22px; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+.as-rd__shelf::-webkit-scrollbar { display: none; }
+.as-rd__spine { flex: none; position: relative; height: 16cqh; padding: 0; border: 0; background: none; cursor: pointer; rotate: var(--r, 0deg); animation: as-rd-bob 4.6s ease-in-out infinite alternate; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
+.as-rd__spine img { display: block; height: 100%; }
+.as-rd__spine span { position: absolute; left: 50%; top: 17%; max-height: 64%; transform: translateX(-50%); writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 600 12px/1.15 "Songti SC", "Noto Serif SC", serif; letter-spacing: 1px; color: #fbf1d8; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+.as-rd__spine.is-add span { color: #6b4a2a; text-shadow: none; }
+.as-rd__spine.is-on { filter: drop-shadow(0 0 10px rgba(255,232,160,.95)); }
+@keyframes as-rd-bob { from { translate: 0 -5px; } to { translate: 0 5px; } }
+.as-page.is-behind :is(.as-rd__fall, .as-rd__spine) { animation-play-state: paused; }
+
+/* 读书：书摊开，左页念的这段，右页翻译（没有就是下一段，淡一点） */
+.as-page[data-as-app="music"].as-rd-read { background: #1c2230 center bottom / cover no-repeat; }
+.as-rd-read .as-navbar__title { color: #fff; }
+.as-rd-read .as-page__body { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 6vh; }
+.as-rd-book { position: relative; width: calc(100% + 24px); margin: 0 -12px; filter: drop-shadow(0 18px 30px rgba(0,0,0,.45)); }
+.as-rd-book > img { display: block; width: 100%; }
+.as-rd-pg { position: absolute; top: 10%; bottom: 15%; left: 12%; right: 54%; overflow-y: auto; scrollbar-width: none; font: 400 13px/1.65 "Songti SC", "Noto Serif SC", "Noto Serif JP", serif; color: #4a3a28; }
+.as-rd-pg.is-r { left: 57.5%; right: 10%; color: #6a5a46; }
+.as-rd-pg::-webkit-scrollbar { display: none; }
+.as-rd-pg p { margin: 0; }
+.as-rd-pg small { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 2px; color: #a0805a; }
+.as-rd-pg span { transition: opacity .6s; }
+.as-rd-pg span.is-dim { opacity: .14; }
+.as-rd-pg .is-next { opacity: .45; }
+.as-rd-pg.is-turn { animation: as-rd-turn .5s ease; }
+@keyframes as-rd-turn { from { opacity: 0; transform: translateX(10px); } }
+.as-rd-count { margin: 18px 0 6px; font: 500 13px/1 var(--font-ui); color: rgba(255,255,255,.65); }
+.as-rd-ctl { display: flex; align-items: center; gap: 34px; margin: 6px 0 22px; }
+.as-rd-ctl button { border: 0; background: none; color: #fff; padding: 8px; cursor: pointer; display: grid; place-items: center; }
+.as-rd-ctl .as-rd-play { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,.92); color: #2a2238; }
+.as-rd-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.as-rd-tools button { border: 1px solid rgba(255,255,255,.28); border-radius: 18px; padding: 9px 16px; background: rgba(255,255,255,.12); color: #fff; font: 500 14px/1 var(--font-ui); cursor: pointer;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.as-rd-noise { display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 12px; }
+.as-rd-nrow { display: grid; grid-template-columns: 22px 56px 1fr auto; align-items: center; gap: 10px; min-height: 48px; }
+.as-rd-nrow img { width: 22px; }
+.as-rd-nrow span { font-size: 15px; }
+.as-rd-set .as-segmented, .as-rd-imp { margin: 0 4px; }
+.as-rd-imp { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.as-rd-imp__row { display: flex; gap: 10px; }
+.as-rd-imp__row .as-btn { flex: 1; }

@@ -13,6 +13,8 @@ export const VAR_INFO = {
   entries: '世界书条目', count: '要挑几首', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
+  ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
+  recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字', tale: '故事全文',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
@@ -31,6 +33,9 @@ export const PROMPT_CATS = [
     { id: 'charSongs', name: '角色歌单', vars: ['char', 'persona', 'story', 'existing'] },
     { id: 'songTalk', name: '乐评', vars: ['song', 'artist', 'lyrics', 'contacts', 'story'] },
     { id: 'songReply', name: '乐评回复', vars: ['user', 'song', 'artist', 'contacts', 'threads', 'must'] },
+    { id: 'radioStory', name: '电台 · 讲一个故事', vars: ['char', 'user', 'persona', 'recall', 'ask', 'lang', 'len', 'zh'] },
+    { id: 'radioTrans', name: '电台 · 翻译老故事', vars: ['char', 'user', 'lang', 'zh', 'tale'] },
+    { id: 'radioAfter', name: '电台 · 讲完的感想', vars: ['char', 'user', 'persona', 'title', 'tale', 'lang', 'zh'] },
   ] },
   { app: '念念铃', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people'] },
@@ -211,6 +216,50 @@ export const DEFAULT_PROMPTS = {
 
 只输出一个 JSON，不要别的文字：
 {"replies":[{"floor":1,"who":"联系人的真实姓名（不是就空着）","name":"网名","to":"回复谁的网名","text":"回复","likes":3}],"comments":[{"who":"","name":"网名","text":"新评论","likes":0,"time":"刚刚","place":"省份"}]}` },
+  radioStory: { name: '讲一个故事', cats: ['radioStory'], on: true, main: true,
+    text: `你是 {{char}}，现在要给 {{user}} 讲一个故事，像夜里在电台里念给 TA 听。
+
+【人设】
+{{persona}}
+{{recall}}
+
+【这次讲什么】{{ask}}
+
+- 用 {{char}} 的口吻讲，语言用{{lang}}（这是 {{char}} 平时说话的语言；故事是哪国的，也用这种语言讲）。
+- 长度：{{len}}。分成很多小段，每段一到三句话，适合念出来；不要小标题，不要动作描写和旁白说明。
+- 讲完以后，用 {{char}} 自己的口吻说说对这个故事的感想，至少两段，可以联想到自己和 {{user}}。
+{{zh}}
+
+格式（只输出这些，不要别的文字）：
+标题：故事名
+故事：
+第一段
+第二段
+……
+感想：
+第一段
+第二段` },
+  radioTrans: { name: '翻译老故事', cats: ['radioTrans'], on: true, main: true,
+    text: `下面是一个故事，已经分好段，每段前面有编号。把每一段翻成{{lang}}，像 {{char}} 给 {{user}} 念故事时会说的话：意思不变，口吻自然，适合念出来。
+{{zh}}
+
+【故事】
+{{tale}}
+
+只输出翻好的段落，编号照抄，不要别的文字：
+[1] 第一段
+[2] 第二段
+……` },
+  radioAfter: { name: '讲完的感想', cats: ['radioAfter'], on: true, main: true,
+    text: `你是 {{char}}。你刚给 {{user}} 讲完《{{title}}》：
+{{tale}}
+
+【人设】
+{{persona}}
+
+用 {{char}} 自己的口吻说说对这个故事的感想，至少两段，每段两三句话，可以联想到自己和 {{user}}。语言用{{lang}}。
+{{zh}}
+只输出感想，一段一行，不要别的文字。` },
   lore: { name: '世界书拆人', cats: ['lore'], on: true, main: true,
     text: `下面是几条世界书条目。请找出里面写到的人物（可以和 {{user}} 在手机上聊天的人），每个人整理成一张联系人卡片。
 
