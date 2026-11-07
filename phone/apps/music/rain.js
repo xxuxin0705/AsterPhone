@@ -1,5 +1,5 @@
 // 下雨天皮肤：竖直的雨丝落进水里，落点闪一下、溅起几粒水花、荡开两圈水纹（远处小、近处大）；
-// 当前这句跟着唱一个字一个字掉下来，刚好在唱到时落到水面排成一行（太长分两行），水里有倒影；
+// 当前这句跟着唱一个字一个字掉下来，刚好在唱到时落到水面排成一行（太长分两行），水里有倒影；翻译也拆成字，跟着对应的歌词字一起掉，落在倒影下面；
 // 下一句开始往下掉时，上一句从左到右像水珠一样「啪」地碎掉化开。字的位置全按播放时间算，拖进度、暂停都对得上。
 import * as P from '../../core/music.js';
 import { shell } from '../../core/shell.js';
@@ -55,10 +55,15 @@ export function rain(cv, page) {
     ctx.font = `400 ${TR}px ${face}`;
     const tc = [...(x.tr || '')], mid = tc.length / 2, sp = tc.reduce((b, c, k) => c === ' ' && Math.abs(k - mid) < Math.abs(b - mid) ? k : b, Math.round(mid));
     const tr = !x.tr ? [] : ctx.measureText(x.tr).width > W - 48 ? [tc.slice(0, sp).join('').trim(), tc.slice(sp).join('').trim()] : [x.tr];
-    const out = { fs, tr, toks: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
+    const out = { fs, toks: [], trc: [] }, when = P.wordTimes(L, i, toks.filter(t => t.trim()).length);
     toks.forEach((t, k) => { if (k === cut) at = (W - w1) / 2;
       if (t.trim()) out.toks.push({ t: t.trim(), at: when[out.toks.length], x: at, w: ws[k], dy: two && k < cut ? -fs * 1.45 : 0, jx: (Math.random() - .5) * 40, r0: (Math.random() - .5) * 1.2, r1: (Math.random() - .5) * .08,
       sp: Array.from({ length: 5 }, () => [(Math.random() - .5) * 2.4, .6 + Math.random() * .8]) }); at += ws[k]; });
+    // 翻译一个字一块，按比例分给歌词的字（第 j 个翻译字跟着第 j·n/m 个歌词字掉），落在倒影下面第 r 行
+    tr.forEach((row, r) => { const cs = [...row], cw = cs.map(c => ctx.measureText(c).width); let tx = (W - cw.reduce((a, b) => a + b, 0)) / 2;
+      cs.forEach((c, k) => { if (c.trim()) out.trc.push({ t: c, x: tx + cw[k] / 2, r, jx: (Math.random() - .5) * 24, r0: (Math.random() - .5) * .8 }); tx += cw[k]; }); });
+    const n = out.toks.length, m = out.trc.length;
+    out.trc.forEach((c, j) => { c.at = n ? out.toks[Math.min(n - 1, Math.floor(j * n / m))].at : 0; });
     lines.set(x, out);
     return out;
   }
@@ -116,12 +121,11 @@ export function rain(cv, page) {
     const x = L[i], lay = layout(L, i), n = lay.toks.length; if (!n) return;
     if (pop > n * GAP + POP) return;
     ctx.font = `500 ${lay.fs}px ${face}`; ctx.textBaseline = 'alphabetic';
-    let landed = 0;
     lay.toks.forEach((k, j) => {
       const q = (t - (k.at - FALL)) / FALL; if (q <= 0) return;   // 提前 FALL 秒开始掉，唱到时刚好落地
       let y, rot, a = 1; const g = ground + k.dy;   // 两行时上一行停在水面上方
       if (q < 1) { y = -20 + (g + 20) * q * q; rot = k.r0 * (1 - q) + k.r1 * q; a = Math.min(1, q * 3); }
-      else { const b = Math.min(1, (q - 1) * FALL / .3); y = g - Math.sin(b * Math.PI) * 6 * (1 - b); rot = k.r1; landed++; }
+      else { const b = Math.min(1, (q - 1) * FALL / .3); y = g - Math.sin(b * Math.PI) * 6 * (1 - b); rot = k.r1; }
       const cx = k.x + k.jx * Math.max(0, 1 - q) + k.w / 2;
       const d = pop < 0 ? 0 : Math.max(0, Math.min(1, (pop - j * GAP) / POP));
       if (q >= 1 && pop < 0) {   // 刚落地那一下的水圈
@@ -130,18 +134,18 @@ export function rain(cv, page) {
       if (d > 0) burst(k, cx, d, lay.fs);
       if (d < 1) glyph(k.t, cx, y, rot, a, d, q >= 1 && !k.dy, clock);
     });
-    if (lay.tr.length && landed) {
+    if (lay.trc.length) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
-      // 翻译放在倒影下面，不压着倒影
+      // 翻译的字跟着对应的歌词字一起掉，落在倒影下面（不压着倒影）；换句时整句淡掉
       ctx.font = `400 ${TR}px ${face}`;
       ctx.textAlign = 'center'; ctx.shadowColor = shade === 'glow' && !edge ? glow(.8) : halo(1); ctx.shadowBlur = shade === 'none' ? 0 : 6;
-      // 跟着落下来的字一点点露出来：没唱到的部分不画，露出来的边上淡一点
       const al = (night ? .88 : .7) * (1 - fade);
-      lay.tr.forEach((s, r) => {
-        const y = ground + SIZE * .6 + 30 + r * TR * 1.5, w = ctx.measureText(s).width, x0 = W / 2 - w / 2, x1 = x0 + w * landed / n;
-        const g = ctx.createLinearGradient(x1 - TR * 1.5, 0, x1, 0); g.addColorStop(0, ink(al)); g.addColorStop(1, ink(0));
-        ctx.save(); ctx.beginPath(); ctx.rect(x0, y - TR * 1.2, x1 - x0, TR * 2); ctx.clip(); ctx.fillStyle = landed >= n ? ink(al) : g; ctx.fillText(s, W / 2, y); ctx.restore();
-      });
+      for (const c of lay.trc) {
+        const q = (t - (c.at - FALL)) / FALL; if (q <= 0) continue;
+        const g = ground + SIZE * .6 + 30 + c.r * TR * 1.5;
+        const y = q < 1 ? -20 + (g + 20) * q * q : g, a = Math.min(1, q * 3);
+        ctx.save(); ctx.translate(c.x + c.jx * Math.max(0, 1 - q), y); ctx.rotate(c.r0 * Math.max(0, 1 - q)); ctx.fillStyle = ink(al * a); ctx.fillText(c.t, 0, 0); ctx.restore();
+      }
       ctx.textAlign = 'start'; ctx.shadowBlur = 0;
     }
   }
