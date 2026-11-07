@@ -16,6 +16,7 @@ import { log } from '../../core/log.js';
 import { nameOf, personaOf } from '../chat/engine.js';
 import { isNight } from './rain.js';
 import { color, font, setFont } from './tglook.js';
+import { glass } from '../../core/glass.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
 import LIB from './radiolib.js';
 
@@ -352,14 +353,14 @@ function settings() {
     group('字幕气泡', [color('气泡颜色', () => B().bg, v => B().bg = v, saveBub), color('字的颜色', () => B().ink, v => B().ink = v, saveBub),
       font(() => B().font, v => B().font = v, saveBub), toggleItem({ title: '描边' }, !!B().line, v => { B().line = v; saveBub(); })])) });
 }
-// 读书页字幕气泡的样子：没改过就白天白底黑字、晚上黑底白字；描边的颜色跟字的颜色反着来
+// 读书页字幕气泡的样子：没改过就是透明玻璃、白字；自己挑了气泡颜色就换成实心的；描边的颜色跟字的颜色反着来
 const B = () => S().bub || (S().bub = {});
 let bubEl = null;
 function saveBub() { commit('music'); if (bubEl && bubEl.isConnected) styleBub(bubEl); }
 function styleBub(el) {
   const o = B(), dark = o.ink && parseInt(o.ink.slice(1, 3), 16) * .3 + parseInt(o.ink.slice(3, 5), 16) * .59 + parseInt(o.ink.slice(5, 7), 16) * .11 < 128;
   el.style.setProperty('--rb-bg', o.bg || ''); el.style.setProperty('--rb-ink', o.ink || ''); el.style.setProperty('--rb-line', o.ink ? dark ? '#fff' : '#000' : '');
-  el.classList.toggle('is-line', !!o.line); setFont(el, o.font);
+  el.classList.toggle('is-line', !!o.line); el.classList.toggle('has-bg', !!o.bg); setFont(el, o.font).then(() => el._fit && el._fit());
 }
 
 /* ---------- 读书：书摊开（左页这一段、右页下一段，都只放中文）；书下面像一起听，TA 的头像 + 气泡里是正在念的原文和翻译；按钮都在最底下 ---------- */
@@ -381,12 +382,18 @@ function openBook(b) {
     const v = await actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
     if (v) { S().tts = v; commit('music'); ttsB.textContent = TTS.find(x => x[0] === v)[1]; if (E.on) ahead(b, E.i); }
   } }, TTS.find(x => x[0] === S().tts)[1]);
-  p.el.style.backgroundImage = `linear-gradient(rgba(12,10,24,.6), rgba(12,10,24,.78)), url(assets/radio/bg-${isNight() ? 'night' : 'day'}.webp)`;
+  const bg = `assets/radio/bg-${isNight() ? 'night' : 'day'}.webp`, shade = ['rgba(12,10,24,.6)', 'rgba(12,10,24,.78)'];
+  p.el.style.backgroundImage = `linear-gradient(${shade.join(', ')}), url(${bg})`;
   const book = h('div.as-rd-book', { 'data-no-swipe': '' }, h('img', { src: 'assets/radio/book.webp', alt: '' }), L, R);
-  p.body.append(book, h('div.as-rd-say', row),
+  const say = h('div.as-rd-say', row);
+  p.body.append(book, say,
     h('div.as-rd-bottom', h('div.as-rd-count', count, langB), h('div.as-rd-tools', timerB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
       h('div.as-rd-ctl', h('button', { 'aria-label': '上一段', onclick: () => go(E.i - 1) }, icon('prev', 24, 2)), playB, h('button', { 'aria-label': '下一段', onclick: () => go(E.i + 1) }, icon('next', 24, 2)))));
+  // 气泡要一眼看全：放不下就把字一点点调小（最小 10px），不让它滚动
+  row._fit = () => { const q = row.lastChild; let f = 15; q.style.fontSize = ''; while (row.offsetHeight > say.clientHeight && f > 10) q.style.fontSize = (f -= .5) + 'px'; gls && gls.refresh(); };
+  let gls = null;
   styleBub(row);
+  row.addEventListener('animationend', () => gls && gls.refresh());
   function toggle() { if (E.on || E.wait) pause(); else resume(); }
   function go(i) { i = clamp(i, 0, lines(b).length - 1); if (E.on || E.wait) playAt(i); else { E.run++; halt(); E.i = b.pos = i; E.buf = null; E.off = 0; tell(); } }
   const zh = s => s ? s.tr || s.t : '';
@@ -435,6 +442,7 @@ function openBook(b) {
       else { if (leaf) { leaf.remove(); leaf = null; } pages(E.i); }
       shown = E.i; nlines = all.length; nlang = b.lang;
       sayT.textContent = s.t; sayTr.textContent = s.tr; sayTr.parentNode.hidden = !s.tr;
+      row._fit();
       if (last !== -1) { row.classList.remove('is-turn'); void row.offsetWidth; row.classList.add('is-turn'); }
     }
     count.textContent = `${E.i + 1} / ${all.length}`;
@@ -443,12 +451,12 @@ function openBook(b) {
   }
   // 气泡里的字跟着声音一点点变深（像一起听的歌词）；在合成时整段淡着，没在念、或者用手机自带的声音（不知道多长）就整段深色
   const tick = () => {
-    if (!p.el.isConnected) return clearInterval(iv);
-    const tl = timer ? `${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟后停` : '定时';
+    if (!p.el.isConnected) { gls && gls.dispose(); return clearInterval(iv); }
+    const tl = timer ? `${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟` : '定时';
     if (timerB.textContent !== tl) timerB.textContent = tl;
     const mine = E.book === b, k = mine && E.buf ? ((E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration) : mine && E.wait ? 0 : 1;
     row.style.setProperty('--p', Math.min(100, k * 100).toFixed(1) + '%');
   };
   const iv = setInterval(tick, 200);
-  nav.push(p.el); subs.add(paint); paint(); tick();
+  nav.push(p.el); gls = glass(row.lastChild, p.el, bg, shade); subs.add(paint); paint(); tick();
 }
