@@ -208,7 +208,8 @@ export class Wallpaper {
     this.seed();
     this.frame = this.frame.bind(this);
     addEventListener('resize', () => this.resize());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); else this.resume(); });
+    // 切回来时只有切走前本来在动才接着动：开着 App（壁纸被盖住、本来停着）时别在后面白跑，切回来会卡
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { this.wasRunning = this.running; this.pause(); } else if (this.wasRunning) this.resume(); });
   }
   now() { return (performance.now() - this.t0) / 1000; }
   get w() {

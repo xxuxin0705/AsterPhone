@@ -604,7 +604,7 @@ let saveT = 0, lastT = 0, heard = 0;
 audio.addEventListener('timeupdate', () => {
   if (audio.src === HUSH) return;
   const t = Date.now(); if (t - lastT < 2000) heard += t - lastT; lastT = t;
-  if (t - saveT > 5000) {
+  if (t - saveT > 30000) {   // 每次存是整份数据写一遍，太勤了放歌会一顿一顿的；切走、暂停时另外马上存
     saveT = t; M().pos = now(); M().heard = (M().heard || 0) + heard / 1000;
     const tc = together(); if (tc) { tgTimes()[tc.id] = (tgTimes()[tc.id] || 0) + heard / 1000; const r = tgRec(tc.id); r.sess = (r.sess || 0) + heard / 1000; r.best = Math.max(r.best || 0, r.sess); }
     heard = 0; commit('music');
@@ -624,7 +624,7 @@ audio.addEventListener('timeupdate', () => {
   }
   tell('time');
 });
-['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; if (ev === 'pause') { stuck = !asked && !audio.ended && document.hidden; asked = false; if (stuck) { const b = audio.buffered, g = seg(); log('warn', '音乐', `《${(current() || {}).name}》在后台被停了，回到 App 会接着放`, `放到 ${now().toFixed(1)} 秒；声音里已有 ${b.length ? b.end(b.length - 1).toFixed(1) : 0} 秒（这首从 ${g ? g.start.toFixed(1) : '?'} 开始，${g && g.end ? '下完了' : '还没下完'}）；${chain ? `续了 ${chain.segs.length} 首` : '没在续接'}`); } } else stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
+['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; if (ev === 'pause') { if (current()) { M().pos = now(); commit('music'); } stuck = !asked && !audio.ended && document.hidden; asked = false; if (stuck) { const b = audio.buffered, g = seg(); log('warn', '音乐', `《${(current() || {}).name}》在后台被停了，回到 App 会接着放`, `放到 ${now().toFixed(1)} 秒；声音里已有 ${b.length ? b.end(b.length - 1).toFixed(1) : 0} 秒（这首从 ${g ? g.start.toFixed(1) : '?'} 开始，${g && g.end ? '下完了' : '还没下完'}）；${chain ? `续了 ${chain.segs.length} 首` : '没在续接'}`); } } else stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
 // 后台时停了却不是自己叫的（续接时下一首的内容没及时到、或者浏览器不让开始放）：回到 App、碰屏幕时补放
 let stuck = false, asked = false;
@@ -635,7 +635,7 @@ function blocked(e) {
   log('warn', '音乐', `浏览器没让《${(current() || {}).name}》开始放（${document.hidden ? '在后台' : '在前台'}）`, `${e && e.name}: ${e && e.message}`);
 }
 const again = () => { if (!stuck || !audio.src) return; stuck = false; audio.play().catch(blocked); };
-document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); else if (current()) { M().pos = now(); commit('music'); } });
 addEventListener('focus', again);
 document.addEventListener('pointerdown', again, true);
 

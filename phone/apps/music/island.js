@@ -26,7 +26,7 @@ function build() {
   const cov = h('span.as-isl__cov'), bigCov = h('span.as-isl__bigcov', { role: 'button', onclick: async e => { e.stopPropagation(); close(); (await import('./music.js')).openPlayer(); } });
   const name = h('b'), artist = h('span'), bar = h('i'), play = h('span'), barBox = h('div.as-isl__bar', bar);
   seekable(barBox, bar);
-  const el = h('div.as-isl', { role: 'button', 'aria-label': '正在播放', onclick: () => { if (!el.classList.contains('is-open')) { el.classList.add('is-open'); paint(); } } },
+  const el = h('div.as-isl', { role: 'button', 'aria-label': '正在播放', onclick: async () => { if (!el.classList.contains('is-open')) { el.classList.add('is-open'); paint(); return; } close(); (await import('./music.js')).openPlayer(); } },   // 展开后再点一下：去播放页
     h('div.as-isl__mini', cov, wave()),
     h('div.as-isl__big', h('div.as-isl__row', bigCov, h('div.as-isl__info', name, artist), wave()), barBox,
       h('div.as-isl__ctrl', btn('prev', '上一首', () => P.prev(), 24), h('button', { 'aria-label': '播放 / 暂停', onclick: e => { e.stopPropagation(); P.toggle(); } }, play), btn('next', '下一首', () => P.next(), 24))));
