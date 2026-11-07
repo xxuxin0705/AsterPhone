@@ -263,7 +263,14 @@ export const playing = () => !audio.paused;
 const seg = () => chain && chain.segs.find(g => g.i === M().idx && g.s === current());
 // 还在问链接时按 0 算：不然进度条按占位那 0.1 秒画，一下子跑到底
 export const now = () => loading() ? 0 : Math.max(0, (audio.currentTime || 0) - (seg()?.start || 0));
-export const dur = () => { if (loading()) return 0; const g = seg(); return g ? (g.end || audio.duration || 0) - (g.start || 0) : audio.duration || 0; };   // 还在下的那首，先按已经下到的算
+// 续接时还没下完的那首：声音的总长还不知道（是 Infinity），按「已经塞进去几秒 ÷ 塞了文件的几成」估出整首多长
+export const dur = () => {
+  if (loading()) return 0;
+  const g = seg(), d = isFinite(audio.duration) ? audio.duration : 0; if (!g) return d;
+  if (g.end) return g.end - g.start;
+  const b = audio.buffered, has = b.length ? b.end(b.length - 1) - (g.start || 0) : 0;
+  return g.total && g.bytes ? has * g.total / g.bytes : Math.max(0, d - (g.start || 0));
+};
 
 /** 放一组歌，从第 i 首开始；from 是从哪个歌单放的（播放页顶上显示） */
 export function playList(list, i = 0, from = '') { M().queue = list.slice(); M().idx = i; M().from = from; fails = 0; load(true); }
@@ -468,7 +475,7 @@ async function startChain(s, f, autoplay) {
 /** 歌曲文件的内容（边下边读）。只读第一条能放的地址：酒馆插件转的直接读；本地酒馆别的地址让插件 /pipe 转一手；Tauri 只有 JOOX 的读得到（别的跨域，试一下就是白等一趟服务器）。
  *  读到的顺手留一份存起来（不用再下一遍）；不是 mp3 不要 */
 async function songBody(s, f, signal) {
-  if (f) return f.stream();
+  if (f) return Object.assign(f.stream(), { total: f.size });
   for (const x of urlsOf(s)) {
     if (!ne && !x.readable) continue;   // Tauri 里只有 Meting、JOOX 的读得到，别的问了也白问
     const u = typeof x === 'function' ? await x() : x; if (!u) continue;
@@ -476,7 +483,7 @@ async function songBody(s, f, signal) {
     if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) { log('info', '音乐', `《${s.name}》这个地址给的不是歌（${r.status} ${r.headers.get('content-type')}），换下一个`); continue; }   // Meting 碰到会员歌给的是网页
     const [a, b] = r.body.tee();
     new Response(b, { headers: { 'content-type': 'audio/mpeg' } }).blob().then(blob => stash(s, blob), () => {});   // 不带类型存下来的文件类型是空的，下次就不当 mp3 续接了
-    return a;
+    return Object.assign(a, { total: +r.headers.get('content-length') || 0 });
   }
   throw new Error('没有链接');
 }
@@ -485,7 +492,7 @@ function op(c, fn) { c.ops.push(fn); run(c); }
 function run(c) { if (c === chain && !c.sb.updating && c.ops.length) c.ops.shift()(); }
 /** 把一首歌的内容一段段续进去；记下它在整条声音里从哪到哪 */
 async function feed(c, i, s, body, first) {
-  const g = { i, s, start: null, end: 0 };
+  const g = { i, s, start: null, end: 0, total: body.total || 0, bytes: 0 };   // total / bytes：整个文件多大、塞进去了多少，下完前估时长用
   c.segs.push(g);
   const reader = body.getReader();
   try {
@@ -493,7 +500,7 @@ async function feed(c, i, s, body, first) {
       const { done, value } = await reader.read();
       if (c !== chain || g.dead) return reader.cancel();
       if (done) break;
-      await put(c, g, value);
+      await put(c, g, value); g.bytes += value.byteLength;
       if (first) { const f0 = first; first = null; op(c, () => { f0(); run(c); }); }
     }
     op(c, () => { if (!g.dead) { g.end = c.sb.timestampOffset; tell('time'); } run(c); });
