@@ -314,7 +314,8 @@ async function load(autoplay, hush = true) {
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
   if (current() !== s || g !== gen) return;
-  if (CHAIN && (!f || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
+  // 续接只在不耽误起步时用：存在手机里的（本地读，秒开）、本地酒馆（插件转一手，快）。Tauri 没存过的直接播，马上出声，顺手存下来，下次就能续
+  if (CHAIN && (f ? f.type === 'audio/mpeg' : ne) && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
 /* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
