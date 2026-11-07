@@ -311,6 +311,9 @@ async function load(autoplay, hush = true) {
   if (autoplay && hush && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
+  // 上一首自己放完接的：下一首早就问好了，什么都不等，当场放。iPhone 在后台只认「上一首一完马上放」，中间哪怕等一下（查存档、问链接）就不让放了
+  const w = warm; warm = null;
+  if (!hush && w && w.s === s) return plain(s, w.f || null, autoplay, undefined, w.u);
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
   if (current() !== s || g !== gen) return;
@@ -400,8 +403,8 @@ const urlsOf = s => {
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
-async function plain(s, f, autoplay, twin) {
-  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
+async function plain(s, f, autoplay, twin, warmed) {
+  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? [...(warmed ? [warmed] : []), ...urlsOf(s)] : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
   if (current() !== s) return;
   const g = gen;
   const fail = () => {
@@ -418,19 +421,25 @@ async function plain(s, f, autoplay, twin) {
     if (!u) return tryUrl(i + 1);
     audio.onerror = () => { x.bad && x.bad(); tryUrl(i + 1); };
     audio.src = u;
-    if (autoplay) audio.play().catch(blocked);
+    if (autoplay) { audio.play().catch(blocked); stuck = document.hidden; }   // 在后台叫的放：真放起来了会清掉；没动静就等回到 App 补一次
     warmNext();
     if (!f) setTimeout(() => { if (current() === s && g === gen) stash(s, u); }, 5000);   // 放起来 5 秒后再存，别跟播放抢网
   };
   tryUrl(0);
 }
-/** 这首放起来了就提前把下一首的链接问好，按「下一首」秒开（随机播放不知道下一首是谁，不问） */
-let warmT = 0;
+/** 这首放起来了就提前把下一首准备好（存过的拿文件，没存的问链接），放完当场接上、按「下一首」秒开（随机播放不知道下一首是谁，不问） */
+let warmT = 0, warm = null;   // { s, f } 或 { s, u }
 function warmNext() {
-  clearTimeout(warmT);
+  clearTimeout(warmT); warm = null;
   if (M().mode === 'shuffle') return;
-  const nx = M().queue[pick(M().idx, true)]; if (!nx || nx === current() || nx.local) return;
-  warmT = setTimeout(async () => { for (const x of urlsOf(nx)) if (typeof x === 'function' ? await x() : x) return; }, 3000);
+  const nx = M().queue[pick(M().idx, true)]; if (!nx) return;
+  if (nx === current()) { warm = { s: nx, u: audio.src }; return; }   // 单曲循环：还是这个地址
+  warmT = setTimeout(async () => {
+    const f = nx.local ? await kvGet('mufile:' + nx.id).catch(() => null) : await cached(nx);
+    if (f) { warm = { s: nx, f }; return; }
+    if (nx.local) return;
+    for (const x of urlsOf(nx)) { const u = typeof x === 'function' ? await x() : x; if (u) { warm = { s: nx, u }; return; } }
+  }, 3000);
 }
 /** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
 async function startChain(s, f, autoplay) {
@@ -589,11 +598,11 @@ audio.addEventListener('timeupdate', () => {
   }
   tell('time');
 });
-['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
+['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
-// 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
+// 后台换歌时叫了放却没放起来（被拒了，或者一直没动静）：回到 App、下一次碰屏幕时补一次
 let stuck = false;
-// 浏览器不让开始放（后台接下一首时 Tauri 常这样）：记下它的理由，回到 App、下一次碰屏幕时补一次
+// 浏览器不让开始放：记下它的理由
 function blocked(e) {
   tell('blocked'); stuck = true;
   log('warn', '音乐', `浏览器没让《${(current() || {}).name}》开始放（${document.hidden ? '在后台' : '在前台'}）`, `${e && e.name}: ${e && e.message}`);
