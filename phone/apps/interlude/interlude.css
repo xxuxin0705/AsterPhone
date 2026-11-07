@@ -166,3 +166,34 @@
 .as-int-wait .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
 .as-int-end { padding: 14px 16px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); display: flex; flex-direction: column; gap: 8px; }
 .as-int-end p { margin: 0; font-size: 14px; line-height: 1.7; }
+
+/* 对话框里：旁白小一点淡一点，台词是主角，翻译再小一行 */
+.as-int-box__act { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 4px !important; }
+.as-int-box__say { font-size: 16px; line-height: 1.7; }
+.as-int-box__zh { display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.5; opacity: .75; }
+/* 场外：灰色小气泡，从对话框上方冒出来，用手机的普通字体 */
+.as-int-ooc { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 8px; pointer-events: none; }
+.as-int-ooc__b { max-width: 88%; padding: 6px 12px; border-radius: 14px 14px 14px 4px; background: rgba(40,44,56,.72); color: #e4e4e8; font: 400 12.5px/1.5 var(--font-ui); box-shadow: 0 4px 12px rgba(0,0,0,.3); animation: as-int-up 320ms var(--as-ease-spring) both; transition: opacity 400ms, transform 400ms; }
+.as-int-ooc__b i { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; background: rgba(255,255,255,.18); font-style: normal; font-size: 11px; }
+.as-int-ooc__b b { font-weight: 500; }
+.as-int-ooc__b.is-out { opacity: 0; transform: translateY(-8px); }
+@keyframes as-int-up { from { opacity: 0; transform: translateY(10px); } }
+.as-int-sit__kp img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: center 20%; background: #0d1119; box-shadow: 0 0 0 2px #d8b36a, 0 6px 14px rgba(0,0,0,.5); display: block; }
+.as-int-sit__more { position: absolute; top: -4px; right: -10px; padding: 0 5px; border-radius: 999px; background: #d8b36a; color: #2f2619; font: 600 11px/1.5 var(--font-ui); }
+/* 卷宗 */
+.as-int-archive { background: #2a3447; color: #f1ece2; }
+.as-int-files { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 24px; }
+.as-int-file { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 14px 16px; border: 0; border-radius: 6px; text-align: left; cursor: pointer;
+  background: #ece4d2 url(../../assets/interlude/sheet.webp) center / cover; color: #2f2619; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+.as-int-file b { font: 600 16px/1.4 "Noto Serif SC", serif; }
+.as-int-file small { grid-column: 1; font: 400 12px/1.4 var(--font-ui); opacity: .7; }
+.as-int-file span { grid-row: 1 / 3; grid-column: 2; align-self: center; padding: 2px 8px; border: 1.5px solid; border-radius: 4px; font: 600 12px/1.4 "Noto Serif SC", serif; transform: rotate(-6deg); }
+.as-int-file span.is-good { color: #2f7a66; } .as-int-file span.is-bad { color: #a63a33; } .as-int-file span.is-quit { color: #777; }
+.as-int-read { display: flex; flex-direction: column; gap: 12px; padding: 4px 18px 30px; font-family: "Noto Serif SC", serif; }
+.as-int-read__l b { font-size: 12px; color: #d8b36a; }
+.as-int-read__l p { margin: 2px 0 0; font-size: 15px; line-height: 1.7; }
+.as-int-read__l p.is-act { font-size: 13px; opacity: .7; }
+.as-int-read__l small { display: block; font-size: 12px; opacity: .65; }
+.as-int-read__l.is-me { padding-left: 10px; border-left: 2px solid rgba(216,179,106,.5); }
+.as-int-read__l.is-ooc { font-family: var(--font-ui); opacity: .7; }
+.as-int-read__end { margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(216,179,106,.4); border-radius: 6px; font-size: 14px; line-height: 1.7; }
