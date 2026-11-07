@@ -401,14 +401,15 @@ const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
 });
 // 几个一起问，谁先给出链接用谁；都没有才是空
 const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.then(u => { if (u) ok(u); else if (!--n) ok(''); })); });
-/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问；不行再酷我低一档、JOOX）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
+/** 一首歌的地址，按先后挨个试：登录了的号 → Tauri 里网易云的歌先走 Meting（网页读得到，半秒出声，能续接；会员歌它给的是网页，跳过）→ 整首的公共音源（JOOX；QQ、酷我一起问；不行再酷我低一档）→ 没登录的插件、Meting。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
   const lz = (f, ...keys) => Object.assign(f, { bad: () => keys.forEach(k => full.delete(k)) });   // 记住的链接放不出来就作废，下回重新问
   const qk = lz(() => first([qqFull(s), kuwoFull(s, 0)]), 'q' + s.id, 'k0' + s.src + s.id), k2 = lz(() => kuwoFull(s, 2), 'k2' + s.src + s.id), jx = lz(() => jooxFull(s), 'j' + s.src + s.id);
   jx.readable = true;   // JOOX 的文件网页读得到内容：能续接、能存
-  const pub = ne ? [qk, k2, jx] : [jx, qk, k2];   // Tauri 里 JOOX 排第一：只有它能续接、存得下来（开着 VPN 也快）
+  const pub = ne ? [qk, k2, jx] : [jx, qk, k2], mt = () => meting('url', s.id);   // Tauri 里 JOOX 排第一：只有它能续接、存得下来（开着 VPN 也快）
+  mt.readable = true;
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
-    : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
+    : [ne && ne.me && `${BE}/audio?id=${s.id}`, !ne && mt, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, ne && mt, `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
@@ -466,10 +467,10 @@ async function startChain(s, f, autoplay) {
 async function songBody(s, f, signal) {
   if (f) return f.stream();
   for (const x of urlsOf(s)) {
-    if (!ne && !x.readable) continue;   // Tauri 里只有 JOOX 的读得到，别的问了也白问
+    if (!ne && !x.readable) continue;   // Tauri 里只有 Meting、JOOX 的读得到，别的问了也白问
     const u = typeof x === 'function' ? await x() : x; if (!u) continue;
     const r = await fetch(u.startsWith(BE) || !ne ? u : `${BE}/pipe?url=${encodeURIComponent(u)}`, { signal });
-    if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
+    if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) { log('info', '音乐', `《${s.name}》这个地址给的不是歌（${r.status} ${r.headers.get('content-type')}），换下一个`); continue; }   // Meting 碰到会员歌给的是网页
     const [a, b] = r.body.tee();
     new Response(b).blob().then(blob => stash(s, blob), () => {});
     return a;

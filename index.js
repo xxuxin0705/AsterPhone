@@ -233,7 +233,7 @@ function lift() {
 /* ---------- 悬浮按钮 ---------- */
 function applyFab() {
     if (!fab) return;
-    fabImg.src = `${PHONE}assets/fab/${cfg.fab || 'iphone'}.png`;
+    fabImg.src = `${PHONE}assets/fab/${cfg.fab || 'iphone'}.webp`;
     fab.style.setProperty('--aster-fab-size', (cfg.fabSize || 52) + 'px');
     if (overlay) overlay.style.setProperty('--aster-scale', cfg.winScale || 1);
     const show = extSettings().showFab !== false;

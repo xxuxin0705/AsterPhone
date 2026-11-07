@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.159';
+export const VERSION = '0.8.160';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -348,7 +348,7 @@ function openLook() {
     body.append(
       group('悬浮按钮', [
         h('div.as-settings-fab-grid', FABS.map(([k, name]) => h('button.as-settings-fab' + (d.fab === k ? '.is-active' : ''), { onclick: e => { d.fab = k; commit('settings'); shell.applyLook(); e.currentTarget.parentNode.querySelectorAll('.as-settings-fab').forEach(b => b.classList.toggle('is-active', b === e.currentTarget)); } },
-          h('img', { src: `assets/fab/${k}.png`, alt: '' }), name))),
+          h('img', { src: `assets/fab/${k}.webp`, alt: '' }), name))),
         sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
       ]),
       group('', [toggleItem({ title: '连点三下开关手机' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),

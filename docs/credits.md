@@ -32,7 +32,8 @@
 | `phone/assets/fonts/SFProDisplay-Bold.woff2` | 苹果 SF Pro Display Bold（锁屏时钟） | 苹果的字体，许可只让在苹果设备上用，**不允许拿去分发**。作者决定放进来、自己承担风险（`design-system.md` 里也记了）。公开发布前最好换成免费可商用的字体 |
 | `phone/assets/music/rain-day.webp`、`rain-night.webp` | 下雨天皮肤的背景 | 作者给的图（v0.8.98 换成新的日间 / 夜间两张）。发布前确认是谁画的、能不能用 |
 | `phone/assets/music/together-l.webp`、`together-r.webp` | 一起听的有线耳机 | 作者让 GPT 画的，去掉了黑底、切成两半 |
-| `phone/assets/wallpapers/*`、`phone/assets/fab/*` | 壁纸、悬浮按钮 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
+| `phone/assets/wallpapers/*` | 壁纸 | 作者给的图（照 `gpt-image-brief*.md` 让画图模型画的）。发布前确认一遍 |
+| `phone/assets/fab/*` | 悬浮按钮 | 作者自己旧插件 X_XPhone 的 `assets/ball/*`（抠得干净的那套），名字对应：palace→ancient、sprout→forest、witch→magic、steam→steampunk、sunny→sunflower、jade→xianxia |
 
 | 音乐播放页的 MV（QQ 的 m3u8 视频；看 MV 时才从 jsDelivr 下载，不放进仓库） | hls.js 1.5.20，https://github.com/video-dev/hls.js | Apache-2.0 |
 | 歌词的内置字体（歌词设置、悬浮窗、一起听共用；从 jsDelivr 按需下载，不放进仓库） | 思源黑体 / 思源宋体、站酷快乐体 / 站酷小薇 / 站酷庆科黄油体、马善政楷书、龙藏体、志莽行书（@fontsource，都是 OFL）；霞鹜文楷、得意黑、汇文明朝体、朱雀仿宋（@chinese-fonts 中文网字计划打包，字体本身 OFL / 免费商用） | 可以免费商用 |
