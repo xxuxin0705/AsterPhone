@@ -633,3 +633,39 @@
 .as-rd.is-picking .as-rd__spine.is-picked::before { border-color: var(--mu-red); background: var(--mu-red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; }
 .as-rd.is-picking .as-rd__spine.is-add { opacity: .35; pointer-events: none; }
 .as-mu-root:has(.as-rd.is-picking) .as-mu-dock { display: none; }
+/* 调这一段的语气（照正文朗读的 🎭 面板，配色换成手机的） */
+.as-ra .as-sheet__body { padding-bottom: 4px; }
+.as-ra-body { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; font-size: 13px; }
+.as-ra-ch { padding: 6px 9px; border-radius: 10px; background: color-mix(in srgb, var(--as-color-accent) 12%, transparent); font-size: 11.5px; line-height: 1.5; color: var(--as-color-accent); }
+.as-ra-ch span { display: block; opacity: .8; }
+.as-ra-ch.is-plain { background: rgba(240,170,60,.14); color: #b07a1a; }
+.as-ra-orig { font-size: 12px; color: var(--as-color-text-2); line-height: 1.5; word-break: break-all; }
+.as-ra-script { width: 100%; box-sizing: border-box; min-height: 58px; border: 1px solid var(--as-color-glass-line); border-radius: 10px; padding: 8px 10px; font: 400 14px/1.55 var(--font-ui, inherit); background: var(--as-color-surface-2); color: var(--as-color-text); resize: none; }
+.as-ra-script:focus { outline: none; border-color: var(--as-color-accent); }
+.as-ra-set { display: flex; align-items: center; gap: 6px; }
+.as-ra-set > span { flex: 0 0 30px; font-size: 12px; color: var(--as-color-text-2); }
+.as-ra-seg { display: flex; flex: 1; background: var(--as-color-surface-2); border-radius: 9px; padding: 2px; }
+.as-ra-seg button { flex: 1; border: 0; background: transparent; padding: 5px 0; font-size: 11.5px; border-radius: 7px; cursor: pointer; color: var(--as-color-text-2); white-space: nowrap; }
+.as-ra-seg button.is-on { background: var(--as-color-surface-solid); color: var(--as-color-accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.as-ra-prev { padding: 6px 9px; border-radius: 9px; border: 1px dashed var(--as-color-glass-line); font-size: 11.5px; line-height: 1.55; color: var(--as-color-text-2); word-break: break-all; }
+.as-ra-prev b { color: var(--as-color-text); font-weight: 600; }
+.as-ra-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.as-ra-tabs button { border: 0; background: transparent; color: var(--as-color-text-2); font-size: 12.5px; padding: 5px 9px; border-radius: 8px; cursor: pointer; }
+.as-ra-tabs button.is-on { background: color-mix(in srgb, var(--as-color-accent) 14%, transparent); color: var(--as-color-accent); font-weight: 600; }
+.as-ra-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.as-ra-chips[hidden] { display: none; }
+.as-ra-chips button { border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface-2); color: var(--as-color-text); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.as-ra-chips button.is-preset { color: #c0703f; border-color: rgba(220,140,90,.35); background: rgba(240,160,110,.12); }
+.as-ra-chips button.is-sel { background: var(--as-color-accent); border-color: var(--as-color-accent); color: var(--as-color-on-accent); }
+.as-ra-acts { display: flex; gap: 8px; }
+.as-ra-acts button { border: 0; border-radius: 9px; padding: 8px 14px; font-size: 13px; cursor: pointer; background: var(--as-color-surface-2); color: var(--as-color-text); }
+.as-ra-acts .as-ra-play { background: var(--as-color-accent); color: var(--as-color-on-accent); }
+.as-ra-takes { display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 11px; background: color-mix(in srgb, var(--as-color-accent) 8%, transparent); }
+.as-ra-takes[hidden] { display: none; }
+.as-ra-take { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 9px; background: var(--as-color-surface-solid); border: 1px solid transparent; }
+.as-ra-take.is-sel { border-color: var(--as-color-accent); }
+.as-ra-take > span { flex: 1; min-width: 0; font-size: 12px; color: var(--as-color-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-ra-take b { color: var(--as-color-accent); margin-right: 4px; }
+.as-ra-take button { flex: none; border: 0; border-radius: 8px; padding: 4px 9px; font-size: 12px; cursor: pointer; background: var(--as-color-surface-2); color: var(--as-color-text); }
+.as-ra-take.is-sel .is-use { background: var(--as-color-accent); color: var(--as-color-on-accent); }
+.as-ra-take .is-del { background: transparent; color: var(--as-color-text-2); }

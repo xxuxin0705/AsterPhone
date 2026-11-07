@@ -475,7 +475,7 @@ const audioOf = async res => {
 /** 用某个语音接口把一段文字变成声音，返回可以播放的地址 */
 /** 一次合成语音记成日志里的一条调用 */
 export async function synthesize(conn, text, opts = {}) {
-  if (opts.acted) ({ text, act: opts.act } = adapt(conn, text));   // 带 [语气] 标签的（电台）：换成这个接口认的写法，见 core/act.js
+  if (opts.acted) ({ text, act: opts.act } = adapt(conn, text, opts.t));   // 带 [语气] 标签的（电台）：换成这个接口认的写法，见 core/act.js
   const call = startCall({ app: '语音', what: '合成语音', src: conn.name, model: conn.model || '', req: text + (opts.voice || (conn.tts || {}).voice ? `\n\n（音色：${opts.voice || conn.tts.voice}）` : '') });
   opts.stop && opts.stop.addEventListener('abort', () => abortCall(call.id), { once: true });
   try { const u = await orAbort(synthRaw(conn, text, opts), call.signal); call.done('[一段声音]'); return u; }
@@ -496,8 +496,10 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
       return URL.createObjectURL(new Blob([hexToBytes(j.data.audio)], { type: 'audio/mpeg' }));
     }
     case 'fish': {   // 走 Fish 的 OpenAI 兼容地址：网页能直接连（/v1/tts 会被跨域拦，Tauri Tavern 又没有代理），旧小手机也是这样
-      const res = await xf(base.replace(/\/v1$/, '') + '/compat/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-        body: JSON.stringify({ model: 'fish-audio/' + String(conn.model || 's2.1-pro').replace(/^fish-audio\//, ''), input: text, voice: v || '', response_format: 'mp3', ...(speed !== 1 && { speed }) }) });
+      const send = temp => xf(base.replace(/\/v1$/, '') + '/compat/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model: 'fish-audio/' + String(conn.model || 's2.1-pro').replace(/^fish-audio\//, ''), input: text, voice: v || '', response_format: 'mp3', ...(speed !== 1 && { speed }), ...(temp && { temperature: temp }) }) });
+      let res = await send(act.temperature);
+      if (!res.ok && act.temperature) res = await send();   // 张力换成的温度这个地址不认：去掉再来一次
       if (!res.ok) await bad(res); return audioOf(res);
     }
     case 'elevenlabs': {
@@ -615,7 +617,7 @@ export async function speak(text, opts = {}) {
   say('start');
   try { return await speakRaw(text, opts); } finally { say('end'); }
 }
-async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted } = {}) {
+async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted, t } = {}) {
   if (!silent) stopSpeak();
   const play = async (url, c) => {
     if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));
@@ -626,13 +628,13 @@ async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache,
   const saved = cache && await kvGet(cache).catch(() => null);
   if (saved) { cache = null; return play(URL.createObjectURL(saved), conn); }
   if (conn) {
-    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice, stop, acted })), conn); }
+    try { return await play(await withRetry('tts', '语音', () => synthesize(conn, text, { voice, stop, acted, t })), conn); }
     catch (e) {
       if (stop && stop.aborted) return;   // 自己点了停：不换副 API、不用浏览器念
       log('warn', '语音', `「${conn.name}」朗读失败：` + (e.message === 'Failed to fetch' ? '连不上（可能是跨域限制）' : e.message));
       const bk = backupOf('tts');   // 语音线断了 → 先换副 API（用它自己的音色），再不行才用浏览器朗读
       if (bk && bk.id !== conn.id) try {
-        const r = await play(await synthesize(bk, text, { acted }), bk);
+        const r = await play(await synthesize(bk, text, { acted, t }), bk);
         log('warn', '语音', `改用副 API「${bk.name}」`);
         return r;
       } catch (e2) { log('warn', '语音', `副 API「${bk.name}」也失败了：${e2.message}`); }

@@ -7,9 +7,9 @@ import { state, win, commit, contact, kvGet, kvSet, kvDel, kvKeys, chatForContac
 import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem, busy } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
-import { generate, resolveConn } from '../../core/api.js';
+import { generate, resolveConn, synthesize } from '../../core/api.js';
 import { compose, myName } from '../../core/promptstore.js';
-import { speakAs, connFor, voiceOf } from '../../core/voice.js';
+import { speakAs, connFor, voiceOf, readAloud } from '../../core/voice.js';
 import { storyText, worldText } from '../../core/context.js';
 import { memoryFor } from '../../core/memory.js';
 import { log } from '../../core/log.js';
@@ -17,7 +17,7 @@ import { nameOf, personaOf } from '../chat/engine.js';
 import { isNight } from './rain.js';
 import { color, font, setFont } from './tglook.js';
 import { glass } from '../../core/glass.js';
-import { plain, PRESETS, groupsFor, kindOf, hintFor } from '../../core/act.js';
+import { plain, PRESETS, groupsFor, kindOf, hintFor, fitTags, profileOf, adapt, TENSIONS, PACES, PACE_SPEED, MM_EMOS } from '../../core/act.js';
 import { translate } from '../../core/translate.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
 import LIB from './radiolib.js';
@@ -154,7 +154,7 @@ const pend = new Map();
 async function voice(b, i) {
   const k = `radio:a:${b.id}:${b.lang}:${i}`, got = await kvGet(k).catch(() => null);
   if (got) return got;
-  if (!pend.has(k)) pend.set(k, speakAs(b.who, lines(b)[i].s || lines(b)[i].t, { silent: true, acted: true, cache: k, stop: (E.stop || (E.stop = new AbortController())).signal })
+  if (!pend.has(k)) pend.set(k, speakAs(b.who, lines(b)[i].s || lines(b)[i].t, { silent: true, acted: true, t: lines(b)[i].ten, cache: k, stop: (E.stop || (E.stop = new AbortController())).signal })
     .then(() => kvGet(k).catch(() => null)).finally(() => pend.delete(k)));
   return pend.get(k);
 }
@@ -179,7 +179,7 @@ async function playAt(i) {
   if (blob) try { buf = await ac.decodeAudioData(await blob.arrayBuffer()); } catch (e) { log('warn', '电台', '这段声音放不了：' + e.message); }
   if (run !== E.run) return;
   E.wait = false;
-  if (buf) { E.raw = buf; E.buf = stretch(buf, rate()); start(run); }
+  if (buf) { E.raw = buf; setBuf(); start(run); }
   else {
     if (!E.warned) { E.warned = true; toast('没合成出角色的声音，先用手机自带的声音念'); }
     say(run, lines(b)[i].t, b.lang);
@@ -203,13 +203,42 @@ function stretch(buf, r) {
   const b = ac.createBuffer(1, out.length, sr); b.copyToChannel(out, 0);
   return b;
 }
+// 实际放的：倍速 × 这一段自己调的语速；顺便量好「第几秒念到哪个字」
+function setBuf() { const seg = lines(E.book)[E.i]; E.buf = stretch(E.raw, rate() * (PACE_SPEED[seg.pace] || 1)); E.map = syncMap(E.buf, seg.t); }
 function setRate(r) {
   S().rate = r; commit('music');
   if (!E.raw || !E.buf) return;
   const k = (E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration, playing = !!E.src;
   if (playing) { E.src.onended = null; E.src.stop(); E.src = null; }
-  E.buf = stretch(E.raw, r); E.off = k * E.buf.duration;
+  setBuf(); E.off = k * E.buf.duration;
   if (playing) start(E.run);
+}
+// 念到哪个字：照声音里的停顿对。声音里静下来 0.12 秒以上的地方，对到字里最近的标点上（按字的读音长短估它大概在第几秒）；
+// 两个停顿之间按读音长短平分。汉字算长一点、假名 / 韩文一个音、字母很短，标点不占时间
+const W = ch => /[\u4e00-\u9fff]/.test(ch) ? 1.8 : /[\u3040-\u30ff\uac00-\ud7af]/.test(ch) ? 1 : /[a-z0-9]/i.test(ch) ? .35 : 0;
+const wlen = t => [...t].reduce((a, ch) => a + W(ch), 0);
+function syncMap(buf, text) {
+  const tot = wlen(text) || 1, bounds = [];
+  let acc = 0;
+  for (const ch of text) { acc += W(ch); if (/[、。，,！!？?…；;：:.]/.test(ch) && acc > 0 && acc < tot) bounds.push(acc / tot); }
+  const d = buf.getChannelData(0), sr = buf.sampleRate, hop = Math.round(sr * .02), n = Math.floor(d.length / hop), e = new Float32Array(n);
+  for (let f = 0; f < n; f++) { let q = 0; for (let i = f * hop; i < (f + 1) * hop; i += 4) q += d[i] * d[i]; e[f] = Math.sqrt(q * 4 / hop); }
+  const th = e.reduce((a, x) => Math.max(a, x), 0) * .06, T = f => f * hop / sr;
+  let a = 0, z = n - 1;
+  while (a < n && e[a] < th) a++;
+  while (z > a && e[z] < th) z--;
+  const gaps = [];
+  for (let f = a, st = -1; f <= z; f++) if (e[f] < th) { if (st < 0) st = f; } else { if (st >= 0 && f - st >= 6) gaps.push(T((st + f) / 2)); st = -1; }
+  const t0 = T(a), t1 = T(z + 1), pts = [[t0, 0]];
+  let used = -1;
+  for (const k of bounds) {
+    const guess = t0 + k * (t1 - t0);
+    let best = -1, bd = (t1 - t0) * .15;
+    gaps.forEach((g, i) => { if (i > used && Math.abs(g - guess) < bd) { bd = Math.abs(g - guess); best = i; } });
+    if (best >= 0) { pts.push([gaps[best], k]); used = best; }
+  }
+  pts.push([t1, 1]);
+  return t => { if (t <= t0) return 0; for (let i = 1; i < pts.length; i++) if (t <= pts[i][0]) { const [ta, ka] = pts[i - 1], [tb, kb] = pts[i]; return ka + (kb - ka) * (t - ta) / (tb - ta || 1); } return 1; };
 }
 function start(run) {
   const s = E.src = ac.createBufferSource();
@@ -294,7 +323,14 @@ async function pickTimer() {
 }
 
 /* ---------- 书店：背景、飘着的小东西、书架（一本书一个书脊）、柜台上的怀表和瓶子 ---------- */
-let scene = null, draws = 0;
+let scene = null, draws = 0, watching = false;
+const bgOf = () => `assets/radio/bg-${isNight() ? 'night' : 'day'}.webp`;
+// 手机换了白天 / 夜间：书店、读书页换图（先解码好再换，不闪）
+function watchMode() {
+  if (watching) return; watching = true;
+  new MutationObserver(() => { const src = bgOf(), im = new Image(), go = () => document.querySelectorAll('.is-rd-bg').forEach(el => el._bg(src)); im.src = src; im.decode().then(go, go); })
+    .observe(document.querySelector('.as-phone'), { attributes: true, attributeFilter: ['data-mode'] });
+}
 const FALL = [[1, 33, 9, 0, 26], [4, 64, 3.6, 7, 21], [2, 27, 5, 13, 24], [7, 60, 6.5, 4, 30], [5, 47, 3.4, 18, 23], [3, 40, 4.6, 10, 28]];   // 第几个小东西、横着在哪、多宽、错开几秒、落一次几秒
 const SPINES = [1, 2, 3, 4, 5, 6, 8];
 const hash = s => [...s].reduce((a, c) => a * 31 + c.charCodeAt(0) | 0, 7) >>> 0;
@@ -309,9 +345,11 @@ export async function renderRadio(ctx) {
     const b = h('button.as-rd__bottle', { 'aria-label': name, onclick: () => { noise(k, !live[k]); toast(live[k] ? name : `关掉${name}`); } }, h('img', { src: `assets/radio/bottle${i + 1}.webp`, alt: '' }));
     onLongPress(b, noiseSheet); return b;
   });
-  const room = h('div.as-rd__room', { style: { backgroundImage: `url(assets/radio/bg-${isNight() ? 'night' : 'day'}.webp)` } },
+  watchMode();
+  const room = h('div.as-rd__room.is-rd-bg', { style: { backgroundImage: `url(${bgOf()})` } },
     FALL.map(([n, x, w, t, s]) => h('img.as-rd__fall', { src: `assets/radio/prop${n}.webp`, alt: '', style: { left: x + '%', width: w + '%', animationDelay: -t + 's', animationDuration: s + 's' } })),
     watch, h('div.as-rd__bottles', bottles));
+  room._bg = src => { room.style.backgroundImage = `url(${src})`; };
   scene = h('section.as-rd', room, shelf);
   ctx.body.append(scene); ctx.right.append(navBtn('more', '设置', () => settings()));
 
@@ -441,10 +479,130 @@ function styleBub(el) {
   el.classList.toggle('is-line', !!o.line); el.classList.toggle('has-bg', !!o.bg); setFont(el, o.font).then(() => el._fit && el._fit());
 }
 
+/* ---------- 调这一段的语气：照正文朗读的「🎭 这句的演法」——一键演法 / 按类分页的标签（上面一排大标签切换）、张力、语速、
+   会发给语音接口的样子；「生成一版试听」可以反复生成、来回对比，保存时只留选中的那版（以后就放它，不再合成） ---------- */
+function actEditor(b, i, onSaved) {
+  const seg = lines(b)[i], conn = connFor(b.who), prof = profileOf(conn), k = prof.k, key = `radio:a:${b.id}:${b.lang}:${i}`;
+  const ta = h('textarea.as-ra-script', { rows: 3, spellcheck: false });
+  ta.value = seg.s || seg.t;
+  let t = seg.ten || 2, pace = seg.pace || 'normal', base = null, sel = null, chosen = null, dirty = false, takes = [], src = null;
+  const keepSel = () => { sel = [ta.selectionStart, ta.selectionEnd]; };
+  ['select', 'keyup', 'click', 'input', 'blur'].forEach(ev => ta.addEventListener(ev, keepSel));
+  ta.addEventListener('input', () => { base = null; dirty = true; prev(); });
+  const segRow = (label, list, get, set) => {
+    const box = h('div.as-ra-seg', list.map(([v, l]) => h('button', { dataset: { v }, onclick: () => { set(v); paintSeg(box, v); dirty = true; prev(); } }, l)));
+    paintSeg(box, get()); return h('div.as-ra-set', h('span', label), box);
+  };
+  const paintSeg = (box, v) => [...box.children].forEach(x => x.classList.toggle('is-on', x.dataset.v === String(v)));
+  const tRow = segRow('张力', TENSIONS, () => t, v => { t = +v; }), pRow = segRow('语速', PACES, () => pace, v => { pace = v; });
+  const pv = h('div.as-ra-prev');
+  const prev = () => { const a = adapt(conn || {}, readAloud(ta.value.trim() || seg.t), t); pv.replaceChildren(h('b', `会发给 ${conn ? conn.name : '（还没设语音接口）'}：`), a.text, Object.keys(a.act).length ? ` · 参数 ${JSON.stringify(a.act)}` : ''); };
+  // 正文开始的位置（跳过开头的标签）；在光标处插（没点过就插在开头）
+  const leadEnd = v => (v.match(/^\s*(?:\[[^\]\n]{1,40}\]\s*)*/) || [''])[0].length;
+  const isWord = c => /[\p{L}\p{N}]/u.test(c), SMALL = 'っッぁぃぅぇぉゃゅょゎァィゥェォャュョヮー';
+  const firstWord = v => { for (let j = leadEnd(v); j < v.length; j++) if (isWord(v[j]) && !SMALL.includes(v[j])) return j; return -1; };
+  function insert(v) {
+    const s0 = ta.value;
+    let [x, y] = sel || [null, null];
+    if (x == null) x = y = /^\[/.test(v) ? 0 : leadEnd(s0);
+    const add = /^\[/.test(v) && x > 0 && !/\s|\]/.test(s0[x - 1]) ? ` ${v} ` : /^\[/.test(v) ? `${v} ` : v;
+    ta.value = s0.slice(0, x) + add + s0.slice(y); sel = [x + add.length, x + add.length]; ta.focus(); ta.setSelectionRange(...sel);
+  }
+  function transform(kind) {
+    let v = ta.value;
+    const j = firstWord(v);
+    if (kind === 'stutter-first' && j >= 0) v = v.slice(0, j) + v[j] + '、' + v.slice(j);
+    if (kind === 'stutter-cursor') { let c = (sel || [v.length])[0] - 1; while (c >= 0 && !isWord(v[c])) c--; if (c >= 0) v = v.slice(0, c + 1) + '、' + v[c] + v.slice(c + 1); }
+    if (kind === 'drag-first' && j >= 0) v = v.slice(0, j + 1) + '……' + v.slice(j + 1);
+    if (kind === 'drag-tail') v = v.replace(/[。．.！!？?~～…]*\s*$/, '') + '~……';
+    if (kind === 'shatter') { const l = v.slice(0, leadEnd(v)); v = l + v.slice(l.length).replace(/[，,、]\s*/g, '……').replace(/(……){2,}/g, '……'); }
+    ta.value = v; sel = null;
+  }
+  // 整段生效的接口：情绪放开头；MiniMax 只认一个情绪，换掉原来的
+  function leadTag(v, group) {
+    let body = ta.value;
+    if (k !== 'sentence') body = body.replace(/\[([^\]\n]{1,40})\]\s*/g, (all, w) => MM_EMOS.has(w.trim().toLowerCase()) ? '' : all);
+    const lead = (body.match(/^\s*(?:\[[^\]\n]{1,40}\]\s*)*/) || [''])[0], tags = (lead.match(/\[[^\]]+\]/g) || []).filter(x => x !== v);
+    ta.value = `${[...(k === 'sentence' ? tags.slice(-1) : tags), v].join('')} ${body.slice(lead.length).trim()}`; sel = null;
+  }
+  function preset(p, btnEl) {
+    if (!base) base = ta.value.replace(/^\s*(?:\[[^\]\n]{1,40}\]\s*)*/, '').trim() || seg.t;   // 连着点几个一键演法都套在同一个底稿上
+    const tags = fitTags(p.tags, k).map(x => `[${x}]`).join('');
+    ta.value = `${tags}${tags ? ' ' : ''}${base}`;
+    if (p.stutter) { const j = firstWord(ta.value); if (j >= 0) ta.value = ta.value.slice(0, j) + ta.value[j] + '、' + ta.value.slice(j); }
+    if (p.tail) ta.value = ta.value.replace(/[。．.！!~～]*\s*$/, '') + p.tail;
+    if (p.pre) { const v = ta.value, at = leadEnd(v); ta.value = v.slice(0, at) + p.pre[/[぀-ヿ]/.test(seg.t) ? 1 : 0] + v.slice(at); }
+    t = p.t; pace = p.p; paintSeg(tRow.lastChild, t); paintSeg(pRow.lastChild, pace); sel = null;
+    btnEl.parentNode.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); btnEl.classList.add('is-sel');
+  }
+  // 上面一排大标签切换，下面只露出这一类
+  const groups = groupsFor(k, seg.t), panes = [['preset', '一键演法', PRESETS.map(p => h('button.is-preset', { onclick: e => { preset(p, e.currentTarget); dirty = true; prev(); } }, p.label))],
+    ...groups.map(g => [g.key, g.label, g.items.map(([l, v]) => h('button', { onclick: () => {
+      if (v.startsWith('@')) transform(v.slice(1)); else if (/^\[.*\]$/.test(v) && (k === 'mm' || k === 'mm28' || k === 'sentence') && (g.key === 'emo' || (k === 'sentence' && g.key === 'voice'))) leadTag(v); else insert(v);
+      dirty = true; prev();
+    } }, l))])].map(([id, label, items]) => ({ id, label, el: h('div.as-ra-chips', { hidden: id !== 'preset' }, items) }));
+  const tabs = h('div.as-ra-tabs', panes.map(x => h('button', { class: x.id === 'preset' ? 'is-on' : '', onclick: e => { [...tabs.children].forEach(y => y.classList.toggle('is-on', y === e.currentTarget)); panes.forEach(y => { y.el.hidden = y !== x; }); } }, x.label)));
+  // 试听对比：每生成一版记一版，能来回放、选一版
+  const stopPlay = () => { if (src) { src.onended = null; src.stop(); src = null; } };
+  async function playUrl(url, p) {
+    stopPlay(); pause(); actx();
+    const buf = stretch(await ac.decodeAudioData(await (await fetch(url)).arrayBuffer()), rate() * (PACE_SPEED[p] || 1));
+    src = ac.createBufferSource(); src.buffer = buf; src.connect(master); src.start();
+  }
+  const takesBox = h('div.as-ra-takes', { hidden: true });
+  function paintTakes() {
+    takesBox.hidden = !takes.some(Boolean);
+    const row = (key, label) => h('div.as-ra-take' + (chosen === key ? '.is-sel' : ''), h('button', { onclick: async () => {
+      if (key === 'orig') { const got = await kvGet(key0).catch(() => null); if (!got) return toast('原来那版还没合成过'); return playUrl(URL.createObjectURL(got), seg.pace); }
+      playUrl(takes[key].url, takes[key].pace);
+    } }, '▶'), h('span', label), h('button.is-use', { onclick: () => {
+      chosen = key; const x = key === 'orig' ? { script: seg.s || seg.t, t: seg.ten || 2, pace: seg.pace || 'normal' } : takes[key];
+      ta.value = x.script; t = x.t; pace = x.pace; paintSeg(tRow.lastChild, t); paintSeg(pRow.lastChild, pace); prev(); paintTakes();
+    } }, chosen === key ? '✓ 选中' : '用这版'), key === 'orig' ? null : h('button.is-del', { onclick: () => { URL.revokeObjectURL(takes[key].url); takes[key] = null; if (chosen === key) chosen = null; paintTakes(); } }, '✕'));
+    takesBox.replaceChildren(row('orig', h('span', h('b', '原来的'), '改之前的')), ...takes.map((x, j) => x && row(j, h('span', h('b', `#${j + 1}`), `张力 ${x.t} · ${(PACES.find(p => p[0] === x.pace) || [])[1]} · ${x.script}`))));
+  }
+  const key0 = key;
+  const gen = h('button.as-ra-play', { onclick: () => busy(gen, async stop => {
+    if (!conn) throw new Error('还没设语音接口');
+    const script = ta.value.trim() || seg.t;
+    const url = await synthesize(conn, readAloud(script), { voice: voiceOf(b.who, conn).voice, acted: true, t, stop });
+    if (stop.aborted) return;
+    takes.push({ script, t, pace, url }); chosen = takes.length - 1; dirty = true; paintTakes();
+    playUrl(url, pace);
+  }).then(() => { gen.textContent = takes.some(Boolean) ? '▶ 再生成一版' : '▶ 生成一版试听'; }, e => toast('没生成出来：' + e.message)) }, '▶ 生成一版试听');
+  const reset = h('button', { onclick: () => { ta.value = plain(ta.value) || seg.t; base = null; dirty = true; prev(); } }, '去掉标签');
+  let saved = false;
+  async function doSave() {
+    saved = true; stopPlay();
+    const v = ta.value.trim(), text = plain(v);
+    if (!text) return toast('还没有字');
+    const same0 = v === (seg.s || seg.t) && t === (seg.ten || 2);
+    Object.assign(seg, { t: text, s: v === text ? undefined : v, ten: t === 2 ? undefined : t, pace: pace === 'normal' ? undefined : pace });
+    const tk = typeof chosen === 'number' && takes[chosen];
+    if (tk && tk.script === v && tk.t === t) await kvSet(key, await (await fetch(tk.url)).blob()).catch(() => {});   // 选中的那版就是以后放的，不再合成
+    else if (!same0) await kvDel(key).catch(() => {});
+    if (E.book === b && E.i === i && !E.on) { E.raw = E.buf = null; E.off = 0; }
+    takes.forEach(x => x && URL.revokeObjectURL(x.url));
+    await save(); onSaved(); sh.close(); toast('存好了');
+  }
+  const sh = sheet({ title: '调这一段的语气', cls: 'as-ra', onClose: async () => {
+    stopPlay();
+    if (saved || !(dirty || takes.some(Boolean))) return takes.forEach(x => x && URL.revokeObjectURL(x.url));
+    if (await dialog({ title: '这次改的还没保存', text: '试听只留选中的那版', confirm: '保存', cancel: '不保存' })) return doSave();
+    takes.forEach(x => x && URL.revokeObjectURL(x.url));
+  }, content: h('div.as-ra-body',
+    h('div.as-ra-ch' + (k === 'plain' ? '.is-plain' : ''), h('b', '🔈 ' + prof.name), h('span', prof.note)),
+    h('div.as-ra-orig', '原文：' + seg.t), ta, tRow, pRow, pv, tabs, panes.map(x => x.el),
+    h('div.as-ra-acts', gen, reset), takesBox,
+    h('div.as-rd-imp__row', btn('取消', 'secondary', () => sh.close()), btn('保存', 'primary', doSave))) });
+  prev();
+}
+
 /* ---------- 读书：书摊开（左页这一段、右页下一段，都只放中文）；书下面像一起听，TA 的头像 + 气泡里是正在念的原文和翻译；按钮都在最底下 ---------- */
 function openBook(b) {
   if (E.book !== b) { stopStory(); E.book = b; E.i = Math.min(b.pos || 0, lines(b).length - 1); }
   const c = contact(b.who) || {};
+  let gls = null;   // 气泡的液态玻璃
   const more = async () => {
     const v = await actionSheet(b.title, [{ value: 'set', label: '设置' }, { value: 'timer', label: timer ? `定时关闭（还剩 ${Math.ceil((timer.end - Date.now()) / 6e4)} 分钟）` : '定时关闭' },
       b.after && { value: 'again', label: '重新说感想' }, { value: 'del', label: '删除', danger: true }].filter(Boolean));
@@ -472,8 +630,10 @@ function openBook(b) {
     const v = await pickTts();
     if (v) { S().tts = v; commit('music'); ttsB.textContent = TTS.find(x => x[0] === v)[1]; if (E.on) ahead(b, E.i); }
   } }, TTS.find(x => x[0] === S().tts)[1]);
-  const bg = `assets/radio/bg-${isNight() ? 'night' : 'day'}.webp`, shade = ['rgba(12,10,24,.6)', 'rgba(12,10,24,.78)'];
-  p.el.style.backgroundImage = `linear-gradient(${shade.join(', ')}), url(${bg})`;
+  const shade = ['rgba(12,10,24,.6)', 'rgba(12,10,24,.78)'];
+  p.el.classList.add('is-rd-bg');
+  p.el._bg = src => { p.el.style.backgroundImage = `linear-gradient(${shade.join(', ')}), url(${src})`; if (gls) { gls.dispose(); row.lastChild.querySelector('.as-glass-cv')?.remove(); gls = glass(row.lastChild, p.el, src, shade); } };
+  p.el._bg(bgOf());
   const book = h('div.as-rd-book', { 'data-no-swipe': '' }, h('img', { src: 'assets/radio/book.webp', alt: '' }), L, R);
   const say = h('div.as-rd-say', row);
   p.body.append(book, say,
@@ -481,33 +641,11 @@ function openBook(b) {
       h('div.as-rd-ctl', h('button', { 'aria-label': '上一段', onclick: () => go(E.i - 1) }, icon('prev', 24, 2)), playB, h('button', { 'aria-label': '下一段', onclick: () => go(E.i + 1) }, icon('next', 24, 2)))));
   // 气泡要一眼看全：放不下就把字一点点调小（最小 10px），不让它滚动
   row._fit = () => { const q = row.lastChild, room = say.clientHeight - parseFloat(getComputedStyle(say).paddingTop) - parseFloat(getComputedStyle(say).paddingBottom); let f = 15; q.style.fontSize = ''; while (row.offsetHeight > room && f > 10) q.style.fontSize = (f -= .5) + 'px'; gls && gls.refresh(); };
-  let gls = null;
   styleBub(row);
   row.addEventListener('animationend', () => gls && gls.refresh());
   new ResizeObserver(() => row._fit()).observe(say);   // 页面刚排好、屏幕大小变了时再量一次
   function toggle() { if (E.on || E.wait) pause(); else resume(); }
-  // 调这一段的语气（照正文朗读的 🎭）：一键套一组、或者在光标处插标签，也能改字；试听只合成不存，保存后这段下次重新合成
-  function actSheet(i) {
-    const seg = lines(b)[i], ta = textarea({ value: seg.s || seg.t, rows: 5 }), k = kindOf(connFor(b.who));   // 只给这个接口认的标签
-    const lead = v => v.replace(/^\s*(?:\[[^\]]+\]\s*)+/, '');
-    const put = v => { const at = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, at) + v + ta.value.slice(at); ta.focus(); };
-    const chips = (list, fn) => h('div.as-rd-chips', list.map(([label, v]) => h('button', { onclick: () => fn(v) }, label)));
-    const tryB = btn('试听', 'secondary', () => { pause(); busy(tryB, stop => speakAs(b.who, ta.value, { acted: true, stop })); });
-    const sh = sheet({ title: '调这一段的语气', content: h('div.as-rd-act', ta,
-      k === 'plain' ? null : [h('small', '一键'), chips(PRESETS, tags => { ta.value = tags.map(x => `[${x}]`).join('') + (tags.length ? ' ' : '') + lead(ta.value); })],
-      groupsFor(k).map(([name, list]) => [h('small', name), chips(list, x => put(`[${x}]`))]), tryB,
-      h('div.as-rd-imp__row', btn('取消', 'secondary', () => sh.close()), btn('保存', 'primary', async () => {
-        const v = ta.value.trim(), t = plain(v);
-        if (!t) return toast('还没有字');
-        if (v !== (seg.s || seg.t)) {
-          Object.assign(seg, { t, s: v === t ? undefined : v });
-          await kvDel(`radio:a:${b.id}:${b.lang}:${i}`).catch(() => {});
-          if (E.book === b && E.i === i && !E.on) { E.raw = E.buf = null; E.off = 0; }
-          await save(); shown = -1; tell();
-        }
-        sh.close(); toast('存好了');
-      }))) });
-  }
+  const actSheet = i => actEditor(b, i, () => { shown = -1; tell(); });
   function go(i) { i = clamp(i, 0, lines(b).length - 1); if (E.on || E.wait) playAt(i); else { E.run++; halt(); E.i = b.pos = i; E.buf = null; E.off = 0; tell(); } }
   const zh = s => s ? s.tr || s.t : '';
   const left = i => [i >= b.segs.length && i < lines(b).length ? h('small', '感想') : '', h('p', zh(lines(b)[i]))], right = i => [h('p.is-next', zh(lines(b)[i]))];
@@ -568,9 +706,9 @@ function openBook(b) {
   let chunks = [], ci = -1;
   function cut(s) {
     const o = sents(s.t).reduce((a, x) => { if (a.length && (a[a.length - 1] + x).length <= 60) a[a.length - 1] += x; else a.push(x); return a; }, []).map(x => x.trim());
-    const n = o.length, len = o.join('').length || 1, tr = o.map(() => '');
+    const n = o.length, len = wlen(o.join('')) || 1, tr = o.map(() => '');
     let at = 0;
-    chunks = o.map((t, i) => { const a = at / len; at += t.length; return { t, a, b: i === n - 1 ? 1 : at / len }; });
+    chunks = o.map((t, i) => { const a = at / len; at += wlen(t); return { t, a, b: i === n - 1 ? 1 : at / len }; });
     // 翻译切到逗号这么细（中文常一逗到底），每一小截按它在整段里的位置分给对应的块
     const ts = s.tr && (s.tr.match(/[^，,、；;。！？!?…]+[，,、；;。！？!?…」』”"]*\s*/g) || [s.tr]);
     if (s.tr) { let q = 0; const tl = s.tr.length; for (const x of ts) { const mid = (q + x.length / 2) / tl; q += x.length; tr[Math.max(0, chunks.findIndex(c => mid <= c.b))] += x; } }
@@ -579,7 +717,7 @@ function openBook(b) {
   // 念到这一段的哪儿了（0~1）；还在合成是 0，没在念就是 null
   const where = () => {
     if (E.book !== b) return null;
-    if (E.buf) return (E.src ? ac.currentTime - E.t0 : E.off) / E.buf.duration;
+    if (E.buf) return E.map(E.src ? ac.currentTime - E.t0 : E.off);
     if (E.spk) return E.spk.ci != null ? E.spk.ci / E.spk.n : (performance.now() - E.spk.at) / (E.spk.n * E.spk.per);
     return E.wait ? 0 : null;
   };
@@ -594,5 +732,5 @@ function openBook(b) {
     row.style.setProperty('--p', (k == null ? 100 : Math.min(100, Math.max(0, (k - c.a) / (c.b - c.a)) * 100)).toFixed(1) + '%');
   };
   const iv = setInterval(tick, 200);
-  nav.push(p.el); gls = glass(row.lastChild, p.el, bg, shade); subs.add(paint); paint(); tick();
+  nav.push(p.el); gls = glass(row.lastChild, p.el, bgOf(), shade); subs.add(paint); paint(); tick();
 }
