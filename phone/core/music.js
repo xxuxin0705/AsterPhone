@@ -320,7 +320,7 @@ async function load(autoplay, hush = true) {
 }
 /* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
  * 存得了的是网页读得到内容的：酒馆插件转的、JOOX 的；QQ / 酷我直连的网页读不了，本地酒馆让插件转一手（/pipe）再存，Tauri 存不了。
- * 存几首在音乐「更多 → 自动存歌」里选（M().keep，0 = 一直存），满了删最久没听的 ---------- */
+ * 存几首在音乐「更多 → 自动存歌」里选（M().keep，0 = 一直存，-1 = 不存），满了删最久没听的 ---------- */
 const CK = 'musong:';
 const ck = s => CK + (s.src || 'ne') + s.id;
 let cidx = null;   // [{ k, size, at }]，at = 上次听的时间
@@ -333,6 +333,7 @@ async function cached(s) {
 }
 /** 存一首：u 是地址（自己去下），或者已经拿到的文件内容（续接时顺手留的一份，不用再下一遍） */
 async function stash(s, u) {
+  if (M().keep === -1) return;   // 选了「不存」
   const k = ck(s); if ((await cacheIdx()).some(x => x.k === k)) return;
   let b;
   try { b = u instanceof Blob ? u : await fetch(ne && !u.startsWith(BE) ? `${BE}/pipe?url=${encodeURIComponent(u)}` : u).then(r => r.ok && /audio|mpeg|mp4|flac|ogg/.test(r.headers.get('content-type') || '') ? r.blob() : null); }

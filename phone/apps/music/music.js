@@ -484,7 +484,7 @@ async function openKeep() {
   const used = item({ title: '已存', value: '…' });
   const paint = async () => { const { n, size } = await P.cacheInfo(); used.querySelector('.as-list-item__value').textContent = `${n} 首 · ${fmt(size)}`; };
   const p = page({ app: 'music', id: 'music-keep', title: '自动存歌', back: true });
-  p.body.append(group('存几首', [h('div.as-field', segmented([[20, '20 首'], [50, '50 首'], [100, '100 首'], [0, '一直存']], M().keep ?? 50, v => { M().keep = v; commit('music'); }))]),
+  p.body.append(group('存几首', [h('div.as-field', segmented([[-1, '不存'], [20, '20 首'], [50, '50 首'], [100, '100 首'], [0, '一直存']], M().keep ?? 50, v => { M().keep = v; commit('music'); }))]),
     group('', [used, item({ title: '清空', danger: true, onClick: async () => { if (!(await dialog({ title: '清空存的歌？', text: '下次放要重新下载。', confirm: '清空', danger: true }))) return; await P.clearCache(); paint(); toast('已清空'); } })]));
   paint(); nav.push(p.el);
 }
