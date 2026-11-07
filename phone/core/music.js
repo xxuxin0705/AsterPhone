@@ -322,7 +322,12 @@ async function qqUrl(s) {
 }
 /** 一首歌的地址，按先后挨个试：登录了的号 → 洛雪音源 → 没登录的插件、公共音源。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
-  const lx = Object.assign(() => lxUrl(s, ne && (p => be('/fetch', p))), { bad: () => lxBad(s) });
+  const lx = Object.assign(async () => {   // 等久了提示一下在找，找完说结果
+    let shown = false; const t = setTimeout(() => { shown = true; tell('finding'); }, 1000);
+    const u = await lxUrl(s, ne && (p => be('/fetch', p)));
+    clearTimeout(t); if (shown && current() === s) tell(u ? 'found' : 'lost');
+    return u;
+  }, { bad: () => lxBad(s) });
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, lx, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, lx, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };

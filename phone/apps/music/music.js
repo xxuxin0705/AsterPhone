@@ -35,7 +35,7 @@ function marquee(el, text) {
 }
 const firstPic = L => ((L || []).find(s => s.pic) || {}).pic || '';
 const play = (list, i, from) => { P.playList(list, i, from); openPlayer(); };
-P.onMusic(w => { if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
+P.onMusic(w => { if (w === 'finding') toast('正在找整首…', true); if (w === 'found') toast('找到整首了'); if (w === 'lost') toast('没找到整首'); if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
 
 /* ================= 外壳：四个标签 ================= */
 const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['radio', '电台', renderRadio], ['me', '我的', renderMe]];
