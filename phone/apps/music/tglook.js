@@ -44,7 +44,7 @@ const aim = bubs => requestAnimationFrame(() => {
 });
 // 一项颜色：右边一个小圆点（没设是「默认」），点开是色轮 + 恢复默认
 const dot = v => v ? h('span.as-tgl__dot', { style: { background: v } }) : h('span', '默认');
-function color(title, get, set, save, alpha) {
+export function color(title, get, set, save, alpha) {
   const right = h('span', dot(get()));
   return item({ title, right, chevron: true, onClick: () => {
     const sh = sheet({ title, content: h('div.as-mu-color', colorWheel(get() || (alpha ? '#ffffff24' : '#ffffff'), v => { set(v); right.replaceChildren(dot(v)); save(); }, alpha),

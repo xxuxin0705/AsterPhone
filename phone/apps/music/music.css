@@ -319,10 +319,10 @@
 .as-ch.is-said { display: flex; animation: as-ch-in 350ms ease-out; }
 .as-ch.is-me { flex-direction: row-reverse; }
 .as-ch > .as-avatar { flex: none; }
-:is(.as-mp__lrc, .as-rd-say) .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
+.as-mp__lrc .as-ch p { max-width: 72%; margin: 0; padding: 8px 13px; text-align: left; font-size: 15px; border-radius: 16px 16px 16px 4px; background: var(--ch-bg, rgba(255,255,255,.14)); color: var(--ch-ink, rgba(var(--mp-ink),.62)); }
 .as-mp__lrc .as-ch.is-me p { border-radius: 16px 16px 4px 16px; }
-:is(.as-mp__lrc, .as-rd-say) .as-ch small { font-size: 12.5px; }
-:is(.as-mp__lrc, .as-rd-say) .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); }
+.as-mp__lrc .as-ch small { font-size: 12.5px; }
+.as-mp__lrc .as-ch.is-cur p { font-weight: 600; color: var(--ch-ink, rgb(var(--mp-ink))); background: var(--ch-bg, color-mix(in srgb, var(--ly, #7cc4ff) 28%, rgba(255,255,255,.1))); }
 .as-ch.is-cur p > span, .as-ch.is-cur small > span { background: linear-gradient(90deg, var(--ly, #7cc4ff) var(--p, 0%), var(--ch-ink, rgb(var(--mp-ink))) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @keyframes as-ch-in { from { opacity: 0; transform: translateY(12px) scale(.96); } }
 /* 碎语：唱片那块换成散开的字（翻译也散开、小一点），唱到哪个字亮哪个字 */
@@ -569,7 +569,8 @@
 /* 读书：书摊开，左页念的这段，右页翻译（没有就是下一段，淡一点） */
 .as-page[data-as-app="music"].as-rd-read { background: #1c2230 center bottom / cover no-repeat; }
 .as-rd-read .as-navbar__title { color: #fff; }
-.as-rd-read { --mp-ink: 255,255,255; }
+.as-rd-read { --rb-bg-0: #fff; --rb-ink-0: #1d1d1f; --rb-line-0: #fff; }
+.as-phone[data-mode="night"] .as-rd-read { --rb-bg-0: #1c1c1e; --rb-ink-0: #fff; --rb-line-0: #000; }
 .as-rd-read .as-page__body { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 2vh; overflow: hidden; }
 .as-rd-book { position: relative; width: calc(100% + 24px); margin: 0 -12px; filter: drop-shadow(0 18px 30px rgba(0,0,0,.45)); }
 .as-rd-book > img { display: block; width: 100%; }
@@ -581,7 +582,8 @@
 .as-rd-pg .is-next { opacity: .45; }
 .as-rd-read .is-turn { animation: as-rd-turn .5s ease; }
 /* 翻页：从书的图上裁下半边当这一页（左右两面），绕书脊转；页面范围是书图的 横 6%~94%、竖 3%~86% */
-.as-rd-book { perspective: 1600px; touch-action: none; }
+.as-rd-book, .as-rd-book * { touch-action: none; }   /* 书页能滚动，不全写 none 手机会把横着拖当成滚动、半路取消 */
+.as-rd-book { perspective: 1600px; }
 .as-rd-leaf { position: absolute; top: 3%; bottom: 14%; left: 50%; width: 44%; z-index: 2; transform-origin: left center; transform-style: preserve-3d; transition: transform .45s ease-in-out; }
 .as-rd-leaf.is-back { left: 6%; transform-origin: right center; }
 .as-rd-leaf > div { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; background: url(../../assets/radio/book.webp) no-repeat; background-size: 227.27% 120.48%; }
@@ -592,11 +594,16 @@
 .as-rd-leaf .is-l::after { background: linear-gradient(to left, rgba(60,40,20,.18), transparent 22%); }
 .as-rd-leaf .is-r .as-rd-pg { left: 17%; right: 9%; color: #6a5a46; } .as-rd-leaf .is-l .as-rd-pg { left: 13.6%; right: 9.1%; }
 .as-rd-say { flex: 1; min-height: 0; width: 100%; overflow-y: auto; scrollbar-width: none; padding: 18px 2px 8px; }
-.as-rd-say .as-ch p { max-width: 82%; }
-.as-rd-say .as-ch small { display: block; margin-top: 4px; }
+.as-rd-bub { display: flex; align-items: flex-end; gap: 8px; }
+.as-rd-bub > .as-avatar { flex: none; }
+.as-rd-bub p { max-width: 82%; margin: 0; padding: 9px 13px; border-radius: 16px 16px 16px 4px; background: var(--rb-bg, var(--rb-bg-0)); font-size: 15px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.as-rd-bub small { display: block; margin-top: 4px; font-size: 12.5px; }
+/* 念到哪，字就从淡变深到哪；描边是贴着字描一圈反色 */
+.as-rd-bub span { --ink: var(--rb-ink, var(--rb-ink-0)); background: linear-gradient(90deg, var(--ink) var(--p, 0%), color-mix(in srgb, var(--ink) 40%, transparent) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.as-rd-bub.is-line span { --l: var(--rb-line, var(--rb-line-0)); filter: drop-shadow(0 0 .6px var(--l)) drop-shadow(0 0 .6px var(--l)) drop-shadow(0 0 .6px var(--l)); }
 .as-rd-bottom { flex: none; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; }
 @keyframes as-rd-turn { from { opacity: 0; transform: translateX(10px); } }
-.as-rd-count { margin: 6px 0 12px; font: 500 13px/1 var(--font-ui); color: rgba(255,255,255,.65); }
+.as-rd-count { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; font: 500 13px/1 var(--font-ui); color: rgba(255,255,255,.65); }
 .as-rd-ctl { display: flex; align-items: center; gap: 34px; margin-top: 14px; }
 .as-rd-ctl button { border: 0; background: none; color: #fff; padding: 8px; cursor: pointer; display: grid; place-items: center; }
 .as-rd-ctl .as-rd-play { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,.92); color: #2a2238; }
@@ -611,3 +618,4 @@
 .as-rd-imp { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
 .as-rd-imp__row { display: flex; gap: 10px; }
 .as-rd-imp__row .as-btn { flex: 1; }
+.as-rd-lang { border: 1px solid rgba(255,255,255,.28); border-radius: 12px; padding: 4px 10px; background: rgba(255,255,255,.12); color: #fff; font: 500 12px/1 var(--font-ui); cursor: pointer; }
