@@ -113,10 +113,13 @@ export function colorWheel(hex, onChange, alpha) {
   const wrap = h('div.as-wheel__wrap', { 'data-no-swipe': '' }, cvs, knob);
   wrap.addEventListener('pointerdown', e => { e.preventDefault(); wrap.setPointerCapture(e.pointerId); pick(e); });
   wrap.addEventListener('pointermove', e => { if (wrap.hasPointerCapture(e.pointerId)) pick(e); });
-  const out = h('output', Math.round(va * 100) + '%');
+  const out = h('output', Math.round(va * 100) + '%'), sl = slider({ min: 0, max: 1, step: .01, value: va, onInput: v => { va = v; out.textContent = Math.round(v * 100) + '%'; place(); onChange(out2()); } });
   place();
+  // 常用色一排小圆点：纯白、纯黑在盘上很难点准（白要正好圆心，黑要亮度拉到 0），点一下直接选中，盘和亮度跟着跳过去
+  const swatches = h('div.as-wheel__swatches', ...['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'].map(c =>
+    h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { [hu, sa, va] = toHsv(c); sl.value = va; out.textContent = Math.round(va * 100) + '%'; place(); onChange(out2()); } })));
   const aOut = h('output', Math.round((1 - al) * 100) + '%');
-  return h('div.as-wheel', wrap, h('div.as-settings-slider-row', h('span', '亮度'), slider({ min: 0, max: 1, step: .01, value: va, onInput: v => { va = v; out.textContent = Math.round(v * 100) + '%'; place(); onChange(out2()); } }), out),
+  return h('div.as-wheel', swatches, wrap, h('div.as-settings-slider-row', h('span', '亮度'), sl, out),
     alpha ? h('div.as-settings-slider-row', h('span', '透明度'), slider({ min: 0, max: 1, step: .01, value: 1 - al, onInput: v => { al = 1 - v; aOut.textContent = Math.round(v * 100) + '%'; onChange(out2()); } }), aOut) : null);
 }
 /** 一根滑条两个圆点，拖出一个范围（回复 1–5 条）。是两根叠在一起的滑条，只有圆点能按 */
