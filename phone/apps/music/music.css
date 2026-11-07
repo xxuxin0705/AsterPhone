@@ -257,6 +257,7 @@
 .as-mp__ctrl { display: flex; align-items: center; justify-content: space-between; margin: 22px 18px 0; }
 .as-mp__ctrl button { border: 0; background: none; color: rgb(var(--mp-ink)); padding: 8px; cursor: pointer; display: grid; place-items: center; }
 .as-mp__ctrl button:nth-child(2) svg, .as-mp__ctrl button:nth-child(4) svg, .as-mp__play svg { fill: currentColor; }
+.as-mp__play { width: 50px; height: 50px; }   /* 换成转圈时不能变矮，不然下面整块跟着挪 */
 .as-mp__tools { display: flex; justify-content: space-around; margin: 22px 10px 0; }
 .as-mp__tools button { border: 0; background: none; color: rgba(var(--mp-ink),.6); padding: 8px; cursor: pointer; display: grid; }
 
