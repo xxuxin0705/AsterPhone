@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.185';
+export const VERSION = '0.8.186';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -147,6 +147,7 @@ function openInterludeApp() {
         const { SPLASH_LINES } = await import('../interlude/interlude.js'), off = a.lineOff || (a.lineOff = []);
         sheet({ title: '开屏语（轮着用）', content: group('', SPLASH_LINES.map((t, i) => toggleItem({ title: t }, !off.includes(i), on => { on ? off.splice(off.indexOf(i), 1) : off.push(i); commit('apps'); }))) });
       } }) : null,
+      field('对话语音', segmented([['tap', '点喇叭才念'], ['auto', '出来就念']], a.voice || 'tap', v => { a.voice = v; commit('apps'); })),
       item({ title: '大成功 / 大失败', value: a.crit === 'book' ? '规则书' : a.crit === '3' ? '1～3 / 98～100' : '1～5 / 96～100', chevron: true, onClick: async () => {
         const { CRITS } = await import('../interlude/rules.js');
         const r = await actionSheet('大成功 / 大失败', CRITS.map(([v, l]) => ({ value: v, label: l, active: a.crit === v })));

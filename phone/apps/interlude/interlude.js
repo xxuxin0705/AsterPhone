@@ -1,5 +1,5 @@
 // 幕间：和联系人一起开一局跑团（方案见 docs/pages-interlude.md）。整局不进正文、不进记忆。
-// 打开是一张斜着看下去的 2.5D 书桌（GPT 画的一张图，比屏幕宽，左右拖着看）；点桌上的东西镜头推过去、浮出玻璃标签：
+// 打开是一张斜着看下去的 2.5D 书桌（GPT 画的一张图，一屏放下，不拖）；点桌上的东西镜头推过去、浮出玻璃标签：
 // 椅子（谁上桌）、档案袋（选本）、调查员卡（车卡）、骰子盘（掷着玩）、台灯（开关灯）、旧地图（DND）、火漆信（剧本杀）。
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
 import { h, debounce } from '../../core/util.js';
@@ -13,6 +13,9 @@ import { log } from '../../core/log.js';
 import * as G from './game.js';
 import * as R from './rules.js';
 import { restDice, throwDice } from './dice.js';
+import { glass } from '../../core/glass.js';
+import { speakAs } from '../../core/voice.js';
+import { stopSpeak } from '../../core/api.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -59,26 +62,24 @@ export function open() {
   pick.party = pick.party.filter(id => contact(id)); paintSeats();
   const dice = h('div.as-int-traydice', { style: `left:${pct(470, IW)};top:${pct(770, IH)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
-  let W = 0, H = 0, ww = 0, pan = 0, zoom = null, drag = null;
+  // 一屏放下整张桌子（作者不要左右拖）：图铺满屏幕、贴着底，两边裁掉一点；靠边那两把椅子上的头像往里挪到看得见的地方
+  let W = 0, H = 0, ww = 0, wh = 0, ox = 0, oy = 0, zoom = null;
   const apply = (anim = true) => {
     world.style.transition = anim ? '' : 'none';
-    if (!zoom) { world.style.transform = `translate(${pan}px, 0) scale(1)`; return; }
-    const s = 1.75, cx = zoom[0] * ww / IW, cy = zoom[1] * H / IH;
-    const tx = Math.min(0, Math.max(W - ww * s, W / 2 - cx * s)), ty = Math.min(0, Math.max(H - H * s, H * .4 - cy * s));
+    if (!zoom) { world.style.transform = 'translate(0, 0) scale(1)'; return; }
+    const s = 1.75, cx = zoom[0] * ww / IW, cy = zoom[1] * wh / IH;
+    const tx = Math.min(-ox, Math.max(W - ox - ww * s, W / 2 - ox - cx * s)), ty = Math.min(-oy, Math.max(H - oy - wh * s, H * .4 - oy - cy * s));
     world.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
   };
-  const fit = () => { W = scene.clientWidth; H = scene.clientHeight; ww = H * IW / IH; world.style.width = ww + 'px'; world.style.height = H + 'px'; pan = Math.min(0, Math.max(W - ww, pan || (W - ww) / 2)); apply(false); };
+  const fit = () => {
+    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = Math.min(0, H - wh);
+    Object.assign(world.style, { width: ww + 'px', height: wh + 'px', left: ox + 'px', top: oy + 'px' });
+    const cut = -ox / k + 40; seats.forEach((el, i) => { el.style.left = pct(Math.min(IW - cut, Math.max(cut, CHAIRS[i][4])), IW); });
+    apply(false);
+  };
   new ResizeObserver(fit).observe(scene);
-  scene.addEventListener('pointerdown', e => { if (e.target.closest('.as-int-label')) return; drag = { x: e.clientX, p: pan, moved: false, id: e.pointerId }; });
-  scene.addEventListener('pointermove', e => {
-    if (!drag || drag.id !== e.pointerId || zoom) return;
-    const dx = e.clientX - drag.x; if (!drag.moved && Math.abs(dx) < 6) return;
-    if (!drag.moved) { drag.moved = true; scene.setPointerCapture(e.pointerId); }
-    pan = Math.min(0, Math.max(W - ww, drag.p + dx)); apply(false);
-  });
-  scene.addEventListener('pointerup', e => {
-    if (!drag || drag.id !== e.pointerId) return; const was = drag; drag = null;
-    if (was.moved || e.target.closest('.as-int-label')) return;
+  scene.addEventListener('click', e => {
+    if (e.target.closest('.as-int-label')) return;
     const hit = e.target.closest('.as-int-hot');
     if (!hit) { if (zoom) unzoom(); return; }
     focus(hit.dataset.k, hit);
@@ -87,8 +88,8 @@ export function open() {
   const label = h('div.as-int-label'); p.el.append(label);
   const unzoom = () => { zoom = null; apply(); label.classList.remove('is-open'); scene.classList.remove('is-zoomed'); };
   function focus(k, el) {
-    const r = el.getBoundingClientRect(), w = world.getBoundingClientRect(), sc = ww / w.width;
-    zoom = [((r.left + r.right) / 2 - w.left) * sc * IW / ww, ((r.top + r.bottom) / 2 - w.top) * sc * IH / H]; apply(); scene.classList.add('is-zoomed');
+    const r = el.getBoundingClientRect(), w = world.getBoundingClientRect();
+    zoom = [((r.left + r.right) / 2 - w.left) / w.width * IW, ((r.top + r.bottom) / 2 - w.top) / w.height * IH]; apply(); scene.classList.add('is-zoomed');
     const n = pick.party.length, sc0 = R.SCENARIOS.find(s => s.id === pick.scenario);
     const L = {
       chair: ['座位', n ? `上桌：${pick.party.map(id => nameOf(contact(id))).join('、')}` : '还没有人上桌', [['选谁上桌', choose]]],
@@ -382,8 +383,11 @@ const sceneSrc = k => BASE + 'scene-' + R.placeOf(k) + '.webp';
 function playPage(g) {
   const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play' });
   const bg = h('div.as-int-bg', h('img', { src: sceneSrc(g.place), alt: '' })); p.el.prepend(bg);
-  let shown = g.place;
-  const scene = k => { if (k === shown) return; shown = k; const n = new Image(); n.src = sceneSrc(k); n.decode().catch(() => {}).then(() => { n.classList.add('is-in'); bg.append(n); setTimeout(() => { bg.firstChild !== n && bg.firstChild.remove(); }, 900); }); };
+  p.el.style.backgroundPosition = 'center top';   // 给液态玻璃量背景用（和场景照片的铺法一样）
+  const SHADE = ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)'];
+  let shown = g.place, gls = null;
+  const scene = k => { if (k === shown) return; shown = k; const n = new Image(); n.src = sceneSrc(k); n.decode().catch(() => {}).then(() => { n.classList.add('is-in'); bg.append(n); setTimeout(() => { bg.firstChild !== n && bg.firstChild.remove(); }, 900);
+    gls.dispose(); box.querySelector('.as-glass-cv')?.remove(); gls = glass(box, p.el, n.src, SHADE); }); };
   // 顶上的状态：第几幕、第几回合、血、理智
   const hud = h('div.as-int-hud'), hudAct = h('span'), hudHp = h('span'), hudSan = h('span'), hudMad = h('span.is-mad');
   const push = btn('推进', 'secondary', () => send('（推进剧情）'));
@@ -391,12 +395,28 @@ function playPage(g) {
   const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; };
   // 人物牌 + 对话框
   const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', face, nameT);
-  const text = h('p'), more = h('span.as-int-box__more', '▸'), box = h('div.as-int-box', { onclick: () => next() }, text, more);
+  const text = h('p'), more = h('span.as-int-box__more', '▸');
+  // 念这一句：默认点喇叭才念，设置里能改成出来就念；再点一下停
+  const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(cur); } }, icon('volume', 18, 1.8));
+  const box = h('div.as-int-box', { onclick: () => next() }, text, voiceB, more);
+  let cur = null, vac = null;
+  const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
+  const vid = n => n === 'KP' ? 'kp' : n === myName() || n === g.pc.name ? 'me' : (g.party.find(x => x.name === n || nameOf(contact(x.id)) === n) || {}).id || 'kp';
+  async function voice(l) {
+    if (!l) return;
+    if (vac) { hush(); return; }
+    const ac = vac = new AbortController(); voiceB.classList.add('is-on');
+    try { await speakAs(vid(l.who), l.text, { stop: ac.signal, cache: `int:a:${g.id}:${g.log.indexOf(l)}` }); }
+    catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
+    if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
+  }
   const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, who, box, act);
   p.body.append(hud, stage);
   let queue = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
   const faceOf = n => { if (n === 'KP') return img('kp'); if (n === myName() || n === g.pc.name) return avatar(myAvatar(), myName(), 110, 'square'); const m = g.party.find(x => x.name === n || nameOf(contact(x.id)) === n), c = m && contact(m.id); return c ? avatar(c.avatar, nameOf(c), 110, 'square') : h('span.as-int-who__none', n.slice(0, 1)); };
-  const say = l => { if (nameT.textContent !== l.who) { nameT.textContent = l.who; face.replaceChildren(faceOf(l.who)); } text.textContent = l.text; };
+  const say = l => { hush(); cur = g.log.includes(l) ? l : null; voiceB.hidden = !cur;
+    if (nameT.textContent !== l.who) { nameT.textContent = l.who; face.replaceChildren(faceOf(l.who)); } text.textContent = l.text;
+    if (cur && state.apps.interlude.voice === 'auto') voice(cur); };
   function next() {
     if (G.running(g)) return;
     if (queue.length) { say(queue.shift()); more.hidden = !queue.length; act.hidden = !!queue.length; if (!queue.length) prompt(); return; }
@@ -441,6 +461,8 @@ function playPage(g) {
   }
   const ending = () => h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text), btn('回到桌上', 'primary', () => nav.pop()));
   paintHud();
+  gls = glass(box, p.el, sceneSrc(g.place), SHADE);
+  p.el._onLeave = () => { hush(); gls.dispose(); };
   if (G.running(g)) {   // 上次退出时 KP 还在想：接着等那一次
     act.hidden = false; act.append(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel))); say({ who: 'KP', text: '…' });
     inflight.then(lines => { scene(g.place); paintHud(); show(lines); }, () => prompt());
