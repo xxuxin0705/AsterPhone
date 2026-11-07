@@ -516,7 +516,7 @@ function put(c, g, value) {
     op(c, go);
   });
 }
-/** 这首快放完了：把下一首续在后面。下一首读不到（存的不是 mp3、地址网页读不了）就封口，放完走普通放法；不跳过它去续再下一首，播放列表的顺序不能乱 */
+/** 这首下完了：把下一首续在后面。下一首读不到（存的不是 mp3、地址网页读不了）就封口，放完走普通放法；不跳过它去续再下一首，播放列表的顺序不能乱 */
 async function chainNext(c) {
   c.nexting = true;
   const i = pick(M().idx, true), s = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
@@ -547,7 +547,7 @@ export function next(step = 1, auto = false) {
 export const prev = () => next(-1);
 export function seek(t) {
   if (!restored) return;
-  const at = (seg()?.start || 0) + t, b = chain && chain.sb.buffered;
+  const at = (seg()?.start || 0) + t, b = chain?.sb?.buffered;
   // 往回拖到已经清掉的地方（缓冲满时清了 30 秒以前的）：这首重新读，读好了跳过去
   if (b && b.length && at < b.start(0) - .5) { load(true); whenLoaded(() => seek(t)); return; }
   audio.currentTime = at;
@@ -588,8 +588,8 @@ audio.addEventListener('timeupdate', () => {
   }
   const c = chain, g = seg();
   if (c && g) {
-    // 还剩 40 秒：去把下一首续上（读文件要时间）
-    if (!c.nexting && g.end && g.end - audio.currentTime < 40) chainNext(c);
+    // 这首下完了就去把下一首续上（只提前一首）：不等「还剩 40 秒」，拖到结尾也来得及，声音不会断
+    if (!c.nexting && g.end) chainNext(c);
     // 放进了下一首：换歌名、歌词，把前一首的内容从这条声音里清掉（省内存）
     const nx = c.segs[c.segs.indexOf(g) + 1];
     if (nx && nx.start != null && audio.currentTime >= nx.start) {
