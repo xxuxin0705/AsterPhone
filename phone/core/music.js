@@ -315,7 +315,7 @@ async function load(autoplay, hush = true) {
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
   if (current() !== s || g !== gen) return;
   // 读得到内容的都续接（存在手机里的、本地酒馆插件转的、Tauri 里 JOOX 的）：后台才能一首接一首。读不到的（Tauri 里 QQ / 酷我）才直接把地址给播放器
-  if (CHAIN && (!f || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
+  if (CHAIN && (!f || mp3(f)) && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
 /* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
@@ -447,6 +447,7 @@ function warmNext() {
   warmT = setTimeout(async () => { for (const x of urlsOf(nx)) if (typeof x === 'function' ? await x() : x) return; }, 3000);
 }
 /** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
+const mp3 = f => !f.type || f.type === 'audio/mpeg';   // 类型是空的：以前续接时顺手存的，都是 mp3
 async function startChain(s, f, autoplay) {
   const ms = new MediaSource(), ac = new AbortController(), g = gen;
   const c = { ms, ac, segs: [], ops: [], nexting: false };
@@ -474,7 +475,7 @@ async function songBody(s, f, signal) {
     const r = await fetch(u.startsWith(BE) || !ne ? u : `${BE}/pipe?url=${encodeURIComponent(u)}`, { signal });
     if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) { log('info', '音乐', `《${s.name}》这个地址给的不是歌（${r.status} ${r.headers.get('content-type')}），换下一个`); continue; }   // Meting 碰到会员歌给的是网页
     const [a, b] = r.body.tee();
-    new Response(b).blob().then(blob => stash(s, blob), () => {});
+    new Response(b, { headers: { 'content-type': 'audio/mpeg' } }).blob().then(blob => stash(s, blob), () => {});   // 不带类型存下来的文件类型是空的，下次就不当 mp3 续接了
     return a;
   }
   throw new Error('没有链接');
@@ -524,7 +525,7 @@ function put(c, g, value) {
 /** 这首下完了：把下一首续在后面。下一首读不到（存的不是 mp3、地址网页读不了）就封口，放完走普通放法；不跳过它去续再下一首，播放列表的顺序不能乱 */
 async function chainNext(c) {
   const i = pick(M().idx, true), s = c.nexting = M().queue[i], f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
-  const body = (s.local && !f) || (f && f.type !== 'audio/mpeg') ? null : await songBody(s, f, c.ac.signal).catch(e => { log('warn', '音乐', `《${s.name}》接不上（${e.message}）：上一首放完要重新起步，在后台会停`); return null; });
+  const body = (s.local && !f) || (f && !mp3(f)) ? null : await songBody(s, f, c.ac.signal).catch(e => { log('warn', '音乐', `《${s.name}》接不上（${e.message}）：上一首放完要重新起步，在后台会停`); return null; });
   if (c !== chain || c.nexting !== s) return body && body.cancel();   // 换歌了 / 等的时候播放列表改了，这首不是下一首了
   if (body) return feed(c, i, s, body);
   op(c, () => { if (c.ms.readyState === 'open') c.ms.endOfStream(); });
