@@ -311,12 +311,35 @@ async function load(autoplay, hush = true) {
   if (autoplay && hush && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
-  const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
+  const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
   if (current() !== s || g !== gen) return;
-  if (CHAIN && (!s.local || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
+  if (CHAIN && (!f || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
+/* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
+ * 存得了的是网页读得到内容的：酒馆插件转的、JOOX 的；QQ / 酷我直连的网页读不了，本地酒馆让插件转一手（/pipe）再存，Tauri 存不了。最多 400 MB，满了删最久没听的 ---------- */
+const CACHE_MAX = 400 * 2 ** 20, CK = 'musong:';
+const ck = s => CK + (s.src || 'ne') + s.id;
+let cidx = null;   // [{ k, size, at }]，at = 上次听的时间
+const cacheIdx = async () => cidx || (cidx = (await kvGet(CK + 'idx').catch(() => null)) || []);
+async function cached(s) {
+  const i = (await cacheIdx()).find(x => x.k === ck(s)); if (!i) return null;
+  const f = await kvGet(i.k).catch(() => null);
+  if (f) { i.at = Date.now(); kvSet(CK + 'idx', cidx).catch(() => {}); }
+  return f;
+}
+async function stash(s, u) {
+  const k = ck(s); if ((await cacheIdx()).some(x => x.k === k)) return;
+  let b;
+  try { const r = await fetch(ne && !u.startsWith(BE) ? `${BE}/pipe?url=${encodeURIComponent(u)}` : u); if (!r.ok || !/audio|mpeg|mp4|flac|ogg/.test(r.headers.get('content-type') || '')) return; b = await r.blob(); }
+  catch { return; }   // 读不了内容（跨域）就算了
+  if (cidx.some(x => x.k === k)) return;
+  let total = b.size + cidx.reduce((a, x) => a + x.size, 0);
+  while (total > CACHE_MAX && cidx.length) { const old = cidx.sort((a, c) => a.at - c.at).shift(); await kvDel(old.k).catch(() => {}); total -= old.size; }
+  await kvSet(k, b); cidx.push({ k, size: b.size, at: Date.now() }); await kvSet(CK + 'idx', cidx);
+}
+const forget = async s => { const k = ck(s); cidx = (await cacheIdx()).filter(x => x.k !== k); await kvDel(k).catch(() => {}); await kvSet(CK + 'idx', cidx); };
 /** QQ 的播放链接：先要默认音质，不给（高音质要会员）就退到标准音质；拿到的记几分钟（续接和普通放法会接连要两次） */
 const qurls = new Map();
 async function qqUrl(s) {
@@ -363,7 +386,8 @@ const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.the
 /** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问；不行再酷我低一档、JOOX）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
   const lz = (f, ...keys) => Object.assign(f, { bad: () => keys.forEach(k => full.delete(k)) });   // 记住的链接放不出来就作废，下回重新问
-  const pub = [lz(() => first([qqFull(s), kuwoFull(s, 0)]), 'q' + s.id, 'k0' + s.src + s.id), lz(() => kuwoFull(s, 2), 'k2' + s.src + s.id), lz(() => jooxFull(s), 'j' + s.src + s.id)];
+  const qk = lz(() => first([qqFull(s), kuwoFull(s, 0)]), 'q' + s.id, 'k0' + s.src + s.id), k2 = lz(() => kuwoFull(s, 2), 'k2' + s.src + s.id), jx = lz(() => jooxFull(s), 'j' + s.src + s.id);
+  const pub = ne ? [qk, k2, jx] : [jx, qk, k2];   // Tauri 里 JOOX 排第一：只有它的文件存得下来（开着 VPN 也快）
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
@@ -379,6 +403,7 @@ async function plain(s, f, autoplay, twin) {
     log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(1, true); else fails = 0;
   };
   const tryUrl = async i => {
+    if (i >= urls.length && f && !s.local) { forget(s); return plain(s, null, autoplay); }   // 存的文件放不出来：删了，重新问
     if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s || g !== gen) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
     const x = urls[i], u = typeof x === 'function' ? await x() : x;
     if (current() !== s || g !== gen) return;
@@ -387,6 +412,7 @@ async function plain(s, f, autoplay, twin) {
     audio.src = u;
     if (autoplay) audio.play().catch(blocked);
     warmNext();
+    if (!f) setTimeout(() => { if (current() === s && g === gen) stash(s, u); }, 5000);   // 放起来 5 秒后再存，别跟播放抢网
   };
   tryUrl(0);
 }
@@ -422,6 +448,7 @@ async function songBody(s, f, signal) {
     if (typeof u !== 'string' || !u.startsWith(BE)) continue;
     const r = await fetch(u, { signal });
     if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) continue;
+    setTimeout(() => { if (current() === s) stash(s, u); }, 5000);
     return r.body;
   }
   throw new Error('没有链接');

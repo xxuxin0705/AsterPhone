@@ -225,6 +225,12 @@ async function init(router) {
     return { mv: ((id ? L[0] : L.find(x => x.name === name && x.mv)) || {}).mv || 0 };
   }));
   router.get('/mv/url', wrap(async req => ({ url: https(((await api('mv_url', { id: req.query.id })).data || {}).url) })));
+  // 把歌曲文件转一手给前端存起来（QQ / 酷我直连的地址网页读不了内容）；只转音乐站的
+  router.get('/pipe', async (req, res) => {
+    const u = String(req.query.url || '');
+    if (!/^https?:\/\/[^/]*\.(kuwo\.cn|qqmusic\.qq\.com|joox\.com|music\.126\.net)\//i.test(u)) return res.status(400).json({ error: '不是音乐站的地址' });
+    try { await pipe(res, req, u); } catch (e) { if (!res.headersSent) res.status(502).json({ error: e.message }); else res.end(); }
+  });
   router.get('/bili/audio', biliPipe(true));
   router.get('/bili/mv', biliPipe(false));
   router.get('/comments', wrap(async req => api('comment_hot', { id: req.query.id, type: 0, limit: 20 })));
