@@ -82,7 +82,8 @@ function paint() {
     isl.name.textContent = card.name.textContent = s.name; isl.artist.textContent = card.artist.textContent = s.artist;
   }
   card.heart.classList.toggle('is-on', P.liked(s));
-  if (card.play.dataset.on !== String(on)) { card.play.dataset.on = on; isl.play.replaceChildren(icon(on ? 'pause' : 'play', 24, 2.4)); card.play.replaceChildren(icon(on ? 'pause' : 'play', 30, 2.4)); }
+  const st = P.loading() ? 'load' : String(on), ic = sz => P.loading() ? h('span.as-spin') : icon(on ? 'pause' : 'play', sz, 2.4);
+  if (card.play.dataset.on !== st) { card.play.dataset.on = st; isl.play.replaceChildren(ic(24)); card.play.replaceChildren(ic(30)); }
   time();
 }
 // 进度：只在看得见的时候改（锁着看卡片、灵动岛展开着）

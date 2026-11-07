@@ -298,14 +298,20 @@ function enter(s) {
 // 一点就先放一段没声音的：手机浏览器只认「点完马上放」，问音源要等几秒，等到了再放就被拦（要再点一下播放键）。先放过一次，之后换真的就不拦了
 const HUSH = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 const whenLoaded = f => audio.addEventListener('loadedmetadata', function go() { if (audio.src === HUSH) return; audio.removeEventListener('loadedmetadata', go); f(); });
+/** 还在问链接（播放键转圈）：占位的那段还挂在上面就是 */
+export const loading = () => audio.src === HUSH;
+let gen = 0;   // 每次 load 加一：加载中点了取消、换了歌，之前还在问的那条线就不往下走了
+// 清掉声音上挂着的东西（取消加载、全放不出来时），不触发 onerror
+const unload = () => { audio.onerror = null; audio.removeAttribute('src'); audio.load(); };
 async function load(autoplay) {
   const s = current(); if (!s) return;
-  if (autoplay && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); }
+  const g = ++gen;
+  if (autoplay && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : null;
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
-  if (current() !== s) return;
+  if (current() !== s || g !== gen) return;
   if (CHAIN && (!s.local || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
@@ -340,25 +346,29 @@ const kuwoFull = s => remember('k' + s.src + s.id, '酷我', s, async () => {
   if (i < 0) return '';
   return https((((await get(q(PUB.kuwo, { msg: word, n: i + 1, br: 0 }), 'json')).data || {}).url) || '');
 });
-/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源 → 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
+// 几个一起问，谁先给出链接用谁；都没有才是空
+const first = ps => new Promise(ok => { let n = ps.length; ps.forEach(p => p.then(u => { if (u) ok(u); else if (!--n) ok(''); })); });
+/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源（QQ、酷我一起问）→ 没登录的插件、vkeys / Meting。要现问的放成函数，轮到才问 */
 const urlsOf = s => {
-  const pub = [() => qqFull(s), () => kuwoFull(s)];
-  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
-    : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
+  const pub = () => first([qqFull(s), kuwoFull(s)]);
+  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, pub, () => qqUrl(s)].filter(Boolean)
+    : [ne && ne.me && `${BE}/audio?id=${s.id}`, pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
   const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
   if (current() !== s) return;
+  const g = gen;
   const fail = () => {
     const tr = !f && isQ(s) && (qurls.get(s.id) || {}).trial;
     if (tr && audio.src !== tr) { log('warn', '音乐', `《${s.name}》是会员歌，两边都只拿到 1 分钟试听`); audio.onerror = () => { audio.onerror = null; fail(); }; audio.src = tr; if (autoplay) audio.play().catch(blocked); return; }
+    unload();
     log('error', '音乐', `《${s.name}》放不出来（可能是会员歌曲，或者音源挂了）`); tell('error'); if (++fails < Math.min(5, M().queue.length)) next(); else fails = 0;
   };
   const tryUrl = async i => {
-    if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
+    if (i >= urls.length) return (!f && twin === undefined) ? twinOf(s).then(t => { if (current() !== s || g !== gen) return; if (t) log('warn', '音乐', `《${s.name}》这边放不了，换${isQ(t) ? ' QQ' : '网易云'}的放`); plain(s, f, autoplay, t); }) : fail();
     const x = urls[i], u = typeof x === 'function' ? await x() : x;
-    if (current() !== s) return;
+    if (current() !== s || g !== gen) return;
     if (!u) return tryUrl(i + 1);
     audio.onerror = () => tryUrl(i + 1);
     audio.src = u;
@@ -368,10 +378,11 @@ async function plain(s, f, autoplay, twin) {
 }
 /** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
 async function startChain(s, f, autoplay) {
-  const ms = new MediaSource(), ac = new AbortController();
+  const ms = new MediaSource(), ac = new AbortController(), g = gen;
   const c = { ms, ac, segs: [], ops: [], nexting: false };
   const body = await songBody(s, f, ac.signal).catch(() => null);
-  if (!body || current() !== s) return false;
+  if (current() !== s || g !== gen) return true;   // 取消了 / 换歌了：普通放法也别再跑
+  if (!body) return false;
   chain = c; audio.onerror = null;
   audio.src = URL.createObjectURL(ms);
   await new Promise(r => ms.addEventListener('sourceopen', r, { once: true }));
@@ -455,7 +466,9 @@ function pick(i, auto) {
 
 export function toggle() {
   if (!current()) return;
+  if (loading()) { gen++; unload(); tell('state'); return; }   // 还在问链接：再点一下就不等了
   if (!restored) { const pos = M().pos || 0; load(true); whenLoaded(() => seek(pos)); return; }   // 刚打开手机：接着上次的地方
+  if (!audio.src) return load(true);   // 刚才取消了：再点重新问
   audio.paused ? audio.play().catch(() => tell('blocked')) : audio.pause();
 }
 export function next(step = 1) {

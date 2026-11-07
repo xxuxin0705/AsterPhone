@@ -70,7 +70,7 @@ function miniBar() {
   const paint = () => {
     const s = P.current(); el.hidden = !s; if (!s) return;
     c.style.backgroundImage = bgUrl(s.pic); c.classList.toggle('is-playing', P.playing());
-    t.textContent = s.name; a.textContent = ' - ' + s.artist; btn.replaceChildren(icon(P.playing() ? 'pause' : 'play', 13, 2.4));
+    t.textContent = s.name; a.textContent = ' - ' + s.artist; btn.replaceChildren(P.loading() ? h('span.as-spin', { style: 'transform:scale(.8)' }) : icon(P.playing() ? 'pause' : 'play', 13, 2.4));
   };
   paint();
   return { el, paint };
@@ -991,7 +991,7 @@ export function openPlayer() {
     lrc.replaceChildren(...(L.length ? lines : [h('p.is-none', s.local ? '本地的歌没有歌词' : '纯音乐，或者没找到歌词')]));
     li = -2; tick();
   };
-  const paintState = () => { const on = P.playing(); playBtn.replaceChildren(icon(on ? 'pause' : 'play', 34, 2.6)); disc.classList.toggle('is-playing', on); arm.classList.toggle('is-up', !on); loop(); };
+  const paintState = () => { const on = P.playing(); playBtn.replaceChildren(P.loading() ? h('span.as-spin', { style: 'transform:scale(1.8)' }) : icon(on ? 'pause' : 'play', 34, 2.6)); disc.classList.toggle('is-playing', on); arm.classList.toggle('is-up', !on); loop(); };
   // 歌词：唱到哪一句、这一句唱了几成（有逐字时间以前，按这句的长短估一个，从左往右亮起来）
   let li = -2, raf = 0;
   function tick() {
