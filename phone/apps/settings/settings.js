@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.183';
+export const VERSION = '0.8.184';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -138,10 +138,14 @@ function openInterludeApp() {
       if (r) { a.conn.text = r; commit('apps'); re(); }
     } })]), group('', [
       toggleItem({ title: '打开时放开屏' }, a.splash, v => { a.splash = v; commit('apps'); re(); }),
-      a.splash ? item({ title: '开屏字体', value: a.font && a.font !== 'random' ? a.font.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') : '每次随机', chevron: true, onClick: async () => {
+      a.splash ? item({ title: '开屏字体', value: a.font && a.font !== 'random' ? { xdks: '玄冬楷书', qtbf: '千图笔锋手写体' }[a.font] || '每次随机' : '每次随机', chevron: true, onClick: async () => {
         const { SPLASH_FONTS } = await import('../interlude/interlude.js');
         const r = await actionSheet('开屏字体', [{ value: 'random', label: '每次随机', active: !a.font || a.font === 'random' }, ...SPLASH_FONTS.map(([k, n]) => ({ value: k, label: n, active: a.font === k }))]);
         if (r) { a.font = r; commit('apps'); re(); }
+      } }) : null,
+      a.splash ? item({ title: '开屏语', value: '轮着用', chevron: true, onClick: async () => {
+        const { SPLASH_LINES } = await import('../interlude/interlude.js'), off = a.lineOff || (a.lineOff = []);
+        sheet({ title: '开屏语（轮着用）', content: group('', SPLASH_LINES.map((t, i) => toggleItem({ title: t }, !off.includes(i), on => { on ? off.splice(off.indexOf(i), 1) : off.push(i); commit('apps'); }))) });
       } }) : null,
       item({ title: '大成功 / 大失败', value: a.crit === 'book' ? '规则书' : a.crit === '3' ? '1～3 / 98～100' : '1～5 / 96～100', chevron: true, onClick: async () => {
         const { CRITS } = await import('../interlude/rules.js');

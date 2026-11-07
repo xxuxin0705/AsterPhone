@@ -3,7 +3,7 @@
 // 椅子（谁上桌）、档案袋（选本）、调查员卡（车卡）、骰子盘（掷着玩）、台灯（开关灯）、旧地图（DND）、火漆信（剧本杀）。
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
 import { h, debounce } from '../../core/util.js';
-import { state, contact } from '../../core/store.js';
+import { state, contact, commit } from '../../core/store.js';
 import { page, navBtn, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
@@ -12,7 +12,7 @@ import { pickMany } from '../chat/people.js';
 import { log } from '../../core/log.js';
 import * as G from './game.js';
 import * as R from './rules.js';
-import { restDice, throwDice, facesReady } from './dice.js';
+import { restDice, throwDice } from './dice.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -118,36 +118,44 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 开屏：羊皮卷展开 → 羽毛笔写下深蓝鎏金的花体字 → 火漆盖章 → 整张纸烧起来、灰随风散掉 ---------- */
-export const SPLASH_FONTS = [['great-vibes', 'Great Vibes'], ['pinyon-script', 'Pinyon Script'], ['monsieur-la-doulaise', 'Monsieur La Doulaise'], ['ballet', 'Ballet'],
-  ['sevillana', 'Sevillana'], ['marck-script', 'Marck Script'], ['mountains-of-christmas', 'Mountains of Christmas'], ['leckerli-one', 'Leckerli One']];
-const CN = '"Noto Serif SC", "Songti SC", STSong, serif';
+/* ---------- 开屏：羊皮卷展开 → 羽毛笔写下深蓝鎏金的楷书 → 火漆盖章 → 整张纸烧起来、灰随风散掉 ---------- */
+// 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
+export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
+export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
+  '龙在睡觉。别在这时候数你的金币。', '灯灭之后，请各位保持原来的表情。', '读到这里，还来得及合上。——算了，你已经坐下了。'];
 const loadImg = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 async function splash(host) {
-  const pickF = state.apps.interlude.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
-  const cv = h('canvas'), fx = h('canvas'), el = h('div.as-int-splash', cv, fx, h('button.as-int-splash__skip', { onclick: () => done() }, '跳过'));
+  const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
+  const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
+  const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
+  const cv = h('canvas'), fx = h('canvas'), el = h('div.as-int-splash', img('splash-bg'), cv, fx, h('button.as-int-splash__skip', { onclick: () => done() }, '跳过'));
   host.append(el);
   let dead = false, raf = 0;
   function done() { if (dead) return; dead = true; cancelAnimationFrame(raf); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
   const face = new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`);
   const [paper, quill, seal] = await Promise.all([loadImg(BASE + 'scroll.webp'), loadImg(BASE + 'quill.webp'), loadImg(BASE + 'seal.webp'), face.load().then(x => document.fonts.add(x)).catch(() => {})]);
   if (dead || !paper) { done(); return; }
-  const dpr = Math.min(2, devicePixelRatio || 1), W = el.clientWidth, H = el.clientHeight, pw = Math.min(W * .86, H * .62 * paper.width / paper.height), ph = pw * paper.height / paper.width;
+  const dpr = Math.min(2, devicePixelRatio || 1), W = el.clientWidth, H = el.clientHeight, pw = Math.min(W * .84, H * .6 * paper.width / paper.height), ph = pw * paper.height / paper.width;
   const px = (W - pw) / 2, py = (H - ph) / 2;
   for (const c of [cv, fx]) { c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px'; }
   const x = cv.getContext('2d'), y = fx.getContext('2d'); x.scale(dpr, dpr); y.scale(dpr, dpr);
-  const no = 1000 + Math.floor(Math.random() * 9000);
-  const lines = [[`Case No. ${no}`, 'AsterSplash', pw * .075, .24], ['Intermission', 'AsterSplash', pw * .17, .38], ['What follows', 'AsterSplash', pw * .085, .52], ['shall not be remembered.', 'AsterSplash', pw * .085, .6],
-    ['正文暂停 · 以下的一切不计入记忆', 'serif', pw * .045, .7]];
+  const FONT = '"AsterSplash", "Noto Serif SC", serif', size = pw * .092;
+  // 句子按纸的宽度折行，每行居中；落款靠右
+  x.font = `${size}px ${FONT}`;
+  const rows = []; let cur = '';
+  for (const ch of line) { if (x.measureText(cur + ch).width > pw * .74 && cur && !'。，、；：？！—」'.includes(ch)) { rows.push(cur); cur = ''; } cur += ch; }   // 标点不开头
+  if (cur) rows.push(cur);
+  const top = .5 - (rows.length - 1) * .08;
+  const lines = [...rows.map((t, i) => [t, size, top + i * .16, 0]), ['——致调查员', size * .7, top + rows.length * .16 + .04, 1]];
   const gold = (y0, y1) => { const g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, '#f6e3a1'); g.addColorStop(.5, '#c9973c'); g.addColorStop(1, '#8a6224'); return g; };
-  const fontOf = (font, size) => `${size}px ${font === 'serif' ? CN : '"AsterSplash", serif'}`;
+  const xOf = (t, sz, right) => right ? px + pw * .86 - x.measureText(t).width : W / 2 - x.measureText(t).width / 2;   // 左边
   // 深蓝的字、鎏金的边：先描一圈金，再把字填上
-  const text = (t, font, size, ry) => { x.font = fontOf(font, size); x.textAlign = 'center'; x.textBaseline = 'middle';
-    const cy = py + ph * ry; x.lineJoin = 'round'; x.lineWidth = Math.max(1.6, size * .07); x.strokeStyle = gold(cy - size / 2, cy + size / 2); x.strokeText(t, W / 2, cy); x.fillStyle = '#16244a'; x.fillText(t, W / 2, cy); };
+  const text = (t, sz, ry, right) => { x.font = `${sz}px ${FONT}`; x.textAlign = 'left'; x.textBaseline = 'middle';
+    const cy = py + ph * ry, lx = xOf(t, sz, right); x.lineJoin = 'round'; x.lineWidth = Math.max(1.6, sz * .075); x.strokeStyle = gold(cy - sz / 2, cy + sz / 2); x.strokeText(t, lx, cy); x.fillStyle = '#16244a'; x.fillText(t, lx, cy); };
   // 一步步：展开 0.8s → 每行按长短写 → 盖章 → 烧
-  const T0 = performance.now(), unroll = 800, perChar = 55, gap = 220;
+  const T0 = performance.now(), unroll = 800, perChar = 110, gap = 260;
   const plan = []; let t = unroll + 200; for (const l of lines) { const d = Math.max(500, l[0].length * perChar); plan.push([t, d]); t += d + gap; }
-  const stampAt = t + 100, burnAt = stampAt + 900, burnLen = 2200, end = burnAt + burnLen + 300;
+  const stampAt = t + 100, burnAt = stampAt + 1100, burnLen = 2200, end = burnAt + burnLen + 300;
   let snap = null, noise = null, ash = [], stamped = false;
   // 纸烧起来：先把写好字、盖好章的这张纸拍成一张图，再按「噪声 + 离左下角多远」算每个点什么时候烧到
   const prep = () => {
@@ -188,16 +196,15 @@ async function splash(host) {
       lines.forEach((l, i) => {
         const [t0, d] = plan[i]; if (ms < t0) return;
         const k = Math.min(1, (ms - t0) / d);
-        x.save(); x.font = fontOf(l[1], l[2]); const m = x.measureText(l[0]).width; x.restore();
-        const left = W / 2 - m / 2 - 8, right = left + (m + 16) * k;
-        x.save(); x.beginPath(); x.rect(left, py + ph * l[3] - l[2], right - left, l[2] * 2); x.clip(); text(...l); x.restore();
-        if (k < 1) pen = [right, py + ph * l[3]];
+        x.font = `${l[1]}px ${FONT}`; const m = x.measureText(l[0]).width, left = xOf(l[0], l[1], l[3]) - 6, right = left + (m + 12) * k;
+        x.save(); x.beginPath(); x.rect(left, py + ph * l[2] - l[1], right - left, l[1] * 2); x.clip(); text(...l); x.restore();
+        if (k < 1) pen = [right, py + ph * l[2]];
       });
       if (ms > stampAt && seal) {
         if (!stamped) { stamped = true; thud(); }
-        const k = Math.min(1, (ms - stampAt) / 180), sz = pw * .26 * (1 + (1 - k) * 1.4), sxp = px + pw * .74, syp = py + ph * .83;
+        const k = Math.min(1, (ms - stampAt) / 180), sz = pw * .26 * (1 + (1 - k) * 1.4), sxp = px + pw * .24, syp = py + ph * .8;
         x.globalAlpha = k; x.save(); x.translate(sxp, syp); x.rotate(-.2); x.drawImage(seal, -sz / 2, -sz / 2, sz, sz * seal.height / seal.width);
-        x.font = `${sz * .2}px ${CN}`; x.fillStyle = '#f3dcc7'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('幕间', 0, 0); x.restore(); x.globalAlpha = 1;
+        x.font = `${sz * .2}px ${FONT}`; x.fillStyle = '#f3dcc7'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('幕间', 0, 0); x.restore(); x.globalAlpha = 1;
       }
       x.restore();
       y.clearRect(0, 0, W, H);
@@ -239,14 +246,14 @@ function scenarioSheet(done) {
 
 /* ---------- 调查员卡：上面一排头像切换，下面是这个人的卡（羊皮纸）；没卡的人一起让 AI 车 ---------- */
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
-const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size) : avatar(contact(o).avatar, nameOf(contact(o)), size);
+const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size, size > 60 ? 'square' : 'round') : avatar(contact(o).avatar, nameOf(contact(o)), size, size > 60 ? 'square' : 'round');
 function cardPage(back) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
   let sel = 'me';
   const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card' });
   const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
-  const sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', sheetEl);
+  const photo = h('div.as-int-card__photo'), head = h('div.as-int-card__head'), sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', photo, head, sheetEl);
   const saveLater = debounce(() => G.save(), 400);
   const makeB = btn('AI 车卡', 'primary', () => make(owners.filter(o => !cur[o])));
   const swapB = btn('换卡', 'secondary', () => swapCard());
@@ -283,7 +290,8 @@ function cardPage(back) {
   // 一张卡：改哪一格就只改那一格
   function paint() {
     const c = cur[sel];
-    if (!c) { sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${ownerName(sel)}还没有卡`)); return; }
+    photo.replaceChildren(ownerFace(sel, 96));
+    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${ownerName(sel)}还没有卡`)); return; }
     const set = (k, v) => { c[k] = v; saveLater(); };
     const line = (label, key, opts = {}) => field(label, input({ value: String(c[key] ?? ''), type: opts.type || 'text', onInput: v => set(key, opts.type ? +v : v) }));
     const jobB = h('button.as-int-job', { onclick: async () => {
@@ -324,8 +332,9 @@ function cardPage(back) {
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
     const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, onInput: v => { c.bg[k] = v; saveLater(); } }));
+    head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
-      h('h3', '调查员信息'), h('div.as-int-grid2', line('名字', 'name'), field('职业', jobB), line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
+      h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
       h('h3', '属性'), attrBox, derivedEl, h('div.as-int-row', reroll, five),
       h('h3', '技能'), pts, skillBox, restB, restBox,
       h('h3', '背景'), bg('身份', 'who'), bg('关键经历', 'past'), bg('目标', 'goal'), bg('秘密', 'secret'));
@@ -345,7 +354,7 @@ function rollOverlay(host, t, u, caption, result) {
     host.append(el);
     const done = () => { el.classList.add('is-out'); setTimeout(() => { el.remove(); res(); }, 260); };
     throwDice(stage, t, u).then(() => {
-      if (!facesReady) big.textContent = t === 0 && u === 0 ? '100' : String(t * 10 + u).padStart(2, '0');
+      big.textContent = t === 0 && u === 0 ? '100' : String(t * 10 + u).padStart(2, '0');
       if (result) cap.textContent = result;
       el.classList.add('is-done'); el.onclick = done; setTimeout(done, result ? 2400 : 1100);
     });

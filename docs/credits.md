@@ -69,8 +69,9 @@
 - 电台的语气（phone/core/act.js）：照作者自己的「正文朗读」插件（github.com/xxuxin0705/reading 的 tts-adapt.js、deep-editor.js）——标签写法、各语音接口的换写法、一键演法、标签分类、张力 / 语速，和「调这一段的语气」面板（照 deep-editor.js 的单句演法：大标签切换、叠字结巴、试听对比）都是从那边改过来的。
 
 ## 幕间的图、字体和规则（phone/assets/interlude/、apps/interlude/）
-- 2.5D 书桌白天 / 夜里（desk-*）、烧焦的羊皮卷（scroll）、两颗十面骰的翻滚图（dice-t* / dice-u*）、火漆印章（seal）、乌鸦羽毛笔（quill）、KP 剪影（kp）、图标（icon）、十八张老照片场景（scene-*）：作者用 GPT 生成（交接单在 docs/gpt-image-brief-interlude.md），黑底的按亮度抠成透明底、转成 webp。
-- 开屏的花体字（assets/interlude/fonts/）：Great Vibes、Pinyon Script、Monsieur La Doulaise、Ballet、Sevillana、Marck Script、Leckerli One（SIL OFL 1.1）、Mountains of Christmas（Apache 2.0），都是 Google Fonts 上的，文件取自 npm 的 @fontsource（只留了拉丁字母那一份）。作者从小红书「免费商用字体分享」里圈的；Daizen 找不到能确认授权的出处，没放。
+- 2.5D 书桌白天 / 夜里（desk-*）、开屏背景（splash-bg，通天塔和桌上的书）、羊皮卷（scroll）、档案纸（sheet）、两颗十面骰的翻滚图（dice-t* / dice-u*）和每一面朝上的图（dice-ft* / dice-fu*）、火漆印章（seal）、乌鸦羽毛笔（quill）、KP 剪影（kp）、图标（icon）、十八张老照片场景（scene-*）：作者用 GPT 生成（交接单在 docs/gpt-image-brief-interlude.md），黑底的按亮度抠成透明底、转成 webp。
+- 开屏的字（assets/interlude/fonts/）：玄冬楷书（xdks）、千图笔锋手写体（qtbf），从「中文网字计划」（github.com/KonghaYao/chinese-free-web-font-storage）的字体包里取的，只裁了开屏语用到的一百来个字。作者从小红书「苍劲有力！8 款国风书法字体」里挑的；网字计划标的是免费字体，具体授权条款发布前再去原作者那里核对一遍。之前放的 8 款英文花体（Great Vibes 等）作者看了不要，去掉了。
+- 开屏语：我们自己写的七句（作者挑的）。
 - 书桌的玩法（左右拖着看、点东西镜头推过去、浮出玻璃标签、东西上钉着小标注）：参考小红书 Toska 的「赴约 · 窗台」（github.com/TangfanOVO/qiaosi，AGPL-3.0）。只学了交互的样子，代码是自己写的（她用 three.js 真 3D，我们是一张图 + CSS 平移缩放），没有用她的代码和图。
 - 车卡的格式（基础信息、九项属性带半值和五分之一值、职业点 = 教育×4、兴趣点 = 智力×2、天命五选一、背景四项）：参考小红书上几篇 COC 车卡教程（布莱瑞 帕尔「COC车卡教程Excel版」、读书啃本的推土机「跑团入门，怎么车卡」、普渡鹿「COC跑团车卡基础教程003」、太空虫子「存档一下车卡小教程」）。
 - 开屏烧纸、落地的「嗒」、盖章的闷响：程序现算的，没用素材。

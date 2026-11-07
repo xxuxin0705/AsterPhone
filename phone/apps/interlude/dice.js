@@ -1,11 +1,9 @@
 // 幕间 · 两颗十面骰（冰蓝水晶的十位、深蓝星空的个位），图是作者让 GPT 画的。
 // 抛：从右下角划一道弧飞进来，空中轮着换翻滚的模糊图、一边转，落地弹两下停住，再亮出点数。
-// 每一面朝上的图（dice-ft*/dice-fu*）还没画好之前，停住用一张静止的，点数用鎏金大字写在下面。
 const BASE = 'assets/interlude/';
-const FACES = false;   // 每一面的图到了改成 true
 const roll = k => [0, 1, 2, 3].map(i => BASE + `dice-${k}${i}.webp`);
-const still = (k, n) => FACES ? BASE + `dice-f${k}${n}.webp` : BASE + `dice-${k}0.webp`;
-[...roll('t'), ...roll('u')].forEach(src => { new Image().src = src; });   // 先解码好，抛的时候不闪
+const still = (k, n) => BASE + `dice-f${k}${n}.webp`;   // 每一面朝上的图
+[...roll('t'), ...roll('u'), ...[...Array(10).keys()].flatMap(n => [still('t', n), still('u', n)])].forEach(src => { new Image().src = src; });   // 先解码好，抛的时候不闪
 
 // 落地的「嗒」：一小段带通滤波的噪声
 let actx = null;
@@ -54,4 +52,3 @@ export function throwDice(host, t, u) {
     requestAnimationFrame(step);
   });
 }
-export const facesReady = FACES;
