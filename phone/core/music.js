@@ -311,14 +311,11 @@ async function load(autoplay, hush = true) {
   if (autoplay && hush && !s.local) { audio.onerror = null; audio.src = HUSH; audio.play().catch(() => {}); tell('state'); }
   restored = true; enter(s);
   if (chain) { chain.ac.abort(); chain = null; }
-  // 上一首自己放完接的：下一首早就问好了，什么都不等，当场放。iPhone 在后台只认「上一首一完马上放」，中间哪怕等一下（查存档、问链接）就不让放了
-  const w = warm; warm = null;
-  if (!hush && w && w.s === s) return plain(s, w.f || null, autoplay, undefined, w.u);
   const f = s.local ? await kvGet('mufile:' + s.id).catch(() => null) : await cached(s);
   if (s.local && !f) { log('error', '音乐', `本地的《${s.name}》找不到文件了`); tell('error'); return; }
   if (current() !== s || g !== gen) return;
-  // 续接只在不耽误起步时用：存在手机里的（本地读，秒开）、本地酒馆（插件转一手，快）。Tauri 没存过的直接播，马上出声，顺手存下来，下次就能续
-  if (CHAIN && (f ? f.type === 'audio/mpeg' : ne) && await startChain(s, f, autoplay)) return;
+  // 读得到内容的都续接（存在手机里的、本地酒馆插件转的、Tauri 里 JOOX 的）：后台才能一首接一首。读不到的（Tauri 里 QQ / 酷我）才直接把地址给播放器
+  if (CHAIN && (!f || f.type === 'audio/mpeg') && await startChain(s, f, autoplay)) return;
   plain(s, f, autoplay);
 }
 /* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
@@ -376,6 +373,9 @@ const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
   if (/\/RS02/i.test(u)) { log('warn', '音乐', `QQ 公共音源只给了《${s.name}》的试听（开着 VPN 时 QQ 常这样）`); return ''; }
   return u;
 });
+// 繁体 → 简体，只收常见的姓、名、歌名用字（一对一对写）
+const FJ = '陳陈張张劉刘楊杨黃黄趙赵吳吴孫孙馬马鄭郑謝谢羅罗鄧邓馮冯葉叶盧卢蕭萧龍龙鍾钟嚴严華华錢钱衛卫蘇苏韓韩賴赖蔣蒋譚谭傑杰麗丽綺绮貞贞綠绿鳳凤傳传偉伟國国強强靜静雲云蘭兰鈞钧東东寧宁軒轩儀仪藝艺戀恋夢梦詩诗語语樂乐亞亚興兴瑋玮莊庄歐欧陽阳爾尔單单齊齐關关區区義义愛爱說说説说風风捲卷寫写從从運运蘋苹燈灯時时間间會会這这個个們们來来對对沒没開开還还點点無无為为與与過过後后見见聽听話话認认識识頭头發发髮发雙双邊边遠远裡里變变讓让長长離离萬万倫伦騰腾鈺钰瑩莹鋒锋澤泽慶庆誠诚淵渊瑤瑶凱凯鴻鸿鳴鸣誼谊權权剛刚聰聪穎颖瓊琼鈴铃擱搁淺浅';
+const simp = t => [...t].map(c => { const i = FJ.indexOf(c); return i >= 0 && !(i % 2) ? FJ[i + 1] : c; }).join('');
 const word = s => `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
 // 酷我：先搜出它排第几，再按序号要。br 0 是默认音质，有的歌给的 ogg 浏览器放不了，放不了再要低一档（2）
 const kuwoAt = s => remember('ki' + s.src + s.id, '酷我', s, async () => ((await get(q(PUB.kuwo, { msg: word(s), page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s)) + 1);
@@ -383,12 +383,19 @@ const kuwoFull = (s, br) => remember('k' + br + s.src + s.id, '酷我', s, async
   const n = await kuwoAt(s); if (!n) return '';
   return https((((await get(q(PUB.kuwo, { msg: word(s), n, br }), 'json')).data || {}).url) || '');
 });
-// JOOX（腾讯海外版，服务器在香港，开着 VPN 也给整首；只有中文歌多）：歌手写的是繁体，中文歌手只比歌名
+// JOOX（腾讯海外版，服务器在香港，开着 VPN 也给整首；只有中文歌多）。搜词只放歌名（带上歌手它就搜不到；简体能搜到繁体）；歌名搜不到（英文歌常重名）再带歌手试一次。没搜到它回 500
 const jooxFull = s => remember('j' + s.src + s.id, 'JOOX', s, async () => {
-  const qs = { msg: word(s), token: JOOX.token, br: JOOX.br }, cjk = /[\u3400-\u9fff]/.test(s.artist);
-  const n = (((await get(q(PUB.joox, qs), 'json')).data || {}).songs || []).findIndex(x => loose({ name: x['歌曲名称'] || '', artist: cjk ? s.artist : x['歌手'] || '' }) === loose(s)) + 1;
+  const qs = { token: JOOX.token, br: JOOX.br }, [n0, a0] = loose(s).split('|');
+  // 它的歌名、歌手写的是繁体（擱淺 / 周杰倫）：常见的字先换成简体；歌手一样长、有字对得上，歌名一样长（歌手完全一样时歌名有字对不上也行）就算同一首
+  const like = (a, b) => a.length === b.length && [...a].some((c, i) => c === b[i]);
+  const same = x => { const [n, a] = simp(loose({ name: x['歌曲名称'] || '', artist: x['歌手'] || '' })).split('|'); return like(a, a0) && n.length === n0.length && (a === a0 || like(n, n0)); };
+  let msg, n = 0;
+  for (msg of [s.name, word(s)]) {
+    const j = await get(q(PUB.joox, { ...qs, msg }), 'json').catch(e => { if (/^500/.test(e.message)) return {}; throw e; });
+    if ((n = ((j.data || {}).songs || []).findIndex(same) + 1)) break;
+  }
   if (!n) return '';
-  const L = (((await get(q(PUB.joox, { ...qs, n }), 'json')).data || {})['播放链接']) || {};
+  const L = (((await get(q(PUB.joox, { ...qs, msg, n }), 'json')).data || {})['播放链接']) || {};
   return https(L['MP3 320'] || L['MP3 128'] || L['AAC 192'] || '');
 });
 // 几个一起问，谁先给出链接用谁；都没有才是空
@@ -403,8 +410,8 @@ const urlsOf = s => {
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
-async function plain(s, f, autoplay, twin, warmed) {
-  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? [...(warmed ? [warmed] : []), ...urlsOf(s)] : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
+async function plain(s, f, autoplay, twin) {
+  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
   if (current() !== s) return;
   const g = gen;
   const fail = () => {
@@ -421,25 +428,19 @@ async function plain(s, f, autoplay, twin, warmed) {
     if (!u) return tryUrl(i + 1);
     audio.onerror = () => { x.bad && x.bad(); tryUrl(i + 1); };
     audio.src = u;
-    if (autoplay) { audio.play().catch(blocked); stuck = document.hidden; }   // 在后台叫的放：真放起来了会清掉；没动静就等回到 App 补一次
+    if (autoplay) audio.play().catch(blocked);
     warmNext();
     if (!f) setTimeout(() => { if (current() === s && g === gen) stash(s, u); }, 5000);   // 放起来 5 秒后再存，别跟播放抢网
   };
   tryUrl(0);
 }
-/** 这首放起来了就提前把下一首准备好（存过的拿文件，没存的问链接），放完当场接上、按「下一首」秒开（随机播放不知道下一首是谁，不问） */
-let warmT = 0, warm = null;   // { s, f } 或 { s, u }
+/** 这首放起来了就提前把下一首的链接问好，按「下一首」秒开（随机播放不知道下一首是谁，不问） */
+let warmT = 0;
 function warmNext() {
-  clearTimeout(warmT); warm = null;
+  clearTimeout(warmT);
   if (M().mode === 'shuffle') return;
-  const nx = M().queue[pick(M().idx, true)]; if (!nx) return;
-  if (nx === current()) { warm = { s: nx, u: audio.src }; return; }   // 单曲循环：还是这个地址
-  warmT = setTimeout(async () => {
-    const f = nx.local ? await kvGet('mufile:' + nx.id).catch(() => null) : await cached(nx);
-    if (f) { warm = { s: nx, f }; return; }
-    if (nx.local) return;
-    for (const x of urlsOf(nx)) { const u = typeof x === 'function' ? await x() : x; if (u) { warm = { s: nx, u }; return; } }
-  }, 3000);
+  const nx = M().queue[pick(M().idx, true)]; if (!nx || nx === current() || nx.local) return;
+  warmT = setTimeout(async () => { for (const x of urlsOf(nx)) if (typeof x === 'function' ? await x() : x) return; }, 3000);
 }
 /** 续接：开一条新声音，把这首边下边续进去。头一段到了就开始放；读不到文件返回 false */
 async function startChain(s, f, autoplay) {
@@ -463,10 +464,9 @@ async function startChain(s, f, autoplay) {
 async function songBody(s, f, signal) {
   if (f) return f.stream();
   for (const x of urlsOf(s)) {
+    if (!ne && !x.readable) continue;   // Tauri 里只有 JOOX 的读得到，别的问了也白问
     const u = typeof x === 'function' ? await x() : x; if (!u) continue;
-    const via = u.startsWith(BE) ? u : ne ? `${BE}/pipe?url=${encodeURIComponent(u)}` : x.readable ? u : '';
-    if (!via) throw new Error('读不了内容');
-    const r = await fetch(via, { signal });
+    const r = await fetch(u.startsWith(BE) || !ne ? u : `${BE}/pipe?url=${encodeURIComponent(u)}`, { signal });
     if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
     const [a, b] = r.body.tee();
     new Response(b).blob().then(blob => stash(s, blob), () => {});
@@ -598,11 +598,11 @@ audio.addEventListener('timeupdate', () => {
   }
   tell('time');
 });
-['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; stuck = false; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
+['play', 'pause'].forEach(ev => audio.addEventListener(ev, () => { fails = 0; tell('state'); if (navigator.mediaSession) navigator.mediaSession.playbackState = ev === 'play' ? 'playing' : 'paused'; }));
 audio.addEventListener('ended', () => { if (audio.src !== HUSH) next(1, true); });
-// 后台换歌时叫了放却没放起来（被拒了，或者一直没动静）：回到 App、下一次碰屏幕时补一次
+// 还是被拦下了（普通放法在后台换歌时）：回到页面时接着放
 let stuck = false;
-// 浏览器不让开始放：记下它的理由
+// 浏览器不让开始放（后台接下一首时 Tauri 常这样）：记下它的理由，回到 App、下一次碰屏幕时补一次
 function blocked(e) {
   tell('blocked'); stuck = true;
   log('warn', '音乐', `浏览器没让《${(current() || {}).name}》开始放（${document.hidden ? '在后台' : '在前台'}）`, `${e && e.name}: ${e && e.message}`);
