@@ -320,20 +320,37 @@ async function qqUrl(s) {
   qurls.set(s.id, { url, trial, at: Date.now() });
   return url;
 }
-/** 一首歌的地址，按先后挨个试：登录了的号 → 洛雪音源 → 没登录的插件、公共音源。要现问的放成函数，轮到才问 */
-const urlsOf = s => {
-  const lx = Object.assign(async () => {   // 等久了提示一下在找，找完说结果
-    let shown = false; const t = setTimeout(() => { shown = true; tell('finding'); }, 1000);
-    const u = await lxUrl(s, ne && (p => be('/fetch', p)));
-    clearTimeout(t); if (shown && current() === s) tell(u ? 'found' : 'lost');
-    return u;
-  }, { bad: () => lxBad(s) });
-  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, lx, () => qqUrl(s)].filter(Boolean)
-    : [ne && ne.me && `${BE}/audio?id=${s.id}`, lx, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
+/* ---------- 整首的公共音源（照 musicsquare 的做法，网页能直接连，两三秒出结果）：QQ 按编号要；酷我按歌名搜，歌名 + 歌手对得上才要。问过的记几分钟（续接和普通放法会接连要两次） ---------- */
+const PUB = { qq: 'https://tang.api.s01s.cn/music_open_api.php', kuwo: 'https://oiapi.net/api/Kuwo' };
+const full = new Map();
+const remember = (k, who, s, fn) => {
+  const c = full.get(k); if (c && Date.now() - c.at < 5 * 60e3) return c.p;
+  const p = fn().catch(e => { log('warn', '音乐', `${who}没给《${s.name}》：${e.message}`); return ''; });
+  full.set(k, { p, at: Date.now() });
+  return p;
+};
+const qqFull = s => remember('q' + s.id, 'QQ 公共音源', s, async () => {
+  const mid = await qqTwinMid(s); if (!mid) return '';
+  const j = await get(q(PUB.qq, { msg: `${s.name} ${s.artist}`, type: 'json', mid }), 'json'), d = j.data || j;
+  const u = https(d.song_play_url_hq || d.song_play_url || d.song_play_url_standard || '');
+  return /\/RS02/i.test(u) ? '' : u;
+});
+const kuwoFull = s => remember('k' + s.src + s.id, '酷我', s, async () => {
+  const word = `${s.name} ${s.artist.split(/[/、,，&]/)[0]}`;
+  const i = ((await get(q(PUB.kuwo, { msg: word, page: 1, limit: 10 }), 'json')).data || []).findIndex(x => loose({ name: x.song || '', artist: x.singer || '' }) === loose(s));
+  if (i < 0) return '';
+  return https((((await get(q(PUB.kuwo, { msg: word, n: i + 1, br: 0 }), 'json')).data || {}).url) || '');
+});
+/** 一首歌的地址，按先后挨个试：登录了的号 → 整首的公共音源 → 没登录的插件、vkeys / Meting → 洛雪（最慢，只在最后；去另一边找同一首时不再问它）。要现问的放成函数，轮到才问 */
+const urlsOf = (s, withLx = true) => {
+  const lk = 'l' + s.src + s.id, lx = Object.assign(() => remember(lk, '洛雪音源', s, () => lxUrl(s, ne && (p => be('/fetch', p)))), { bad: () => { full.delete(lk); lxBad(s); } });
+  const pub = [() => qqFull(s), () => kuwoFull(s)], last = withLx ? [lx] : [];
+  return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s), ...last].filter(Boolean)
+    : [ne && ne.me && `${BE}/audio?id=${s.id}`, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, meting('url', s.id), `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`, ...last].filter(Boolean);
 };
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {
-  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
+  const urls = f ? [URL.createObjectURL(f)] : twin === undefined ? urlsOf(s) : [...(twin ? urlsOf(twin, false) : []), ...(ne ? [`${BE}/bili/audio?word=${encodeURIComponent(`${s.name} ${s.artist.split(/[/、,，&]/)[0]}`)}`] : [])];
   if (current() !== s) return;
   const fail = () => {
     const tr = !f && isQ(s) && (qurls.get(s.id) || {}).trial;
@@ -372,9 +389,8 @@ async function songBody(s, f, signal) {
   for (const x of urlsOf(s)) {
     const u = typeof x === 'function' ? await x() : x;
     if (!u) continue;
-    const r = await fetch(u, { signal });   // 读不了内容（洛雪给的地址常跨域）就扔出去，让普通放法用 <audio> 放
-    if (!r.ok) continue;
-    if (!/mpeg|mp3/.test(r.headers.get('content-type') || '')) throw new Error('不是 mp3');
+    const r = await fetch(u, { signal });   // 读不了内容（别人家的地址常跨域）就扔出去，让普通放法用 <audio> 放
+    if (!r.ok || !/mpeg|mp3/.test(r.headers.get('content-type') || '')) continue;
     return r.body;
   }
   throw new Error('没有链接');
