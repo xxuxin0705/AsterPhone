@@ -891,7 +891,14 @@ export function openPlayer() {
   const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, fx, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
-  const name = h('div.as-mp__name'), artistName = h('span'), followBtn = h('button.as-mp__follow', { onclick: async e => {
+  // 点歌手名：去歌手页（几位合唱就先选一位；「RESCENE (리센느)」这种括号里的别名不带上，不然搜不到）
+  const artistName = h('span', { role: 'button', onclick: async e => {
+    e.stopPropagation();
+    const list = [...new Set(P.current().artist.split(/[/、,，&]/).map(x => x.replace(/\s*[(（][^)）]*[)）]/g, '').trim()).filter(Boolean))];
+    const a = list.length > 1 ? await actionSheet('看哪位', list.map(x => ({ value: x, label: x }))) : list[0];
+    if (a) openArtist(a, (M().mids || {})[a]);
+  } });
+  const name = h('div.as-mp__name'), followBtn = h('button.as-mp__follow', { onclick: async e => {
     e.stopPropagation();
     const list = P.current().artist.split(/[/、,，&]/).map(x => x.trim()).filter(Boolean);
     const a = list.length > 1 ? await actionSheet('关注哪位', list.map(x => ({ value: x, label: x, active: follows().includes(x) }))) : list[0];
