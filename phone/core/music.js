@@ -318,8 +318,9 @@ async function load(autoplay, hush = true) {
   plain(s, f, autoplay);
 }
 /* ---------- 听过的歌存在手机里（IndexedDB）：下次直接从本地放，不问接口不下载，几天后也一样快。
- * 存得了的是网页读得到内容的：酒馆插件转的、JOOX 的；QQ / 酷我直连的网页读不了，本地酒馆让插件转一手（/pipe）再存，Tauri 存不了。最多 400 MB，满了删最久没听的 ---------- */
-const CACHE_MAX = 400 * 2 ** 20, CK = 'musong:';
+ * 存得了的是网页读得到内容的：酒馆插件转的、JOOX 的；QQ / 酷我直连的网页读不了，本地酒馆让插件转一手（/pipe）再存，Tauri 存不了。
+ * 存几首在音乐「更多 → 自动存歌」里选（M().keep，0 = 一直存），满了删最久没听的 ---------- */
+const CK = 'musong:';
 const ck = s => CK + (s.src || 'ne') + s.id;
 let cidx = null;   // [{ k, size, at }]，at = 上次听的时间
 const cacheIdx = async () => cidx || (cidx = (await kvGet(CK + 'idx').catch(() => null)) || []);
@@ -335,11 +336,14 @@ async function stash(s, u) {
   try { const r = await fetch(ne && !u.startsWith(BE) ? `${BE}/pipe?url=${encodeURIComponent(u)}` : u); if (!r.ok || !/audio|mpeg|mp4|flac|ogg/.test(r.headers.get('content-type') || '')) return; b = await r.blob(); }
   catch { return; }   // 读不了内容（跨域）就算了
   if (cidx.some(x => x.k === k)) return;
-  let total = b.size + cidx.reduce((a, x) => a + x.size, 0);
-  while (total > CACHE_MAX && cidx.length) { const old = cidx.sort((a, c) => a.at - c.at).shift(); await kvDel(old.k).catch(() => {}); total -= old.size; }
+  const keep = M().keep ?? 50;
+  while (keep && cidx.length >= keep) await kvDel(cidx.sort((a, c) => a.at - c.at).shift().k).catch(() => {});
   await kvSet(k, b); cidx.push({ k, size: b.size, at: Date.now() }); await kvSet(CK + 'idx', cidx);
 }
 const forget = async s => { const k = ck(s); cidx = (await cacheIdx()).filter(x => x.k !== k); await kvDel(k).catch(() => {}); await kvSet(CK + 'idx', cidx); };
+/** 存了几首、多大；全清掉 */
+export const cacheInfo = async () => { const L = await cacheIdx(); return { n: L.length, size: L.reduce((a, x) => a + x.size, 0) }; };
+export async function clearCache() { for (const x of await cacheIdx()) await kvDel(x.k).catch(() => {}); cidx = []; await kvSet(CK + 'idx', []); }
 /** QQ 的播放链接：先要默认音质，不给（高音质要会员）就退到标准音质；拿到的记几分钟（续接和普通放法会接连要两次） */
 const qurls = new Map();
 async function qqUrl(s) {

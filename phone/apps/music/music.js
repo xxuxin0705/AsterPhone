@@ -325,7 +325,7 @@ function renderRadio(ctx) { ctx.body.append(empty('电台还在做')); }
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'pairs') openPairs(); }));
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const en = () => clockCfg().lang === 'en';   // 关注、粉丝、听歌时长跟着锁屏时间的语言
   const paintHeard = () => { hearEl.textContent = heard(en()); };
@@ -477,6 +477,16 @@ async function openFloat() {
   const p = page({ app: 'music', id: 'music-float', title: '歌词悬浮窗', back: true });
   p.body.append(group('显示在', [h('div.as-field', segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; }))]), more);
   nav.push(p.el);
+}
+/* ---------- 自动存歌：听过的歌存在手机里，下次直接本地放；存几首、存了多少、清空 ---------- */
+async function openKeep() {
+  const fmt = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(1) + ' KB';
+  const used = item({ title: '已存', value: '…' });
+  const paint = async () => { const { n, size } = await P.cacheInfo(); used.querySelector('.as-list-item__value').textContent = `${n} 首 · ${fmt(size)}`; };
+  const p = page({ app: 'music', id: 'music-keep', title: '自动存歌', back: true });
+  p.body.append(group('存几首', [h('div.as-field', segmented([[20, '20 首'], [50, '50 首'], [100, '100 首'], [0, '一直存']], M().keep ?? 50, v => { M().keep = v; commit('music'); }))]),
+    group('', [used, item({ title: '清空', danger: true, onClick: async () => { if (!(await dialog({ title: '清空存的歌？', text: '下次放要重新下载。', confirm: '清空', danger: true }))) return; await P.clearCache(); paint(); toast('已清空'); } })]));
+  paint(); nav.push(p.el);
 }
 /* ---------- 一首歌加到歌单：先是自己的歌单（新建 / 我喜欢的 / 自己的），最下面才是加到角色的歌单；onLike：加进我喜欢之后（播放页点亮红心） ---------- */
 function collectTo(s, onLike) {

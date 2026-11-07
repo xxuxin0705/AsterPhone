@@ -238,7 +238,7 @@ export async function usage() {
   for (const k of await kvKeys()) {
     const v = await kvGet(k);
     if (String(k).startsWith('tts:')) { parts.语音 += (v && v.size) || 0; continue; }
-    if (String(k).startsWith('mufile:')) { parts.音乐 += (v && v.size) || 0; continue; }
+    if (String(k).startsWith('mufile:') || String(k).startsWith('musong:')) { parts.音乐 += (v && v.size) || 0; continue; }
     if (String(k).startsWith('wall:')) { parts.壁纸 += ((v && v.img && v.img.size) || 0) + ((v && v.video && v.video.size) || 0); continue; }
     const n = JSON.stringify(v || '').length * 2;
     if (String(k).startsWith('msgs:')) parts.聊天 += n; else parts.设置 += n;

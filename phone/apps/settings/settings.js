@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.147';
+export const VERSION = '0.8.148';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -637,6 +637,12 @@ function openData() {
           } catch (e) { toast('导入失败：' + e.message); }
         } }),
       ]),
+      group('单独清理', [item({ title: '音乐', value: '存的歌', chevron: true, onClick: async () => {
+        const P = await import('../../core/music.js'), { n, size } = await P.cacheInfo();
+        if (!n) return toast('没有存的歌');
+        if (!(await dialog({ title: '清掉存的歌？', text: `${n} 首，${(size / 1048576).toFixed(1)} MB。歌单、喜欢、本地导入的都不动。`, confirm: '清掉', danger: true }))) return;
+        await P.clearCache(); toast('已清掉'); re();
+      } })]),
       group('', [item({ title: '清空全部数据', danger: true, onClick: async () => {
         if (!(await dialog({ title: '清空全部数据？', text: '此操作无法撤销。', typed: '确认', confirm: '清空', danger: true }))) return;
         await wipeAll(); shell.applyLook(); toast('已清空'); nav.closeAll();
