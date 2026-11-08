@@ -111,6 +111,8 @@ const oaiBase = s => (s = trim(s), /^https?:\/\/[^/]+$/i.test(s) ? s + '/v1' : s
 async function readErr(res) {
   let t = ''; try { t = await res.text(); } catch (e) { /* 空 */ }
   try { const j = JSON.parse(t); t = (j.error && (j.error.message || j.error)) || j.message || t; } catch (e) { /* 不是 JSON */ }
+  // 中转站、网关出错时回的是一整个网页：不把网页代码摊给人看，只留它的标题
+  if (/^\s*<(!doctype|html)/i.test(t)) { const ti = (t.match(/<title[^>]*>([^<]*)/i) || [])[1]; t = (res.status >= 500 ? '中转站 / 服务器那边出错了，过会儿再试' : '回的是网页，不是接口数据') + (ti && ti.trim() ? `（${ti.trim()}）` : ''); }
   return `${res.status} ${String(t).slice(0, 160)}`;
 }
 

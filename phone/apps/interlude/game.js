@@ -3,7 +3,8 @@
 import { state, win, contact, kvGet, kvSet, chatForContact } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myPersona } from '../../core/promptstore.js';
-import { storyText } from '../../core/context.js';
+import { storyText, worldText } from '../../core/context.js';
+import { memoryFor } from '../../core/memory.js';
 import { nameOf, personaOf } from '../chat/engine.js';
 import { uid } from '../../core/util.js';
 import * as R from './rules.js';
@@ -63,9 +64,11 @@ const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerPersona = o => o === 'me' ? myPersona() : personaOf(contact(o));
 /** 一次给好几个人车卡（owners：'me' / 联系人 id）。属性由手机先掷好，AI 照正文和人设写身份、背景、技能 */
 export async function makeCards(owners) {
-  const rolled = owners.map(o => ({ o, a: R.rollAttrs() }));
+  const rolled = owners.map(o => ({ o, a: R.rollAttrs() })), story = storyText();
+  // 世界书、念念铃：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
+  const memory = [await worldText(story).catch(() => ''), await memoryFor(owners.filter(o => o !== 'me').map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
   const out = await ask('intCards', {
-    story: storyText() || '（正文里还没发生什么）', jobs: R.JOBS.map(j => j[0]).join('、'),
+    story: story || '（正文里还没发生什么）', memory: memory || '（没有）', jobs: R.JOBS.map(j => j[0]).join('、'),
     skills: Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).join('、') + '、闪避（敏捷÷2）、母语（教育）',
     roster: rolled.map(({ o, a }) => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : ''}：${attrsText(a)}；技能点上限 ${R.points(a)}；人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}`).join('\n'),
   }, 1200 + 700 * owners.length);

@@ -48,7 +48,7 @@ export function open() {
   });
   const p = page({ app: 'interlude', id: 'int-desk', title: '幕间', large: true, back: true, cls: 'as-int-desk', right: [more] });
   const world = h('div.as-int-world', img('desk-day'), img('desk-night', '.is-night'));
-  const scene = h('div.as-int-scene', { 'data-no-swipe': '' }, world);
+  const scene = h('div.as-int-scene', world);
   p.el.prepend(scene);
   // 台灯：默认跟着手机的深色模式，点了自己开关
   let lamp = null;
@@ -72,7 +72,7 @@ export function open() {
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
   const dice = h('div.as-int-traydice', { style: `left:${pct(470, IW)};top:${pct(770, IH)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
-  // 一屏放下整张桌子（作者不要左右拖）：图铺满屏幕、贴着底，两边裁掉一点；靠边那两把椅子上的头像往里挪到看得见的地方
+  // 一屏放下整张桌子（作者不要左右拖）：图贴着底，比铺满再小一点好让两边的椅子露出来（顶上空出的一条是深色底）；靠边那两把椅子上的头像往里挪到看得见的地方
   let W = 0, H = 0, ww = 0, wh = 0, ox = 0, oy = 0, zoom = null;
   const apply = (anim = true) => {
     world.style.transition = anim ? '' : 'none';
@@ -82,7 +82,7 @@ export function open() {
     world.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
   };
   const fit = () => {
-    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = Math.min(0, H - wh);
+    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH * .86); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = H - wh;
     Object.assign(world.style, { width: ww + 'px', height: wh + 'px', left: ox + 'px', top: oy + 'px' });
     const cut = -ox / k + 40; seats.forEach((el, i) => { el.style.left = pct(Math.min(IW - cut, Math.max(cut, CHAIRS[i][4])), IW); });   // 靠边的往里挪
     apply(false);

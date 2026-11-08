@@ -44,7 +44,7 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
-  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'cast', 'pc', 'scenario', 'places'] },
+  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'cast', 'pc', 'scenario', 'places'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
@@ -436,13 +436,17 @@ export const DEFAULT_PROMPTS = {
 【正文里最近发生的事】
 {{story}}
 
+【记着的事】（世界书、念念铃）
+{{memory}}
+
 【要车卡的人】（属性已经由骰子掷好，不要改）
 {{roster}}
 
 要求：
+- 人设写的是一开始的样子，正文和上面记着的事更新：年龄、年级、身份、住在哪、和谁什么关系对不上时，以正文和记着的事为准。
 - 名字默认用本人的名字（剧情需要化名时可以起），年龄 15～89，性别照人设。
 - 职业：最好从这些常见职业里挑最贴合人设的一个：{{jobs}}；实在都不合适可以自己写。
-- 背景四项各一两句：身份、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。
+- 背景四项各一两句：身份、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。身份里写上和这几个人在正文里是什么关系（同学、搭档、谁救过谁…）。
 - 技能只从这张表里挑：{{skills}}。职业技能 8 项、兴趣技能几项；每人加的点总共不超过「教育×4 + 智力×2」（每人后面写了上限），每项最高 80；没写的按基础值。
 - 只输出 JSON，不要别的文字、不要代码块：
 {"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","bg":{"who":"","past":"","goal":"","secret":""},"skills":{"侦查":60}}]}` },
