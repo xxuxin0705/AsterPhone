@@ -87,6 +87,10 @@
 .as-int-attr b { font-size: 20px; font-weight: 600; }
 .as-int-attr i { grid-column: 1 / -1; font-style: normal; font-size: 10px; opacity: .6; text-align: right; }
 .as-int-derived { margin: 8px 0; font-size: 13px; }
+.as-int-hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: #8a3a1c; }
+.as-int-stars { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
+.as-int-sheet-empty + .as-int-row { justify-content: center; margin-top: -90px; }
+.as-int-sheet-empty + .as-int-row .as-btn { flex: none; padding: 0 22px; }
 .as-int-row { display: flex; gap: 8px; }
 .as-int-row .as-btn { flex: 1; }
 .as-int-pts { font-size: 13px; margin-bottom: 6px; }
@@ -223,6 +227,10 @@
 .as-int-notice p { margin: 0; }
 .as-int-notice b { font-weight: 500; }
 .as-int-notice small { font-size: 12px; opacity: .7; line-height: 1.6; }
+.as-int-log { display: grid; gap: 12px; padding: 0 4px 12px; }
+.as-int-log b { font-size: 12px; color: var(--as-color-accent, #b07a2a); }
+.as-int-log p { margin: 2px 0 0; font-size: 15px; line-height: 1.7; }
+.as-int-log small { display: block; font-size: 12.5px; line-height: 1.6; opacity: .65; }
 .as-int-reveal { display: flex; gap: 10px; align-items: center; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #ece4d2 url(../../assets/interlude/sheet.webp) center / cover; color: #2f2619; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
 .as-int-reveal b { font: 600 15px/1.4 "Noto Serif SC", serif; }
 .as-int-reveal small { display: block; font: 12px/1.5 var(--font-ui); opacity: .75; }

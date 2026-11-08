@@ -25,12 +25,12 @@ const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new', note: '' };
+const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new', note: '', speak: false };
 const MAX_SEATS = 8;
 const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
 // 这一桌的设置：车卡会 / 团公告照它认（换了人、本、车卡方式就作废）；pick 跟着存进去，退出、刷新后回来能接上
 const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode: pick.know ? pick.mode : 'self', use: pick.use, note: pick.note,
-  meet: !!(pick.know && pick.meet), lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
+  meet: !!(pick.know && pick.meet), speak: pick.speak, lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
 let restored = false;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
 let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
@@ -61,6 +61,8 @@ export function open() {
   const lampOn = () => lamp ?? (document.querySelector('.as-phone')?.dataset.mode === 'night');
   const paintLamp = () => scene.classList.toggle('is-lit', lampOn());
   paintLamp();
+  const mo = new MutationObserver(() => { if (!scene.isConnected) mo.disconnect(); else if (lamp === null) paintLamp(); });
+  mo.observe(document.querySelector('.as-phone'), { attributes: true, attributeFilter: ['data-mode'] });
   // 标签：钉在东西上的小玻璃牌
   const tag = (x, y, text) => h('span.as-int-pin', { style: `left:${pct(x, IW)};top:${pct(y, IH)}` }, h('i'), h('b', text));
   const hot = (box, key) => h('button.as-int-hot', { 'aria-label': key, dataset: { k: key }, style: `left:${pct(box[0], IW)};top:${pct(box[1], IH)};width:${pct(box[2] - box[0], IW)};height:${pct(box[3] - box[1], IH)}` });
@@ -134,7 +136,7 @@ export function open() {
   // 底下一条：谁上桌 + 开局 / 继续
   const who = h('span'), go = btn('开局', 'primary', () => { const g = G.current(); if (g) playPage(g); else if (G.meeting(table())) cardPage(syncBar, true); else setupSheet(() => cardPage(syncBar), chooseKp); });
   const bar = h('div.as-int-bar', who, go); p.body.append(bar);
-  function syncBar() { const g = G.current(); who.textContent = `上桌：${[myName(), ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
+  function syncBar() { const g = G.current(); who.textContent = `上桌：${['你', ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
   const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
   G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
@@ -290,13 +292,17 @@ function setupSheet(next, chooseKp) {
     } }); return row; }), '旁白都用中文；台词不是中文的，下面跟一行中文翻译'));
   paintLang();
   const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood),
-    group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), kpRow]),
+    group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), kpRow,
+      item({ title: withInfo('AI 代我说话', '开着：车卡会和跑团里，大家会替你说一两句话、做点小动作。关着：只写别人，你的话自己说。'), right: switchEl(pick.speak, v => { pick.speak = v; }, 'AI 代我说话') })]),
     modeBox, noteF, langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('下一步：车卡', 'primary', () => { s.close(); next(); }))] });
 }
 
 /* ---------- 调查员卡：上面一排头像切换，下面是这个人的卡（羊皮纸）；没卡的人一起让 AI 车 ---------- */
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
+const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
+// 属性填得太低时的提醒（自己填卡时实时显示）
+const LOW = { STR: '搬东西、打架都吃亏', CON: '血少、容易病倒', SIZ: '血少、一推就倒', DEX: '跑得慢、躲不开', APP: '第一印象差，社交难', INT: '难想通线索，兴趣点也少', POW: '理智低、容易发疯', EDU: '本职点少' };
 const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size, size > 60 ? 'square' : 'round') : avatar(contact(o).avatar, nameOf(contact(o)), size, size > 60 ? 'square' : 'round');
 function cardPage(back, resume) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
@@ -306,7 +312,7 @@ function cardPage(back, resume) {
   fresh();
   const meetB = navText(meetOn ? '车卡会' : '团公告', () => meetOn ? meetPage(true) : notice()); meetB.hidden = !m;
   const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card', right: meetB });
-  const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
+  const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', shownName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
   const photo = h('div.as-int-card__photo'), head = h('div.as-int-card__head'), sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', photo, head, sheetEl);
   const saveLater = debounce(() => G.save(), 400);
@@ -328,10 +334,16 @@ function cardPage(back, resume) {
     const got = await pickMany('谁重车', owners.map(o => ({ key: o, name: ownerName(o), avatar: o === 'me' ? myAvatar() : contact(o).avatar })), { preselect: [sel] });
     if (got && got.length) make(got);
   }
+  async function blank(o) { cur[o] = await G.blankCard(o, ms); paintTabs(); paint(); paintBar(); }
+  // 预览：照团公告（没有就照一般规矩）大概能不能过，再给个评级；都在手机里算
+  const preview = c => { const bad = G.checkCard(c, m), r = G.rate(c, m);
+    sheet({ title: '预览', content: h('div.as-int-notice', h('b', bad.length ? '大概率过不了' : '大概率能过'), ...bad.map(t => h('small', t)),
+      h('b', `评级 ${r.grade} · ${r.role}`), h('div.as-int-stars', Object.entries(r.stars).map(([k, n]) => h('span', `${k} ${'★'.repeat(n)}${'☆'.repeat(5 - n)}`))), r.rec ? h('small', r.rec) : null) }); };
   async function swapCard() {
     const mine = G.cardsOf(sel), c = cur[sel];
-    const v = await actionSheet(`${ownerName(sel)}的卡`, [...mine.map(x => ({ value: x.id, label: `${x.name} · ${x.job}`, active: x === c })), { value: 'new', label: '新车一张' }, c && { value: 'del', label: '删除这张', danger: true }].filter(Boolean));
+    const v = await actionSheet(`${ownerName(sel)}的卡`, [...mine.map(x => ({ value: x.id, label: `${x.name} · ${x.job}`, active: x === c })), { value: 'new', label: 'AI 车一张' }, { value: 'blank', label: '自己填一张' }, c && { value: 'del', label: '删除这张', danger: true }].filter(Boolean));
     if (v === 'new') { await make([sel]); return; }
+    if (v === 'blank') { await blank(sel); return; }
     if (v === 'del') { if (!(await dialog({ title: '删除这张卡？', confirm: '删除', danger: true }))) return; await G.dropCard(c); cur[sel] = G.lastCard(sel); }
     else if (v) { cur[sel] = mine.find(x => x.id === v); await G.useCard(cur[sel]); }
     else return;
@@ -342,7 +354,7 @@ function cardPage(back, resume) {
     startB.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
-      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note });
+      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
       toast(`《${g.title}》写好了`); back();
       await castRoll(p.el, g); nav.pop(); playPage(g);
     } catch (e) { failed(e, '没开成'); }
@@ -364,7 +376,7 @@ function cardPage(back, resume) {
     const q = page({ app: 'interlude', id: 'int-meet', title: '车卡会', large: true, back: true, cls: 'as-int-play.as-int-meet' });
     q.el.prepend(h('div.as-int-bg', img('desk-day'), img('desk-night', '.is-night'))); q.el.style.backgroundPosition = 'center top';
     const kpc = pick.kp !== 'sys' && contact(pick.kp), vmode = pick.voice || voiceDefault();
-    const idOf = n => n === 'KP' ? (kpc ? kpc.id : 'kp') : n === myName() ? 'me' : kpc && n === nameOf(kpc) ? kpc.id : owners.find(o => o !== 'me' && (ownerName(o) === n || (cur[o] || {}).name === n)) || 'kp';
+    const idOf = n => n === 'KP' ? (kpc ? kpc.id : 'kp') : n === myName() || n === '你' ? 'me' : kpc && n === nameOf(kpc) ? kpc.id : owners.find(o => o !== 'me' && (ownerName(o) === n || (cur[o] || {}).name === n)) || 'kp';
     const faceOf = id => id === 'kp' ? img('kp') : P.figure(id) || ownerFace(id, 110);
     const cardOf = o => ({ ...cur[o], ...(m.adjust || {})[o] });
     const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), shelf = h('div.as-int-meet__card');
@@ -387,7 +399,7 @@ function cardPage(back, resume) {
     // 亮卡那几句带着 o：卡片一直摆在上面，换人才换
     const say = l => { hush(); now = l; const id = idOf(l.who);
       if (id !== lastId) { lastId = id; face.replaceChildren(faceOf(id)); }
-      nameT.textContent = l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : l.who;
+      nameT.textContent = l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : id === 'me' ? '你' : l.who;
       if ((shelf.dataset.o || '') !== (l.o || '')) { shelf.dataset.o = l.o || ''; const c = l.o && cardOf(l.o);
         shelf.replaceChildren(...c ? [h('div.as-int-reveal', ownerFace(l.o, 40), h('div', h('b', `${c.name} · ${c.job}`),
           h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')), (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null))] : []); }
@@ -408,8 +420,11 @@ function cardPage(back, resume) {
         return [{ who: ownerName(o), act: `亮卡：${c.name} · ${c.job}`, o }, ...(Array.isArray(rv) ? rv : []).map(l => ({ ...l, o }))]; })]);
     });
     give.hidden = !cur.me; bad.hidden = true;
-    const rules = h('div.as-int-end', h('b', '团公告'), h('p', m.hint), h('p', m.rules.text), h('small', G.meetRules(m)), bad, h('div.as-int-row', editB, give));
-    const end = () => { act.hidden = false; act.replaceChildren(passed ? btn('开局', 'primary', () => { nav.pop(); begin(); }) : rules); };
+    // 演完：团公告、回顾（到现在为止的整场对话）各一个按钮，点开是单子，舞台不被挤掉；下面改卡 / 交卡，过了就是开局
+    const log = () => sheet({ title: '回顾', content: h('div.as-int-log', seen.map(l => h('div', h('b', l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : idOf(l.who) === 'me' ? '你' : l.who),
+      l.act ? h('small', l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null))) });
+    const rules = h('div.as-int-end', h('div.as-int-row', btn('团公告', 'secondary', notice), btn('回顾', 'secondary', log)), bad, h('div.as-int-row', editB, give));
+    const end = () => { act.hidden = false; act.replaceChildren(passed ? h('div.as-int-end', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', () => { nav.pop(); begin(); }))) : rules); };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
     if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
@@ -420,7 +435,7 @@ function cardPage(back, resume) {
   function paint() {
     const c = cur[sel];
     photo.replaceChildren(ownerFace(sel, 96));
-    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${ownerName(sel)}还没有卡`)); return; }
+    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('div.as-int-row', btn('自己填一张', 'secondary', () => blank(sel)))); return; }
     const set = (k, v) => { c[k] = v; saveLater(); };
     const line = (label, key, opts = {}) => field(label, input({ value: String(c[key] ?? ''), type: opts.type || 'text', onInput: v => set(key, opts.type ? +v : v) }));
     const jobB = h('button.as-int-job', { onclick: async () => {
@@ -437,7 +452,7 @@ function cardPage(back, resume) {
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
     // 档位和属性点：AI 照人设分的卡才有（自己掷骰的没有档位）；点档位能换
     const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t]) => ({ value: t, label: `${t} · ${R.budgetOf(t, c.base)} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
-    const apts = h('div.as-int-pts', tierB, h('span'));
+    const apts = h('div.as-int-pts', tierB, h('span')), hint = h('p.as-int-hint');
     const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`; }));
     const paintAttrs = () => {
       apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier, c.base), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
@@ -448,6 +463,10 @@ function cardPage(back, resume) {
         c.attrs[k] = Math.max(1, Math.min(90, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
+      const left = all + up - sum, hi = m && c.at >= m.at ? m.rules.attrMax : 90;
+      hint.textContent = [c.tier && (left >= 0 ? `还剩 ${left} 点` : `超了 ${-left} 点`), ...R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => c.attrs[k] < R.minOf(k) ? `${n}至少 ${R.minOf(k)}`
+        : c.attrs[k] < 30 ? `${n} ${c.attrs[k]} 太低了，${LOW[k]}` : c.attrs[k] > hi ? `${n}超过这局上限 ${hi}` : '')].filter(Boolean).join('；');
+      hint.hidden = !hint.textContent;
     };
     const newAttrs = a => { c.attrs = a; delete c.tier; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 自己掷骰就不算档位了
     const reroll = btn('重掷', 'secondary', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '3D6×5'); newAttrs(R.rollAttrs()); });
@@ -481,8 +500,8 @@ function cardPage(back, resume) {
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
-      h('h3', '属性'), apts, attrBox, derivedEl, h('div.as-int-row', reroll, five), pendB,
-      h('h3', '技能'), pts, skillBox, restB, restBox,
+      h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
+      h('h3', '技能'), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
       h('h3', '资产'), h('div.as-int-grid2', line('消费水平', 'living'), line('现金', 'cash')), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
@@ -534,7 +553,7 @@ function archivePage(sync, resume) {
   const p = page({ app: 'interlude', id: 'int-archive', title: '卷宗', large: true, back: true, cls: 'as-int-archive' });
   const ymd = t => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
   const END = { good: '好结局', bad: '坏结局', quit: '没打完' };
-  const names = ids => [myName(), ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
+  const names = ids => ['你', ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
   // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
   const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
   const cur = G.current(), mt = G.savedPick() ? G.meetNow() : null;
@@ -542,13 +561,13 @@ function archivePage(sync, resume) {
     mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
   const list = G.all().filter(g => g.done).slice().reverse();
   p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => h('button.as-int-file', { onclick: () => readPage(g) },
-    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${[myName(), ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')))) : empty('还没有打完的局'));
+    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')))) : empty('还没有打完的局'));
   nav.push(p.el);
 }
 function readPage(g) {
   const p = page({ app: 'interlude', id: 'int-read', title: g.title, large: true, back: true, cls: 'as-int-archive' });
   p.body.append(h('div.as-int-read', g.log.map(l => h('div.as-int-read__l' + (l.me ? '.is-me' : '') + (l.ooc ? '.is-ooc' : ''),
-    h('b', l.me ? myName() : l.who), l.text || l.act ? h('p.is-act', l.text || l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null)),
+    h('b', l.me || l.who === '你' || l.who === myName() || l.who === g.pc.name ? '你' : l.who), l.text || l.act ? h('p.is-act', l.text || l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null)),
     g.done && g.done.text ? h('div.as-int-read__end', g.done.text) : null));
   nav.push(p.el);
 }
@@ -615,7 +634,8 @@ function playPage(g) {
   let cur = null, vac = null;
   const mode = g.voice || voiceDefault(), kpc = g.kp && g.kp !== 'sys' && contact(g.kp);
   const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
-  const vid = n => n === 'KP' ? (kpc ? g.kp : 'kp') : n === myName() || n === g.pc.name ? 'me' : (G.who(g, n) || {}).id || 'kp';
+  const mine = n => n === '你' || n === myName() || n === g.pc.name;
+  const vid = n => n === 'KP' ? (kpc ? g.kp : 'kp') : mine(n) ? 'me' : (G.who(g, n) || {}).id || 'kp';
   // 钥匙带上台词本身：台词拆过、改过，就不会念出以前存的那段（以前连旁白一起合成的）
   const key = l => `int:a:${g.id}:${g.log.indexOf(l)}:${[...l.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`;
   async function voice(l) {
@@ -637,10 +657,10 @@ function playPage(g) {
   let queue = [], seen = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
   // 照相馆做过立绘的人（包括你）站着出来（会眨眼、说话时动嘴），没做的用头像
   const ofC = c => P.figure(c.id) || avatar(c.avatar, nameOf(c), 110, 'square');
-  const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (n === myName() || n === g.pc.name) return P.figure('me') || avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
+  const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (mine(n)) return P.figure('me') || avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
   let lastWho = '';
   P.preload(['me', kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
-  const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : n;
+  const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : mine(n) ? '你' : n;
   const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? l.act + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${l.zh}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
   const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) ? l : null;

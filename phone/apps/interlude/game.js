@@ -56,9 +56,12 @@ const toneOf = id => hintFor(kindOf(connFor(id))).replace(/每段/g, '台词').r
 // 旧存档没有 lang（开局时还没有「说什么语言」）：按开局时会给的默认语言
 const speakLine = (g, id) => { const l = g.lang ? g.lang[id] : langOf(id); return `说话用${langName(isZh(l) ? 'zh-CN' : l)}；台词语气：${toneOf(id)}`; };
 export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
-const kpText = g => { const c = g.kp !== 'sys' && contact(g.kp);
+// 玩家本人：旁白用第二人称「你」，只有别人在台词里叫到才叫名字（作者定的，提升代入感）；AI 替不替你说话、行动照开局设置
+const youText = g => `写到 ${myName()}（玩家本人）的旁白一律用第二人称「你」（比如「你被他蹭得有点痒」），不写名字；只有别人在台词里叫到 TA 时才叫名字。${g.speak
+  ? 'KP 和大家可以替 TA 说一两句话、做点小动作（照 TA 的人设），这些台词的 who 写「你」。' : '不要替 TA 说话、做决定、写 TA 的动作，TA 说什么、做什么由 TA 自己来。'}\n`;
+const kpText = g => youText(g) + (() => { const c = g.kp !== 'sys' && contact(g.kp);
   return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n${g.know ? '场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n' : ''}`
-    : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; };
+    : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; })();
 const knowText = g => g.know
   ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：调查员之间还没在戏里认识、没交换过情报时，戏里就不能知道对方那边发生的事，要在戏里走一遍认识、交换情报的过程（场外可以吐槽「就当我们叽里呱啦交换完了」）。'
   : '所有人都当真，这就是他们的经历，不出戏，不要场外话。';
@@ -131,7 +134,7 @@ export async function makeCards(owners, all = owners, s = {}) {
 /** 车卡会（知道在跑团时可选）：一次 API 写完整场——KP 先发团公告、其他人交卡被打回再改、定下规矩、其他人过审的卡、
  *  你交卡时过审 / 被打回说的话、亮卡时的评语。你的卡你自己交，手机照规矩审（checkCard）。
  *  开会前定好大家统一用新卡、旧卡还是随机（每人各抛一次；没有旧卡的只能车新卡）。用旧卡的不重车，会上为了合规矩改的随身物品、特殊能力只管这一局（adjust）。
- *  存在 D.meet；上桌的人、本、气氛、车卡方式、新旧卡变了就作废，开局后用掉。s = { kp, party, scenario, ask, mood, mode, use, note, meet 开不开车卡会, lang } */
+ *  存在 D.meet；上桌的人、本、气氛、车卡方式、新旧卡变了就作废，开局后用掉。s = { kp, party, scenario, ask, mood, mode, use, note, meet 开不开车卡会, speak AI 代不代你说话, lang } */
 export const USES = [['new', '新卡'], ['old', '旧卡'], ['mix', '随机']];
 const meetKey = s => [s.kp, s.scenario, s.ask, s.mood, s.mode, s.use, s.note, !!s.meet, ...(s.party || [])].join('|');
 /** 这一桌的团公告（不开车卡会时和车卡一起写的，或者车卡会） */
@@ -145,7 +148,7 @@ export function savedPick() {
 }
 export async function meet(s) {
   const fresh = Object.fromEntries(['me', ...s.party].map(o => [o, !lastCard(o) || s.use === 'new' || (s.use === 'mix' && Math.random() < .5)])), news = s.party.filter(o => fresh[o]);
-  const g = { kp: s.kp, know: true, lang: s.lang }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
+  const g = { kp: s.kp, know: true, lang: s.lang, speak: s.speak }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
   const old = o => fresh[o] ? '' : `；用旧卡：${cardText(lastCard(o))}`;
   const out = await ask('intMeet', {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
@@ -162,13 +165,28 @@ export async function meet(s) {
     cards: Object.fromEntries(cards.map(c => [c.owner, c.id])), fresh: fresh.me, adjust, rules };
   await save(); return D.meet;
 }
+/** 自己填的空白卡（作者要的，不找 AI）：档位照团公告（没有就普通人），属性先都放 40，技能是基础值，剩下的自己填 */
+export async function blankCard(owner, s) {
+  const r = (meeting(s) || {}).rules, a = { ...Object.fromEntries(R.ATTRS.map(([k]) => [k, 40])), LUCK: R.roll(3, 6) * 5 };
+  return (await keep([{ id: uid('ic'), owner, at: Date.now(), name: ownerName(owner), age: 20, sex: '', job: '', home: '', bg: Object.fromEntries(BG.map(([k]) => [k, ''])), living: '', cash: '', assets: '',
+    items: [], tier: (r && R.tierOf(r.tiers[ownerName(owner)])) || R.TIERS[0][0], base: r && r.base, attrs: a, skills: R.baseSkills(a), jobSkills: [], abilities: [] }]))[0];
+}
+/** 卡大概什么水平（只在手机里算，作者要的）：战斗 / 调查 / 社交 / 生存各 1～5 星，总评 S～D，偏哪一面；有团公告就看推荐技能点了几个 */
+export function rate(c, m) {
+  const a = c.attrs, k = c.skills, best = (...ks) => Math.max(...ks.map(x => k[x] || 0));
+  const v = { 战斗: (a.STR + a.CON + a.DEX) / 3 * .4 + best('斗殴', '手枪', '步枪') * .3 + (k.闪避 || 0) * .3, 调查: (best('侦查') + best('聆听') + best('图书馆使用')) / 3 * .7 + a.INT * .3,
+    社交: best('话术', '说服', '魅惑', '恐吓') * .6 + (a.APP + a.POW) / 2 * .4, 生存: Math.min(90, R.derived(a).hp * 5) * .4 + a.POW * .3 + best('急救', '医学') * .3 };
+  const avg = Object.values(v).reduce((x, y) => x + y) / 4, top = Object.keys(v).sort((x, y) => v[y] - v[x]), base = R.baseSkills(a), rec = m ? m.rules.skills.filter(x => x in base) : [];
+  return { stars: Object.fromEntries(Object.entries(v).map(([x, n]) => [x, Math.max(1, Math.min(5, Math.round(n / 15)))])), grade: avg >= 62 ? 'S' : avg >= 52 ? 'A' : avg >= 42 ? 'B' : avg >= 32 ? 'C' : 'D',
+    role: v[top[0]] - v[top[3]] < 10 ? '均衡' : `偏${top[0]}`, rec: rec.length ? `推荐技能点了 ${rec.filter(x => k[x] > base[x]).length} / ${rec.length}` : '' };
+}
 /** 照团公告的规矩审你的卡：回不合规矩的地方（空的就是过了）。活着打完几局长的属性（grown）、技能（skillUp）是挣来的，不算超；
  *  属性上下限、技能上限只管这次新车的卡（旧卡是以前车的），掷骰车的不管属性上下限（规则书：天命不受属性限制） */
-export function checkCard(c, m) {
-  const r = m.rules, bad = [], tier = R.tierOf(r.tiers[myName()]) || c.tier || R.TIERS[0][0], fresh = c.at >= m.at;
+export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一般的规矩看（自己填卡时预览用）
+  const r = m ? m.rules : toRules(), bad = [], tier = R.tierOf(r.tiers[ownerName(c.owner)]) || c.tier || R.TIERS[0][0], fresh = !m || c.at >= m.at;
   const all = R.budgetOf(tier, r.base) + (c.grown || 0), jobs = R.jobsOf(c), u = R.usage(c.attrs, c.skills, jobs);
-  if (m.mode !== 'random' && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
-  if (m.fresh && !fresh) bad.push('这局要用新卡');
+  if ((!m || m.mode !== 'random') && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
+  if (m && m.fresh && !fresh) bad.push('这局要用新卡');
   const out = fresh && c.tier ? R.ATTRS.filter(([k]) => k !== 'LUCK' && (c.attrs[k] < r.attrMin || c.attrs[k] > r.attrMax)) : [];
   if (out.length) bad.push(`属性要在 ${r.attrMin}～${r.attrMax}：${out.map(([k, n]) => n + c.attrs[k]).join('、')}`);
   const base = R.baseSkills(c.attrs), hi = fresh ? Object.entries(c.skills).filter(([k, v]) => v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
@@ -182,7 +200,7 @@ export function checkCard(c, m) {
   return bad;
 }
 export const meetRules = m => { const t = m.mode !== 'random' && R.tierOf(m.rules.tiers[myName()]);
-  return [t && `${myName()}是${t}（${R.budgetOf(t, m.rules.base)} 点）`, rulesLine(m.rules)].filter(Boolean).join(' · '); };
+  return [t && `你是${t}（${R.budgetOf(t, m.rules.base)} 点）`, rulesLine(m.rules)].filter(Boolean).join(' · '); };
 // 特殊能力 { name, kind, dmg, cost 耗几点魔法, desc }
 const toPower = x => x && x.name ? { name: String(x.name), kind: x.kind in R.POWERS ? x.kind : 'other', dmg: String(x.dmg || ''), cost: Math.max(0, Math.min(20, Math.round(+x.cost) || 0)), desc: String(x.desc || '') } : null;
 export const powerText = x => `${x.name}（${R.POWERS[x.kind]}${x.dmg ? ' ' + x.dmg : ''}${x.cost ? `，耗 ${x.cost} 魔法` : ''}${x.desc ? '：' + x.desc : ''}）`;
@@ -196,7 +214,7 @@ const scText = s => { const sc = R.SCENARIOS.find(x => x.id === s.scenario);
 /** 开局。setup = { mood, know 知不知道在跑团, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[], meet 这桌的团公告（或车卡会）, note 车卡前补充的话 } */
 export async function start(setup) {
   const sc = R.SCENARIOS.find(s => s.id === setup.scenario), party = setup.party.map(c => ({ ...c, ...((setup.meet || {}).adjust || {})[c.owner] }));   // 车卡会上为了合规矩改的，只管这一局
-  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', crit: state.apps.interlude.crit,
+  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
     act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard) };
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
