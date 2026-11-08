@@ -497,7 +497,7 @@ export const DEFAULT_PROMPTS = {
 - zh：say 不是中文时，写它的中文翻译（不带语气标签）；是中文就空着；
 - ooc：场外话写 true（只有上面允许场外时才有）；
 - face：这段的表情，只能是 smile（笑）/ angry（生气）/ troubled（为难）/ shy（害羞）/ cry（哭）/ wail（大哭）/ laugh（笑到眯眼）/ nervous（慌张冒汗），平常就空着；
-- pose：这段的动作，按情绪和情景挑，只能是 hips（叉腰）/ wave（挥手打招呼）/ cross（抱臂）/ think（托腮想事）/ point（指着）/ please（拜托）/ scratch（挠头不好意思）/ fist（握拳加油），平常就空着。
+- pose：这段的动作，按情绪和情景挑，只能是 hips（叉腰）/ wave（挥手打招呼）/ cross（抱臂）/ think（托腮想事）/ fist（握拳加油）/ scratch（挠头不好意思）/ shrug（摊手无奈）/ please（拜托）/ point（指着）/ heart（比心）/ reach（伸手）/ peace（比耶），平常就空着。
 然后提出 request（只能一种）：
 - {"type":"free"}：随便做什么
 - {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么"}：有后果的行动才检定；对方弱用普通，势均力敌用困难，几乎不可能用极难

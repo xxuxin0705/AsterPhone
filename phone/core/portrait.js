@@ -4,21 +4,22 @@
 // 存在 kv 的 pt:联系人 id 里：{ base, w, h, parts: { 名字: { src, box: [x, y, w, h] } }, poses: { 名字: 整张图 }, boxes: 框好的眼睛和嘴 }
 import { kvGet, kvSet, kvDel } from './store.js';
 
-/** 能生成的表情：[名字, 叫什么, 用来干嘛, NAI 用的标签, 换哪一块（眼睛 / 嘴 / 整张脸）] */
+/** 能生成的表情：[名字, 叫什么, 用来干嘛, NAI 用的标签, 换哪一块（眼睛 / 嘴 / 整张脸）, 宫格提示词里怎么写, 分类]。
+ *  「说话眨眼」三个是必须的（眨眼、说话动嘴靠它们），别的自己挑 */
 export const PARTS = [
-  ['mouthOpen', '张嘴', '说话', 'open mouth', 'mouth'],
-  ['eyesClosed', '闭眼', '眨眼', 'closed eyes', 'eyes'],
-  ['mouthO', 'O 型嘴', '说话', ':o, small open mouth', 'mouth'],
-  ['eyesSmile', '笑眼', '笑', '^_^, closed eyes, happy', 'eyes'],
-  ['browsAngry', '生气', '生气', 'angry, v-shaped eyebrows', 'eyes'],
-  ['browsTroubled', '为难', '为难', 'worried, raised inner eyebrows', 'eyes'],
-  ['blush', '脸红', '害羞', 'blush', 'face'],
-  ['eyesCry', '哭', '伤心', 'closed eyes, crying, tears', 'eyes'],
-  ['eyesWail', '大哭', '大哭', '> <, crying, streaming tears, comedic', 'face'],
-  ['eyesSqueeze', '> <', '笑到眯眼', '> <, closed eyes', 'eyes'],
-  ['sweat', '汗', '慌张', 'sweatdrop, nervous', 'face'],
+  ['eyesClosed', '闭眼', '眨眼', 'closed eyes', 'eyes', '轻轻闭眼（嘴不变）', '说话眨眼'],
+  ['mouthOpen', '张嘴', '说话', 'open mouth', 'mouth', '张嘴说「啊」（眼睛不变）', '说话眨眼'],
+  ['mouthO', 'O 型嘴', '说话', ':o, small open mouth', 'mouth', '嘴巴小小圆圆说「哦」（眼睛不变）', '说话眨眼'],
+  ['eyesSmile', '笑眼', '笑', '^_^, closed eyes, happy', 'eyes', '眯眼笑：弯弯的笑眼（嘴不变）', '开心'],
+  ['eyesSqueeze', '> <', '笑到眯眼', '> <, closed eyes', 'eyes', '用力闭眼成 > <', '开心'],
+  ['blush', '脸红', '害羞', 'blush', 'face', '脸红害羞：两颊明显泛红', '开心'],
+  ['eyesCry', '哭', '伤心', 'closed eyes, crying, tears', 'eyes', '哭：闭眼流泪', '难过'],
+  ['eyesWail', '大哭', '大哭', '> <, crying, streaming tears, comedic', 'face', '大哭：眼睛闭成 > <，两道眼泪往下流', '难过'],
+  ['browsTroubled', '为难', '为难', 'worried, raised inner eyebrows', 'eyes', '为难：眉头往上抬、眉尾下垂', '难过'],
+  ['browsAngry', '生气', '生气', 'angry, v-shaped eyebrows', 'eyes', '生气：眉头压低皱起', '其他'],
+  ['sweat', '汗', '慌张', 'sweatdrop, nervous', 'face', '慌张：额头边一滴汗', '其他'],
 ];
-const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
+export const MUST = ['eyesClosed', 'mouthOpen', 'mouthO'];const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
 /** 第一步：照参考图（或者照描述）画一张方便拆的标准立绘 */
 export const basePrompt = (desc, withRef) => `${withRef ? 'The attached image is a reference for this character\'s identity and drawing style. Redraw THIS character (same face, hair, eye colour, clothing, palette and art style), leaving out any props, scenery and text.' : `Character: ${desc}`}
 ${withRef && desc ? `Notes: ${desc}\n` : ''}Framing: straight-on half-body view, head and body facing the viewer squarely, from just above the head down to the waist, centred, shoulders level, a clear empty white margin around the character. Tall portrait canvas.
@@ -149,11 +150,45 @@ function smooth(x, [bx, by, bw, bh]) {
   for (let it = 0; it < 40; it++) for (const j of inn) for (let c = 0, i = j * 4; c < 4; c++) a[i + c] = (a[i + c - 4] + a[i + c + 4] + a[i + c - W * 4] + a[i + c + W * 4]) / 4;
   x.putImageData(d, X, Y);
 }
+// 存的样子：{ use: 在用第几张, vers: [ 一张立绘 ], sel: { face: [...], pose: [...] } 上次挑的表情 / 动作 }
+// 一张立绘：{ base, w, h, boxes, alt: { 名字: [候选…] }, on: { 名字: 在用第几个 } }；表情的候选是 { src, box }，动作的候选是整张图
+// 内存里每张立绘多两个现算的：parts（在用的表情）、poses（在用的动作），叠立绘、换动作都看它们
 const cache = new Map();
-export async function load(id) { if (!cache.has(id)) cache.set(id, (await kvGet('pt:' + id).catch(() => null)) || null); return cache.get(id); }
-export const loaded = id => cache.get(id) || null;
-export async function save(id, p) { cache.set(id, p); await kvSet('pt:' + id, p); }
+const isPose = k => POSES.some(x => x[0] === k);
+function derive(v) {
+  v.alt ||= {}; v.on ||= {};
+  // 旧存档：parts / poses 直接放的就是在用的那个
+  for (const [k, x] of Object.entries(v.parts || {})) if (!v.alt[k]) { v.alt[k] = [x]; v.on[k] = 0; }
+  for (const [k, x] of Object.entries(v.poses || {})) if (!v.alt[k]) { v.alt[k] = [x]; v.on[k] = 0; }
+  v.parts = {}; v.poses = {};
+  for (const [k, list] of Object.entries(v.alt)) { const x = list[Math.min(v.on[k] ?? 0, list.length - 1)]; if (x) (isPose(k) ? v.poses : v.parts)[k] = x; }
+  return v;
+}
+const pack = r => ({ use: r.use, sel: r.sel, vers: r.vers.map(({ base, w, h, boxes, alt, on }) => ({ base, w, h, boxes, alt, on })) });
+const put = (id, r) => { cache.set(id, r); return kvSet('pt:' + id, pack(r)); };
+export async function load(id) {
+  if (!cache.has(id)) { let r = await kvGet('pt:' + id).catch(() => null); if (r && r.base) r = { use: 0, vers: [r] }; if (r) r.vers.forEach(derive); cache.set(id, r || null); }
+  return loaded(id);
+}
+const rec = id => cache.get(id) || null;
+/** 在用的那张立绘 */
+export const loaded = id => { const r = rec(id); return r ? r.vers[r.use] : null; };
+export const versions = id => rec(id)?.vers || [];
+export const using = id => rec(id)?.use ?? -1;
+/** 改了在用的那张（表情、动作、框）之后存 */
+export async function save(id, v) { const r = rec(id); r.vers[r.use] = derive(v); await put(id, r); }
+/** 新画好一张立绘：加一张，换成在用 */
+export async function addVersion(id, v) { const r = rec(id) || { use: 0, vers: [] }; r.vers.push(derive(v)); r.use = r.vers.length - 1; await put(id, r); }
+export async function useVersion(id, i) { const r = rec(id); r.use = i; await put(id, r); }
+export async function dropVersion(id, i) { const r = rec(id); r.vers.splice(i, 1); if (!r.vers.length) return drop(id); r.use = Math.min(r.use > i ? r.use - 1 : r.use, r.vers.length - 1); await put(id, r); }
 export async function drop(id) { cache.set(id, null); await kvDel('pt:' + id); }
+/** 候选：新画的加进去并换成在用；挑一个；删一个 */
+export function addAlt(v, k, x) { v.alt ||= {}; v.on ||= {}; (v.alt[k] ||= []).push(x); v.on[k] = v.alt[k].length - 1; derive(v); }
+export function pickAlt(v, k, i) { v.on[k] = i; derive(v); }
+export function dropAlt(v, k, i) { v.alt[k].splice(i, 1); if (!v.alt[k].length) { delete v.alt[k]; delete v.on[k]; } else if (v.on[k] >= i) v.on[k] = Math.max(0, v.on[k] - 1); derive(v); }
+/** 上次挑的表情、动作（复制提示词和上传宫格要对得上） */
+export const selOf = id => ({ face: rec(id)?.sel?.face || PARTS.map(x => x[0]), pose: rec(id)?.sel?.pose || POSES.filter(x => x[3]).map(x => x[0]) });
+export async function setSel(id, sel) { const r = rec(id); r.sel = sel; await put(id, r); }
 export const preload = ids => Promise.all(ids.map(load));
 
 const img = src => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = () => no(new Error('图片读不出来')); i.src = src; });
@@ -222,50 +257,38 @@ export async function cut(p, src, area) {
 }
 
 /** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / 'cry' / 'wail' / 'laugh' / 'nervous' / '') 换表情、hold(名字) 一直亮着某个表情、peek(名字) 亮一下某个表情 */
-/** 一张宫格出全部表情（作者的主意）：把脸部特写发给 GPT，让它画 4×3 的表情宫格，一次出 12 格；手机里切开、每格对齐到立绘上，再按区域抠。
- *  GRID：宫格里从左到右、从上到下每一格是什么。第一格是平常脸，不用，但能让 GPT 照着原样画 */
-export const GRID = ['', 'eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled', 'blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat'];
-export const gridPrompt = `附件是一个角色的立绘。请画一张 4 列 × 3 行的表情宫格图，共 12 格，格子之间用白色细线隔开。
-每一格都是这个角色的头和肩膀特写，正面；12 格的取景完全一样：脸的大小、位置、头的角度都相同。长相、发型、配饰（比如眼镜）和画风和附件一模一样，只改表情，不改的地方保持原样。
+/** 一张宫格出全部表情（作者的主意）：把立绘发给 GPT，让它画表情宫格，一次出完；手机里切开、每格对齐到立绘上，再按区域抠。
+ *  第一格永远是平常脸：不用，但切的时候拿它在立绘上找位置 */
+// 宫格怎么排：[列, 行, 画多大]。表情格子要方（头肩特写），动作格子要竖（半身）
+export const faceLayout = n => n <= 4 ? [2, 2, '1024x1024'] : n <= 6 ? [3, 2, '1536x1024'] : n <= 9 ? [3, 3, '1024x1024'] : [4, 3, '1536x1024'];
+export const poseLayout = n => n <= 2 ? [n, 1, '1536x1024'] : n === 3 ? [3, 1, '1536x1024'] : n === 4 ? [2, 2, '1024x1536'] : n <= 6 ? [3, 2, '1536x1024'] : n <= 8 ? [4, 2, '1536x1024'] : [3, 4, '1024x1536'];
+const listOf = items => items.map((t, i) => `${i + 1} ${t}`).join('\n');
+export const facePrompt = keys => { const n = keys.length + 1, [c, r] = faceLayout(n); return `附件是一个角色的立绘。请画一张 ${c} 列 × ${r} 行的表情宫格图，共 ${n} 格${c * r > n ? '（多出来的格子留白）' : ''}，格子之间用白色细线隔开。
+每一格都是这个角色的头和肩膀特写，正面；每格的取景完全一样：脸的大小、位置、头的角度都相同。长相、发型、配饰（比如眼镜）和画风和附件一模一样，只改表情，不改的地方保持原样。
 从左到右、从上到下依次是：
-1 平常（和附件一模一样）
-2 轻轻闭眼（嘴不变）
-3 张嘴说「啊」（眼睛不变）
-4 嘴巴小小圆圆说「哦」（眼睛不变）
-5 眯眼笑：弯弯的笑眼（嘴不变）
-6 生气：眉头压低皱起
-7 为难：眉头往上抬、眉尾下垂
-8 脸红害羞：两颊明显泛红
-9 哭：闭眼流泪
-10 大哭：眼睛闭成 > <，两道眼泪往下流
-11 用力闭眼成 > <
-12 慌张：额头边一滴汗
-不要文字、编号、边框装饰。`;
-/** 动作（换姿势）：[名字, 叫什么]，顺序就是宫格里的顺序 */
-export const POSES = [['hips', '叉腰'], ['wave', '挥手'], ['cross', '抱臂'], ['think', '托腮'], ['point', '指前方'], ['please', '拜托'], ['scratch', '挠头'], ['fist', '加油']];
-/** 动作宫格的提示词：配着立绘发给 GPT，一次画 8 个姿势。脸保持平常、不挡脸，表情才能叠上去 */
-export const posePrompt = `附件是一个角色的立绘。请画一张 4 列 × 2 行的姿势宫格图，共 8 格，格子之间用白色细线隔开。
+${listOf(['平常（和附件一模一样）', ...keys.map(k => PARTS.find(x => x[0] === k)[5])])}
+不要文字、编号、边框装饰。`; };
+/** 动作（换姿势）：[名字, 叫什么, 宫格提示词里怎么写, 默认要不要, 分类]。脸都保持平常、不挡脸，表情才能叠上去 */
+export const POSES = [
+  ['hips', '叉腰', '双手叉腰', 1, '日常'], ['wave', '挥手', '举起一只手挥手打招呼', 1, '日常'], ['cross', '抱臂', '双手抱在胸前', 1, '日常'], ['think', '托腮', '一只手托着下巴思考（手别挡住嘴）', 1, '日常'],
+  ['fist', '加油', '双手握拳在胸前给自己加油', 1, '情绪'], ['scratch', '挠头', '一只手挠后脑勺，不好意思', 1, '情绪'], ['shrug', '摊手', '双手摊开、耸肩，很无奈', 0, '情绪'], ['please', '拜托', '双手合十在胸前拜托', 1, '情绪'],
+  ['point', '指前方', '一只手指向前方（看的人）', 1, '互动'], ['heart', '比心', '双手在胸前比一个心', 0, '互动'], ['reach', '伸手', '一只手向前伸出，像要拉住对方', 0, '互动'], ['peace', '比耶', '一只手在胸前比 V', 0, '互动'],
+];
+export const posePrompt = keys => { const n = keys.length, [c, r] = poseLayout(n); return `附件是一个角色的立绘。请画一张 ${c} 列 × ${r} 行的姿势宫格图，共 ${n} 格${c * r > n ? '（多出来的格子留白）' : ''}，格子之间用白色细线隔开。
 每一格都是同一个角色：长相、发型、服装、配色和画风都和附件一模一样；和附件同样的半身取景、同样的大小、头在同样的位置，正面朝向观众，纯白背景。
 只改动作和手的姿势；脸保持附件里的平常表情，不要改表情，手和东西都不要挡住脸。
 从左到右、从上到下依次是：
-1 双手叉腰
-2 举起一只手挥手打招呼
-3 双手抱在胸前
-4 一只手托着下巴思考
-5 一只手指向前方
-6 双手合十拜托
-7 一只手挠后脑勺，不好意思
-8 双手握拳给自己加油
-不要文字、编号、边框装饰。`;
+${listOf(keys.map(k => POSES.find(x => x[0] === k)[2]))}
+不要文字、编号、边框装饰。`; };
 /** 立绘垫白底（发给 GPT 用） */
 export async function onWhite(p) { const c = canvas(p.w, p.h), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, p.w, p.h); x.drawImage(await img(p.base), 0, 0); return c.toDataURL('image/png'); }
-/** 切动作宫格：4×2 均分；每格在格子里找立绘那张脸的位置和大小，照着把整格缩放挪到和立绘一样（脸对上脸），去白底。交出 { poses: {名字: 图}, bad } */
-export async function cutPoses(p, src) {
-  const g = await img(src), base = await img(p.base), R = gridRect(p), poses = {}, bad = [];
+/** 切动作宫格：按挑的个数均分；每格在格子里找立绘那张脸的位置和大小，照着把整格缩放挪到和立绘一样（脸对上脸），去白底。交出 { poses: {名字: 图}, bad } */
+export async function cutPoses(p, src, keys) {
+  const g = await img(src), base = await img(p.base), R = gridRect(p), poses = {}, bad = [], [C, Rw] = poseLayout(keys.length);
   const flat = canvas(p.w, p.h), fx = flat.getContext('2d'); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0);
-  for (const [i, [k, name]] of POSES.entries()) {
-    const w = g.naturalWidth / 4, h = g.naturalHeight / 2, ins = Math.min(w, h) * .02, cell = canvas(Math.round(w - 2 * ins), Math.round(h - 2 * ins));
-    cell.getContext('2d').drawImage(g, (i % 4) * w + ins, (i >> 2) * h + ins, cell.width, cell.height, 0, 0, cell.width, cell.height);
+  for (const [i, k] of keys.entries()) {
+    const name = POSES.find(x => x[0] === k)[1], w = g.naturalWidth / C, h = g.naturalHeight / Rw, ins = Math.min(w, h) * .02, cell = canvas(Math.round(w - 2 * ins), Math.round(h - 2 * ins));
+    cell.getContext('2d').drawImage(g, (i % C) * w + ins, Math.floor(i / C) * h + ins, cell.width, cell.height, 0, 0, cell.width, cell.height);
     const [fx0, fy0, fw] = find(cell, { c: flat, r: R }), m = R[2] / fw, out = canvas(p.w, p.h), ox = out.getContext('2d');
     ox.fillStyle = '#fff'; ox.fillRect(0, 0, p.w, p.h); ox.drawImage(cell, R[0] - fx0 * m, R[1] - fy0 * m, cell.width * m, cell.height * m);
     try { poses[k] = (await clearBg({ base: out.toDataURL('image/png'), w: p.w, h: p.h }, 'image/webp')).base; } catch (e) { bad.push(name); }
@@ -283,7 +306,7 @@ export async function faceCrop(p) {
 }
 /** NAI 宫格（试验）：NAI 只认标签、一张图一组标签，画不了 GPT 那种按格子排的宫格。
  *  试法：手机里先把脸部特写复制排成 3 列 × 2 行（1216×832），拿去图生图保住格子；再用 NAI 4 的「分角色提示词」按位置告诉它每格画什么表情。一次 6 格，11 个表情最多两次 */
-export const NAI_GRID = [['eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled'], ['blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat', '']];
+export const naiBatches = keys => { const b = []; for (let i = 0; i < keys.length; i += 6) b.push([...keys.slice(i, i + 6), '', '', '', '', ''].slice(0, 6)); return b; };
 const NW = 1216, NH = 832, naiCells = () => [0, 1].flatMap(r => [0, 1, 2].map(c => { const w = NW / 3, h = NH / 2, s = Math.min(w, h); return [c * w + (w - s) / 2, r * h + (h - s) / 2, s, s]; }));
 export async function naiTiles(p) {
   const f = await img(await faceCrop(p)), c = canvas(NW, NH), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, NW, NH);
@@ -293,8 +316,8 @@ export async function naiTiles(p) {
 export const naiChars = keys => keys.map((k, i) => ({ tags: k ? `portrait, face focus, ${PARTS.find(x => x[0] === k)[3]}` : 'portrait, face focus, neutral expression', x: +((i % 3 * 2 + 1) / 6).toFixed(2), y: i < 3 ? .25 : .75 }));
 export const naiGridPrompt = 'expression chart, six panels, same girl in every panel, same framing, identical hair and face, face focus, white background, white borders';
 
-/** 切宫格：按 4 列 × 3 行均分，每格往里缩一点躲开分隔线（GPT 画的格子基本是均分的；白底时分隔线和背景分不开，不去找线） */
-const cells = (W, H) => [0, 1, 2].flatMap(r => [0, 1, 2, 3].map(c => { const w = W / 4, h = H / 3, i = Math.min(w, h) * .02; return [c * w + i, r * h + i, w - 2 * i, h - 2 * i]; }));
+/** 切宫格：按列 × 行均分，每格往里缩一点躲开分隔线（GPT 画的格子基本是均分的；白底时分隔线和背景分不开，不去找线） */
+const cells = (W, H, C, R) => Array.from({ length: C * R }, (_, j) => { const w = W / C, h = H / R, i = Math.min(w, h) * .02; return [(j % C) * w + i, Math.floor(j / C) * h + i, w - 2 * i, h - 2 * i]; });
 /** 把一格对到立绘上：先当它就是发出去的那块脸，再在小图上试一点点缩放和挪动，挑最像的（比灰度，先各自减掉平均） */
 function align(base, cell, R) {
   const N = 96, k = N / R[2], gray = (c, sx, sy, sw, sh, w, h) => { const t = canvas(w, h), x = t.getContext('2d', { willReadFrequently: true }); x.drawImage(c, sx, sy, sw, sh, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h); let m = 0; for (let i = 0; i < g.length; i++) { g[i] = luma(d, i * 4); m += g[i]; } m /= g.length; for (let i = 0; i < g.length; i++) g[i] -= m; return g; };
@@ -334,11 +357,11 @@ function find(base, cell) {
   const [, ox, oy, tw] = best; return [(ox - P) / q, (oy - P) / q, tw / q, tw / q];
 }
 
-/** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）；order：每格是什么（默认 GPT 那张 12 格的）；nai：是 NAI 宫格（格子位置已知）。
+/** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）；order：每格是什么（第一格 '' 是平常脸）；nai：是 NAI 宫格（格子位置已知）。
  *  交出 { parts: {名字: {src, box}}, bad: [没成的叫什么], why: [为什么] } */
-export async function cutGrid(p, src, want, order = GRID, nai) {
+export async function cutGrid(p, src, want, order, nai) {
   const g = await img(src), gc = canvas(g.naturalWidth, g.naturalHeight), gx = gc.getContext('2d', { willReadFrequently: true }); gx.drawImage(g, 0, 0);
-  const k0 = gc.width / NW, cs = nai ? naiCells().map(r => r.map(v => v * k0)) : cells(gc.width, gc.height);
+  const k0 = gc.width / NW, cs = nai ? naiCells().map(r => r.map(v => v * k0)) : cells(gc.width, gc.height, ...faceLayout(order.length));
   const base = await img(p.base), parts = {}, bad = [], why = [];
   const flat = canvas(p.w, p.h), fx = flat.getContext('2d', { willReadFrequently: true }); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0, p.w, p.h);
   // 先拿第一格（平常脸）在整张立绘上找到大概的位置和大小；NAI 宫格是我们自己排的，直接用脸部特写的位置
@@ -383,6 +406,8 @@ export function figure(id) {
     peek(k) { show(k, true); setTimeout(() => show(k, false), 1200); },
     // 一直亮着某个表情（照相馆里看效果用）；传空就收起
     hold(k) { if (el._held) show(el._held, false); el._held = k; if (k) show(k, true); },
+    // 换了某个表情的候选：那一块换图、换位置
+    set(k) { const x = p.parts[k], i = parts[k]; if (!x || !i) return; i.src = x.src; Object.assign(i.style, { left: x.box[0] / p.w * 100 + '%', top: x.box[1] / p.h * 100 + '%', width: x.box[2] / p.w * 100 + '%', height: x.box[3] / p.h * 100 + '%' }); },
     // 换动作：底图换成那个姿势（和立绘一样大、脸在同一个地方，表情照样叠）；没有这个姿势就回到立绘
     pose(k) { const s = p.poses?.[k] || p.base; if (base.src === s) return; const i = new Image(); i.src = s; i.decode().catch(() => {}).then(() => { base.src = s; }); },   // 先解码好再换，不闪
   };
