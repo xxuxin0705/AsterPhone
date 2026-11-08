@@ -35,15 +35,23 @@ export function areaOf(p, region) {
   return region === 'eyes' ? around(p, [eyeL, eyeR], .15, .2, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
 }
 
-/** 不找 AI、在手机里画：眼睛、嘴用原画自己的线挪出来（见 lids / lips），脸红画两团粉。交出 { src, box } */
+/** 不找 AI、在手机里画：闭眼、笑眼、脸红用现成的贴纸（作者用 GPT 画好、抠出来的，assets/portrait/），眼睛先抹平再贴；
+ *  贴纸跟着两只眼睛的连线转（头歪着也对得上）。嘴用原画自己的嘴线往下拉开（见 lips）。交出 { src, box } */
 export const LOCAL = ['mouthOpen', 'eyesClosed', 'mouthO', 'eyesSmile', 'blush'];
+const STICK = { eyesClosed: 'closed', eyesSmile: 'smile', blush: 'blush' };
 export async function drawPart(p, k) {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), { eyeL, eyeR, mouth } = p.boxes;
   x.drawImage(await img(p.base), 0, 0, p.w, p.h);
-  if (k === 'blush') for (const [ex, ey, ew, eh] of [eyeL, eyeR]) {
-    const cx = ex + ew / 2, cy = ey + eh + (mouth[1] - ey - eh) * .55, r = ew * .5, g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0, 'rgba(255,105,125,.5)'); g.addColorStop(1, 'rgba(255,105,125,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(cx, cy, r, r * .6, 0, 0, 7); x.fill();
-  } else if (k.startsWith('eyes')) for (const b of [eyeL, eyeR]) lids(x, b, k === 'eyesSmile');
+  if (STICK[k]) {
+    const tilt = Math.atan2(eyeR[1] + eyeR[3] / 2 - eyeL[1] - eyeL[3] / 2, eyeR[0] + eyeR[2] / 2 - eyeL[0] - eyeL[2] / 2);
+    const [L, R] = await Promise.all(['l', 'r'].map(s => img(`assets/portrait/${STICK[k]}-${s}.webp`)));
+    for (const [st, [bx, by, bw, bh]] of [[L, eyeL], [R, eyeR]]) {
+      if (k !== 'blush') smooth(x, [bx, by, bw, bh]);
+      const w = bw * (k === 'blush' ? 1.5 : 1.15), h = st.naturalHeight * w / st.naturalWidth;
+      const cx = bx + bw / 2, cy = k === 'blush' ? by + bh + (mouth[1] - by - bh) * .55 : by + bh * (k === 'eyesSmile' ? .5 : .62);
+      x.save(); x.translate(cx, cy); x.rotate(tilt); x.drawImage(st, -w / 2, -h / 2, w, h); x.restore();
+    }
+  }
   else lips(x, mouth, k === 'mouthO');
   const a = areaOf(p, k === 'blush' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
   o.getContext('2d').drawImage(c, a[0], a[1], a[2], a[3], 0, 0, a[2], a[3]);
@@ -60,17 +68,6 @@ function inkOf(x, [bx, by, bw, bh], cut = .4) {
   const ink = new ImageData(new Uint8ClampedArray(a), W, H); for (let j = 0; j < on.length; j++) ink.data[j * 4 + 3] = a[j * 4 + 3] * on[j];
   const c = canvas(W, H); c.getContext('2d').putImageData(ink, 0, 0);
   return { c, X, Y, W, H, a, on };
-}
-/** 闭眼 / 笑眼（照 Mesh Avatar Studio 不画图时的做法：眼睛靠网格变形，上眼皮压下来）：
- *  拿原画的上睫毛那一条（框里从上往下第一段很深的），把眼睛抹平，再把这条睫毛压扁、挪到闭眼的位置；
- *  闭眼往下弯一点，笑眼中间往上拱。睫毛还是原来的颜色和粗细，所以和原画一个画风 */
-function lids(x, b, smile) {
-  const [bx, by, bw, bh] = b, { c, X, Y, W, H, on } = inkOf(x, b, .35), rows = [];
-  for (let y = 0; y < H; y++) { let n = 0; for (let x0 = 0; x0 < W; x0++) n += on[y * W + x0]; rows.push(n / W); }
-  const top = Math.max(0, rows.findIndex(r => r > .18)), band = Math.max(3, Math.round(H * .3));
-  smooth(x, b);
-  const dh = band * (smile ? .75 : .55), y0 = by + bh * (smile ? .5 : .62) - dh / 2;
-  for (let i = 0; i < W; i++) { const s = Math.sin(i / (W - 1) * Math.PI), off = smile ? -s * bh * .3 : s * bh * .2 - bh * .05; x.drawImage(c, i, top, 1, band, X + i, y0 + off, 1, dh); }
 }
 /** 张嘴 / O 型嘴（照 Mesh Avatar Studio：嘴靠网格往下拉开）：原来那条嘴线留着当上嘴唇，
  *  从它往下拉开一个嘴（里面用线色调深红，底下一点舌头），下嘴唇用同色细线勾一下 */
