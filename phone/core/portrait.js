@@ -282,20 +282,12 @@ export async function naiTiles(p) {
 export const naiChars = keys => keys.map((k, i) => ({ tags: k ? `portrait, face focus, ${PARTS.find(x => x[0] === k)[4]}` : 'portrait, face focus, neutral expression', x: +((i % 3 * 2 + 1) / 6).toFixed(2), y: i < 3 ? .25 : .75 }));
 export const naiGridPrompt = 'expression chart, six panels, same girl in every panel, same framing, identical hair and face, face focus, white background, white borders';
 
-/** 切宫格：找白色的分隔线（找不到就按 4×3 均分），交出每格的 [x, y, w, h] */
-function cells(d, W, H) {
-  const white = (i) => d[i] > 238 && d[i + 1] > 238 && d[i + 2] > 238;
-  const runs = (n, m, at) => { const gap = []; for (let a = 0; a < n; a++) { let k = 0; for (let b = 0; b < m; b += 2) k += white(at(a, b)); gap.push(k / (m / 2) > .96); }
-    const seg = []; let s = -1; gap.forEach((g, a) => { if (!g && s < 0) s = a; if ((g || a === n - 1) && s >= 0) { const e = g ? a : a + 1; if (e - s > n / 12) seg.push([s, e - s]); s = -1; } }); return seg; };
-  let cs = runs(W, H, (a, b) => (b * W + a) * 4), rs = runs(H, W, (a, b) => (a * W + b) * 4);
-  if (cs.length !== 4) cs = [0, 1, 2, 3].map(i => [Math.round(i * W / 4), Math.round(W / 4)]);
-  if (rs.length !== 3) rs = [0, 1, 2].map(i => [Math.round(i * H / 3), Math.round(H / 3)]);
-  return rs.flatMap(([y, h]) => cs.map(([x, w]) => [x, y, w, h]));
-}
+/** 切宫格：按 4 列 × 3 行均分，每格往里缩一点躲开分隔线（GPT 画的格子基本是均分的；白底时分隔线和背景分不开，不去找线） */
+const cells = (W, H) => [0, 1, 2].flatMap(r => [0, 1, 2, 3].map(c => { const w = W / 4, h = H / 3, i = Math.min(w, h) * .02; return [c * w + i, r * h + i, w - 2 * i, h - 2 * i]; }));
 /** 把一格对到立绘上：先当它就是发出去的那块脸，再在小图上试一点点缩放和挪动，挑最像的（比灰度，先各自减掉平均） */
 function align(base, cell, R) {
   const N = 96, k = N / R[2], gray = (c, sx, sy, sw, sh, w, h) => { const t = canvas(w, h), x = t.getContext('2d', { willReadFrequently: true }); x.drawImage(c, sx, sy, sw, sh, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h); let m = 0; for (let i = 0; i < g.length; i++) { g[i] = luma(d, i * 4); m += g[i]; } m /= g.length; for (let i = 0; i < g.length; i++) g[i] -= m; return g; };
-  const M = 12, B = gray(base, R[0] - M / k, R[1] - M / k, R[2] + 2 * M / k, R[3] + 2 * M / k, N + 2 * M, N + 2 * M);
+  const M = 12, B = gray(base, R[0] - M / k, R[1] - M / k, R[2] + 2 * M / k, R[2] + 2 * M / k, N + 2 * M, N + 2 * M);
   let best = [Infinity, 1, 0, 0, 1];
   for (let s = .9; s <= 1.101; s += .025) {
     // 格子不一定是正方形：宽按 N*s，高按格子自己的长宽比
@@ -309,13 +301,37 @@ function align(base, cell, R) {
   const [, s, ox, oy, as] = best;   // 小图上这一格放在 (ox, oy)、宽 N*s → 换回立绘上的位置
   return [R[0] + (ox - M) / k, R[1] + (oy - M) / k, R[2] * s, R[2] * s * as];
 }
+/** 宫格不是照我们发的脸部特写画的（比如拿整张立绘去画、或者 GPT 自己换了取景）：拿一格在整张立绘上大范围找——
+ *  从小到大试各种大小、每个位置都比一下（都缩到很小的图上比，先各自减掉平均再算相关），挑最像的。交出这一格在立绘上的 [x, y, w, w] */
+function find(base, cell) {
+  const q = 128 / base.width, BW = 128, BH = Math.round(base.height * q), P = 48, S = BW + 2 * P, T = BH + 2 * P;
+  const t = canvas(S, T), tx = t.getContext('2d', { willReadFrequently: true }); tx.fillStyle = '#fff'; tx.fillRect(0, 0, S, T); tx.drawImage(base, P, P, BW, BH);
+  const bd = tx.getImageData(0, 0, S, T).data, B = new Float32Array(S * T); for (let i = 0; i < B.length; i++) B[i] = luma(bd, i * 4);
+  let best = [-2, 0, 0, 0];
+  for (let tw = 38; tw <= BW + 40; tw = Math.round(tw * 1.06) + 1) {   // 一格至少是立绘宽的三成（一张脸那么大）
+    const th = Math.round(tw * cell.r[3] / cell.r[2]), c = canvas(tw, th), cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(cell.c, ...cell.r, 0, 0, tw, th);
+    // 模板只取隔一个点的那些（和下面比的时候一样），减掉它们自己的平均
+    const cd = cx.getImageData(0, 0, tw, th).data, pts = [], C = []; for (let y = 0; y < th; y += 2) for (let x = 0; x < tw; x += 2) { pts.push(y * S + x); C.push(luma(cd, (y * tw + x) * 4)); }
+    const n = C.length, m = C.reduce((a, b) => a + b, 0) / n; let cv = 0; for (let i = 0; i < n; i++) { C[i] -= m; cv += C[i] * C[i]; }
+    for (let oy = 0; oy + th <= T; oy += 2) for (let ox = 0; ox + tw <= S; ox += 2) {
+      let sb = 0, sbb = 0, sbc = 0; const o = oy * S + ox;
+      for (let i = 0; i < n; i++) { const b = B[o + pts[i]]; sb += b; sbb += b * b; sbc += b * C[i]; }
+      const vb = sbb - sb * sb / n; if (vb < n * 25) continue;   // 一片白的地方不比
+      const r = sbc / Math.sqrt(vb * cv); if (r > best[0]) best = [r, ox, oy, tw];
+    }
+  }
+  const [, ox, oy, tw] = best; return [(ox - P) / q, (oy - P) / q, tw / q, tw / q];
+}
+
 /** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）；order：每格是什么（默认 GPT 那张 12 格的）；nai：是 NAI 宫格（格子位置已知）。
  *  交出 { parts: {名字: {src, box}}, bad: [没成的叫什么], why: [为什么] } */
 export async function cutGrid(p, src, want, order = GRID, nai) {
   const g = await img(src), gc = canvas(g.naturalWidth, g.naturalHeight), gx = gc.getContext('2d', { willReadFrequently: true }); gx.drawImage(g, 0, 0);
-  const k0 = gc.width / NW, cs = nai ? naiCells().map(r => r.map(v => v * k0)) : cells(gx.getImageData(0, 0, gc.width, gc.height).data, gc.width, gc.height);
-  const base = await img(p.base), R = gridRect(p), parts = {}, bad = [], why = [];
+  const k0 = gc.width / NW, cs = nai ? naiCells().map(r => r.map(v => v * k0)) : cells(gc.width, gc.height);
+  const base = await img(p.base), parts = {}, bad = [], why = [];
   const flat = canvas(p.w, p.h), fx = flat.getContext('2d', { willReadFrequently: true }); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0, p.w, p.h);
+  // 先拿第一格（平常脸）在整张立绘上找到大概的位置和大小；NAI 宫格是我们自己排的，直接用脸部特写的位置
+  const R = nai ? gridRect(p) : find(flat, { c: gc, r: cs[0] });
   for (const [i, k] of order.entries()) {
     if (!k || !want.includes(k)) continue;
     const name = PARTS.find(x => x[0] === k)[1];
@@ -329,7 +345,7 @@ export async function cutGrid(p, src, want, order = GRID, nai) {
       for (let y = 0; y < O[3]; y += 2) for (let x = 0; x < O[2]; x += 2) { const X = x + O[0], Y = y + O[1]; if (X >= A[0] && X < A[0] + A[2] && Y >= A[1] && Y < A[1] + A[3]) continue; const j = (y * O[2] + x) * 4; for (let c = 0; c < 3; c++) off[c] += d1[j + c] - d0[j + c]; n++; }
       if (n) { for (let j = 0; j < d1.length; j += 4) for (let c = 0; c < 3; c++) d1[j + c] -= off[c] / n; vx.putImageData(im, O[0], O[1]); }
       parts[k] = await cut(p, v.toDataURL('image/png'), A);
-    } catch (e) { bad.push(name); why.push(`${name}：${e.message}`); }
+    } catch (e) { bad.push(name); why.push(`${name}：${e.message}`) }
   }
   return { parts, bad, why };
 }
