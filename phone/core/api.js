@@ -330,11 +330,15 @@ const ratioOf = size => { const [w, h] = size.split('x').map(Number); return w =
 const b64png = b => 'data:image/png;base64,' + b;
 const blobUrl = async res => URL.createObjectURL(await res.blob());
 /** NovelAI 返回的是一个 zip，里面一张 png：手动拆开 */
+// 有的中转站直接回 PNG；压缩包按末尾的目录找图片的大小和位置（NAI 那种边写边压的包，开头记的大小是 0，不能信）
 async function firstFileInZip(buf) {
-  const v = new DataView(buf);
-  if (v.getUint32(0, true) !== 0x04034b50) throw new Error('NovelAI 返回的不是图片压缩包');
-  const method = v.getUint16(8, true), csize = v.getUint32(18, true), nlen = v.getUint16(26, true), xlen = v.getUint16(28, true);
-  const start = 30 + nlen + xlen, data = new Uint8Array(buf, start, csize || buf.byteLength - start);
+  const u8 = new Uint8Array(buf), v = new DataView(buf);
+  if (u8[0] === 0x89 && u8[1] === 0x50) return new Blob([u8], { type: 'image/png' });
+  if (u8[0] !== 0x50 || u8[1] !== 0x4b) throw new Error('NovelAI 回的不是图片：' + new TextDecoder().decode(u8.slice(0, 200)));
+  let e = u8.length - 22; while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('NovelAI 回的压缩包坏了');
+  const cd = v.getUint32(e + 16, true), method = v.getUint16(cd + 10, true), size = v.getUint32(cd + 20, true), lo = v.getUint32(cd + 42, true);
+  const start = lo + 30 + v.getUint16(lo + 26, true) + v.getUint16(lo + 28, true), data = u8.subarray(start, start + size);
   if (method === 0) return new Blob([data], { type: 'image/png' });
   const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
   return new Blob([await new Response(ds).arrayBuffer()], { type: 'image/png' });
