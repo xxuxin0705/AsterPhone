@@ -205,3 +205,5 @@
 .as-int-read__l.is-me { padding-left: 10px; border-left: 2px solid rgba(216,179,106,.5); }
 .as-int-read__l.is-ooc { font-family: var(--font-ui); opacity: .7; }
 .as-int-read__end { margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(216,179,106,.4); border-radius: 6px; font-size: 14px; line-height: 1.7; }
+.as-int-play .as-navbar__btn { color: #f1ece2; }
+.as-int-play .as-navbar__btn.is-off { opacity: .4; }

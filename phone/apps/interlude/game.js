@@ -101,7 +101,13 @@ export async function start(setup) {
 }
 
 // AI 偶尔把台词连引号塞进旁白：拆出来放回台词，喇叭才有得念（以前存下的句子显示时也拆）
-export function splitSay(l) { if (l.say || l.who === 'KP' || !l.act) return; const q = [...l.act.matchAll(/[“「]([^”」]+)[”」]/g)].map(m => m[1]); if (q.length) { l.say = q.join(' '); l.act = l.act.replace(/[“「][^”」]+[”」]/g, '').replace(/^[，。、\s]+/, '').trim(); } }
+export function splitSay(l) {
+  if (l.who === 'KP') return;
+  const re = /[“「]([^”」]+)[”」]/g, k = /[“「]/.test(l.say) ? 'say' : l.say ? '' : l.act ? 'act' : l.text ? 'text' : ''; if (!k) return;
+  const q = [...l[k].matchAll(re)].map(m => m[1]); if (!q.length) return;
+  const rest = l[k].replace(re, '').replace(/^[，。、：:\s]+/, '').replace(/[：:，\s]+$/, '').trim();
+  l.say = q.join(' '); if (k === 'say') l.act = [l.act, rest].filter(Boolean).join(' '); else l[k] = rest;
+}
 export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n)) || null;
 /** 一回合：input 是你做的事（已经带上骰子结果）。回来的 lines 记进 log，request 存到 g.req */
 export async function play(g, input) {
@@ -119,6 +125,7 @@ export async function play(g, input) {
   if (!lines.length) throw new Error('AI 回的格式不对');
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
+  if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (p && Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp))); }
   for (const p of [g.pc, ...g.party]) if (p.mad && --p.mad.left <= 0) p.mad = null;
   if (out.actDone && !last) { g.act++; g.roundIn = 0; g.place = A[g.act].place; }

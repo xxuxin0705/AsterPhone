@@ -19,6 +19,7 @@ import { speakAs } from '../../core/voice.js';
 import { stopSpeak } from '../../core/api.js';
 import { plain } from '../../core/act.js';
 import * as P from '../../core/portrait.js';
+import * as M from '../../core/music.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -435,7 +436,21 @@ function castRoll(host, g) {
 /* ---------- 玩：老照片场景 + 人物牌 + 对话框，一回合一次 API ---------- */
 const sceneSrc = k => BASE + 'scene-' + R.placeOf(k) + '.webp';
 function playPage(g) {
-  const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play' });
+  // 背景音乐、白噪音：KP 按场景给关键词，去音乐 App 的音源里搜来循环放；两个开关各管各的，角色说话时调小
+  const S = state.apps.interlude, beds = { bgm: new Audio(), amb: new Audio() }, VOL = { bgm: .45, amb: .35 };
+  const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(() => {}); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
+  const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), bedBtn('amb', 'rain', '白噪音')] });
+  async function bed(k) {
+    const a = beds[k], w = g[k] || ''; if (w === a._w) return; a._w = w; a.pause();
+    if (!w) return;
+    const u = await M.urlFor(w).catch(e => { log('warn', '幕间', `${k === 'bgm' ? '背景音乐' : '白噪音'}「${w}」没搜到：${e.message}`); return ''; });
+    if (a._w !== w || !u) return;
+    Object.assign(a, { src: u, loop: true, volume: VOL[k] }); if (!S[k + 'Off'] && p.el.isConnected) a.play().catch(() => {});
+  }
+  const bedAll = () => { bed('bgm'); bed('amb'); };
+  const duck = e => { for (const k in beds) beds[k].volume = VOL[k] * (e.detail === 'start' ? .3 : 1); };
+  const host = window.parent || window; host.addEventListener('asterphone-voice', duck);
+  if (M.playing()) M.toggle();   // 音乐 App 正在放歌：进来先停
   const bg = h('div.as-int-bg', h('img', { src: sceneSrc(g.place), alt: '' })); p.el.prepend(bg);
   p.el.style.backgroundPosition = 'center top';   // 给液态玻璃量背景用（和场景照片的铺法一样）
   const SHADE = ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)'];
@@ -533,7 +548,7 @@ function playPage(g) {
     act.replaceChildren(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel)));
     try {
       const lines = await (inflight = G.play(g, inp)); pending = '';   // 没写成时骰子结果留着，下次发送一起带上
-      scene(g.place); paintHud(); show(lines);
+      scene(g.place); paintHud(); show(lines); bedAll();
     } catch (e) {
       if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', '这回合失败：' + e.message, e); toast('这回合没写成：' + e.message); }
       prompt();
@@ -542,10 +557,10 @@ function playPage(g) {
   const ending = () => h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text), btn('回到桌上', 'primary', () => nav.pop()));
   paintHud();
   gls = glass(box, p.el, sceneSrc(g.place), SHADE);
-  p.el._onLeave = () => { hush(); pre.abort(); gls.dispose(); };
+  p.el._onLeave = () => { hush(); pre.abort(); gls.dispose(); for (const k in beds) beds[k].pause(); host.removeEventListener('asterphone-voice', duck); };
   if (G.running(g)) {   // 上次退出时 KP 还在想：接着等那一次
     act.hidden = false; act.append(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel))); say({ who: 'KP', act: '…' });
-    inflight.then(lines => { scene(g.place); paintHud(); show(lines); }, () => prompt());
+    inflight.then(lines => { scene(g.place); paintHud(); show(lines); bedAll(); }, () => prompt());
   } else show(g.log.filter(l => l.r === g.round && !l.me));
-  nav.push(p.el);
+  nav.push(p.el); bedAll();
 }

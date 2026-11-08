@@ -215,19 +215,32 @@ async function tidy(v) {
   const i = await img(v.base), c = canvas(v.w, v.h), x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(i, 0, 0);
   const d = x.getImageData(0, 0, v.w, v.h); peel(d.data, v.w, v.h); x.putImageData(d, 0, 0); return c.toDataURL('image/png');
 }
+// 从 seeds 往外找连着的、ok 的点，变透明；交出变了哪些（一个都没变交出 null）
+function fill(a, W, H, seeds, ok) {
+  const seen = new Uint8Array(W * H), st = seeds; let n = 0;
+  while (st.length) { const k = st.pop(); if (seen[k] || !ok(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; n++; const px = k % W;
+    if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
+  return n ? seen : null;
+}
+/** 点一下擦掉：和点的那个点连着、颜色差不多的一片变透明，再往外带走两圈过渡的杂色。交出新的立绘图 */
+export async function wipe(p, x0, y0) {
+  const i = await img(p.base), c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(i, 0, 0);
+  const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, k0 = Math.round(y0) * W + Math.round(x0), c0 = [0, 1, 2].map(j => a[k0 * 4 + j]);
+  const near = (k, t) => a[k * 4 + 3] && c0.every((v, j) => Math.abs(a[k * 4 + j] - v) < t);
+  const seen = fill(a, W, H, [k0], k => near(k, 24)); if (!seen) return p.base;
+  for (let r = 0; r < 2; r++) { const add = []; for (let k = 0; k < W * H; k++) { const px = k % W; if (!seen[k] && near(k, 72) && (px > 0 && seen[k - 1] || px < W - 1 && seen[k + 1] || seen[k - W] || seen[k + W])) add.push(k); } add.forEach(k => { seen[k] = 1; a[k * 4 + 3] = 0; }); }
+  x.putImageData(d, 0, 0); return c.toDataURL('image/png');
+}
 export function clearBg(p, type = 'image/png') {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), i = new Image();
   return new Promise((ok, no) => { i.onload = ok; i.onerror = no; i.src = p.base; }).then(() => {
-    x.drawImage(i, 0, 0); const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, seen = new Uint8Array(W * H), st = [];
+    x.drawImage(i, 0, 0); const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, st = [];
     // 底色看四个角（角上已经透明就是抠过了）：纯色底连它一起去掉。深色底不从下边往里找：衣服常常是深色、一直连到下边
     const corners = [0, W - 1, (H - 1) * W, H * W - 1]; if (corners.some(k => a[k * 4 + 3] < 255)) return p;
     const bg = corners.reduce((s, k) => s.map((v, i) => v + a[k * 4 + i] / 4), [0, 0, 0]), light = Math.min(...bg) > 170, dark = Math.max(...bg) < 60;
     const white = k => !dark && a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235 || (light || dark) && bg.every((v, i) => Math.abs(a[k * 4 + i] - v) < 16);
     for (let x0 = 0; x0 < W; x0++) st.push(x0, ...(dark ? [] : [(H - 1) * W + x0])); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
-    let n = 0;
-    while (st.length) { const k = st.pop(); if (seen[k] || !white(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; n++; const px = k % W;
-      if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
-    if (!n) return p;
+    if (!fill(a, W, H, st, white)) return p;
     peel(a, W, H); x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL(type, .92), e: 1 };
   });
 }

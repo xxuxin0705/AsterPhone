@@ -504,9 +504,9 @@ export const DEFAULT_PROMPTS = {
 - {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
 - {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
 - {"type":"choose","options":["…","…"]}：给几个选项
-场景换了就写 place（只能用：{{places}}）。有人受伤写 hurt。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
+场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
 只输出 JSON，不要别的文字、不要代码块：
-{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
+{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

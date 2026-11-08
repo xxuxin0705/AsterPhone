@@ -94,6 +94,7 @@ function person(cid, changed) {
       group('表情', [pickRow('face', P.PARTS), item({ title: '生成表情', value: `${faces.length} / ${P.PARTS.length}`, chevron: true, onClick: makeFaces }), line() && item({ title: '手机自己画表情', value: '不花钱', chevron: true, onClick: drawLocal }), ...own('表情', () => P.facePrompt(P.selOf(cid).face), useGrid)].filter(Boolean), tip),
       group('动作', [pickRow('pose', P.POSES), item({ title: '生成动作', value: `${poses.length} / ${P.POSES.length}`, chevron: true, onClick: makePoses }), ...own('动作', () => P.posePrompt(P.selOf(cid).pose), usePoses)]),
       group('', [item({ title: '立绘图片', value: '下载 · 复制', chevron: true, onClick: async () => { const v = await actionSheet('立绘图片', [{ value: 'dl', label: '下载' }, { value: 'cp', label: '复制图片' }]); const src = await P.onWhite(pt); if (v === 'dl') download(src, `portrait-${cid}.png`); if (v === 'cp') copyImg(src); } }),
+        item({ title: '擦掉没抠干净的', chevron: true, onClick: erase }),
         pt.boxes && item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { Object.assign(pt.boxes, b); await P.save(cid, pt); toast('框好了'); } } }),
         // 戴眼镜的：框一下两边镜片；手机自己画闭眼时用得上
         pt.boxes && item({ title: '眼镜', value: pt.boxes.lensL ? '框好了' : '没戴', chevron: true, onClick: glasses })].filter(Boolean)),
@@ -105,6 +106,19 @@ function person(cid, changed) {
     if (v === 'off') { delete pt.boxes.lensL; delete pt.boxes.lensR; }
     if (v === 'set') { if (taken()) return; const b = await frameAll([['lensL', '框住左边镜片'], ['lensR', '框住右边镜片']]); if (!b) return; Object.assign(pt.boxes, b); }
     if (v) { await P.save(cid, pt); row.querySelector('.as-list-item__value').textContent = pt.boxes.lensL ? '框好了' : '没戴'; }
+  }
+  // 擦掉没抠干净的：点哪块，和它连着的同色一片就变透明；能连着点、撤销，点「完成」才存
+  function erase() {
+    if (taken()) return;
+    const pt = P.loaded(cid), was = [], lay = h('div.as-studio__frame', { 'data-no-swipe': '' }), base = fig.firstChild;
+    const end = async ok => { lay.remove(); if (ok && was.length) { await P.save(cid, pt); toast('擦好了'); } else { if (was.length) { pt.base = was[0]; base.src = pt.base; } toast('没改'); } };
+    lay.onpointerdown = async e => {
+      if (e.target.closest('.as-studio__erase')) return;
+      e.preventDefault(); const r = fig.getBoundingClientRect(), k = pt.w / r.width, b = await P.wipe(pt, (e.clientX - r.left) * k, (e.clientY - r.top) * k);
+      if (b === pt.base) return; was.push(pt.base); pt.base = b; base.src = b;
+    };
+    lay.append(h('div.as-studio__erase', btn('取消', 'secondary', () => end(false)), btn('撤销', 'secondary', () => { if (was.length) { pt.base = was.pop(); base.src = pt.base; } }), btn('完成', 'primary', () => end(true))));
+    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('点没抠干净的地方');
   }
   // 一张小图：点了用它，右上角 × 删掉（只剩一张时不能删）
   function thumb(src, on, use, del) {
