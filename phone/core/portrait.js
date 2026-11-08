@@ -1,21 +1,22 @@
 // 立绘：一张标准立绘 + 几块「只改了一处」的小图（张嘴、闭眼、笑眼、生气眉…），叠在立绘上换着显示，就会眨眼、说话、换表情。
-// 做法：让生图线照着立绘出变体，再在手机里比对两张图哪里不一样，把不一样的那一小块抠出来（存成小图 + 位置）。
-// 存在 kv 的 pt:联系人 id 里：{ base, w, h, parts: { 名字: { src, box: [x, y, w, h] } } }
+// 做法：把立绘发给生图线，一次画一张表情宫格；手机里切开、每格对齐到立绘上，比对哪里不一样，把那一小块抠出来（存成小图 + 位置）。
+// 动作（换姿势）也是一次画一张宫格，切开后按脸对齐成和立绘一样大的整张图，表情照样叠在上面。
+// 存在 kv 的 pt:联系人 id 里：{ base, w, h, parts: { 名字: { src, box: [x, y, w, h] } }, poses: { 名字: 整张图 }, boxes: 框好的眼睛和嘴 }
 import { kvGet, kvSet, kvDel } from './store.js';
 
-/** 能生成的表情：[名字, 叫什么, 用来干嘛, 提示词里要改的那一处, NAI 用的标签, NAI 重画哪一块（眼睛 / 嘴 / 整张脸）] */
+/** 能生成的表情：[名字, 叫什么, 用来干嘛, NAI 用的标签, 换哪一块（眼睛 / 嘴 / 整张脸）] */
 export const PARTS = [
-  ['mouthOpen', '张嘴', '说话', 'the MOUTH, open as if saying "ah": an open rounded mouth showing the dark inside and a little tongue, about one and a half times as wide as the base mouth, centred on the same point', 'open mouth', 'mouth'],
-  ['eyesClosed', '闭眼', '眨眼', 'BOTH EYES, closed in a relaxed blink: each eye becomes a single soft downward-curving lash line in the same place and width as the open eye; no iris, no eye white', 'closed eyes', 'eyes'],
-  ['mouthO', 'O 型嘴', '说话', 'the MOUTH, a small round "o" shape, centred on the same point as the base mouth', ':o, small open mouth', 'mouth'],
-  ['eyesSmile', '笑眼', '笑', 'BOTH EYES become happy closed smiling eyes: each an upward-curving arc spanning the same width as the open eye, centred on the same point; no iris, no eye white', '^_^, closed eyes, happy', 'eyes'],
-  ['browsAngry', '生气', '生气', 'BOTH EYEBROWS become angry: the inner end of each brow moves down toward the nose, the outer end stays, same thickness and colour', 'angry, v-shaped eyebrows', 'eyes'],
-  ['browsTroubled', '为难', '为难', 'BOTH EYEBROWS become troubled: the inner end of each brow moves up, the outer end stays, same thickness and colour', 'worried, raised inner eyebrows', 'eyes'],
-  ['blush', '脸红', '害羞', 'the CHEEKS: a clearly deeper pink blush inside both cheeks, soft edges, staying inside the face outline', 'blush', 'face'],
-  ['eyesCry', '哭', '伤心', 'BOTH EYES closed and crying: each eye a downward-curving closed lash line with a small teardrop at the inner lower corner and one falling drop', 'closed eyes, crying, tears', 'eyes'],
-  ['eyesWail', '大哭', '大哭', 'BOTH EYES squeezed shut in comical wailing: each eye a thick > < shaped stroke with streams of tears running down the cheeks', '> <, crying, streaming tears, comedic', 'face'],
-  ['eyesSqueeze', '> <', '笑到眯眼', 'BOTH EYES squeezed shut as > and < shaped strokes (left eye >, right eye <), comic style', '> <, closed eyes', 'eyes'],
-  ['sweat', '汗', '慌张', 'small blue sweat drops beside the head, near both temples, outside the face', 'sweatdrop, nervous', 'face'],
+  ['mouthOpen', '张嘴', '说话', 'open mouth', 'mouth'],
+  ['eyesClosed', '闭眼', '眨眼', 'closed eyes', 'eyes'],
+  ['mouthO', 'O 型嘴', '说话', ':o, small open mouth', 'mouth'],
+  ['eyesSmile', '笑眼', '笑', '^_^, closed eyes, happy', 'eyes'],
+  ['browsAngry', '生气', '生气', 'angry, v-shaped eyebrows', 'eyes'],
+  ['browsTroubled', '为难', '为难', 'worried, raised inner eyebrows', 'eyes'],
+  ['blush', '脸红', '害羞', 'blush', 'face'],
+  ['eyesCry', '哭', '伤心', 'closed eyes, crying, tears', 'eyes'],
+  ['eyesWail', '大哭', '大哭', '> <, crying, streaming tears, comedic', 'face'],
+  ['eyesSqueeze', '> <', '笑到眯眼', '> <, closed eyes', 'eyes'],
+  ['sweat', '汗', '慌张', 'sweatdrop, nervous', 'face'],
 ];
 const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
 /** 第一步：照参考图（或者照描述）画一张方便拆的标准立绘 */
@@ -148,14 +149,6 @@ function smooth(x, [bx, by, bw, bh]) {
   for (let it = 0; it < 40; it++) for (const j of inn) for (let c = 0, i = j * 4; c < 4; c++) a[i + c] = (a[i + c - 4] + a[i + c + 4] + a[i + c - W * 4] + a[i + c + W * 4]) / 4;
   x.putImageData(d, X, Y);
 }
-/** 要重画的地方白、别处黑 */
-export function maskOf(p, a) { const c = canvas(p.w, p.h), x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, p.w, p.h); x.fillStyle = '#fff'; x.fillRect(...a); return c.toDataURL('image/png'); }
-/** 第二步：以立绘为底，只改一处 */
-export const partPrompt = change => `This is a LAYER VARIANT of the attached base image, not a new illustration. Identical camera, identical crop, identical character scale, identical pixel position: the head, hair, shoulders and torso must land on exactly the same pixels as the base. Do not re-frame, zoom, recentre, change the pose or redraw anything that is not part of the change.
-Change exactly ONE thing: ${change}.
-Everything else is identical to the base.
-Match the base exactly: same shading, same linework, same colours. ${STYLE}`;
-
 const cache = new Map();
 export async function load(id) { if (!cache.has(id)) cache.set(id, (await kvGet('pt:' + id).catch(() => null)) || null); return cache.get(id); }
 export const loaded = id => cache.get(id) || null;
@@ -173,7 +166,7 @@ export async function toBase(src) {
 }
 
 /** 去掉白底：从四边往里找连着的白色，变成透明（颜色留着，比对时垫回白底） */
-export function clearBg(p) {
+export function clearBg(p, type = 'image/png') {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), i = new Image();
   return new Promise((ok, no) => { i.onload = ok; i.onerror = no; i.src = p.base; }).then(() => {
     x.drawImage(i, 0, 0); const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, seen = new Uint8Array(W * H), st = [];
@@ -181,7 +174,7 @@ export function clearBg(p) {
     for (let x0 = 0; x0 < W; x0++) st.push(x0, (H - 1) * W + x0); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
     while (st.length) { const k = st.pop(); if (seen[k] || !white(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; const px = k % W;
       if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
-    x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL('image/png') };
+    x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL(type, .92) };
   });
 }
 
@@ -232,8 +225,8 @@ export async function cut(p, src, area) {
 /** 一张宫格出全部表情（作者的主意）：把脸部特写发给 GPT，让它画 4×3 的表情宫格，一次出 12 格；手机里切开、每格对齐到立绘上，再按区域抠。
  *  GRID：宫格里从左到右、从上到下每一格是什么。第一格是平常脸，不用，但能让 GPT 照着原样画 */
 export const GRID = ['', 'eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled', 'blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat'];
-export const gridPrompt = `附件是一个角色的脸部特写。请画一张 4 列 × 3 行的表情宫格图，共 12 格，格子之间用白色细线隔开。
-每一格都和附件构图完全一样：同样的取景范围、同样的脸的大小和位置、同样的发型、头的角度和画风，只改表情；不改的地方保持原样。
+export const gridPrompt = `附件是一个角色的立绘。请画一张 4 列 × 3 行的表情宫格图，共 12 格，格子之间用白色细线隔开。
+每一格都是这个角色的头和肩膀特写，正面；12 格的取景完全一样：脸的大小、位置、头的角度都相同。长相、发型、配饰（比如眼镜）和画风和附件一模一样，只改表情，不改的地方保持原样。
 从左到右、从上到下依次是：
 1 平常（和附件一模一样）
 2 轻轻闭眼（嘴不变）
@@ -248,19 +241,37 @@ export const gridPrompt = `附件是一个角色的脸部特写。请画一张 4
 11 用力闭眼成 > <
 12 慌张：额头边一滴汗
 不要文字、编号、边框装饰。`;
-/** 动作（换姿势）宫格的提示词：配着立绘发给 GPT，一次画 8 个姿势。现在只给作者复制去画，手机里还不用 */
+/** 动作（换姿势）：[名字, 叫什么]，顺序就是宫格里的顺序 */
+export const POSES = [['hips', '叉腰'], ['wave', '挥手'], ['cross', '抱臂'], ['think', '托腮'], ['point', '指前方'], ['please', '拜托'], ['scratch', '挠头'], ['fist', '加油']];
+/** 动作宫格的提示词：配着立绘发给 GPT，一次画 8 个姿势。脸保持平常、不挡脸，表情才能叠上去 */
 export const posePrompt = `附件是一个角色的立绘。请画一张 4 列 × 2 行的姿势宫格图，共 8 格，格子之间用白色细线隔开。
-每一格都是同一个角色：长相、发型、服装、配色和画风都和附件一模一样；同样的半身取景、同样的大小、正面朝向观众，纯白背景。只改动作和手的姿势，表情配合动作。
+每一格都是同一个角色：长相、发型、服装、配色和画风都和附件一模一样；和附件同样的半身取景、同样的大小、头在同样的位置，正面朝向观众，纯白背景。
+只改动作和手的姿势；脸保持附件里的平常表情，不要改表情，手和东西都不要挡住脸。
 从左到右、从上到下依次是：
-1 双手叉腰，很有精神
+1 双手叉腰
 2 举起一只手挥手打招呼
 3 双手抱在胸前
 4 一只手托着下巴思考
 5 一只手指向前方
 6 双手合十拜托
-7 双手捂着脸害羞
+7 一只手挠后脑勺，不好意思
 8 双手握拳给自己加油
 不要文字、编号、边框装饰。`;
+/** 立绘垫白底（发给 GPT 用） */
+export async function onWhite(p) { const c = canvas(p.w, p.h), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, p.w, p.h); x.drawImage(await img(p.base), 0, 0); return c.toDataURL('image/png'); }
+/** 切动作宫格：4×2 均分；每格在格子里找立绘那张脸的位置和大小，照着把整格缩放挪到和立绘一样（脸对上脸），去白底。交出 { poses: {名字: 图}, bad } */
+export async function cutPoses(p, src) {
+  const g = await img(src), base = await img(p.base), R = gridRect(p), poses = {}, bad = [];
+  const flat = canvas(p.w, p.h), fx = flat.getContext('2d'); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0);
+  for (const [i, [k, name]] of POSES.entries()) {
+    const w = g.naturalWidth / 4, h = g.naturalHeight / 2, ins = Math.min(w, h) * .02, cell = canvas(Math.round(w - 2 * ins), Math.round(h - 2 * ins));
+    cell.getContext('2d').drawImage(g, (i % 4) * w + ins, (i >> 2) * h + ins, cell.width, cell.height, 0, 0, cell.width, cell.height);
+    const [fx0, fy0, fw] = find(cell, { c: flat, r: R }), m = R[2] / fw, out = canvas(p.w, p.h), ox = out.getContext('2d');
+    ox.fillStyle = '#fff'; ox.fillRect(0, 0, p.w, p.h); ox.drawImage(cell, R[0] - fx0 * m, R[1] - fy0 * m, cell.width * m, cell.height * m);
+    try { poses[k] = (await clearBg({ base: out.toDataURL('image/png'), w: p.w, h: p.h }, 'image/webp')).base; } catch (e) { bad.push(name); }
+  }
+  return { poses, bad };
+}
 /** 发给 GPT 的脸部特写：以两只眼睛和嘴的中间为中心，正方形，边长约是两眼外侧距离的 1.3 倍（刘海到下巴）；白底 */
 export function gridRect(p) {
   const [x, y, w, h] = around(p, [p.boxes.eyeL, p.boxes.eyeR, p.boxes.mouth], 0, 0), s = Math.round(Math.min(Math.max(w * 1.3, h * 2), p.w, p.h));
@@ -279,7 +290,7 @@ export async function naiTiles(p) {
   for (const r of naiCells()) x.drawImage(f, ...r);
   return c.toDataURL('image/png');
 }
-export const naiChars = keys => keys.map((k, i) => ({ tags: k ? `portrait, face focus, ${PARTS.find(x => x[0] === k)[4]}` : 'portrait, face focus, neutral expression', x: +((i % 3 * 2 + 1) / 6).toFixed(2), y: i < 3 ? .25 : .75 }));
+export const naiChars = keys => keys.map((k, i) => ({ tags: k ? `portrait, face focus, ${PARTS.find(x => x[0] === k)[3]}` : 'portrait, face focus, neutral expression', x: +((i % 3 * 2 + 1) / 6).toFixed(2), y: i < 3 ? .25 : .75 }));
 export const naiGridPrompt = 'expression chart, six panels, same girl in every panel, same framing, identical hair and face, face focus, white background, white borders';
 
 /** 切宫格：按 4 列 × 3 行均分，每格往里缩一点躲开分隔线（GPT 画的格子基本是均分的；白底时分隔线和背景分不开，不去找线） */
@@ -308,7 +319,7 @@ function find(base, cell) {
   const t = canvas(S, T), tx = t.getContext('2d', { willReadFrequently: true }); tx.fillStyle = '#fff'; tx.fillRect(0, 0, S, T); tx.drawImage(base, P, P, BW, BH);
   const bd = tx.getImageData(0, 0, S, T).data, B = new Float32Array(S * T); for (let i = 0; i < B.length; i++) B[i] = luma(bd, i * 4);
   let best = [-2, 0, 0, 0];
-  for (let tw = 38; tw <= BW + 40; tw = Math.round(tw * 1.06) + 1) {   // 一格至少是立绘宽的三成（一张脸那么大）
+  for (let tw = 30; tw <= BW + 40; tw = Math.round(tw * 1.06) + 1) {   // 至少是被找那张图宽的四分之一（一张脸那么大）
     const th = Math.round(tw * cell.r[3] / cell.r[2]), c = canvas(tw, th), cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(cell.c, ...cell.r, 0, 0, tw, th);
     // 模板只取隔一个点的那些（和下面比的时候一样），减掉它们自己的平均
     const cd = cx.getImageData(0, 0, tw, th).data, pts = [], C = []; for (let y = 0; y < th; y += 2) for (let x = 0; x < tw; x += 2) { pts.push(y * S + x); C.push(luma(cd, (y * tw + x) * 4)); }
@@ -339,7 +350,7 @@ export async function cutGrid(p, src, want, order = GRID, nai) {
       const r = cs[i], at = align(flat, { c: gc, r }, R), v = canvas(p.w, p.h), vx = v.getContext('2d', { willReadFrequently: true });
       vx.drawImage(flat, 0, 0); vx.drawImage(gc, ...r, ...at);
       // 颜色校一下：GPT 重画会整体偏一点色，拿要换的那块四周一圈比平均色差，整块减掉
-      const A = areaOf(p, PARTS.find(x => x[0] === k)[5]), mg = Math.round(Math.min(A[2], A[3]) * .3), O = [Math.max(0, A[0] - mg), Math.max(0, A[1] - mg)];
+      const A = areaOf(p, PARTS.find(x => x[0] === k)[4]), mg = Math.round(Math.min(A[2], A[3]) * .3), O = [Math.max(0, A[0] - mg), Math.max(0, A[1] - mg)];
       O.push(Math.min(p.w, A[0] + A[2] + mg) - O[0], Math.min(p.h, A[1] + A[3] + mg) - O[1]);
       const d0 = fx.getImageData(...O).data, im = vx.getImageData(...O), d1 = im.data, off = [0, 0, 0]; let n = 0;
       for (let y = 0; y < O[3]; y += 2) for (let x = 0; x < O[2]; x += 2) { const X = x + O[0], Y = y + O[1]; if (X >= A[0] && X < A[0] + A[2] && Y >= A[1] && Y < A[1] + A[3]) continue; const j = (y * O[2] + x) * 4; for (let c = 0; c < 3; c++) off[c] += d1[j + c] - d0[j + c]; n++; }
@@ -355,7 +366,7 @@ export function figure(id) {
   const p = loaded(id); if (!p) return null;
   const el = document.createElement('div'); el.className = 'as-pt'; el.style.aspectRatio = `${p.w} / ${p.h}`;
   const lay = src => { const i = new Image(); i.src = src; i.alt = ''; i.draggable = false; el.append(i); return i; };
-  lay(p.base);
+  const base = lay(p.base);
   const parts = {};
   for (const [k, x] of Object.entries(p.parts)) { const i = lay(x.src); i.className = 'as-pt__part'; Object.assign(i.style, { left: x.box[0] / p.w * 100 + '%', top: x.box[1] / p.h * 100 + '%', width: x.box[2] / p.w * 100 + '%', height: x.box[3] / p.h * 100 + '%' }); parts[k] = i; }
   const show = (k, on) => parts[k] && parts[k].classList.toggle('is-on', on);
@@ -372,6 +383,8 @@ export function figure(id) {
     peek(k) { show(k, true); setTimeout(() => show(k, false), 1200); },
     // 一直亮着某个表情（照相馆里看效果用）；传空就收起
     hold(k) { if (el._held) show(el._held, false); el._held = k; if (k) show(k, true); },
+    // 换动作：底图换成那个姿势（和立绘一样大、脸在同一个地方，表情照样叠）；没有这个姿势就回到立绘
+    pose(k) { const s = p.poses?.[k] || p.base; if (base.src === s) return; const i = new Image(); i.src = s; i.decode().catch(() => {}).then(() => { base.src = s; }); },   // 先解码好再换，不闪
   };
   return el;
 }

@@ -66,3 +66,4 @@
 .as-studio__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; }
 .as-studio__chips button { padding: 6px 14px; border: 0; border-radius: 999px; font: inherit; font-size: 14px; color: var(--as-color-text); background: color-mix(in srgb, var(--as-color-text) 7%, transparent); }
 .as-studio__chips button.is-on { color: #fff; background: var(--as-color-accent, #ff8a3d); }
+.as-studio__chips > span { align-self: center; font-size: 13px; opacity: .55; margin-right: 2px; }

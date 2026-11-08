@@ -402,28 +402,27 @@ const fitB64 = (src, w, h, bg, contain) => new Promise((ok, no) => { const i = n
   x.fillStyle = bg; x.fillRect(0, 0, w, h); contain ? x.drawImage(i, (w - i.naturalWidth * k) / 2, (h - i.naturalHeight * k) / 2, i.naturalWidth * k, i.naturalHeight * k) : x.drawImage(i, 0, 0, w, h);
   ok(c.toDataURL('image/png').split(',')[1]); }; i.onerror = () => no(new Error('参考图读不出来')); i.src = src; });
 /** ref：照着这张图改（dataURL）。只有能「照图改图」的渠道认：OpenAI / 第三方（edits 接口或聊天接口带图）、硅基流动的改图模型；
- *  NAI：ref 是图就当「角色参考」（只有 4.5 的模型有），是 { image, mask } 就局部重绘（只重画 mask 白的地方） */
+ *  NAI：ref 是图就当「角色参考」（只有 4.5 的模型有），是 { image, chars, strength } 就图生图 + 分角色提示词 */
 async function imageRaw(prompt, conn, ref) {
   const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
   const { full, neg } = imgPrompt(conn, prompt);
   const key = keysOf(conn)[0] || '', base = trim(conn.base);
   const fail = async res => { throw new Error(await readErr(res)); };
   try {
-    if (ref && ref.mask && conn.type !== 'novelai') throw new Error('只有 NAI 能只重画框里的地方');
+    if (ref && ref.chars && conn.type !== 'novelai') throw new Error('只有 NAI 能按位置分别写提示词');
     if (ref && !['siliconflow', 'openai-image', 'image-compat', 'novelai'].includes(conn.type)) throw new Error('这个生图渠道不能照着图改，换 OpenAI / 第三方 / 硅基流动的改图模型或 NAI');
     switch (conn.type) {
       case 'novelai': {
         // ref.chars：图生图 + 分角色提示词（每个位置画什么），照相馆的「NAI 宫格（试验）」用
-        const model = conn.model || 'nai-diffusion-4-5-full', fill = ref && ref.mask, chars = ref && ref.chars, seed = Math.floor(Math.random() * 4294967295);
-        if (ref && !fill && !chars && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
+        const model = conn.model || 'nai-diffusion-4-5-full', chars = ref && ref.chars, seed = Math.floor(Math.random() * 4294967295);
+        if (ref && !chars && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
         const cc = chars ? chars.map(c => ({ char_caption: c.tags, centers: [{ x: c.x, y: c.y }] })) : [];
         const more = !ref ? {} : chars ? { image: await fitB64(ref.image, W, H, '#fff'), strength: ref.strength, noise: 0, extra_noise_seed: seed,
             characterPrompts: chars.map(c => ({ prompt: c.tags, uc: '', center: { x: c.x, y: c.y }, enabled: true })) }
-          : fill ? { image: await fitB64(ref.image, W, H, '#fff'), mask: await fitB64(ref.mask, W, H, '#000'), strength: 1, inpaintImg2ImgStrength: 1, noise: 0, add_original_image: true, img2img: { color_correct: true, strength: 1 }, extra_noise_seed: seed }
           : { director_reference_images: [await fitB64(ref, 1024, 1536, '#000', true)], director_reference_descriptions: [{ caption: { base_caption: 'character&style', char_captions: [] }, legacy_uc: false }],
             director_reference_information_extracted: [1], director_reference_strength_values: [1], director_reference_secondary_strength_values: [0] };
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ input: full, model: fill && !/inpainting$/.test(model) ? model + '-inpainting' : model, action: fill ? 'infill' : chars ? 'img2img' : 'generate', parameters: {
+          body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: {
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: cc }, use_coords: !!chars, use_order: true },
             v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref ? { seed } : {}), ...more } }) });

@@ -486,7 +486,7 @@ function playPage(g) {
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
   const say = l => { hush(); cur = g.log.includes(l) ? l : null;
     const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
-    face.firstChild.pt?.face(l.face);
+    face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
     actT.textContent = l.text || l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
     actT.hidden = !actT.textContent; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !(cur && l.say);
     if (mode === 'next') queue.filter(x => !x.ooc).slice(0, 2).forEach(ahead);
