@@ -44,7 +44,7 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
-  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'scenario', 'places'] },
+  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'scenario', 'meet', 'places'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
@@ -438,6 +438,7 @@ export const DEFAULT_PROMPTS = {
 {{memory}}
 【要车卡的人】
 {{roster}}
+{{mode}}
 
 要求：
 - 人设写的是一开始的样子，正文和上面记着的事更新：年龄、年级、身份、住在哪、和谁什么关系对不上时，以正文和记着的事为准。
@@ -451,6 +452,33 @@ export const DEFAULT_PROMPTS = {
 - 技能只从这张表里挑：{{skills}}。职业技能 8 项、兴趣技能几项；每人加的点总共不超过「教育×4 + 智力×2」（照你分的属性算），每项最高 80；没写的按基础值。
 - 只输出 JSON，不要别的文字、不要代码块：
 {"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","tier":"普通人 / 有本事的人 / 顶尖人物","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"},{"name":"折叠刀","dmg":"1D4","skill":"斗殴"}],"skills":{"侦查":60}}]}` },
+  intMeet: { name: '车卡会', cats: ['intMeet'], on: true, main: true,
+    text: `{{kp}}这一局开打之前，大家先开一个「车卡会」：所有人都知道是在跑团，坐在桌边一边车卡一边聊天。气氛：{{mood}}
+
+【正文里最近发生的事】
+{{story}}
+{{memory}}
+【这局的本】
+{{scenario}}
+
+【上桌的人】（{{user}} 是玩家本人，TA 的卡 TA 自己交，你不要替 TA 车卡、不要替 TA 交卡）
+{{roster}}
+{{mode}}
+
+写这场车卡会：
+1. KP 先透露一点点这局的信息（大概在哪、什么气氛、建议带什么样的人或本事），不剧透真相。
+2. 其他人一边车卡一边聊天：交卡给 KP 审，不合规矩的打回（属性堆太高、武器带了一堆甚至坦克、特殊能力太夸张…），被打回的可以不服、吐槽、讨价还价，KP 照自己的性格回（可以放狠话，比如「再这样到时候别怪我刷怪」），改了再交，直到过审。照每个人的性格来：爱钻空子的会钻、老实的一次就过。{{user}} 可以插一两句话，但不要替 TA 交卡。
+3. 聊到最后，KP 定下这局车卡的规矩（rules），之后谁的卡（包括 {{user}}）只要符合就能过。
+4. 再写好两套话，等 {{user}} 交卡时用：pass 是过审时 KP 和大家说的（两三句），fail 是被打回时说的（两三句，不用说具体哪里不对，手机会补上）。
+5. 每张过审的卡亮出来时，KP 和其他人的评语 reviews（每张两三句，可以夸、可以吐槽）。
+每句一两句话，lines 总共 20～40 句。说话的语言和语气照上面每个人后面写的；台词不是中文的写 zh 翻译。
+
+rules：tiers 写每个人（{{user}} 也要写）是哪一档——普通人（460 点）/ 有本事的人（540 点）/ 顶尖人物（620 点，人设里写明的顶尖强者才是）；weapons 每人最多几件武器；guns 能不能带枪；abilities 每人最多几个特殊能力；banned 不准带的东西；text 一句话说规矩。
+
+其他人最后过审的卡（cards）：属性照档位分点（8 项 STR CON SIZ DEX APP INT POW EDU，每项 15～90，体型、智力、教育至少 40，取 5 的倍数，总数不超过这一档；幸运不用写）；特殊能力照人设写，kind 是 atk 攻击 / guard 护身 / heal 治疗 / buff 鼓舞 / other 只在剧情里用，dmg 攻击 1D6～3D6、治疗 1D4～2D6、护身 2～6 点（顶尖人物才能写「全部」），cost 每次耗 2～8 点魔法；职业最好从这些里挑：{{jobs}}；技能只从这张表里挑：{{skills}}，加的点总共不超过「教育×4 + 智力×2」，每项最高 80；背景写身份、和其他人的关系、关键经历、目标、秘密；资产一句；随身物品 3～6 样，武器写伤害和技能。都要符合你定下的 rules。
+
+只输出 JSON，不要别的文字、不要代码块：
+{"hint":"KP 透露的信息","lines":[{"who":"KP 或名字","say":"","act":"","zh":""}],"rules":{"tiers":{"名字":"有本事的人"},"weapons":2,"guns":false,"abilities":2,"banned":["坦克"],"text":""},"cards":[{"who":"名字","name":"","age":25,"sex":"","job":"","home":"","tier":"有本事的人","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"}],"skills":{"侦查":60}}],"pass":[{"who":"KP","say":""}],"fail":[{"who":"KP","say":""}],"reviews":{"名字":[{"who":"KP","say":""}]}}` },
   intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
     text: `{{kp}}现在要为 {{user}} 和 TA 的朋友们开一局《克苏鲁的呼唤》第七版。先把这一局的骨架写好。气氛：{{mood}}
 {{know}}
@@ -464,7 +492,7 @@ export const DEFAULT_PROMPTS = {
 
 【本】
 {{scenario}}
-
+{{meet}}
 【场景】整局只能在这些地点里进行，每一幕选一个（写左边的代号）：
 {{places}}
 
@@ -524,7 +552,7 @@ export const DEFAULT_PROMPTS = {
 - {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
 - {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
 - {"type":"choose","options":["…","…"]}：给几个选项
-场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt（战斗里的伤手机已经算过，别再写）。有人捡到、用掉、丢了东西写 items。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
+场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt（战斗里的伤手机已经算过，别再写）。有人捡到、用掉、丢了东西写 items。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15}}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）。
 只输出 JSON，不要别的文字、不要代码块：
 {"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","drop":"用掉或丢了的东西"}],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,

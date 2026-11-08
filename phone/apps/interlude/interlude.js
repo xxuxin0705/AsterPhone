@@ -4,7 +4,7 @@
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
 import { h, debounce } from '../../core/util.js';
 import { state, contact, commit } from '../../core/store.js';
-import { page, navBtn, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty } from '../../core/ui.js';
+import { page, navBtn, navText, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty } from '../../core/ui.js';
 import { LANGS, langName } from '../../core/translate.js';
 import * as nav from '../../core/nav.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
@@ -25,7 +25,7 @@ const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [] };
+const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false };
 const MAX_SEATS = 8;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
 let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
@@ -263,7 +263,11 @@ function setupSheet(next, chooseKp) {
   const askF = field('要求', ask); askF.hidden = pick.scenario !== 'random';
   // 知不知道在跑团：正经默认不知道，轻松 / 整活默认知道；自己拨过就不再跟着气氛变
   let knowTouched = false;
-  const know = switchEl(pick.know, v => { pick.know = v; knowTouched = true; }, '知道在跑团');
+  const know = switchEl(pick.know, v => { pick.know = v; knowTouched = true; modeBox.hidden = !v; }, '知道在跑团');
+  // 车卡方式、车卡会：知道在跑团才有
+  const modeBox = h('div', field('车卡方式', segmented(G.MODES, pick.mode, v => { pick.mode = v; })),
+    group('', [item({ title: withInfo('车卡会', '开局前大家边车卡边聊，KP 定下规矩；你的卡自己交给 KP 审。'), right: switchEl(pick.meet, v => { pick.meet = v; }, '车卡会') })]));
+  modeBox.hidden = !pick.know;
   const mood = segmented(R.MOODS, pick.mood, v => { pick.mood = v; if (!knowTouched) { const k = v !== 'serious'; if (k !== pick.know) know.click(); knowTouched = false; } });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));
   const kpRow = item({ title: 'KP', value: kpName(), chevron: true, onClick: () => chooseKp(() => { kpRow.querySelector('.as-list-item__value').textContent = kpName(); paintLang(); }) });
@@ -278,7 +282,7 @@ function setupSheet(next, chooseKp) {
   paintLang();
   const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood),
     group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), kpRow]),
-    langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
+    modeBox, langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('下一步：车卡', 'primary', () => { s.close(); next(); }))] });
 }
 
@@ -287,21 +291,26 @@ const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size, size > 60 ? 'square' : 'round') : avatar(contact(o).avatar, nameOf(contact(o)), size, size > 60 ? 'square' : 'round');
 function cardPage(back) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
-  let sel = 'me';
-  const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card' });
+  const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
+  const meetOn = pick.know && pick.meet, mode = pick.know ? pick.mode : 'self';
+  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, lang: langs() };
+  let sel = 'me', m = meetOn ? G.meeting(ms) : null;
+  const meetB = navText('车卡会', () => meetPage(false)); meetB.hidden = !m;
+  const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card', right: meetB });
   const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
   const photo = h('div.as-int-card__photo'), head = h('div.as-int-card__head'), sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', photo, head, sheetEl);
   const saveLater = debounce(() => G.save(), 400);
-  const makeB = btn('AI 车卡', 'primary', () => G.running() || owners.some(o => !cur[o]) ? make(owners.filter(o => !cur[o])) : redo());
+  const makeB = btn('AI 车卡', 'primary', () => meetOn && !m ? holdMeet() : G.running() || owners.some(o => !cur[o]) ? make(owners.filter(o => !cur[o])) : redo());
   const swapB = btn('换卡', 'secondary', () => swapCard());
-  const startB = btn('开局', 'primary', () => begin());
+  const startB = btn('开局', 'primary', () => meetOn && !G.running() ? meetPage(true) : begin());
   p.body.append(tabs, scroller, h('div.as-int-card__bar', swapB, makeB, startB));
-  const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.textContent = miss ? `AI 车卡（${miss} 人）` : '重车'; startB.hidden = !!miss; swapB.hidden = !cur[sel]; };
+  const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.textContent = meetOn && !m ? '开车卡会' : miss ? `AI 车卡（${miss} 人）` : '重车';
+    startB.textContent = meetOn ? '交卡' : '开局'; startB.hidden = meetOn ? !m || !cur.me : !!miss; swapB.hidden = !cur[sel]; meetB.hidden = !m; };
   async function make(list) {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast(`KP 在给 ${list.length} 个人车卡…`, { label: '取消', fn: G.cancel, wait: true });
-    try { (await G.makeCards(list, owners)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
+    try { (await G.makeCards(list, owners, mode, m ? `${m.rules.text}（${G.meetRules(m)}）` : '')).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
     catch (e) { failed(e, '没车成'); }
     paintTabs(); paint(); paintBar();
   }
@@ -324,11 +333,42 @@ function cardPage(back) {
     startB.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
-      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)])), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]) });
+      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m });
       toast(`《${g.title}》写好了`); back();
       await castRoll(p.el, g); nav.pop(); playPage(g);
     } catch (e) { failed(e, '没开成'); }
-    startB.textContent = '开局';
+    paintBar();
+  }
+  // 车卡会：一次 API 写完整场，其他人的卡也在会上车好
+  async function holdMeet() {
+    if (G.running()) { G.cancel(); return; }
+    makeB.replaceChildren(h('span.as-spin')); toast('大家在开车卡会…', { label: '取消', fn: G.cancel, wait: true });
+    try { m = await G.meet(ms); pick.party.forEach((o, i) => { cur[o] = G.cardById(m.cards[i]); }); toast('车卡会开完了'); meetPage(false); }
+    catch (e) { failed(e, '车卡会没开成'); }
+    paintTabs(); paint(); paintBar();
+  }
+  // 会上的对话照着看；交卡（submit）时照规矩审你的卡：没过就念打回的话、列出哪里不对，过了就一张张亮卡（带大家的评语），再开局
+  function meetPage(submit) {
+    const q = page({ app: 'interlude', id: 'int-meet', title: '车卡会', large: true, back: true, cls: 'as-int-archive.as-int-meet' });
+    const say = l => h('div.as-int-read__l' + (l.who === myName() ? '.is-me' : ''), h('b', l.who), l.act ? h('p.is-act', l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null);
+    const read = h('div.as-int-read', ...m.lines.map(say), h('div.as-int-read__end', h('b', '这局的规矩'), h('p', m.rules.text), h('small', G.meetRules(m))));
+    const show = els => { read.append(...els); requestAnimationFrame(() => read.scrollTo({ top: read.scrollHeight, behavior: 'smooth' })); };
+    const card = o => { const c = cur[o], rv = m.reviews[ownerName(o)] || m.reviews[c.name];
+      return [h('div.as-int-reveal', ownerFace(o, 40), h('div', h('b', `${c.name} · ${c.job}`), h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')),
+        (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null)), ...(Array.isArray(rv) ? rv : []).map(say)]; };
+    let tries = 0;
+    const editB = btn(cur.me ? '改我的卡' : '车我的卡', 'secondary', () => { nav.pop(); if (sel !== 'me') { sel = 'me'; paintTabs(); paint(); paintBar(); } });
+    const give = btn('交卡', 'primary', () => {
+      const bad = G.checkCard(cur.me, m);
+      if (bad.length) { show([...(tries++ ? [] : m.fail.map(say)), h('div.as-int-read__end', '没过：' + bad.join('；'))]); return; }
+      const t = m.rules.tiers[myName()]; if (m.mode !== 'random' && R.TIERS.some(x => x[0] === t)) { cur.me.tier = t; G.save(); }   // 过了：你的档位照会上定的
+      show([...m.pass.map(say), ...owners.flatMap(card)]); bar.replaceChildren(btn('开局', 'primary', () => { nav.pop(); begin(); }));
+    });
+    give.hidden = !cur.me;
+    const bar = h('div.as-int-card__bar', editB, give);
+    q.body.append(read, bar);
+    nav.push(q.el);
+    if (submit) give.click();
   }
   // 一张卡：改哪一格就只改那一格
   function paint() {
@@ -403,7 +443,8 @@ function cardPage(back) {
   }
   paintTabs(); paint(); paintBar();
   nav.push(p.el);
-  if (owners.some(o => !cur[o])) make(owners.filter(o => !cur[o]));   // 进来就把没卡的一起车了
+  if (meetOn) { if (!m) holdMeet(); }   // 开着车卡会：进来就开会（其他人的卡在会上车）
+  else if (owners.some(o => !cur[o])) make(owners.filter(o => !cur[o]));   // 进来就把没卡的一起车了
 }
 
 // 分属性点（活着打完一局加的）：每项 − / +，单项不超过 90；底部 取消 | 保存
