@@ -63,12 +63,12 @@ export async function dropCard(c) { D.cards = D.cards.filter(x => x !== c); if (
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerPersona = o => o === 'me' ? myPersona() : personaOf(contact(o));
 /** 一次给好几个人车卡（owners：'me' / 联系人 id）。属性由手机先掷好，AI 照正文和人设写身份、背景、技能 */
+// 世界书、念念铃（没有就空）：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
+const memoryText = async (ids, story) => [await worldText(story).catch(() => ''), await memoryFor(ids.map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
 export async function makeCards(owners) {
-  const rolled = owners.map(o => ({ o, a: R.rollAttrs() })), story = storyText();
-  // 世界书、念念铃：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
-  const memory = [await worldText(story).catch(() => ''), await memoryFor(owners.filter(o => o !== 'me').map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
+  const rolled = owners.map(o => ({ o, a: R.rollAttrs() })), story = storyText(), memory = await memoryText(owners, story);
   const out = await ask('intCards', {
-    story: story || '（正文里还没发生什么）', memory: memory || '（没有）', jobs: R.JOBS.map(j => j[0]).join('、'),
+    story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'),
     skills: Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).join('、') + '、闪避（敏捷÷2）、母语（教育）',
     roster: rolled.map(({ o, a }) => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : ''}：${attrsText(a)}；技能点上限 ${R.points(a)}；人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}`).join('\n'),
   }, 1200 + 700 * owners.length);
@@ -91,8 +91,9 @@ export async function start(setup) {
   const sc = R.SCENARIOS.find(s => s.id === setup.scenario);
   const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', crit: state.apps.interlude.crit,
     act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: setup.party.map(fromCard) };
+  const story = storyText(), mem = await memoryText([g.kp, ...setup.party.map(c => c.owner)], story);
   const out = await ask('intStart', {
-    kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: storyText() || '（正文里还没发生什么）',
+    kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
     pc: '你：' + cardText(setup.me), cast: setup.party.map(c => `${ownerName(c.owner)} 扮演 ` + cardText(c)).join('\n'),
     scenario: sc ? `《${sc.title}》\n${sc.blurb}\n各幕：${sc.acts.map((a, i) => `${i + 1}. ${a.title}：${a.goal}（${a.place}）→ ${a.exit}`).join('；')}\n真相：${sc.secret}\n好结局：${sc.endings.good}\n坏结局：${sc.endings.bad}\n（骨架照这个写，可以润色）` : `随机生成一个本${setup.ask ? `，要求：${setup.ask}` : ''}`,
     places: placesText(),

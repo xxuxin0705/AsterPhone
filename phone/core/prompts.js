@@ -44,7 +44,7 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
-  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'cast', 'pc', 'scenario', 'places'] },
+  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'scenario', 'places'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
@@ -435,10 +435,7 @@ export const DEFAULT_PROMPTS = {
 
 【正文里最近发生的事】
 {{story}}
-
-【记着的事】（世界书、念念铃）
 {{memory}}
-
 【要车卡的人】（属性已经由骰子掷好，不要改）
 {{roster}}
 
@@ -456,7 +453,7 @@ export const DEFAULT_PROMPTS = {
 
 【正文里最近发生的事】（这局是从这里「暂停」开的，开场白要先用一两句接住它，再进入游戏）
 {{story}}
-
+{{memory}}
 【调查员】
 {{pc}}
 {{cast}}

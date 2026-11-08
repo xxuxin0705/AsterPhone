@@ -499,7 +499,7 @@ function playPage(g) {
   const made = new Map(), pre = new AbortController(); let chain = Promise.resolve();
   const ahead = l => { if (!l || l.ooc || made.has(l)) return; G.splitSay(l); if (!l.say) return;
     made.set(l, chain = chain.then(() => pre.signal.aborted ? null : speakAs(vid(l.who), l.say, { silent: true, acted: true, cache: key(l), stop: pre.signal })).catch(e => log('warn', '幕间', '提前合成没成：' + e.message))); };
-  const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, ooc, who, box, act);
+  const act = h('div.as-int-act'), stage = h('div.as-int-stage', ooc, who, box, act);
   p.body.append(hud, stage);
   let queue = [], seen = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
   // 照相馆做过立绘的人（包括你）站着出来（会眨眼、说话时动嘴），没做的用头像
