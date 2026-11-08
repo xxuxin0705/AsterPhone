@@ -194,7 +194,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-sheet-mask { z-index: 81; }    /* 和抽屉同一层，按先后叠：抽屉上再开抽屉时，点外面盖住的是下面那个，能关掉 */
 .as-dialog-mask { z-index: 85; }   /* 确认框要盖在抽屉（81）上面 */
 .as-sheet-mask.is-open, .as-dialog-mask.is-open { opacity: 1; }
-.as-sheet { position: absolute; z-index: 81; left: 8px; right: 8px; bottom: 8px; max-height: 82%; display: flex; flex-direction: column; padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 30px; background: color-mix(in srgb, var(--as-color-surface-solid) 86%, transparent); border: 1px solid var(--as-color-glass-line); color: var(--as-color-text); transform: translateY(110%); transition: transform 260ms var(--as-ease-standard); box-shadow: 0 -10px 40px rgba(0,20,40,.2); -webkit-backdrop-filter: blur(26px) saturate(1.4); backdrop-filter: blur(26px) saturate(1.4); }
+.as-sheet { position: absolute; z-index: 81; left: 8px; right: 8px; bottom: 8px; max-height: 82%; display: flex; flex-direction: column; padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 30px; background: color-mix(in srgb, var(--as-color-surface-solid) 96%, transparent); border: 1px solid var(--as-color-glass-line); color: var(--as-color-text); transform: translateY(110%); transition: transform 260ms var(--as-ease-standard); box-shadow: 0 -10px 40px rgba(0,20,40,.2); }
 .as-sheet.is-open { transform: translateY(0); }
 .as-sheet__grab { width: 38px; height: 5px; border-radius: 3px; margin: 2px auto 10px; background: color-mix(in srgb, var(--as-color-text) 22%, transparent); flex: none; }
 .as-sheet__title { font: 600 17px/1.3 var(--font-ui); text-align: center; margin-bottom: 10px; flex: none; }
