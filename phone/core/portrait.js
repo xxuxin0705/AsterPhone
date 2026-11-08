@@ -35,7 +35,7 @@ export function areaOf(p, region) {
   return region === 'eyes' ? around(p, [eyeL, eyeR], .15, .2, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
 }
 
-/** 不找 AI、在手机里画（照 RuiC-2D 的本地绘制）：先用四周的颜色把眼睛 / 嘴抹平，再画闭眼线、笑眼弧、嘴；脸红画两团粉。交出 { src, box } */
+/** 不找 AI、在手机里画：眼睛、嘴用原画自己的线挪出来（见 lids / lips），脸红画两团粉。交出 { src, box } */
 export const LOCAL = ['mouthOpen', 'eyesClosed', 'mouthO', 'eyesSmile', 'blush'];
 export async function drawPart(p, k) {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), { eyeL, eyeR, mouth } = p.boxes;
@@ -43,36 +43,68 @@ export async function drawPart(p, k) {
   if (k === 'blush') for (const [ex, ey, ew, eh] of [eyeL, eyeR]) {
     const cx = ex + ew / 2, cy = ey + eh + (mouth[1] - ey - eh) * .55, r = ew * .5, g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
     g.addColorStop(0, 'rgba(255,105,125,.5)'); g.addColorStop(1, 'rgba(255,105,125,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(cx, cy, r, r * .6, 0, 0, 7); x.fill();
-  } else if (k.startsWith('eyes')) for (const b of [eyeL, eyeR]) {
-    const ink = darkest(x, b), [bx, by, bw, bh] = b; smooth(x, b);
-    x.strokeStyle = ink; x.lineWidth = Math.max(2, bw * .07); x.lineCap = 'round'; x.beginPath();
-    for (let i = 0; i <= 30; i++) { const u = i / 30, s = Math.sin(u * Math.PI); x.lineTo(bx + bw * u, k === 'eyesSmile' ? by + bh * .65 - s * bh * .35 : by + bh * .55 + s * bh * .12); }
-    x.stroke();
-  } else {
-    const [mx, my, mw, mh] = mouth, cx = mx + mw / 2, cy = my + mh / 2, R = mw * .34, rx = k === 'mouthO' ? R * .62 : R, ry = (k === 'mouthO' ? .51 : .48) * R;
-    smooth(x, mouth);
-    x.fillStyle = 'rgb(104,42,49)'; x.strokeStyle = 'rgb(155,70,76)'; x.lineWidth = 1; x.beginPath(); x.ellipse(cx, cy + ry * .55, rx, ry, 0, 0, 7); x.fill(); x.stroke();
-    x.fillStyle = 'rgb(224,121,134)'; x.beginPath(); x.ellipse(cx, cy + ry * 1.05, rx * .65, ry * .4, 0, 0, 7); x.fill();
-  }
+  } else if (k.startsWith('eyes')) for (const b of [eyeL, eyeR]) lids(x, b, k === 'eyesSmile');
+  else lips(x, mouth, k === 'mouthO');
   const a = areaOf(p, k === 'blush' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
   o.getContext('2d').drawImage(c, a[0], a[1], a[2], a[3], 0, 0, a[2], a[3]);
   return { src: o.toDataURL('image/png'), box: a };
 }
-/** 框里最深的颜色（睫毛的颜色） */
-function darkest(x, [bx, by, bw, bh]) {
-  const d = x.getImageData(bx, by, bw, bh).data; let m = 999, o = 0;
-  for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; if (d[i + 3] > 200 && v < m) { m = v; o = i; } }
-  return `rgb(${d[o]},${d[o + 1]},${d[o + 2]})`;
+const luma = (a, i) => a[i] * .3 + a[i + 1] * .59 + a[i + 2] * .11;
+/** 框里的「线」：比四周深的像素单独拿出来（越深越不透明），颜色就是原画的线色。交出 { c: 只有线的小画布, X, Y, W, H, a: 原像素, on: 哪些是线 } */
+function inkOf(x, [bx, by, bw, bh], cut = .4) {
+  const X = Math.max(0, Math.round(bx)), Y = Math.max(0, Math.round(by)), W = Math.round(bw), H = Math.round(bh), d = x.getImageData(X, Y, W, H), a = d.data, on = new Float32Array(W * H);
+  let lo = 255, hi = 0;
+  for (let i = 0; i < a.length; i += 4) { const l = luma(a, i); lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  const th = lo + (hi - lo) * cut;
+  for (let i = 0, j = 0; i < a.length; i += 4, j++) { on[j] = Math.max(0, Math.min(1, (th - luma(a, i)) / Math.max(8, (th - lo) * .5))); }
+  const ink = new ImageData(new Uint8ClampedArray(a), W, H); for (let j = 0; j < on.length; j++) ink.data[j * 4 + 3] = a[j * 4 + 3] * on[j];
+  const c = canvas(W, H); c.getContext('2d').putImageData(ink, 0, 0);
+  return { c, X, Y, W, H, a, on };
 }
-/** 抹平：框外接的椭圆里，用四周的颜色一圈圈往里渗（反复取上下左右的平均），像把原来的五官擦掉 */
+/** 闭眼 / 笑眼（照 Mesh Avatar Studio 不画图时的做法：眼睛靠网格变形，上眼皮压下来）：
+ *  拿原画的上睫毛那一条（框里从上往下第一段很深的），把眼睛抹平，再把这条睫毛压扁、挪到闭眼的位置；
+ *  闭眼往下弯一点，笑眼中间往上拱。睫毛还是原来的颜色和粗细，所以和原画一个画风 */
+function lids(x, b, smile) {
+  const [bx, by, bw, bh] = b, { c, X, Y, W, H, on } = inkOf(x, b, .35), rows = [];
+  for (let y = 0; y < H; y++) { let n = 0; for (let x0 = 0; x0 < W; x0++) n += on[y * W + x0]; rows.push(n / W); }
+  const top = Math.max(0, rows.findIndex(r => r > .18)), band = Math.max(3, Math.round(H * .3));
+  smooth(x, b);
+  const dh = band * (smile ? .75 : .55), y0 = by + bh * (smile ? .5 : .62) - dh / 2;
+  for (let i = 0; i < W; i++) { const s = Math.sin(i / (W - 1) * Math.PI), off = smile ? -s * bh * .3 : s * bh * .2 - bh * .05; x.drawImage(c, i, top, 1, band, X + i, y0 + off, 1, dh); }
+}
+/** 张嘴 / O 型嘴（照 Mesh Avatar Studio：嘴靠网格往下拉开）：原来那条嘴线留着当上嘴唇，
+ *  从它往下拉开一个嘴（里面用线色调深红，底下一点舌头），下嘴唇用同色细线勾一下 */
+function lips(x, b, round) {
+  const { c, X, Y, W, H, a } = inkOf(x, b, .6), ys = [], line = [0, 0, 0];
+  // 每一列最深的那个点连起来 = 嘴线（再顺一顺），颜色取它们的平均
+  for (let i = 0; i < W; i++) { let best = 0, v = 999; for (let y = 0; y < H; y++) { const l = luma(a, (y * W + i) * 4); if (l < v) { v = l; best = y; } } ys.push(best); const q = (best * W + i) * 4; for (let k = 0; k < 3; k++) line[k] += a[q + k] / W; }
+  const at = i => { let s = 0, n = 0; for (let j = Math.max(0, i - 3); j <= Math.min(W - 1, i + 3); j++) { s += ys[j]; n++; } return Y + s / n; };
+  smooth(x, b);
+  const m0 = W * (round ? .32 : .17), m1 = W * (round ? .68 : .83), depth = W * (round ? .36 : .32), edge = [];
+  for (let i = Math.round(m0); i <= m1; i++) { const u = (i - m0) / (m1 - m0); edge.push([X + i, at(i), round ? Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)) : Math.sin(u * Math.PI) ** .7]); }
+  const mix = (t, o) => `rgb(${line.map((v, i) => Math.round(v * (1 - t) + o[i] * t)).join(',')})`;
+  x.beginPath(); edge.forEach(([ex, ey]) => x.lineTo(ex, ey)); for (let i = edge.length - 1; i >= 0; i--) x.lineTo(edge[i][0], edge[i][1] + depth * edge[i][2]); x.closePath();
+  x.fillStyle = mix(.5, [140, 34, 48]); x.fill();
+  x.save(); x.clip(); x.fillStyle = mix(.85, [235, 125, 135]); x.beginPath(); x.ellipse(X + (m0 + m1) / 2, at(Math.round((m0 + m1) / 2)) + depth * .95, (m1 - m0) * .32, depth * .35, 0, 0, 7); x.fill(); x.restore();
+  x.strokeStyle = `rgba(${line.map(Math.round).join(',')},.55)`; x.lineWidth = Math.max(1, W * .02); x.beginPath(); edge.forEach(([ex, ey, k]) => x.lineTo(ex, ey + depth * k)); x.stroke();
+  // 上嘴唇：原来的嘴线放回去（O 型嘴只留中间那段）
+  x.save(); x.beginPath(); round ? x.rect(X + m0 - 2, Y, m1 - m0 + 4, H) : x.rect(X, Y, W, H); x.clip(); x.drawImage(c, X, Y); x.restore();
+}
+/** 抹平：框外接的椭圆里，用四周的皮肤色往里补（先按行、按列从两边的皮肤色渐变过去，再反复取上下左右的平均磨匀），像把原来的五官擦掉。
+ *  四周偏深的（头发、眉毛）不当皮肤色用，免得渗进来一片灰 */
 function smooth(x, [bx, by, bw, bh]) {
   const X = Math.max(0, Math.floor(bx - bw * .3)), Y = Math.max(0, Math.floor(by - bh * .3)), W = Math.ceil(bw * 1.6), H = Math.ceil(bh * 1.6);
-  const d = x.getImageData(X, Y, W, H), a = d.data, cx = bx + bw / 2 - X, cy = by + bh / 2 - Y, rx = bw * .62, ry = bh * .62, inn = [], sum = [0, 0, 0, 0];
-  let n = 0;
-  for (let y = 1; y < H - 1; y++) for (let x0 = 1; x0 < W - 1; x0++) { const q = ((x0 - cx) / rx) ** 2 + ((y - cy) / ry) ** 2, i = (y * W + x0) * 4;
-    if (q < 1) inn.push(i); else if (q < 1.3) { for (let c = 0; c < 4; c++) sum[c] += a[i + c]; n++; } }
-  for (const i of inn) for (let c = 0; c < 4; c++) a[i + c] = sum[c] / n;
-  for (let it = 0; it < 80; it++) for (const i of inn) for (let c = 0; c < 4; c++) a[i + c] = (a[i + c - 4] + a[i + c + 4] + a[i + c - W * 4] + a[i + c + W * 4]) / 4;
+  const d = x.getImageData(X, Y, W, H), a = d.data, cx = bx + bw / 2 - X, cy = by + bh / 2 - Y, rx = bw * .58, ry = bh * .58, hole = new Uint8Array(W * H), ring = [];
+  for (let y = 0; y < H; y++) for (let x0 = 0; x0 < W; x0++) { const q = ((x0 - cx) / rx) ** 2 + ((y - cy) / ry) ** 2, j = y * W + x0;
+    if (q < 1) hole[j] = 1; else if (q < 1.35) ring.push(j); }
+  const ls = ring.map(j => luma(a, j * 4)).sort((m, n) => m - n), skin = ls[ls.length >> 1] - 30;
+  // 往外找最近的皮肤色（跳过头发、睫毛这些深色的，它们留着不动）
+  const edge = (j, step, n) => { for (let k = 1; k <= n; k++) { const t = j + step * k; if (t < 0 || t >= W * H || (step === 1 || step === -1) && Math.floor(t / W) !== Math.floor(j / W)) return null; if (!hole[t] && luma(a, t * 4) >= skin) return [t, k]; } return null; };
+  const inn = []; for (let j = 0; j < W * H; j++) if (hole[j] && j % W > 0 && j % W < W - 1 && j >= W && j < W * (H - 1)) inn.push(j);
+  for (const j of inn) { const got = [edge(j, -1, W), edge(j, 1, W), edge(j, -W, H), edge(j, W, H)].filter(Boolean); if (!got.length) continue;
+    let ws = 0; const sum = [0, 0, 0, 0]; for (const [t, k] of got) { ws += 1 / k; for (let c = 0; c < 4; c++) sum[c] += a[t * 4 + c] / k; }
+    for (let c = 0; c < 4; c++) a[j * 4 + c] = sum[c] / ws; }
+  for (let it = 0; it < 40; it++) for (const j of inn) for (let c = 0, i = j * 4; c < 4; c++) a[i + c] = (a[i + c - 4] + a[i + c + 4] + a[i + c - W * 4] + a[i + c + W * 4]) / 4;
   x.putImageData(d, X, Y);
 }
 /** 要重画的地方白、别处黑 */

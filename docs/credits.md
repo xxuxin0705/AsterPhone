@@ -82,3 +82,4 @@
 - 立绘拆表情的思路（先画一张标准立绘，再让生图「只改一处」画变体，比对两张图抠出变了的那块）：参考 live2d-halfbody-skill（MIT）。只学了思路和提示词的写法，比对、抠图、播放的代码是自己写的。
 - NAI 角色参考、局部重绘的请求字段（director_reference_*、infill、-inpainting 模型名、mask 白色重画）：对照 novelai-sdk（caru-ini/novelai-sdk，MIT）的源码写的，代码是自己写的。
 - 照相馆「手机里画」表情（先抹平再画闭眼线 / 嘴型，嘴的大小比例、颜色）：照 RuiC-2D（HRuiCcc/RuiC-2D，MIT）的 tools/art.py 本地绘制改写成网页版。
+- 照相馆「手机里画」用原画睫毛 / 嘴线变形出闭眼、张嘴的思路：参考 Mesh Avatar Studio（shinshin86/mesh-avatar-studio，MIT）不生图时靠网格变形眨眼说话的做法；代码是自己写的。
