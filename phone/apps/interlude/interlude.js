@@ -295,11 +295,11 @@ function cardPage(back) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
   const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
   const meetOn = pick.know && pick.meet, mode = pick.know ? pick.mode : 'self';
-  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, note: pick.note, lang: langs() };
-  let sel = 'me', m = meetOn ? G.meeting(ms) : null;
+  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, note: pick.note, meet: meetOn, lang: langs() };
+  let sel = 'me', m = G.meeting(ms);   // 这桌的团公告：开车卡会时是那场会，不开时是车卡时 KP 一起写的
   const fresh = () => { if (m && m.fresh && cur.me && cur.me.at < m.at) cur.me = null; };   // 这局统一用新卡：会前的旧卡不算，你要新车一张
   fresh();
-  const meetB = navText('车卡会', () => meetPage(true)); meetB.hidden = !m;
+  const meetB = navText(meetOn ? '车卡会' : '团公告', () => meetOn ? meetPage(true) : notice()); meetB.hidden = !m;
   const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card', right: meetB });
   const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
@@ -314,7 +314,7 @@ function cardPage(back) {
   async function make(list) {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast(`KP 在给 ${list.length} 个人车卡…`, { label: '取消', fn: G.cancel, wait: true });
-    try { (await G.makeCards(list, owners, mode, m ? `${m.rules.text}（${G.meetRules(m)}）` : '', pick.note)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
+    try { (await G.makeCards(list, owners, ms)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); if (!m && (m = G.meeting(ms))) notice(); }   // 第一次车卡时 KP 一起写了团公告：先给你看
     catch (e) { failed(e, '没车成'); }
     paintTabs(); paint(); paintBar();
   }
@@ -343,6 +343,8 @@ function cardPage(back) {
     } catch (e) { failed(e, '没开成'); }
     paintBar();
   }
+  // 团公告（不开车卡会时）：背景 + 规矩
+  const notice = () => sheet({ title: '团公告', content: h('div.as-int-notice', h('p', m.hint), h('b', m.rules.text), h('small', G.meetRules(m))) });
   // 车卡会：一次 API 写完整场，其他人的卡也在会上车好
   async function holdMeet() {
     if (G.running()) { G.cancel(); return; }
@@ -396,12 +398,12 @@ function cardPage(back) {
     const give = btn('交卡', 'primary', () => {
       const list = G.checkCard(cur.me, m);
       if (list.length) { bad.textContent = '没过：' + list.join('；'); bad.hidden = false; if (tries++ || !m.fail.length) end(); else play(m.fail); return; }
-      const t = m.rules.tiers[myName()]; if (m.mode !== 'random' && R.TIERS.some(x => x[0] === t)) { cur.me.tier = t; G.save(); }   // 过了：你的档位照会上定的
+      const t = R.tierOf(m.rules.tiers[myName()]); if (m.mode !== 'random' && t) { cur.me.tier = t; G.save(); }   // 过了：你的档位照会上定的
       passed = true; play([...m.pass, ...owners.flatMap(o => { const c = cardOf(o), rv = m.reviews[ownerName(o)] || m.reviews[c.name];
         return [{ who: ownerName(o), act: `亮卡：${c.name} · ${c.job}`, o }, ...(Array.isArray(rv) ? rv : []).map(l => ({ ...l, o }))]; })]);
     });
     give.hidden = !cur.me; bad.hidden = true;
-    const rules = h('div.as-int-end', h('b', '这局的规矩'), h('p', m.rules.text), h('small', G.meetRules(m)), bad, h('div.as-int-row', editB, give));
+    const rules = h('div.as-int-end', h('b', '团公告'), h('p', m.hint), h('p', m.rules.text), h('small', G.meetRules(m)), bad, h('div.as-int-row', editB, give));
     const end = () => { act.hidden = false; act.replaceChildren(passed ? btn('开局', 'primary', () => { nav.pop(); begin(); }) : rules); };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
@@ -427,11 +429,11 @@ function cardPage(back) {
     // 属性：点数字改；重掷、五选一
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
     // 档位和属性点：AI 照人设分的卡才有（自己掷骰的没有档位）；点档位能换
-    const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t, n]) => ({ value: t, label: `${t} · ${n} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
+    const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t]) => ({ value: t, label: `${t} · ${R.budgetOf(t, c.base)} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
     const apts = h('div.as-int-pts', tierB, h('span'));
     const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`; }));
     const paintAttrs = () => {
-      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
+      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier, c.base), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
       apts.lastChild.textContent = `属性点 ${sum} / ${all}${up ? ` + 成长 ${up}` : ''}`; apts.classList.toggle('is-over', sum > all + up);
       pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {

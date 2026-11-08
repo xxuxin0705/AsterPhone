@@ -215,6 +215,10 @@
 /* 车卡会：和玩的时候一样的舞台，背景是书桌；亮卡时卡片摆在人物上面 */
 .as-int-meet__card .as-int-reveal { margin: 0 0 10px; animation: as-int-up 320ms ease both; }
 .as-int-meet__bad { color: #a63a33; }
+.as-int-notice { display: grid; gap: 8px; padding: 0 4px 12px; font-size: 14px; line-height: 1.7; }
+.as-int-notice p { margin: 0; }
+.as-int-notice b { font-weight: 500; }
+.as-int-notice small { font-size: 12px; opacity: .7; line-height: 1.6; }
 .as-int-reveal { display: flex; gap: 10px; align-items: center; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #ece4d2 url(../../assets/interlude/sheet.webp) center / cover; color: #2f2619; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
 .as-int-reveal b { font: 600 15px/1.4 "Noto Serif SC", serif; }
 .as-int-reveal small { display: block; font: 12px/1.5 var(--font-ui); opacity: .75; }

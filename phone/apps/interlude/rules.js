@@ -8,18 +8,20 @@ export const ATTRS = [['STR', '力量'], ['CON', '体质'], ['DEX', '敏捷'], [
 export const rollAttrs = () => Object.fromEntries(ATTRS.map(([k]) => [k, (['SIZ', 'INT', 'EDU'].includes(k) ? roll(2, 6) + 6 : roll(3, 6)) * 5]));
 /** 由属性算出来的：血、理智、魔法、移动力 */
 export const derived = a => ({ hp: Math.floor((a.CON + a.SIZ) / 10), san: a.POW, mp: Math.floor(a.POW / 5), mov: a.DEX < a.SIZ && a.STR < a.SIZ ? 7 : a.DEX > a.SIZ && a.STR > a.SIZ ? 9 : 8 });
-// 车卡分点（规则书的「点数购买」）：8 项属性的总点数按这个人的本事分三档（作者定的：人类上限 90，再高就不是人了）；
-// 每项 15～90，体型、智力、教育至少 40；幸运照旧掷
-export const TIERS = [['普通人', 460], ['有本事的人', 540], ['顶尖人物', 620]];
-export const budgetOf = tier => (TIERS.find(t => t[0] === tier) || TIERS[0])[1];
+// 车卡分点（规则书的「点数购买」）：8 项属性的总点数 = 团公告的购点（默认 460）+ 这个人那一档多给的（作者定的三档）；
+// 每项 15～90（人类上限，再高就不是人了），体型、智力、教育至少 40；幸运照旧掷
+export const TIERS = [['普通人', 0], ['能力者', 80], ['最强者', 160]];
+const OLD_TIER = { 有本事的人: '能力者', 顶尖人物: '最强者' };   // 旧卡上的名字
+export const tierOf = t => (TIERS.find(x => x[0] === (OLD_TIER[t] || t)) || [])[0];
+export const budgetOf = (tier, base = 460) => base + (TIERS.find(t => t[0] === tier) || TIERS[0])[1];
 export const minOf = k => ['SIZ', 'INT', 'EDU'].includes(k) ? 40 : 15;
 export const attrSum = a => ATTRS.reduce((s, [k]) => s + (k === 'LUCK' ? 0 : a[k]), 0);
-/** AI 分的属性：每项夹在范围里、取 5 的倍数，总数超了就从最高的往下扣 */
-export function fixAttrs(given = {}, budget) {
-  const a = {};
-  for (const [k] of ATTRS) if (k !== 'LUCK') a[k] = Math.max(minOf(k), Math.min(90, Math.round((+given[k] || 50) / 5) * 5));
+/** AI 分的属性：每项夹在范围里（有团公告就照公告的上下限）、取 5 的倍数，总数超了就从最高的往下扣 */
+export function fixAttrs(given = {}, budget, r) {
+  const a = {}, lo = k => Math.max(minOf(k), r ? r.attrMin : 0), hi = r ? r.attrMax : 90;
+  for (const [k] of ATTRS) if (k !== 'LUCK') a[k] = Math.max(lo(k), Math.min(hi, Math.round((+given[k] || 50) / 5) * 5));
   for (let over = attrSum({ ...a, LUCK: 0 }) - budget; over > 0; over -= 5) {
-    const k = Object.keys(a).filter(x => a[x] - 5 >= minOf(x)).sort((x, y) => a[y] - a[x])[0]; if (!k) break; a[k] -= 5;
+    const k = Object.keys(a).filter(x => a[x] - 5 >= lo(x)).sort((x, y) => a[y] - a[x])[0]; if (!k) break; a[k] -= 5;
   }
   a.LUCK = roll(3, 6) * 5;
   return a;
@@ -40,10 +42,10 @@ export const renamed = sk => { const o = { ...sk }; for (const [a, b] of RENAMED
 export const baseSkills = a => ({ ...SKILLS, 闪避: Math.floor(a.DEX / 2), 母语: a.EDU });
 export const points = a => a.EDU * 4 + a.INT * 2;
 export const spent = (a, sk) => { const b = baseSkills(a); return Object.entries(sk).reduce((n, [k, v]) => n + Math.max(0, v - (b[k] ?? 0)), 0); };
-/** AI 分好的技能：只认表里有的，最高 80，没给的用基础值 */
-export function fixSkills(a, given = {}) {
+/** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告），没给的用基础值 */
+export function fixSkills(a, given = {}, max = MAX_SKILL) {
   const out = baseSkills(a);
-  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(MAX_SKILL, Math.round(+v)));
+  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(max, Math.round(+v)));
   return out;
 }
 /** 常见职业和它的本职技能（换职业时按这个重新分职业点） */
