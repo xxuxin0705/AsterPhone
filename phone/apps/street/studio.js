@@ -2,7 +2,7 @@
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, segmented, sheet } from '../../core/ui.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, segmented, sheet, toggleItem } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -88,6 +88,7 @@ function person(cid, changed) {
     } }); gl.dataset.local = ''; gl.hidden = f.how !== 'local'; rows.push(gl); }
     // 用自己的 GPT 画：存脸部图 + 复制提示词，画好的宫格传回来切
     const own = item({ title: '用自己的 GPT 画', chevron: true, onClick: ownGpt }); own.dataset.ai = ''; own.hidden = f.how === 'local'; rows.push(own);
+    if (isNai()) { const ng = toggleItem({ title: 'NAI 一次画多格（试验）' }, f.naiGrid !== false, v => { f.naiGrid = v; }); ng.dataset.ai = ''; ng.hidden = f.how === 'local'; rows.push(ng); }
     const go = btn(f.how === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情', 'primary', makeParts, { style: { width: '100%' } });
     const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); if ('ai' in r.dataset) r.hidden = v === 'local'; if ('local' in r.dataset) r.hidden = v !== 'local'; }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
     ctl.replaceChildren(how, group('表情', rows), stop || go,
@@ -124,8 +125,23 @@ function person(cid, changed) {
     if (!todo.length) { toast('先勾要哪些表情'); return; }
     if (!local && !conn()) { toast('还没有生图连接：设置 → 连接 → 生图 里插一根线'); return; }
     // 手机里画、NAI 只重画框里那一块、宫格对位置：都要先在立绘上框出两只眼睛和嘴（框一次就记住）
-    const nai = !local && isNai(), grid = !local && gridLine();
+    const nai = !local && isNai(), grid = !local && gridLine(), naiGrid = nai && f.naiGrid !== false;
     if ((local || nai || grid) && !P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    if (naiGrid) return work('NAI 宫格（试验）…', async (stop, say) => {
+      const want = todo.map(t => t[0]), batches = P.NAI_GRID.filter(b => b.some(k => want.includes(k))), bad = [];
+      const tiles = await P.naiTiles(pt);
+      for (const [i, keys] of batches.entries()) {
+        say(`NAI 宫格（试验）${i + 1} / ${batches.length}`);
+        try {
+          const src = await generateImage(P.naiGridPrompt, APP, conn('1216x832'), stop, { image: tiles, chars: P.naiChars(keys), strength: .55 });
+          if (stop.aborted) return;
+          const r = await P.cutGrid(pt, src, want, keys, true);
+          for (const k in r.parts) { pt.parts[k] = r.parts[k]; f.pick.delete(k); }
+          bad.push(...r.bad); if (r.bad.length) log('warn', APP, `「${nameOf(c)}」NAI 宫格这几格没对上`, r.why.join('\n'));
+        } catch (e) { if (stop.aborted) return; bad.push(...keys.filter(k => want.includes(k)).map(k => P.PARTS.find(x => x[0] === k)[1])); if (!e.logId) log('warn', APP, `「${nameOf(c)}」NAI 宫格没画成：${e.message}`, e); toast('没画成：' + e.message); }
+      }
+      await P.save(cid, pt); toast(bad.length ? `${bad.join('、')} 没成，可以关掉「NAI 一次画多格」一个个画` : '表情做好了，点一下可以看看'); paint();
+    });
     if (grid) return work('正在画表情宫格（一次画完）…', async stop => {
       try {
         const src = await generateImage(P.gridPrompt, APP, conn('1536x1024'), stop, await P.faceCrop(pt));

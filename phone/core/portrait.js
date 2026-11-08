@@ -256,6 +256,18 @@ export async function faceCrop(p) {
   const [x, y, s] = gridRect(p), c = canvas(512, 512), cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, 512, 512);
   cx.drawImage(await img(p.base), x, y, s, s, 0, 0, 512, 512); return c.toDataURL('image/png');
 }
+/** NAI 宫格（试验）：NAI 只认标签、一张图一组标签，画不了 GPT 那种按格子排的宫格。
+ *  试法：手机里先把脸部特写复制排成 3 列 × 2 行（1216×832），拿去图生图保住格子；再用 NAI 4 的「分角色提示词」按位置告诉它每格画什么表情。一次 6 格，11 个表情最多两次 */
+export const NAI_GRID = [['eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled'], ['blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat', '']];
+const NW = 1216, NH = 832, naiCells = () => [0, 1].flatMap(r => [0, 1, 2].map(c => { const w = NW / 3, h = NH / 2, s = Math.min(w, h); return [c * w + (w - s) / 2, r * h + (h - s) / 2, s, s]; }));
+export async function naiTiles(p) {
+  const f = await img(await faceCrop(p)), c = canvas(NW, NH), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, NW, NH);
+  for (const r of naiCells()) x.drawImage(f, ...r);
+  return c.toDataURL('image/png');
+}
+export const naiChars = keys => keys.map((k, i) => ({ tags: k ? `portrait, face focus, ${PARTS.find(x => x[0] === k)[4]}` : 'portrait, face focus, neutral expression', x: +((i % 3 * 2 + 1) / 6).toFixed(2), y: i < 3 ? .25 : .75 }));
+export const naiGridPrompt = 'expression chart, six panels, same girl in every panel, same framing, identical hair and face, face focus, white background, white borders';
+
 /** 切宫格：找白色的分隔线（找不到就按 4×3 均分），交出每格的 [x, y, w, h] */
 function cells(d, W, H) {
   const white = (i) => d[i] > 238 && d[i + 1] > 238 && d[i + 2] > 238;
@@ -283,12 +295,14 @@ function align(base, cell, R) {
   const [, s, ox, oy, as] = best;   // 小图上这一格放在 (ox, oy)、宽 N*s → 换回立绘上的位置
   return [R[0] + (ox - M) / k, R[1] + (oy - M) / k, R[2] * s, R[2] * s * as];
 }
-/** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）。交出 { parts: {名字: {src, box}}, bad: [没成的叫什么], why: [为什么] } */
-export async function cutGrid(p, src, want) {
+/** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）；order：每格是什么（默认 GPT 那张 12 格的）；nai：是 NAI 宫格（格子位置已知）。
+ *  交出 { parts: {名字: {src, box}}, bad: [没成的叫什么], why: [为什么] } */
+export async function cutGrid(p, src, want, order = GRID, nai) {
   const g = await img(src), gc = canvas(g.naturalWidth, g.naturalHeight), gx = gc.getContext('2d', { willReadFrequently: true }); gx.drawImage(g, 0, 0);
-  const cs = cells(gx.getImageData(0, 0, gc.width, gc.height).data, gc.width, gc.height), base = await img(p.base), R = gridRect(p), parts = {}, bad = [], why = [];
+  const k0 = gc.width / NW, cs = nai ? naiCells().map(r => r.map(v => v * k0)) : cells(gx.getImageData(0, 0, gc.width, gc.height).data, gc.width, gc.height);
+  const base = await img(p.base), R = gridRect(p), parts = {}, bad = [], why = [];
   const flat = canvas(p.w, p.h), fx = flat.getContext('2d', { willReadFrequently: true }); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0, p.w, p.h);
-  for (const [i, k] of GRID.entries()) {
+  for (const [i, k] of order.entries()) {
     if (!k || !want.includes(k)) continue;
     const name = PARTS.find(x => x[0] === k)[1];
     try {

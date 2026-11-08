@@ -413,16 +413,20 @@ async function imageRaw(prompt, conn, ref) {
     if (ref && !['siliconflow', 'openai-image', 'image-compat', 'novelai'].includes(conn.type)) throw new Error('这个生图渠道不能照着图改，换 OpenAI / 第三方 / 硅基流动的改图模型或 NAI');
     switch (conn.type) {
       case 'novelai': {
-        const model = conn.model || 'nai-diffusion-4-5-full', fill = ref && ref.mask, seed = Math.floor(Math.random() * 4294967295);
-        if (ref && !fill && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
-        const more = !ref ? {} : fill ? { image: await fitB64(ref.image, W, H, '#fff'), mask: await fitB64(ref.mask, W, H, '#000'), strength: 1, inpaintImg2ImgStrength: 1, noise: 0, add_original_image: true, img2img: { color_correct: true, strength: 1 }, extra_noise_seed: seed }
+        // ref.chars：图生图 + 分角色提示词（每个位置画什么），照相馆的「NAI 宫格（试验）」用
+        const model = conn.model || 'nai-diffusion-4-5-full', fill = ref && ref.mask, chars = ref && ref.chars, seed = Math.floor(Math.random() * 4294967295);
+        if (ref && !fill && !chars && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
+        const cc = chars ? chars.map(c => ({ char_caption: c.tags, centers: [{ x: c.x, y: c.y }] })) : [];
+        const more = !ref ? {} : chars ? { image: await fitB64(ref.image, W, H, '#fff'), strength: ref.strength, noise: 0, extra_noise_seed: seed,
+            characterPrompts: chars.map(c => ({ prompt: c.tags, uc: '', center: { x: c.x, y: c.y }, enabled: true })) }
+          : fill ? { image: await fitB64(ref.image, W, H, '#fff'), mask: await fitB64(ref.mask, W, H, '#000'), strength: 1, inpaintImg2ImgStrength: 1, noise: 0, add_original_image: true, img2img: { color_correct: true, strength: 1 }, extra_noise_seed: seed }
           : { director_reference_images: [await fitB64(ref, 1024, 1536, '#000', true)], director_reference_descriptions: [{ caption: { base_caption: 'character&style', char_captions: [] }, legacy_uc: false }],
             director_reference_information_extracted: [1], director_reference_strength_values: [1], director_reference_secondary_strength_values: [0] };
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ input: full, model: fill && !/inpainting$/.test(model) ? model + '-inpainting' : model, action: fill ? 'infill' : 'generate', parameters: {
+          body: JSON.stringify({ input: full, model: fill && !/inpainting$/.test(model) ? model + '-inpainting' : model, action: fill ? 'infill' : chars ? 'img2img' : 'generate', parameters: {
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
-            v4_prompt: { caption: { base_caption: full, char_captions: [] }, use_coords: false, use_order: true },
-            v4_negative_prompt: { caption: { base_caption: neg, char_captions: [] }, legacy_uc: false }, ...(ref ? { seed } : {}), ...more } }) });
+            v4_prompt: { caption: { base_caption: full, char_captions: cc }, use_coords: !!chars, use_order: true },
+            v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref ? { seed } : {}), ...more } }) });
         if (!res.ok) await fail(res);
         return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
       }
