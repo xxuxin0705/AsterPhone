@@ -17,6 +17,7 @@ import { nameOf, personaOf } from '../chat/engine.js';
 import { isNight } from './rain.js';
 import { color, font, setFont } from './tglook.js';
 import { glass } from '../../core/glass.js';
+import * as PT from '../../core/portrait.js';
 import { plain, PRESETS, groupsFor, kindOf, hintFor, fitTags, profileOf, adapt, TENSIONS, PACES, PACE_SPEED, MM_EMOS } from '../../core/act.js';
 import { translate } from '../../core/translate.js';
 import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
@@ -619,6 +620,10 @@ function openBook(b) {
   p.el._bg = src => { p.el.style.backgroundImage = `linear-gradient(${shade.join(', ')}), url(${src})`; if (gls) { gls.dispose(); row.lastChild.querySelector('.as-glass-cv')?.remove(); gls = glass(row.lastChild, p.el, src, shade); } };
   p.el._bg(bgOf());
   const book = h('div.as-rd-book', { 'data-no-swipe': '' }, h('img', { src: 'assets/radio/book.webp', alt: '' }), L, R);
+  // 照相馆做过立绘的：讲的时候站在左边，出声时动嘴
+  const stand = h('div.as-rd-stand'); let fig = null, talking = false;
+  PT.load(b.who).then(() => { fig = PT.figure(b.who); if (fig) { stand.append(fig); paint(); } });
+  p.el.append(stand);
   const say = h('div.as-rd-say', row);
   p.body.append(book, say,
     h('div.as-rd-bottom', h('div.as-rd-count', count, langB, h('button.as-rd-lang', { onclick: () => actSheet(E.i) }, '调语气')), h('div.as-rd-tools', rateB, h('button', { onclick: noiseSheet }, '白噪音'), ttsB, afterB),
@@ -682,6 +687,7 @@ function openBook(b) {
       cut(s); ci = -1; tick();
       if (last !== -1) { row.classList.remove('is-turn'); void row.offsetWidth; row.classList.add('is-turn'); }
     }
+    stand.classList.toggle('is-on', !!fig && (E.on || E.wait));
     count.textContent = `${E.i + 1} / ${all.length}`;
     playB.replaceChildren(E.wait ? h('span.as-spin') : icon(E.on ? 'pause' : 'play', 26, 2.4));
     afterB.textContent = b.after ? '看感想' : '说说感想'; langB.textContent = lname(b.lang); ttsB.textContent = TTS.find(x => x[0] === S().tts)[1];
@@ -707,7 +713,8 @@ function openBook(b) {
   };
   const tick = () => {
     if (!p.el.isConnected) { gls && gls.dispose(); return clearInterval(iv); }
-    const k = where(), j = k == null ? 0 : Math.max(0, chunks.findIndex(c => k < c.b)), c = chunks[j];
+    const k = where(), j = k == null ? 0 : Math.max(0, chunks.findIndex(c => k < c.b)), c = chunks[j], t = !!fig && E.book === b && E.on && !E.wait;
+    if (t !== talking) { talking = t; fig.pt.talk(t); }
     if (!c) return;
     if (j !== ci) {
       ci = j; sayT.textContent = c.t; sayTr.textContent = c.tr; sayTr.parentNode.hidden = !c.tr; row._fit();

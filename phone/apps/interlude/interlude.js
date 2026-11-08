@@ -476,11 +476,11 @@ function playPage(g) {
   const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, ooc, who, box, act);
   p.body.append(hud, stage);
   let queue = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
-  // 照相馆做过立绘的人站着出来（会眨眼、说话时动嘴），没做的用头像
+  // 照相馆做过立绘的人（包括你）站着出来（会眨眼、说话时动嘴），没做的用头像
   const ofC = c => P.figure(c.id) || avatar(c.avatar, nameOf(c), 110, 'square');
-  const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (n === myName() || n === g.pc.name) return avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
+  const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (n === myName() || n === g.pc.name) return P.figure('me') || avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
   let lastWho = '';
-  P.preload([kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
+  P.preload(['me', kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
   const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : n;
   const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? l.act + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${l.zh}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };

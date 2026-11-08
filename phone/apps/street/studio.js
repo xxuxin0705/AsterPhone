@@ -1,7 +1,8 @@
 // 照相馆：给联系人做立绘。先照头像 / 相册里的图（或者只按描述）画一张标准立绘，满意了再挑要哪些表情，一个个补上去
 import { h } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, pickImage, empty } from '../../core/ui.js';
+import { myName, myAvatar } from '../../core/promptstore.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -13,20 +14,22 @@ const APP = '照相馆';
 let job = null;                       // { cid, ac, msg }
 const draft = new Map(), form = new Map();   // 还没确认的立绘；每个人填的描述和参考图
 let view = null;                      // 现在开着的那个人的页面：{ cid, paint }
+// 你自己也能做：id 是 me
+const who = id => id === 'me' ? { id, name: myName(), avatar: myAvatar() } : contact(id);
 const conn = () => resolveConn('image', 'studio');
 const sub = c => { const p = P.loaded(c.id); return p ? `有立绘${Object.keys(p.parts).length ? ` · ${Object.keys(p.parts).length} 个表情` : ''}` : '只有头像'; };
 
 export async function openStudio() {
   const p = page({ app: 'street', id: 'studio', title: APP, large: true, back: true, cls: 'as-studio' });
-  await P.preload(state.contacts.map(c => c.id));
-  const subs = new Map();
-  const list = state.contacts.map(c => { const s = h('span', sub(c)); subs.set(c.id, s); return item({ icon: avatar(c.avatar, nameOf(c), 30), color: 'transparent', title: nameOf(c), sub: s, chevron: true, onClick: () => person(c.id, () => { s.textContent = sub(c); }) }); });
-  p.body.append(list.length ? group('', list) : empty('还没有联系人'));
+  const all = [who('me'), ...state.contacts];
+  await P.preload(all.map(c => c.id));
+  const list = all.map(c => { const s = h('span', sub(c)); return item({ icon: avatar(c.avatar, nameOf(c), 30), color: 'transparent', title: nameOf(c), sub: s, chevron: true, onClick: () => person(c.id, () => { s.textContent = sub(c); }) }); });
+  p.body.append(group('', list));
   nav.push(p.el);
 }
 
 function person(cid, changed) {
-  const c = contact(cid), f = form.get(cid) || form.set(cid, { desc: '', ref: c.avatar ? 'avatar' : '', pick: new Set(['mouthOpen', 'eyesClosed']) }).get(cid);
+  const c = who(cid), f = form.get(cid) || form.set(cid, { desc: '', ref: c.avatar ? 'avatar' : '', pick: new Set(['mouthOpen', 'eyesClosed']) }).get(cid);
   const p = page({ app: 'street', id: 'studio-one', title: nameOf(c), large: true, back: true, cls: 'as-studio' });
   const stage = h('div.as-studio__stage'), ctl = h('div.as-studio__ctl');
   p.body.append(stage, ctl);
@@ -67,7 +70,7 @@ function person(cid, changed) {
 
   // 要等的活：同一时间只跑一个；取消了不算失败
   const work = async (msg, fn) => {
-    if (job) { toast(job.cid === cid ? '正在做，点取消可以停下' : `正在给「${nameOf(contact(job.cid))}」做，等那边好了再来`); return; }
+    if (job) { toast(job.cid === cid ? '正在做，点取消可以停下' : `正在给「${nameOf(who(job.cid))}」做，等那边好了再来`); return; }
     const ac = new AbortController(); job = { cid, ac, msg };
     const repaint = () => view?.cid === cid && view.paint();
     ac.signal.addEventListener('abort', () => { toast('已取消'); job = null; repaint(); }, { once: true });
