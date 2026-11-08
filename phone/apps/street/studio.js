@@ -1,8 +1,8 @@
 // 照相馆：给联系人做立绘。先照头像 / 相册里的图（或者只按描述）画一张标准立绘，满意了再挑要哪些表情，一个个补上去
-import { h } from '../../core/util.js';
+import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, pickImage } from '../../core/ui.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -16,7 +16,9 @@ const draft = new Map(), form = new Map();   // 还没确认的立绘；每个�
 let view = null;                      // 现在开着的那个人的页面：{ cid, paint }
 // 你自己也能做：id 是 me
 const who = id => id === 'me' ? { id, name: myName(), avatar: myAvatar() } : contact(id);
-const conn = () => resolveConn('image', 'studio');
+// 立绘是竖的：不管这根线平时设的多大，都按各家支持的竖图尺寸画
+const TALL = { 'openai-image': '1024x1536', 'image-compat': '1024x1536', siliconflow: '768x1024' };
+const conn = () => { const c = resolveConn('image', 'studio'); return c && { ...c, img: { ...c.img, size: TALL[c.type] || '832x1216' } }; };
 const sub = c => { const p = P.loaded(c.id); return p ? `有立绘${Object.keys(p.parts).length ? ` · ${Object.keys(p.parts).length} 个表情` : ''}` : '只有头像'; };
 
 export async function openStudio() {
@@ -52,9 +54,9 @@ function person(cid, changed) {
     if (d) return ctl.replaceChildren(stop || h('div.as-studio__row', btn('重画', 'secondary', makeBase), btn('用这张', 'primary', async () => { draft.delete(cid); await P.save(cid, d); paint(); })));
     if (!pt) {
       const refRow = item({ title: '参考图', value: f.ref === 'avatar' ? '头像' : f.ref ? '相册里的图' : '不用', chevron: true, onClick: async () => {
-        const v = await actionSheet('参考图', [c.avatar && { value: 'avatar', label: '用头像' }, { value: 'pick', label: '换一张' }, { value: '', label: '不用，只按描述画' }].filter(Boolean));
+        const v = await actionSheet('参考图', [c.avatar && { value: 'avatar', label: '用头像' }, { value: 'pick', label: '从相册选' }, { value: '', label: '不用，只按描述画' }].filter(Boolean));
         if (v == null) return;
-        if (v === 'pick') { const u = await pickImage('参考图', { ratio: 1, size: 1024 }); if (!u) return; f.ref = u; } else f.ref = v;
+        if (v === 'pick') { const file = await pickFile(); if (!file) return; f.ref = await fileToDataURL(file, 1024); } else f.ref = v;
         refRow.querySelector('.as-list-item__value').textContent = f.ref === 'avatar' ? '头像' : f.ref ? '相册里的图' : '不用';
       } });
       return ctl.replaceChildren(group('', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } }))]), stop || btn('生成立绘', 'primary', makeBase, { style: { width: '100%' } }));

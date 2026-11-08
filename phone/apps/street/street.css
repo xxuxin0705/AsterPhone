@@ -49,8 +49,8 @@
 .st-prize span { font: 500 10.5px/1.2 -apple-system, sans-serif; color: #8a5a44; white-space: nowrap; }
 
 /* 照相馆 */
-.as-studio__stage { display: grid; place-items: center; margin: 4px 0 14px; aspect-ratio: 1; border-radius: 22px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); overflow: hidden; }
-.as-studio__stage > .as-pt, .as-studio__draft { width: 100%; }
+.as-studio__stage { display: grid; place-items: center; margin: 4px 0 14px; aspect-ratio: 3 / 4; border-radius: 22px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); overflow: hidden; }
+.as-studio__stage > .as-pt, .as-studio__draft { height: 100%; max-width: 100%; }
 .as-studio__ctl { display: grid; gap: 12px; }
 .as-studio__ctl .as-list-group { margin: 0; }
 .as-studio__row { display: flex; gap: 10px; } .as-studio__row > * { flex: 1; }

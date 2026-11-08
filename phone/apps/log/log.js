@@ -8,7 +8,7 @@ import { page, segmented, navBtn, empty, toast, dialog } from '../../core/ui.js'
 const LV = { error: '报错', warn: '警告', info: '成功' };
 const when = t => new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const secs = ms => ms < 1000 ? `${ms} 毫秒` : `${(ms / 1000).toFixed(1)} 秒`;
-const tagOf = e => e.kind !== 'call' ? LV[e.level] : e.run ? '进行中' : e.level === 'error' ? '失败' : '成功';
+const tagOf = e => e.kind !== 'call' ? LV[e.level] : e.run ? '进行中' : e.level === 'error' ? '失败' : e.level === 'warn' ? '警告' : '成功';
 const copy = (text, what) => navigator.clipboard?.writeText(text).then(() => toast(`已复制${what}`), () => toast('复制失败'));
 let want = 'all', appSel = '';
 

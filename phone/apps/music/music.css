@@ -671,6 +671,6 @@
 .as-ra-take .is-del { background: transparent; color: var(--as-color-text-2); }
 
 /* 讲故事时站在左边的立绘 */
-.as-rd-stand { position: absolute; left: -4%; bottom: 186px; z-index: 0; width: 46%; pointer-events: none; opacity: 0; transform: translateX(-24px); transition: opacity .4s, transform .4s var(--as-ease-spring); }
+.as-rd-stand { position: absolute; left: -2%; bottom: 186px; z-index: 0; width: 38%; pointer-events: none; opacity: 0; transform: translateX(-24px); transition: opacity .4s, transform .4s var(--as-ease-spring); }
 .as-rd-stand.is-on { opacity: 1; transform: none; }
 .as-rd-stand > .as-pt { filter: drop-shadow(0 10px 18px rgba(0,0,0,.5)); }
