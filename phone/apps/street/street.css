@@ -49,10 +49,13 @@
 .st-prize span { font: 500 10.5px/1.2 -apple-system, sans-serif; color: #8a5a44; white-space: nowrap; }
 
 /* 照相馆 */
-.as-studio__stage { display: grid; place-items: center; margin: 4px 0 14px; aspect-ratio: 3 / 4; border-radius: 22px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); overflow: hidden; }
+.as-studio__stage { position: relative; display: grid; place-items: center; margin: 4px 0 14px; aspect-ratio: 3 / 4; border-radius: 22px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); overflow: hidden; }
 .as-studio__stage > .as-pt, .as-studio__draft { height: 100%; max-width: 100%; }
 .as-studio__ctl { display: grid; gap: 12px; }
 .as-studio__ctl .as-list-group { margin: 0; }
 .as-studio__row { display: flex; gap: 10px; } .as-studio__row > * { flex: 1; }
 .as-studio__busy { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--as-color-text) 6%, transparent); }
 .as-studio__busy span { flex: 1; font-size: 14px; }
+
+.as-studio__frame { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; background: rgba(0,0,0,.08); }
+.as-studio__box { position: absolute; display: none; border: 2px dashed var(--as-color-accent, #ff8a3d); border-radius: 6px; background: rgba(255,138,61,.12); }

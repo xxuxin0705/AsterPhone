@@ -80,3 +80,4 @@
 ## 商业街、照相馆（apps/street/、core/portrait.js）
 - 商业街的画（代码画的马卡龙小街）：作者自己旧小手机 X_XPhone 里的，原样搬过来；照相馆照同样的画法新画了一间。街名用的两款字体 Ma Shan Zheng、ZCOOL KuaiLe 来自 Google Fonts（OFL）。
 - 立绘拆表情的思路（先画一张标准立绘，再让生图「只改一处」画变体，比对两张图抠出变了的那块）：参考 live2d-halfbody-skill（MIT）。只学了思路和提示词的写法，比对、抠图、播放的代码是自己写的。
+- NAI 角色参考、局部重绘的请求字段（director_reference_*、infill、-inpainting 模型名、mask 白色重画）：对照 novelai-sdk（caru-ini/novelai-sdk）的源码写的，代码是自己写的。

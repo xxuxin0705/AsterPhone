@@ -3,15 +3,15 @@
 // 存在 kv 的 pt:联系人 id 里：{ base, w, h, parts: { 名字: { src, box: [x, y, w, h] } } }
 import { kvGet, kvSet, kvDel } from './store.js';
 
-/** 能生成的表情：[名字, 叫什么, 用来干嘛, 提示词里要改的那一处] */
+/** 能生成的表情：[名字, 叫什么, 用来干嘛, 提示词里要改的那一处, NAI 用的标签, NAI 重画哪一块（眼睛 / 嘴 / 整张脸）] */
 export const PARTS = [
-  ['mouthOpen', '张嘴', '说话', 'the MOUTH, open as if saying "ah": an open rounded mouth showing the dark inside and a little tongue, about one and a half times as wide as the base mouth, centred on the same point'],
-  ['eyesClosed', '闭眼', '眨眼', 'BOTH EYES, closed in a relaxed blink: each eye becomes a single soft downward-curving lash line in the same place and width as the open eye; no iris, no eye white'],
-  ['mouthO', 'O 型嘴', '说话', 'the MOUTH, a small round "o" shape, centred on the same point as the base mouth'],
-  ['eyesSmile', '笑眼', '笑', 'BOTH EYES become happy closed smiling eyes: each an upward-curving arc spanning the same width as the open eye, centred on the same point; no iris, no eye white'],
-  ['browsAngry', '生气', '生气', 'BOTH EYEBROWS become angry: the inner end of each brow moves down toward the nose, the outer end stays, same thickness and colour'],
-  ['browsTroubled', '为难', '为难', 'BOTH EYEBROWS become troubled: the inner end of each brow moves up, the outer end stays, same thickness and colour'],
-  ['blush', '脸红', '害羞', 'the CHEEKS: a clearly deeper pink blush inside both cheeks, soft edges, staying inside the face outline'],
+  ['mouthOpen', '张嘴', '说话', 'the MOUTH, open as if saying "ah": an open rounded mouth showing the dark inside and a little tongue, about one and a half times as wide as the base mouth, centred on the same point', 'open mouth', 'mouth'],
+  ['eyesClosed', '闭眼', '眨眼', 'BOTH EYES, closed in a relaxed blink: each eye becomes a single soft downward-curving lash line in the same place and width as the open eye; no iris, no eye white', 'closed eyes', 'eyes'],
+  ['mouthO', 'O 型嘴', '说话', 'the MOUTH, a small round "o" shape, centred on the same point as the base mouth', ':o, small open mouth', 'mouth'],
+  ['eyesSmile', '笑眼', '笑', 'BOTH EYES become happy closed smiling eyes: each an upward-curving arc spanning the same width as the open eye, centred on the same point; no iris, no eye white', '^_^, closed eyes, happy', 'eyes'],
+  ['browsAngry', '生气', '生气', 'BOTH EYEBROWS become angry: the inner end of each brow moves down toward the nose, the outer end stays, same thickness and colour', 'angry, v-shaped eyebrows', 'eyes'],
+  ['browsTroubled', '为难', '为难', 'BOTH EYEBROWS become troubled: the inner end of each brow moves up, the outer end stays, same thickness and colour', 'worried, raised inner eyebrows', 'eyes'],
+  ['blush', '脸红', '害羞', 'the CHEEKS: a clearly deeper pink blush inside both cheeks, soft edges, staying inside the face outline', 'blush', 'face'],
 ];
 const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
 /** 第一步：照参考图（或者照描述）画一张方便拆的标准立绘 */
@@ -20,6 +20,16 @@ ${withRef && desc ? `Notes: ${desc}\n` : ''}Framing: straight-on half-body view,
 The neck is clearly visible between chin and collar. Both eyebrows are fully visible, no hair crossing the eyes or eyebrows. Both arms hang relaxed at the sides; the character holds nothing.
 Neutral expression: eyes open looking straight at the viewer, relaxed closed mouth with a faint smile, eyebrows level.
 ${STYLE}`;
+/** NAI 认标签不认长句：照参考图画（角色参考）或者只按描述画 */
+export const naiBase = desc => [desc, 'solo, upper body, front view, facing viewer, looking at viewer, standing straight, arms at sides, centered, white background, simple background, no text, neutral expression, closed mouth, light smile, flat lighting'].filter(Boolean).join(', ');
+/** NAI 重画一块：眼睛 / 嘴是在立绘上框的（p.boxes），整张脸 = 两个框连起来；往外放大一点 */
+export function areaOf(p, region) {
+  const b = p.boxes, [x, y, w, h] = region === 'face' ? [Math.min(b.eyes[0], b.mouth[0]), b.eyes[1], Math.max(b.eyes[0] + b.eyes[2], b.mouth[0] + b.mouth[2]) - Math.min(b.eyes[0], b.mouth[0]), b.mouth[1] + b.mouth[3] - b.eyes[1]] : b[region];
+  const px = w * .15, py = h * .15, x0 = Math.max(0, x - px), y0 = Math.max(0, y - py);
+  return [x0, y0, Math.min(p.w, x + w + px) - x0, Math.min(p.h, y + h + py) - y0].map(Math.round);
+}
+/** 要重画的地方白、别处黑 */
+export function maskOf(p, a) { const c = canvas(p.w, p.h), x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, p.w, p.h); x.fillStyle = '#fff'; x.fillRect(...a); return c.toDataURL('image/png'); }
 /** 第二步：以立绘为底，只改一处 */
 export const partPrompt = change => `This is a LAYER VARIANT of the attached base image, not a new illustration. Identical camera, identical crop, identical character scale, identical pixel position: the head, hair, shoulders and torso must land on exactly the same pixels as the base. Do not re-frame, zoom, recentre, change the pose or redraw anything that is not part of the change.
 Change exactly ONE thing: ${change}.
@@ -55,14 +65,16 @@ export function clearBg(p) {
   });
 }
 
-/** 比对立绘和变体：找出变了的那几块（两只眼睛是两块），取最大的和差不多大的，抠出来，边缘羽化。变得太多（整张图挪了位置）就算失败 */
-export async function cut(p, src) {
+/** 比对立绘和变体：找出变了的那几块（两只眼睛是两块），取最大的和差不多大的，抠出来，边缘羽化。变得太多（整张图挪了位置）就算失败。
+ *  area：只看这一块（NAI 局部重绘时，框外就算有一点点差别也不算） */
+export async function cut(p, src, area) {
   const [b, v] = await Promise.all([img(p.base), img(src)]), W = p.w, H = p.h;
   const read = i => { const c = canvas(W, H), x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.drawImage(i, 0, 0, W, H); return x.getImageData(0, 0, W, H).data; };
   let A, B; try { A = read(b); B = read(v); } catch (e) { throw new Error('这家生图回来的图手机读不了，换一家试试'); }
   // 粗格子（4px 一格）里数变了的像素
   const S = 4, gw = Math.ceil(W / S), gh = Math.ceil(H / S), g = new Uint8Array(gw * gh);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) > 90) g[(y / S | 0) * gw + (x / S | 0)]++; }
+  const [ax, ay, aw, ah] = area || [0, 0, W, H];
+  for (let y = ay; y < ay + ah; y++) for (let x = ax; x < ax + aw; x++) { const i = (y * W + x) * 4; if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) > 90) g[(y / S | 0) * gw + (x / S | 0)]++; }
   const on = new Uint8Array(gw * gh); for (let i = 0; i < on.length; i++) on[i] = g[i] >= 4 ? 1 : 0;
   // 连成片
   const seen = new Int32Array(gw * gh).fill(-1), blobs = [];

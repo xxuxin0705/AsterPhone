@@ -18,7 +18,10 @@ let view = null;                      // 现在开着的那个人的页面：{ c
 const who = id => id === 'me' ? { id, name: myName(), avatar: myAvatar() } : contact(id);
 // 立绘是竖的：不管这根线平时设的多大，都按各家支持的竖图尺寸画
 const TALL = { 'openai-image': '1024x1536', 'image-compat': '1024x1536', siliconflow: '768x1024' };
-const conn = () => { const c = resolveConn('image', 'studio'); return c && { ...c, img: { ...c.img, size: TALL[c.type] || '832x1216' } }; };
+const conn = size => { const c = resolveConn('image', 'studio'); return c && { ...c, img: { ...c.img, size: size || TALL[c.type] || '832x1216' } }; };
+const isNai = () => resolveConn('image', 'studio')?.type === 'novelai';
+// NAI 局部重绘：按立绘的长宽比挑一个 64 的倍数、不超过 1024×1024 面积的尺寸（送去的图拉伸铺满，回来缩回原大小正好对上）
+const naiSize = (w, h) => { const H = Math.round(Math.sqrt(1048576 * h / w) / 64) * 64; return `${Math.min(1024, Math.round(H * w / h / 64) * 64)}x${Math.min(H, 1536)}`; };
 const sub = c => { const p = P.loaded(c.id); return p ? `有立绘${Object.keys(p.parts).length ? ` · ${Object.keys(p.parts).length} 个表情` : ''}` : '只有头像'; };
 
 export async function openStudio() {
@@ -65,14 +68,16 @@ function person(cid, changed) {
       const ck = h('span.as-chat-check' + (f.pick.has(k) ? '.is-active' : ''), icon('check', 14, 2.6));
       return item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); if (pt.parts[k]) fig?.pt.peek(k); } });
     });
+    if (isNai() && pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameBoth(); if (b) { pt.boxes = b; await P.save(cid, pt); toast('框好了'); } } }));
     ctl.replaceChildren(group('表情', rows), stop || btn('生成勾选的表情', 'primary', makeParts, { style: { width: '100%' } }),
       h('div.as-studio__row', btn('重做立绘', 'secondary', async () => { if (await dialog({ title: '重做立绘？', text: '做好的表情也会一起清掉。', confirm: '重做', danger: true })) { await P.drop(cid); paint(); } }),
         btn('删除', 'danger', async () => { if (await dialog({ title: '删除立绘？', text: '删掉后这个人回到只用头像。', confirm: '删除', danger: true })) { await P.drop(cid); paint(); } })));
   }
 
   // 要等的活：同一时间只跑一个；取消了不算失败
+  const taken = () => job && (toast(job.cid === cid ? '正在做，点取消可以停下' : `正在给「${nameOf(who(job.cid))}」做，等那边好了再来`), true);
   const work = async (msg, fn) => {
-    if (job) { toast(job.cid === cid ? '正在做，点取消可以停下' : `正在给「${nameOf(who(job.cid))}」做，等那边好了再来`); return; }
+    if (taken()) return;
     const ac = new AbortController(); job = { cid, ac, msg };
     const repaint = () => view?.cid === cid && view.paint();
     ac.signal.addEventListener('abort', () => { toast('已取消'); job = null; repaint(); }, { once: true });
@@ -86,7 +91,8 @@ function person(cid, changed) {
     await work('正在画立绘…', async stop => {
       try {
         const ref = f.ref === 'avatar' ? (await P.toBase(c.avatar).catch(() => { throw new Error('头像读不出来，换一张参考图'); })).base : f.ref || undefined;
-        const src = await generateImage(P.basePrompt(f.desc.trim() || (ref ? '' : nameOf(c)), !!ref), APP, conn(), stop, ref);
+        const desc = f.desc.trim() || (ref ? '' : nameOf(c));
+        const src = await generateImage(isNai() ? P.naiBase(desc) : P.basePrompt(desc, !!ref), APP, conn(), stop, ref);
         if (stop.aborted) return;
         draft.set(cid, await P.clearBg(await P.toBase(src))); toast('画好了，看看满不满意');
       } catch (e) { if (stop.aborted) return; if (!e.logId) log('warn', APP, `「${nameOf(c)}」的立绘没画成：${e.message}`, e); toast('没画成：' + e.message); }
@@ -96,19 +102,38 @@ function person(cid, changed) {
     const pt = P.loaded(cid), todo = P.PARTS.filter(([k]) => f.pick.has(k));
     if (!todo.length) { toast('先勾要哪些表情'); return; }
     if (!conn()) { toast('还没有生图连接：设置 → 连接 → 生图 里插一根线'); return; }
+    // NAI 只重画框里那一块：先在立绘上框出眼睛和嘴（框一次就记住）
+    const nai = isNai();
+    if (nai && !pt.boxes) { if (taken()) return; const b = await frameBoth(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
     await work(`正在画表情 0 / ${todo.length}`, async (stop, say) => {
       const bad = [];
-      for (const [i, [k, name, , change]] of todo.entries()) {
+      for (const [i, [k, name, , change, tags, region]] of todo.entries()) {
         say(`正在画「${name}」 ${i + 1} / ${todo.length}`);
         try {
-          const src = await generateImage(P.partPrompt(change), APP, conn(), stop, pt.base);
+          const area = nai && P.areaOf(pt, region);
+          const src = nai ? await generateImage('solo, ' + tags, APP, conn(naiSize(pt.w, pt.h)), stop, { image: pt.base, mask: P.maskOf(pt, area) }) : await generateImage(P.partPrompt(change), APP, conn(), stop, pt.base);
           if (stop.aborted) return;
-          pt.parts[k] = await P.cut(pt, src); await P.save(cid, pt); f.pick.delete(k);
+          pt.parts[k] = await P.cut(pt, src, area || undefined); await P.save(cid, pt); f.pick.delete(k);
         } catch (e) { if (stop.aborted) return; bad.push(name); if (!e.logId) log('warn', APP, `「${nameOf(c)}」的「${name}」没做成：${e.message}`, e); }
       }
       toast(bad.length ? `${bad.join('、')} 没做成，可以再试一次` : '表情做好了');
     });
   }
+
+  // 在立绘上拖一个框，交出立绘上的 [x, y, w, h]；点提示条上的取消交出 null
+  const frame = label => new Promise(done => {
+    const box = h('i.as-studio__box'), lay = h('div.as-studio__frame', box), end = v => { lay.remove(); done(v); };
+    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast(label, { label: '取消', fn: () => { end(null); toast('已取消'); }, wait: true });
+    let s = null;
+    lay.onpointerdown = e => { lay.setPointerCapture(e.pointerId); s = { x: e.clientX, y: e.clientY, L: lay.getBoundingClientRect() }; };
+    lay.onpointermove = e => { if (!s) return; Object.assign(box.style, { left: Math.min(s.x, e.clientX) - s.L.left + 'px', top: Math.min(s.y, e.clientY) - s.L.top + 'px', width: Math.abs(e.clientX - s.x) + 'px', height: Math.abs(e.clientY - s.y) + 'px', display: 'block' }); };
+    lay.onpointerup = e => {
+      const r = fig.getBoundingClientRect(), pt = P.loaded(cid), k = pt.w / r.width, w = Math.abs(e.clientX - s.x) * k, hh = Math.abs(e.clientY - s.y) * k;
+      if (w < 12 || hh < 6) { s = null; box.style.display = ''; return; }
+      end([(Math.min(s.x, e.clientX) - r.left) * k, (Math.min(s.y, e.clientY) - r.top) * k, w, hh].map(Math.round));
+    };
+  });
+  const frameBoth = async () => { const eyes = await frame('框住两只眼睛和眉毛'); const mouth = eyes && await frame('框住嘴'); return mouth && { eyes, mouth }; };
 
   paintCtl(); paintStage();
   nav.push(p.el);
