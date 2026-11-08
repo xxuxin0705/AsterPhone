@@ -293,17 +293,22 @@ function cardPage(back) {
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
   const photo = h('div.as-int-card__photo'), head = h('div.as-int-card__head'), sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', photo, head, sheetEl);
   const saveLater = debounce(() => G.save(), 400);
-  const makeB = btn('AI 车卡', 'primary', () => make(owners.filter(o => !cur[o])));
+  const makeB = btn('AI 车卡', 'primary', () => G.running() || owners.some(o => !cur[o]) ? make(owners.filter(o => !cur[o])) : redo());
   const swapB = btn('换卡', 'secondary', () => swapCard());
   const startB = btn('开局', 'primary', () => begin());
   p.body.append(tabs, scroller, h('div.as-int-card__bar', swapB, makeB, startB));
-  const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.hidden = !miss; makeB.textContent = `AI 车卡（${miss} 人）`; startB.hidden = !!miss; swapB.hidden = !cur[sel]; };
+  const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.textContent = miss ? `AI 车卡（${miss} 人）` : '重车'; startB.hidden = !!miss; swapB.hidden = !cur[sel]; };
   async function make(list) {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast(`KP 在给 ${list.length} 个人车卡…`, { label: '取消', fn: G.cancel, wait: true });
-    try { (await G.makeCards(list)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
+    try { (await G.makeCards(list, owners)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
     catch (e) { failed(e, '没车成'); }
     paintTabs(); paint(); paintBar();
+  }
+  // 重车：勾谁车谁（旧卡留着，换卡里能换回来）
+  async function redo() {
+    const got = await pickMany('谁重车', owners.map(o => ({ key: o, name: ownerName(o), avatar: o === 'me' ? myAvatar() : contact(o).avatar })), { preselect: [sel] });
+    if (got && got.length) make(got);
   }
   async function swapCard() {
     const mine = G.cardsOf(sel), c = cur[sel];
@@ -375,7 +380,10 @@ function cardPage(back) {
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
       h('h3', '属性'), attrBox, derivedEl, h('div.as-int-row', reroll, five),
       h('h3', '技能'), pts, skillBox, restB, restBox,
-      h('h3', '背景'), bg('身份', 'who'), bg('关键经历', 'past'), bg('目标', 'goal'), bg('秘密', 'secret'));
+      h('h3', '背景'), bg('身份', 'who'), bg('关系', 'rel'), bg('关键经历', 'past'), bg('目标', 'goal'), bg('秘密', 'secret'),
+      h('h3', '随身'), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
+      field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4,
+        onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));
     paintAttrs(); paintSkills();
     sheetEl.scrollTop = 0;
   }
@@ -531,10 +539,13 @@ function playPage(g) {
   function prompt() {
     act.hidden = false; act.replaceChildren();
     if (g.done) { act.append(ending()); return; }
-    const q = g.req;
+    const q = g.fight ? { type: 'free' } : g.req;
+    if (g.fight) act.append(fightBox());
+    // 暗骰：手机照样掷，结果只交给 KP
+    if (q.type === 'check' && q.hidden) { const r = G.resolve(g, q); pending = [pending, '（暗骰）' + r.text].filter(Boolean).join('；'); g.req = { type: 'free' }; toast('KP 暗暗掷了一次骰'); send(''); return; }
     if (q.type === 'check' || q.type === 'san' || q.type === 'opposed') {
       const mine = !q.who || q.who === '你' || q.who === g.pc.name, name = mine ? '' : `替${q.who}`;
-      const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}`;
+      const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}${+q.bonus > 0 ? ' · 奖励骰' : +q.bonus < 0 ? ' · 惩罚骰' : ''}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
         const r = G.resolve(g, q); await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, label, r.text, r.v);
@@ -550,7 +561,26 @@ function playPage(g) {
       const r = G.resolve(g, { type: 'check', skill: sk, level: '普通' }); await rollOverlay(p.el, r.r.t, r.r.u, sk, r.text, r.v);
       pending = [pending, r.text].filter(Boolean).join('；'); ta.placeholder = '再说点什么（可不填）';
     } }, '🎲');
-    act.append(h('div.as-int-input', dice, ta, btn('发送', 'primary', () => send(ta.value.trim()))));
+    const bagB = h('button.as-int-dicebtn', { 'aria-label': '随身物品', onclick: async () => {
+      const L = g.pc.items || []; if (!L.length) { toast('身上没带东西'); return; }
+      const v = await actionSheet('随身物品', L.map((x, i) => ({ value: String(i), label: G.itemText(x) })));
+      if (v != null) { ta.value = `用${L[+v].name}`; ta.focus(); }
+    } }, '🎒');
+    act.append(h('div.as-int-input', dice, bagB, ta, btn('发送', 'primary', () => send(ta.value.trim()))));
+  }
+  // 战斗这一轮：点敌人选打谁，有武器的挑用哪件，攻击 / 闪避（这轮闪避多一个奖励骰）/ 逃跑；一点就收起，免得点两次
+  function fightBox() {
+    const F = g.fight, alive = F.foes.filter(f => f.hp > 0), ws = G.weapons(g.pc);
+    let foe = alive[0].name, wpn = ws[ws.length - 1].name;
+    const chips = h('div.as-int-foes', alive.map((f, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { foe = f.name; [...chips.children].forEach(x => x.classList.toggle('is-on', x === e.currentTarget)); } }, `${f.name} ♥${f.hp}/${f.hpMax}`)));
+    const go = kind => async () => {
+      act.replaceChildren();
+      const r = G.fightRound(g, { kind, foe, wpn }); await G.save(); paintHud();
+      if (r.mine) await rollOverlay(p.el, r.mine.t, r.mine.u, r.cap, '', r.mine.grade);
+      pending = r.text; send('');
+    };
+    return h('div.as-int-ask.as-int-fight', h('b', `战斗 · 第 ${F.round + 1} 轮`), chips, ws.length > 1 ? segmented(ws.map(w => [w.name, w.name]), wpn, v => { wpn = v; }) : null,
+      h('div.as-int-row', btn('攻击', 'primary', go('atk')), btn('闪避', 'secondary', go('dodge')), btn('逃跑', 'secondary', go('flee'))));
   }
   async function send(what) {
     if (G.running()) { G.cancel(); return; }

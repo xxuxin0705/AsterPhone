@@ -45,7 +45,7 @@ export const PROMPT_CATS = [
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'scenario', 'places'] },
-    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'pc', 'cast', 'log', 'input', 'places'] }] },
+    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -443,10 +443,12 @@ export const DEFAULT_PROMPTS = {
 - 人设写的是一开始的样子，正文和上面记着的事更新：年龄、年级、身份、住在哪、和谁什么关系对不上时，以正文和记着的事为准。
 - 名字默认用本人的名字（剧情需要化名时可以起），年龄 15～89，性别照人设。
 - 职业：最好从这些常见职业里挑最贴合人设的一个：{{jobs}}；实在都不合适可以自己写。
-- 背景四项各一两句：身份、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。身份里写上和这几个人在正文里是什么关系（同学、搭档、谁救过谁…）。
+- 背景各一两句：身份、和这几个人在正文里是什么关系（每个人都写到：同学、搭档、谁救过谁…）、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。
+- 资产：照信用评级和正文写一句（现金、住处、家里的条件）。
+- 随身物品 3～6 样：这个人在正文里真会带在身上的东西（证件、手机、绷带、手电、绳子…），别每个人都带枪；武器写伤害和用的技能：小刀 1D4（斗殴）、棍棒 1D6（斗殴）、球棒 1D8（斗殴）、手枪 1D10（手枪）、步枪 2D6（步枪）、霰弹枪 4D6（步枪）。
 - 技能只从这张表里挑：{{skills}}。职业技能 8 项、兴趣技能几项；每人加的点总共不超过「教育×4 + 智力×2」（每人后面写了上限），每项最高 80；没写的按基础值。
 - 只输出 JSON，不要别的文字、不要代码块：
-{"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","bg":{"who":"","past":"","goal":"","secret":""},"skills":{"侦查":60}}]}` },
+{"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"},{"name":"折叠刀","dmg":"1D4","skill":"斗殴"}],"skills":{"侦查":60}}]}` },
   intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
     text: `{{kp}}现在要为 {{user}} 和 TA 的朋友们开一局《克苏鲁的呼唤》第七版。先把这一局的骨架写好。气氛：{{mood}}
 {{know}}
@@ -469,8 +471,9 @@ export const DEFAULT_PROMPTS = {
 - 3～5 幕，每幕有目标和「出口」（满足什么就进下一幕）；真相只有你知道；好 / 坏两种结局各写一句。可以用上调查员背景里的目标和秘密。
 - 开场白 100 字左右，用中文：先接正文，再把大家带进这一局的第一幕。
 - 每幕写 1～3 个关键检定（这幕里最可能要掷的、跟线索或危险有关的）：什么时候掷、掷什么技能，六种结果各会怎样。关键线索失败了也不能永远拿不到，只能换一条更慢、代价更大的路；大失败要当场出事（受伤、掉理智、惊动敌人…）。
+- 每幕可能打起来的敌人（不会打就空着），数值要让上面这几个调查员（看他们的血、斗殴、闪避、随身武器）打得过但会受伤：普通人类敌人血 9～13、攻击 35～55、闪避 20～35，伤害徒手 1D3、刀 1D4+1、棍棒 1D6+1、枪 1D10；同时上场的敌人不多于调查员；真打不过的怪物要写明，并留一条逃跑或智取的路。
 - 只输出 JSON，不要别的文字、不要代码块：
-{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口","checks":[{"when":"什么时候掷（在哪、做什么）","skill":"技能名","大成功":"","极难成功":"","困难成功":"","普通成功":"","失败":"","大失败":""}]}],"secret":"真相","endings":{"good":"","bad":""}}` },
+{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口","foes":[{"name":"敌人","wpn":"用什么打","hp":11,"atk":45,"dmg":"1D6","dodge":25,"dex":50}],"checks":[{"when":"什么时候掷（在哪、做什么）","skill":"技能名","大成功":"","极难成功":"","困难成功":"","普通成功":"","失败":"","大失败":""}]}],"secret":"真相","endings":{"good":"","bad":""}}` },
   intRound: { name: '一回合', cats: ['intRound'], on: true, main: true,
     text: `{{kp}}叙述并扮演所有 NPC 和上桌的角色（除了 {{user}}）。气氛：{{mood}}
 {{know}}
@@ -491,7 +494,9 @@ export const DEFAULT_PROMPTS = {
 - 大失败：坏事当场发生（受伤、掉理智、惊动敌人…）
 本幕检定表（只有你知道，掷骰之前不要说出各档结果）：
 {{checks}}
-
+本幕敌人表（打起来时照这个）：
+{{foes}}
+{{fight}}
 【{{user}} 的调查员】{{pc}}
 【上桌的角色】（用各自的性格说话、行动；他们的检定也由手机掷）
 {{cast}}
@@ -512,13 +517,14 @@ export const DEFAULT_PROMPTS = {
 - pose：这段的动作，按情绪和情景挑，只能是 hips（叉腰）/ wave（挥手打招呼）/ cross（抱臂）/ think（托腮想事）/ fist（握拳加油）/ scratch（挠头不好意思）/ shrug（摊手无奈）/ please（拜托）/ point（指着）/ heart（比心）/ reach（伸手）/ peace（比耶），平常就空着。
 然后提出 request（只能一种）：
 - {"type":"free"}：随便做什么
-- {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么要掷（不写结果）"}：有后果的行动才检定；本幕检定表里的情况出现了就用表里的技能；对方弱用普通，势均力敌用困难，几乎不可能用极难
+- {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","bonus":0,"hidden":false,"reason":"为什么要掷（不写结果）"}：有后果的行动才检定；本幕检定表里的情况出现了就用表里的技能。bonus：带着合用的东西（看随身物品：攀爬有绳子、急救有绷带、夜里有手电）写 1（奖励骰），缺了要用的工具写 -1（惩罚骰），平常 0。hidden：结果不该让玩家知道时（侦查没发现、聆听没听到、心理学看不穿）写 true，手机暗着掷，只把结果告诉你
+- {"type":"fight","foes":[照本幕敌人表抄，格式一样],"reason":""}：真打起来了才用。之后每轮由手机按敏捷先后替所有人掷（玩家自己选攻击、闪避或逃跑），带枪的伤害高、近战加力气，结果交给你讲；对方弱用普通，势均力敌用困难，几乎不可能用极难
 - {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
 - {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
 - {"type":"choose","options":["…","…"]}：给几个选项
-场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
+场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt（战斗里的伤手机已经算过，别再写）。有人捡到、用掉、丢了东西写 items。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
 只输出 JSON，不要别的文字、不要代码块：
-{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
+{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","drop":"用掉或丢了的东西"}],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

@@ -42,24 +42,33 @@ export function jobSkills(a, job) {
 export const LEVELS = { 普通: 1, 困难: 2, 极难: 5 };
 export const CRITS = [['book', '规则书：01 大成功，100 大失败（技能低于 50 时 96～100）'], ['3', '1～3 大成功，98～100 大失败'], ['5', '1～5 大成功，96～100 大失败']];
 /** 一次检定：掷 1D100，对技能值。level = 普通 / 困难 / 极难，crit = 大成功大失败用哪一档。返回 { v, t, u, ok, grade } */
-export function check(skill, level = '普通', crit = 'book') {
-  const r = d100(), v = r.v, need = Math.floor(skill / (LEVELS[level] || 1));
+// 奖励骰 / 惩罚骰：多掷几个十位骰，奖励挑小的、惩罚挑大的（bonus 正数奖励、负数惩罚，最多各两个）
+function tens(r, bonus) {
+  if (!bonus) return r;
+  const val = t => t === 0 && r.u === 0 ? 100 : t * 10 + r.u, all = [r.t, ...Array.from({ length: Math.min(2, Math.abs(bonus)) }, () => d(10) - 1)];
+  const t = all.reduce((a, b) => (bonus > 0 ? val(b) < val(a) : val(b) > val(a)) ? b : a);
+  return { t, u: r.u, v: val(t) };
+}
+export function check(skill, level = '普通', crit = 'book', bonus = 0) {
+  const r = tens(d100(), bonus), v = r.v, need = Math.floor(skill / (LEVELS[level] || 1));
   const big = crit === 'book' ? v === 1 : v <= +crit, bad = crit === 'book' ? (skill < 50 ? v >= 96 : v === 100) : v >= 101 - +crit;
   const grade = big ? '大成功' : bad ? '大失败' : v > need ? '失败' : v <= Math.floor(skill / 5) ? '极难成功' : v <= Math.floor(skill / 2) ? '困难成功' : '普通成功';
   return { ...r, need, ok: big || (!bad && v <= need), grade };
 }
 /** 对抗：两边各掷一次，成功等级高的赢；平了比技能值 */
+export const rank = r => r.grade === '大失败' ? -1 : r.grade === '失败' ? 0 : r.grade === '普通成功' ? 1 : r.grade === '困难成功' ? 2 : 3;
 export function opposed(mine, theirs, crit) {
-  const rank = r => r.grade === '大失败' ? -1 : r.grade === '失败' ? 0 : r.grade === '普通成功' ? 1 : r.grade === '困难成功' ? 2 : 3;
   const a = check(mine, '普通', crit), b = check(theirs, '普通', crit);
   return { a, b, win: rank(a) !== rank(b) ? rank(a) > rank(b) : mine >= theirs };
 }
-/** 掷伤害 / 掉理智这种「1D6」「2D4+1」「0」 */
-export function dice(expr) {
+/** 掷伤害 / 掉理智这种「1D6」「2D4+1」「0」；top：不掷，直接取最大（极难成功打满） */
+export function dice(expr, top) {
   const m = /^(\d*)[dD](\d+)([+-]\d+)?$/.exec(String(expr).trim());
   if (!m) return Math.max(0, parseInt(expr, 10) || 0);
-  return Math.max(0, roll(+m[1] || 1, +m[2]) + (+m[3] || 0));
+  return Math.max(0, (top ? (+m[1] || 1) * +m[2] : roll(+m[1] || 1, +m[2])) + (+m[3] || 0));
 }
+/** 伤害加值（近战才加）：看力量 + 体型 */
+export const db = a => { const s = a.STR + a.SIZ; return s < 65 ? -2 : s < 85 ? -1 : s < 125 ? 0 : s < 165 ? dice('1D4') : dice('1D6'); };
 /** 理智检定：loss 写成「成功掉/失败掉」，比如 1/1D6 */
 export function sanCheck(san, loss, crit) {
   const [ok, no] = String(loss || '0/1D4').split('/'), r = check(san, '普通', crit);

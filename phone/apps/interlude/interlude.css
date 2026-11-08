@@ -170,6 +170,10 @@
 .as-int-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); }
 .as-int-ask small { width: 100%; font-size: 12px; opacity: .75; }
 .as-int-ask b { font-weight: 500; flex: 1; }
+.as-int-fight { margin-bottom: 8px; } .as-int-fight > .as-segmented, .as-int-fight > .as-int-row { width: 100%; }
+.as-int-foes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.as-int-foes button { padding: 5px 10px; border: 1px solid rgba(47,38,25,.3); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 13px; }
+.as-int-foes button.is-on { background: #2f2619; color: #f1ece2; }
 .as-int-wait { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(236,228,210,.96); color: #2f2619; font: 400 14px/1 var(--font-cn); }
 .as-int-wait .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
 .as-int-end { padding: 14px 16px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); display: flex; flex-direction: column; gap: 8px; }
