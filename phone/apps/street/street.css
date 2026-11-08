@@ -50,7 +50,8 @@
 
 /* 照相馆 */
 .as-studio__stage { position: relative; display: grid; place-items: center; margin: 4px 0 14px; aspect-ratio: 3 / 4; border-radius: 22px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); overflow: hidden; }
-.as-studio__stage > .as-pt, .as-studio__draft { height: 100%; max-width: 100%; }
+.as-studio__stage > .as-pt { height: 100%; max-width: 100%; }
+.as-studio__draft { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .as-studio__ctl { display: grid; gap: 12px; }
 .as-studio__ctl .as-list-group { margin: 0; }
 .as-studio__row { display: flex; gap: 10px; } .as-studio__row > * { flex: 1; }

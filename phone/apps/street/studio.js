@@ -42,7 +42,9 @@ function person(cid, changed) {
   // 立绘区：结构变了才换，先等图片解码好再一次换上去
   const paintStage = async () => {
     const pt = P.loaded(cid), d = draft.get(cid);
-    const node = pt ? (fig = P.figure(cid)) : d ? h('img.as-studio__draft', { src: d.base, alt: '' }) : avatar(c.avatar, nameOf(c), 120);
+    // 还没画：选了相册里的图就先把那张摆出来
+    const show = d ? d.base : f.ref !== 'avatar' && f.ref;
+    const node = pt ? (fig = P.figure(cid)) : show ? h('img.as-studio__draft', { src: show, alt: '' }) : avatar(c.avatar, nameOf(c), 120);
     if (!pt) fig = null;
     await Promise.all([...(node.tagName === 'IMG' ? [node] : node.querySelectorAll('img'))].map(i => i.decode().catch(() => {})));
     stage.replaceChildren(node); stage.classList.toggle('is-empty', !pt && !d);
@@ -61,6 +63,7 @@ function person(cid, changed) {
         if (v == null) return;
         if (v === 'pick') { const file = await pickFile(); if (!file) return; f.ref = await fileToDataURL(file, 1024); } else f.ref = v;
         refRow.querySelector('.as-list-item__value').textContent = f.ref === 'avatar' ? '头像' : f.ref ? '相册里的图' : '不用';
+        paintStage();
       } });
       return ctl.replaceChildren(group('', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } }))]), stop || btn('生成立绘', 'primary', makeBase, { style: { width: '100%' } }));
     }
