@@ -112,7 +112,7 @@ export async function play(g, input) {
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
   }, 2400, g);
   const str = v => String(v || '').trim();
-  const lines = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), ...(l.ooc && g.know ? { ooc: true } : {}) }));
+  const lines = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), ...(l.ooc && g.know ? { ooc: true } : {}) }));
   if (!lines.length) throw new Error('AI 回的格式不对');
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;

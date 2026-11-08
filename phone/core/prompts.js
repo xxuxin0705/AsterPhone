@@ -495,7 +495,8 @@ export const DEFAULT_PROMPTS = {
 - act：旁白（动作、神态、环境），一律用中文；没有就空着；
 - say：嘴里说出来的话，不带引号，用这个人的语言（上面每个人后面写了），开头照他后面写的方式标语气；没说话就空着；
 - zh：say 不是中文时，写它的中文翻译（不带语气标签）；是中文就空着；
-- ooc：场外话写 true（只有上面允许场外时才有）。
+- ooc：场外话写 true（只有上面允许场外时才有）；
+- face：这段的表情，只能是 smile / angry / troubled / shy，平常就空着。
 然后提出 request（只能一种）：
 - {"type":"free"}：随便做什么
 - {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么"}：有后果的行动才检定；对方弱用普通，势均力敌用困难，几乎不可能用极难
@@ -504,7 +505,7 @@ export const DEFAULT_PROMPTS = {
 - {"type":"choose","options":["…","…"]}：给几个选项
 场景换了就写 place（只能用：{{places}}）。有人受伤写 hurt。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end。
 只输出 JSON，不要别的文字、不要代码块：
-{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false}],"place":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
+{"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":""}],"place":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
 };

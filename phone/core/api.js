@@ -368,14 +368,15 @@ function imageInReply(j) {
   const hit = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(text) || /(data:image\/[\w+]+;base64,[\w+/=]+)/.exec(text) || /(https?:\/\/\S+?\.(?:png|jpe?g|webp|gif)(?:\?\S*)?)(?=[\s)"']|$)/i.exec(text);
   return hit ? hit[1] : '';
 }
-export async function generateImage(prompt, app = '聊天', connIn, stop) {
+/** ref：照着这张图改（dataURL），不传就是用文字生图 */
+export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');
-  try { return await withRetry('image', app, () => imageOnce(prompt, app, conn, stop)); }
+  try { return await withRetry('image', app, () => imageOnce(prompt, app, conn, stop, ref)); }
   catch (e) {   // 生图线断了 → 改用选好的副 API（只换一次）；自己点了中止不换
     const bk = backupOf('image'); if (!bk || bk.id === conn.id || e.message === '已中止') throw e;
     log('warn', app, `「${conn.name}」生图失败，改用副 API「${bk.name}」`);
-    return imageOnce(prompt, app, bk, stop);
+    return imageOnce(prompt, app, bk, stop, ref);
   }
 }
 /** 真正发出去的正面 / 负面提示词：画师串 + 质量词 + 这次的画面 */
@@ -384,19 +385,21 @@ function imgPrompt(conn, prompt) {
   return { full: [I.tags, quality, prompt].filter(Boolean).join(', '), neg: I.neg || '' };
 }
 /** 一次生图记成日志里的一条调用 */
-async function imageOnce(prompt, app, conn, stop) {
+async function imageOnce(prompt, app, conn, stop, ref) {
   const { full, neg } = imgPrompt(conn, prompt);
   const call = startCall({ app, what: '生图', src: conn.name, model: conn.model || '', req: full + (neg ? `\n\n【负面】\n${neg}` : '') });
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });
-  try { const u = await orAbort(imageRaw(prompt, conn), call.signal); call.done('[一张图片]'); return u; }
+  try { const u = await orAbort(imageRaw(prompt, conn, ref), call.signal); call.done('[一张图片]'); return u; }
   catch (e) { call.fail(e.message); throw Object.assign(e, { logId: call.id }); }
 }
-async function imageRaw(prompt, conn) {
+/** ref：照着这张图改（dataURL）。只有能「照图改图」的渠道认：OpenAI / 第三方（edits 接口或聊天接口带图）、硅基流动的改图模型 */
+async function imageRaw(prompt, conn, ref) {
   const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
   const { full, neg } = imgPrompt(conn, prompt);
   const key = keysOf(conn)[0] || '', base = trim(conn.base);
   const fail = async res => { throw new Error(await readErr(res)); };
   try {
+    if (ref && !['siliconflow', 'openai-image', 'image-compat'].includes(conn.type)) throw new Error('这个生图渠道不能照着图改，换 OpenAI / 第三方 / 硅基流动的改图模型');
     switch (conn.type) {
       case 'novelai': {
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
@@ -409,7 +412,7 @@ async function imageRaw(prompt, conn) {
       }
       case 'siliconflow': {
         const res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5 }) });
+          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5, ...(ref ? { image: ref } : {}) }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return keep(u);
       }
@@ -441,12 +444,16 @@ async function imageRaw(prompt, conn) {
       default: {     // OpenAI 官方 / 第三方：默认走 /images/generations；有的中转站只能走聊天接口出图
         if (I.mode === 'chat') {
           const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-            body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})` }] }) });
+            body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: ((t) => ref ? [{ type: 'text', text: t }, { type: 'image_url', image_url: { url: ref } }] : t)(full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})`) }] }) });
           if (!res.ok) await fail(res);
           const u = imageInReply(await res.json()); if (!u) throw new Error('聊天接口的回复里没有图片'); return keep(u);
         }
         const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size: `${W}x${H}` };
-        const res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+        let res;
+        if (ref) {   // 照图改：/images/edits，图片按文件传
+          const fd = new FormData(); Object.entries(body).forEach(([k, v]) => v != null && fd.append(k, String(v))); fd.append('image', await (await fetch(ref)).blob(), 'image.png');
+          res = await xf(base + '/images/edits', { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: fd });
+        } else res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) await fail(res);
         const j = await res.json(), d = (j.data || [])[0] || {};
         if (d.b64_json) return b64png(d.b64_json);
@@ -617,12 +624,12 @@ export async function speak(text, opts = {}) {
   say('start');
   try { return await speakRaw(text, opts); } finally { say('end'); }
 }
-async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted, t } = {}) {
+async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted, t, onStart } = {}) {   // onStart：真的出声那一刻（立绘动嘴）
   if (!silent) stopSpeak();
   const play = async (url, c) => {
     if (cache) await kvSet(cache, await (await fetch(url)).blob()).catch(e => log('warn', '语音', '合成好的声音没存上：' + e.message));
     if (silent || (stop && stop.aborted)) return;
-    const a = new Audio(url); a.volume = Math.min(1, (c && c.tts && c.tts.volume) ?? 1); playing = a; await a.play();
+    const a = new Audio(url); a.volume = Math.min(1, (c && c.tts && c.tts.volume) ?? 1); playing = a; await a.play(); onStart?.();
     return new Promise(r => { a.onended = r; a.onerror = r; a.onpause = r; });   // 被停掉（stopSpeak）也算念完，不然等它的地方会一直卡着
   };
   const saved = cache && await kvGet(cache).catch(() => null);
@@ -647,7 +654,7 @@ async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache,
   return new Promise(r => {
     const u = new SpeechSynthesisUtterance(acted ? plain(text) : text); u.lang = 'zh-CN'; u.rate = 1.02;
     const v = speechSynthesis.getVoices().find(x => /zh|Chinese/i.test(x.lang + x.name)); if (v) u.voice = v;
-    u.onend = r; u.onerror = r; playing = u; speechSynthesis.speak(u);
+    u.onend = r; u.onerror = r; u.onstart = onStart; playing = u; speechSynthesis.speak(u);
   });
 }
 export function stopSpeak() {

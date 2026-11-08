@@ -13,6 +13,7 @@ export const APPS = [
   { id: 'memory', name: '念念铃', icon: 'bell' },
   { id: 'diary', name: '日记', icon: 'note' },
   { id: 'interlude', name: '幕间', img: 'assets/interlude/icon.webp' },
+  { id: 'street', name: '商业街', img: 'assets/street/icon.svg' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 

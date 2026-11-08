@@ -18,6 +18,7 @@ import { glass } from '../../core/glass.js';
 import { speakAs } from '../../core/voice.js';
 import { stopSpeak } from '../../core/api.js';
 import { plain } from '../../core/act.js';
+import * as P from '../../core/portrait.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -462,9 +463,10 @@ function playPage(g) {
   async function voice(l) {
     if (!l || !l.say) return;
     if (vac) { hush(); return; }
-    const ac = vac = new AbortController(); voiceB.classList.add('is-on');
-    try { await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l) }); }
+    const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.classList.add('is-on');
+    try { await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l), onStart: () => pt?.talk(true) }); }
     catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
+    pt?.talk(false);
     if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
   }
   // 提前合成：一句一句排着来，合成好的存着，念的时候直接放
@@ -474,12 +476,17 @@ function playPage(g) {
   const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, ooc, who, box, act);
   p.body.append(hud, stage);
   let queue = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
-  const faceOf = n => { if (n === 'KP') return kpc ? avatar(kpc.avatar, nameOf(kpc), 110, 'square') : img('kp'); if (n === myName() || n === g.pc.name) return avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? avatar(c.avatar, nameOf(c), 110, 'square') : h('span.as-int-who__none', n.slice(0, 1)); };
+  // 照相馆做过立绘的人站着出来（会眨眼、说话时动嘴），没做的用头像
+  const ofC = c => P.figure(c.id) || avatar(c.avatar, nameOf(c), 110, 'square');
+  const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (n === myName() || n === g.pc.name) return avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
+  let lastWho = '';
+  P.preload([kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
   const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : n;
   const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? l.act + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${l.zh}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
   const say = l => { hush(); cur = g.log.includes(l) ? l : null;
-    const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; face.replaceChildren(faceOf(l.who)); }
+    const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
+    face.firstChild.pt?.face(l.face);
     actT.textContent = l.text || l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
     actT.hidden = !actT.textContent; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !(cur && l.say);
     if (mode === 'next') queue.filter(x => !x.ooc).slice(0, 2).forEach(ahead);

@@ -278,3 +278,10 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-wheel__disc { width: 100%; height: 100%; border-radius: 50%; display: block; box-shadow: 0 4px 16px rgba(20,40,70,.18), inset 0 0 0 1px rgba(255,255,255,.4); }
 .as-wheel__knob { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); pointer-events: none; }
 .as-wheel .as-settings-slider-row > span { flex: none; width: 3em; }   /* 亮度、透明度两根滑条对齐 */
+
+/* 立绘（core/portrait.js）：底图 + 叠在上面的表情小图，轻轻呼吸 */
+.as-pt { position: relative; transform-origin: 50% 100%; animation: as-pt-breath 4.2s ease-in-out infinite; }
+.as-pt > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; user-select: none; pointer-events: none; }
+.as-pt > .as-pt__part { opacity: 0; }
+.as-pt > .as-pt__part.is-on { opacity: 1; }
+@keyframes as-pt-breath { 50% { transform: scale(1.006, 1.012); } }
