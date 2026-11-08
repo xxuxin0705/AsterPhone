@@ -167,7 +167,11 @@ function derive(v) {
 const pack = r => ({ use: r.use, sel: r.sel, vers: r.vers.map(({ base, w, h, boxes, alt, on }) => ({ base, w, h, boxes, alt, on })) });
 const put = (id, r) => { cache.set(id, r); return kvSet('pt:' + id, pack(r)); };
 export async function load(id) {
-  if (!cache.has(id)) { let r = await kvGet('pt:' + id).catch(() => null); if (r && r.base) r = { use: 0, vers: [r] }; if (r) r.vers.forEach(derive); cache.set(id, r || null); }
+  if (!cache.has(id)) {
+    let r = await kvGet('pt:' + id).catch(() => null); if (r && r.base) r = { use: 0, vers: [r] }; if (r) r.vers.forEach(derive); cache.set(id, r || null);
+    // 以前存下的没抠干净（比如黑底）：读的时候补抠一次存回去
+    if (r) { let dirty = 0; for (const v of r.vers) { const b = (await clearBg(v).catch(() => v)).base; if (b !== v.base) { v.base = b; dirty = 1; } } if (dirty) await put(id, r); }
+  }
   return loaded(id);
 }
 const rec = id => cache.get(id) || null;
@@ -205,12 +209,15 @@ export function clearBg(p, type = 'image/png') {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), i = new Image();
   return new Promise((ok, no) => { i.onload = ok; i.onerror = no; i.src = p.base; }).then(() => {
     x.drawImage(i, 0, 0); const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, seen = new Uint8Array(W * H), st = [];
-    // 底色看四个角：浅色（米白、浅灰）就连它一起去掉；深色不敢去，衣服、头发常常也是深的
-    const bg = [0, W - 1, (H - 1) * W, H * W - 1].reduce((s, k) => s.map((v, i) => v + a[k * 4 + i] / 4), [0, 0, 0]), light = Math.min(...bg) > 170;
-    const white = k => a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235 || light && bg.every((v, i) => Math.abs(a[k * 4 + i] - v) < 16);
-    for (let x0 = 0; x0 < W; x0++) st.push(x0, (H - 1) * W + x0); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
-    while (st.length) { const k = st.pop(); if (seen[k] || !white(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; const px = k % W;
+    // 底色看四个角（角上已经透明就是抠过了）：纯色底连它一起去掉。深色底不从下边往里找：衣服常常是深色、一直连到下边
+    const corners = [0, W - 1, (H - 1) * W, H * W - 1]; if (corners.some(k => a[k * 4 + 3] < 255)) return p;
+    const bg = corners.reduce((s, k) => s.map((v, i) => v + a[k * 4 + i] / 4), [0, 0, 0]), light = Math.min(...bg) > 170, dark = Math.max(...bg) < 60;
+    const white = k => a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235 || (light || dark) && bg.every((v, i) => Math.abs(a[k * 4 + i] - v) < 16);
+    for (let x0 = 0; x0 < W; x0++) st.push(x0, ...(dark ? [] : [(H - 1) * W + x0])); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
+    let n = 0;
+    while (st.length) { const k = st.pop(); if (seen[k] || !white(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; n++; const px = k % W;
       if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
+    if (!n) return p;
     x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL(type, .92) };
   });
 }

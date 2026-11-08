@@ -113,6 +113,8 @@ export async function play(g, input) {
   }, 2400, g);
   const str = v => String(v || '').trim();
   const lines = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc && g.know ? { ooc: true } : {}) }));
+  // AI 偶尔把台词连引号塞进旁白：拆出来放回台词，喇叭才有得念
+  for (const l of lines) if (!l.say && l.who !== 'KP') { const q = [...l.act.matchAll(/[“「]([^”」]+)[”」]/g)].map(m => m[1]); if (q.length) { l.say = q.join(' '); l.act = l.act.replace(/[“「][^”」]+[”」]/g, '').replace(/^[，。、\s]+/, '').trim(); } }
   if (!lines.length) throw new Error('AI 回的格式不对');
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
