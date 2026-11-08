@@ -2,7 +2,7 @@
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon } from '../../core/ui.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, segmented } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -34,7 +34,7 @@ export async function openStudio() {
 }
 
 function person(cid, changed) {
-  const c = who(cid), f = form.get(cid) || form.set(cid, { desc: '', ref: c.avatar ? 'avatar' : '', pick: new Set(['mouthOpen', 'eyesClosed']) }).get(cid);
+  const c = who(cid), f = form.get(cid) || form.set(cid, { desc: '', ref: c.avatar ? 'avatar' : '', pick: new Set(['mouthOpen', 'eyesClosed']), how: 'local' }).get(cid);
   const p = page({ app: 'street', id: 'studio-one', title: nameOf(c), large: true, back: true, cls: 'as-studio' });
   const stage = h('div.as-studio__stage'), ctl = h('div.as-studio__ctl');
   p.body.append(stage, ctl);
@@ -42,8 +42,8 @@ function person(cid, changed) {
   // 立绘区：结构变了才换，先等图片解码好再一次换上去
   const paintStage = async () => {
     const pt = P.loaded(cid), d = draft.get(cid);
-    // 还没画：选了相册里的图就先把那张摆出来
-    const show = d ? d.base : f.ref !== 'avatar' && f.ref;
+    // 还没画：选了参考图就先把那张整张摆出来
+    const show = d ? d.base : f.ref === 'avatar' ? c.avatar : f.ref;
     const node = pt ? (fig = P.figure(cid)) : show ? h('img.as-studio__draft', { src: show, alt: '' }) : avatar(c.avatar, nameOf(c), 120);
     if (!pt) fig = null;
     await Promise.all([...(node.tagName === 'IMG' ? [node] : node.querySelectorAll('img'))].map(i => i.decode().catch(() => {})));
@@ -65,14 +65,21 @@ function person(cid, changed) {
         refRow.querySelector('.as-list-item__value').textContent = f.ref === 'avatar' ? '头像' : f.ref ? '相册里的图' : '不用';
         paintStage();
       } });
-      return ctl.replaceChildren(group('', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } }))]), stop || btn('生成立绘', 'primary', makeBase, { style: { width: '100%' } }));
+      // 参考图本来就是干净的正面立绘：直接拿来用，不找 AI
+      const asIs = async () => { try { await P.save(cid, await P.clearBg(await P.toBase(f.ref === 'avatar' ? c.avatar : f.ref))); paint(); } catch (e) { toast(e.message); } };
+      return ctl.replaceChildren(group('', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } }))]),
+        stop || (f.ref ? h('div.as-studio__row', btn('直接用这张', 'secondary', asIs), btn('AI 画立绘', 'primary', makeBase)) : btn('AI 画立绘', 'primary', makeBase, { style: { width: '100%' } })));
     }
+    // 画法：手机里画（免费，眉毛画不了）/ AI 画。切换只藏起眉毛那两行、换按钮上的字
     const rows = P.PARTS.map(([k, name, use]) => {
       const ck = h('span.as-chat-check' + (f.pick.has(k) ? '.is-active' : ''), icon('check', 14, 2.6));
-      return item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); if (pt.parts[k]) fig?.pt.peek(k); } });
+      const row = item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); if (pt.parts[k]) fig?.pt.peek(k); } });
+      row.dataset.k = k; row.hidden = f.how === 'local' && !P.LOCAL.includes(k); return row;
     });
-    if (isNai() && pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameBoth(); if (b) { pt.boxes = b; await P.save(cid, pt); toast('框好了'); } } }));
-    ctl.replaceChildren(group('表情', rows), stop || btn('生成勾选的表情', 'primary', makeParts, { style: { width: '100%' } }),
+    if (pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { pt.boxes = b; await P.save(cid, pt); toast('框好了'); } } }));
+    const go = btn(f.how === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情', 'primary', makeParts, { style: { width: '100%' } });
+    const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
+    ctl.replaceChildren(how, group('表情', rows), stop || go,
       h('div.as-studio__row', btn('重做立绘', 'secondary', async () => { if (await dialog({ title: '重做立绘？', text: '做好的表情也会一起清掉。', confirm: '重做', danger: true })) { await P.drop(cid); paint(); } }),
         btn('删除', 'danger', async () => { if (await dialog({ title: '删除立绘？', text: '删掉后这个人回到只用头像。', confirm: '删除', danger: true })) { await P.drop(cid); paint(); } })));
   }
@@ -102,12 +109,17 @@ function person(cid, changed) {
     });
   }
   async function makeParts() {
-    const pt = P.loaded(cid), todo = P.PARTS.filter(([k]) => f.pick.has(k));
+    const pt = P.loaded(cid), local = f.how === 'local', todo = P.PARTS.filter(([k]) => f.pick.has(k) && (!local || P.LOCAL.includes(k)));
     if (!todo.length) { toast('先勾要哪些表情'); return; }
-    if (!conn()) { toast('还没有生图连接：设置 → 连接 → 生图 里插一根线'); return; }
-    // NAI 只重画框里那一块：先在立绘上框出眼睛和嘴（框一次就记住）
-    const nai = isNai();
-    if (nai && !pt.boxes) { if (taken()) return; const b = await frameBoth(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    if (!local && !conn()) { toast('还没有生图连接：设置 → 连接 → 生图 里插一根线'); return; }
+    // 手机里画、NAI 只重画框里那一块：都要先在立绘上框出两只眼睛和嘴（框一次就记住）
+    const nai = !local && isNai();
+    if ((local || nai) && !P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    if (local) {
+      if (taken()) return;
+      for (const [k] of todo) { pt.parts[k] = await P.drawPart(pt, k); f.pick.delete(k); }
+      await P.save(cid, pt); toast('画好了，点一下表情可以看看'); paint(); return;
+    }
     await work(`正在画表情 0 / ${todo.length}`, async (stop, say) => {
       const bad = [];
       for (const [i, [k, name, , change, tags, region]] of todo.entries()) {
@@ -123,20 +135,25 @@ function person(cid, changed) {
     });
   }
 
-  // 在立绘上拖一个框，交出立绘上的 [x, y, w, h]；点提示条上的取消交出 null
-  const frame = label => new Promise(done => {
-    const box = h('i.as-studio__box'), lay = h('div.as-studio__frame', box), end = v => { lay.remove(); done(v); };
-    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast(label, { label: '取消', fn: () => { end(null); toast('已取消'); }, wait: true });
-    let s = null;
-    lay.onpointerdown = e => { lay.setPointerCapture(e.pointerId); s = { x: e.clientX, y: e.clientY, L: lay.getBoundingClientRect() }; };
-    lay.onpointermove = e => { if (!s) return; Object.assign(box.style, { left: Math.min(s.x, e.clientX) - s.L.left + 'px', top: Math.min(s.y, e.clientY) - s.L.top + 'px', width: Math.abs(e.clientX - s.x) + 'px', height: Math.abs(e.clientY - s.y) + 'px', display: 'block' }); };
-    lay.onpointerup = e => {
-      const r = fig.getBoundingClientRect(), pt = P.loaded(cid), k = pt.w / r.width, w = Math.abs(e.clientX - s.x) * k, hh = Math.abs(e.clientY - s.y) * k;
-      if (w < 12 || hh < 6) { s = null; box.style.display = ''; return; }
-      end([(Math.min(s.x, e.clientX) - r.left) * k, (Math.min(s.y, e.clientY) - r.top) * k, w, hh].map(Math.round));
+  // 在立绘上依次拖三个框（左眼、右眼、嘴），框过的留在上面；交出 { eyeL, eyeR, mouth }（立绘上的 [x, y, w, h]），点提示条上的取消交出 null
+  const frameAll = () => new Promise(done => {
+    const steps = [['eyeL', '框住左边那只眼睛'], ['eyeR', '框住右边那只眼睛'], ['mouth', '框住嘴']], got = {}, lay = h('div.as-studio__frame', { 'data-no-swipe': '' });   // 往右拖框别被当成「滑动返回」
+    let s = null, box = null;
+    const end = v => { lay.remove(); removeEventListener('pointermove', move); removeEventListener('pointerup', up); done(v); };
+    const ask = () => { const [k, label] = steps[Object.keys(got).length]; box = h('i.as-studio__box'); lay.append(box); toast(label, { label: '取消', fn: () => { end(null); toast('已取消'); }, wait: true }); };
+    const move = e => { if (!s) return; Object.assign(box.style, { left: Math.min(s.x, e.clientX) - s.L.left + 'px', top: Math.min(s.y, e.clientY) - s.L.top + 'px', width: Math.abs(e.clientX - s.x) + 'px', height: Math.abs(e.clientY - s.y) + 'px', display: 'block' }); };
+    const up = e => {
+      if (!s) return;
+      const r = fig.getBoundingClientRect(); const k = P.loaded(cid).w / r.width, w = Math.abs(e.clientX - s.x) * k, hh = Math.abs(e.clientY - s.y) * k, { x: x0, y: y0 } = s;
+      s = null;
+      if (w < 8 || hh < 4) { box.style.display = ''; return; }
+      got[steps[Object.keys(got).length][0]] = [(Math.min(x0, e.clientX) - r.left) * k, (Math.min(y0, e.clientY) - r.top) * k, w, hh].map(Math.round);
+      Object.keys(got).length === 3 ? end(got) : ask();
     };
+    lay.onpointerdown = e => { e.preventDefault(); s = { x: e.clientX, y: e.clientY, L: lay.getBoundingClientRect() }; };
+    addEventListener('pointermove', move); addEventListener('pointerup', up);
+    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); ask();
   });
-  const frameBoth = async () => { const eyes = await frame('框住两只眼睛和眉毛'); const mouth = eyes && await frame('框住嘴'); return mouth && { eyes, mouth }; };
 
   paintCtl(); paintStage();
   nav.push(p.el);

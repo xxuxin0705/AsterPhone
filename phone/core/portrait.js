@@ -22,11 +22,58 @@ Neutral expression: eyes open looking straight at the viewer, relaxed closed mou
 ${STYLE}`;
 /** NAI 认标签不认长句：照参考图画（角色参考）或者只按描述画 */
 export const naiBase = desc => [desc, 'solo, upper body, front view, facing viewer, looking at viewer, standing straight, arms at sides, centered, white background, simple background, no text, neutral expression, closed mouth, light smile, flat lighting'].filter(Boolean).join(', ');
-/** NAI 重画一块：眼睛 / 嘴是在立绘上框的（p.boxes），整张脸 = 两个框连起来；往外放大一点 */
+/** 几个框连成一个大框，再往外放大（px：按宽、py：按高；up：往上多放，眼睛框往上带上眉毛） */
+const around = (p, bs, px, py, up = 0) => {
+  const x = Math.min(...bs.map(b => b[0])), y = Math.min(...bs.map(b => b[1])), w = Math.max(...bs.map(b => b[0] + b[2])) - x, h = Math.max(...bs.map(b => b[1] + b[3])) - y;
+  const x0 = Math.max(0, x - w * px), y0 = Math.max(0, y - h * (py + up));
+  return [x0, y0, Math.min(p.w, x + w + w * px) - x0, Math.min(p.h, y + h + h * py) - y0].map(Math.round);
+};
+/** 立绘上框好的地方（p.boxes：左眼、右眼、嘴）。眼睛那块往上带上眉毛；整张脸 = 眼睛到嘴 */
+export const hasBoxes = p => !!(p.boxes && p.boxes.eyeL);
 export function areaOf(p, region) {
-  const b = p.boxes, [x, y, w, h] = region === 'face' ? [Math.min(b.eyes[0], b.mouth[0]), b.eyes[1], Math.max(b.eyes[0] + b.eyes[2], b.mouth[0] + b.mouth[2]) - Math.min(b.eyes[0], b.mouth[0]), b.mouth[1] + b.mouth[3] - b.eyes[1]] : b[region];
-  const px = w * .15, py = h * .15, x0 = Math.max(0, x - px), y0 = Math.max(0, y - py);
-  return [x0, y0, Math.min(p.w, x + w + px) - x0, Math.min(p.h, y + h + py) - y0].map(Math.round);
+  const { eyeL, eyeR, mouth } = p.boxes;
+  return region === 'eyes' ? around(p, [eyeL, eyeR], .15, .2, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
+}
+
+/** 不找 AI、在手机里画（照 RuiC-2D 的本地绘制）：先用四周的颜色把眼睛 / 嘴抹平，再画闭眼线、笑眼弧、嘴；脸红画两团粉。交出 { src, box } */
+export const LOCAL = ['mouthOpen', 'eyesClosed', 'mouthO', 'eyesSmile', 'blush'];
+export async function drawPart(p, k) {
+  const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), { eyeL, eyeR, mouth } = p.boxes;
+  x.drawImage(await img(p.base), 0, 0, p.w, p.h);
+  if (k === 'blush') for (const [ex, ey, ew, eh] of [eyeL, eyeR]) {
+    const cx = ex + ew / 2, cy = ey + eh + (mouth[1] - ey - eh) * .55, r = ew * .5, g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,105,125,.5)'); g.addColorStop(1, 'rgba(255,105,125,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(cx, cy, r, r * .6, 0, 0, 7); x.fill();
+  } else if (k.startsWith('eyes')) for (const b of [eyeL, eyeR]) {
+    const ink = darkest(x, b), [bx, by, bw, bh] = b; smooth(x, b);
+    x.strokeStyle = ink; x.lineWidth = Math.max(2, bw * .07); x.lineCap = 'round'; x.beginPath();
+    for (let i = 0; i <= 30; i++) { const u = i / 30, s = Math.sin(u * Math.PI); x.lineTo(bx + bw * u, k === 'eyesSmile' ? by + bh * .65 - s * bh * .35 : by + bh * .55 + s * bh * .12); }
+    x.stroke();
+  } else {
+    const [mx, my, mw, mh] = mouth, cx = mx + mw / 2, cy = my + mh / 2, R = mw * .34, rx = k === 'mouthO' ? R * .62 : R, ry = (k === 'mouthO' ? .51 : .48) * R;
+    smooth(x, mouth);
+    x.fillStyle = 'rgb(104,42,49)'; x.strokeStyle = 'rgb(155,70,76)'; x.lineWidth = 1; x.beginPath(); x.ellipse(cx, cy + ry * .55, rx, ry, 0, 0, 7); x.fill(); x.stroke();
+    x.fillStyle = 'rgb(224,121,134)'; x.beginPath(); x.ellipse(cx, cy + ry * 1.05, rx * .65, ry * .4, 0, 0, 7); x.fill();
+  }
+  const a = areaOf(p, k === 'blush' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
+  o.getContext('2d').drawImage(c, a[0], a[1], a[2], a[3], 0, 0, a[2], a[3]);
+  return { src: o.toDataURL('image/png'), box: a };
+}
+/** 框里最深的颜色（睫毛的颜色） */
+function darkest(x, [bx, by, bw, bh]) {
+  const d = x.getImageData(bx, by, bw, bh).data; let m = 999, o = 0;
+  for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; if (d[i + 3] > 200 && v < m) { m = v; o = i; } }
+  return `rgb(${d[o]},${d[o + 1]},${d[o + 2]})`;
+}
+/** 抹平：框外接的椭圆里，用四周的颜色一圈圈往里渗（反复取上下左右的平均），像把原来的五官擦掉 */
+function smooth(x, [bx, by, bw, bh]) {
+  const X = Math.max(0, Math.floor(bx - bw * .3)), Y = Math.max(0, Math.floor(by - bh * .3)), W = Math.ceil(bw * 1.6), H = Math.ceil(bh * 1.6);
+  const d = x.getImageData(X, Y, W, H), a = d.data, cx = bx + bw / 2 - X, cy = by + bh / 2 - Y, rx = bw * .62, ry = bh * .62, inn = [], sum = [0, 0, 0, 0];
+  let n = 0;
+  for (let y = 1; y < H - 1; y++) for (let x0 = 1; x0 < W - 1; x0++) { const q = ((x0 - cx) / rx) ** 2 + ((y - cy) / ry) ** 2, i = (y * W + x0) * 4;
+    if (q < 1) inn.push(i); else if (q < 1.3) { for (let c = 0; c < 4; c++) sum[c] += a[i + c]; n++; } }
+  for (const i of inn) for (let c = 0; c < 4; c++) a[i + c] = sum[c] / n;
+  for (let it = 0; it < 80; it++) for (const i of inn) for (let c = 0; c < 4; c++) a[i + c] = (a[i + c - 4] + a[i + c + 4] + a[i + c - W * 4] + a[i + c + W * 4]) / 4;
+  x.putImageData(d, X, Y);
 }
 /** 要重画的地方白、别处黑 */
 export function maskOf(p, a) { const c = canvas(p.w, p.h), x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, p.w, p.h); x.fillStyle = '#fff'; x.fillRect(...a); return c.toDataURL('image/png'); }
