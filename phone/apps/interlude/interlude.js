@@ -25,7 +25,7 @@ const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false };
+const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new' };
 const MAX_SEATS = 8;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
 let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
@@ -264,10 +264,11 @@ function setupSheet(next, chooseKp) {
   // 知不知道在跑团：正经默认不知道，轻松 / 整活默认知道；自己拨过就不再跟着气氛变
   let knowTouched = false;
   const know = switchEl(pick.know, v => { pick.know = v; knowTouched = true; modeBox.hidden = !v; }, '知道在跑团');
-  // 车卡方式、车卡会：知道在跑团才有
-  const modeBox = h('div', field('车卡方式', segmented(G.MODES, pick.mode, v => { pick.mode = v; })),
-    group('', [item({ title: withInfo('车卡会', '开局前大家边车卡边聊，KP 定下规矩；你的卡自己交给 KP 审。'), right: switchEl(pick.meet, v => { pick.meet = v; }, '车卡会') })]));
-  modeBox.hidden = !pick.know;
+  // 车卡会、车卡方式：知道在跑团才有。开车卡会先定大家统一用新卡、旧卡还是随机；用旧卡就不用选车卡方式
+  const useF = field('用新卡还是旧卡', segmented(G.USES, pick.use, v => { pick.use = v; paintMeet(); })), modeF = field('车卡方式', segmented(G.MODES, pick.mode, v => { pick.mode = v; }));
+  const paintMeet = () => { useF.hidden = !pick.meet; modeF.hidden = pick.meet && pick.use === 'old'; };
+  const modeBox = h('div', group('', [item({ title: withInfo('车卡会', '开局前大家边车卡边聊，KP 定下规矩；你的卡自己交给 KP 审。'), right: switchEl(pick.meet, v => { pick.meet = v; paintMeet(); }, '车卡会') })]), useF, modeF);
+  paintMeet(); modeBox.hidden = !pick.know;
   const mood = segmented(R.MOODS, pick.mood, v => { pick.mood = v; if (!knowTouched) { const k = v !== 'serious'; if (k !== pick.know) know.click(); knowTouched = false; } });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));
   const kpRow = item({ title: 'KP', value: kpName(), chevron: true, onClick: () => chooseKp(() => { kpRow.querySelector('.as-list-item__value').textContent = kpName(); paintLang(); }) });
@@ -293,9 +294,11 @@ function cardPage(back) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
   const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
   const meetOn = pick.know && pick.meet, mode = pick.know ? pick.mode : 'self';
-  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, lang: langs() };
+  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, lang: langs() };
   let sel = 'me', m = meetOn ? G.meeting(ms) : null;
-  const meetB = navText('车卡会', () => meetPage(false)); meetB.hidden = !m;
+  const fresh = () => { if (m && m.fresh && cur.me && cur.me.at < m.at) cur.me = null; };   // 这局统一用新卡：会前的旧卡不算，你要新车一张
+  fresh();
+  const meetB = navText('车卡会', () => meetPage(true)); meetB.hidden = !m;
   const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card', right: meetB });
   const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
@@ -303,7 +306,7 @@ function cardPage(back) {
   const saveLater = debounce(() => G.save(), 400);
   const makeB = btn('AI 车卡', 'primary', () => meetOn && !m ? holdMeet() : G.running() || owners.some(o => !cur[o]) ? make(owners.filter(o => !cur[o])) : redo());
   const swapB = btn('换卡', 'secondary', () => swapCard());
-  const startB = btn('开局', 'primary', () => meetOn && !G.running() ? meetPage(true) : begin());
+  const startB = btn('开局', 'primary', () => meetOn && !G.running() ? meetPage(true, true) : begin());
   p.body.append(tabs, scroller, h('div.as-int-card__bar', swapB, makeB, startB));
   const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.textContent = meetOn && !m ? '开车卡会' : miss ? `AI 车卡（${miss} 人）` : '重车';
     startB.textContent = meetOn ? '交卡' : '开局'; startB.hidden = meetOn ? !m || !cur.me : !!miss; swapB.hidden = !cur[sel]; meetB.hidden = !m; };
@@ -343,32 +346,67 @@ function cardPage(back) {
   async function holdMeet() {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast('大家在开车卡会…', { label: '取消', fn: G.cancel, wait: true });
-    try { m = await G.meet(ms); pick.party.forEach((o, i) => { cur[o] = G.cardById(m.cards[i]); }); toast('车卡会开完了'); meetPage(false); }
+    try { m = await G.meet(ms); for (const o in m.cards) cur[o] = G.cardById(m.cards[o]); fresh(); toast('车卡会开完了'); meetPage(false); }
     catch (e) { failed(e, '车卡会没开成'); }
     paintTabs(); paint(); paintBar();
   }
-  // 会上的对话照着看；交卡（submit）时照规矩审你的卡：没过就念打回的话、列出哪里不对，过了就一张张亮卡（带大家的评语），再开局
-  function meetPage(submit) {
-    const q = page({ app: 'interlude', id: 'int-meet', title: '车卡会', large: true, back: true, cls: 'as-int-archive.as-int-meet' });
-    const say = l => h('div.as-int-read__l' + (l.who === myName() ? '.is-me' : ''), h('b', l.who), l.act ? h('p.is-act', l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null);
-    const read = h('div.as-int-read', ...m.lines.map(say), h('div.as-int-read__end', h('b', '这局的规矩'), h('p', m.rules.text), h('small', G.meetRules(m))));
-    const show = els => { read.append(...els); requestAnimationFrame(() => read.scrollTo({ top: read.scrollHeight, behavior: 'smooth' })); };
-    const card = o => { const c = cur[o], rv = m.reviews[ownerName(o)] || m.reviews[c.name];
-      return [h('div.as-int-reveal', ownerFace(o, 40), h('div', h('b', `${c.name} · ${c.job}`), h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')),
-        (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null)), ...(Array.isArray(rv) ? rv : []).map(say)]; };
-    let tries = 0;
+  // 车卡会：和玩的时候一样一句一句演，背景是书桌。演完列出规矩，你去改卡或者交卡：没过念打回的话、说哪里不对；过了念过审的话，一张张亮卡、念大家的评语，再开局
+  // again：看过了（点「车卡会」、交卡进来）就直接停在最后一句，能往回翻；submit：进来就交卡
+  function meetPage(again, submit) {
+    const q = page({ app: 'interlude', id: 'int-meet', title: '车卡会', large: true, back: true, cls: 'as-int-play.as-int-meet' });
+    q.el.prepend(h('div.as-int-bg', img('desk-day'), img('desk-night', '.is-night'))); q.el.style.backgroundPosition = 'center top';
+    const kpc = pick.kp !== 'sys' && contact(pick.kp), vmode = pick.voice || voiceDefault();
+    const idOf = n => n === 'KP' ? (kpc ? kpc.id : 'kp') : n === myName() ? 'me' : kpc && n === nameOf(kpc) ? kpc.id : owners.find(o => o !== 'me' && (ownerName(o) === n || (cur[o] || {}).name === n)) || 'kp';
+    const faceOf = id => id === 'kp' ? img('kp') : P.figure(id) || ownerFace(id, 110);
+    const cardOf = o => ({ ...cur[o], ...(m.adjust || {})[o] });
+    const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), shelf = h('div.as-int-meet__card');
+    const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
+    const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(); } }, icon('volume', 18, 1.8));
+    const backB = h('button.as-int-box__back', { 'aria-label': '上一句', onclick: e => { e.stopPropagation(); back(); } }, '◂');
+    const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
+    q.body.append(h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
+    let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
+    const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
+    async function voice() {
+      if (!now || !now.say) return;
+      if (vac) { hush(); return; }
+      const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.classList.add('is-on');
+      try { await speakAs(idOf(now.who), now.say, { stop: ac.signal, acted: true, cache: `int:m:${m.at}:${[...now.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`, onStart: () => pt?.talk(true) }); }
+      catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
+      pt?.talk(false);
+      if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
+    }
+    // 亮卡那几句带着 o：卡片一直摆在上面，换人才换
+    const say = l => { hush(); now = l; const id = idOf(l.who);
+      if (id !== lastId) { lastId = id; face.replaceChildren(faceOf(id)); }
+      nameT.textContent = l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : l.who;
+      if ((shelf.dataset.o || '') !== (l.o || '')) { shelf.dataset.o = l.o || ''; const c = l.o && cardOf(l.o);
+        shelf.replaceChildren(...c ? [h('div.as-int-reveal', ownerFace(l.o, 40), h('div', h('b', `${c.name} · ${c.job}`),
+          h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')), (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null))] : []); }
+      actT.textContent = l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
+      actT.hidden = !l.act; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !l.say; backB.hidden = seen.length < 2; more.hidden = !queue.length;
+      if (l.say && vmode !== 'tap') voice(); };
+    function next() { if (!queue.length) return; seen.push(queue.shift()); say(seen.at(-1)); if (!queue.length) end(); }
+    function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); act.hidden = true; }
+    const play = lines => { queue.push(...lines); act.hidden = true; next(); };
+    // 演完：没过审的时候是规矩 + 改卡 / 交卡，过了就是开局
+    const bad = h('p.as-int-meet__bad');
     const editB = btn(cur.me ? '改我的卡' : '车我的卡', 'secondary', () => { nav.pop(); if (sel !== 'me') { sel = 'me'; paintTabs(); paint(); paintBar(); } });
     const give = btn('交卡', 'primary', () => {
-      const bad = G.checkCard(cur.me, m);
-      if (bad.length) { show([...(tries++ ? [] : m.fail.map(say)), h('div.as-int-read__end', '没过：' + bad.join('；'))]); return; }
+      const list = G.checkCard(cur.me, m);
+      if (list.length) { bad.textContent = '没过：' + list.join('；'); bad.hidden = false; if (tries++ || !m.fail.length) end(); else play(m.fail); return; }
       const t = m.rules.tiers[myName()]; if (m.mode !== 'random' && R.TIERS.some(x => x[0] === t)) { cur.me.tier = t; G.save(); }   // 过了：你的档位照会上定的
-      show([...m.pass.map(say), ...owners.flatMap(card)]); bar.replaceChildren(btn('开局', 'primary', () => { nav.pop(); begin(); }));
+      passed = true; play([...m.pass, ...owners.flatMap(o => { const c = cardOf(o), rv = m.reviews[ownerName(o)] || m.reviews[c.name];
+        return [{ who: ownerName(o), act: `亮卡：${c.name} · ${c.job}`, o }, ...(Array.isArray(rv) ? rv : []).map(l => ({ ...l, o }))]; })]);
     });
-    give.hidden = !cur.me;
-    const bar = h('div.as-int-card__bar', editB, give);
-    q.body.append(read, bar);
+    give.hidden = !cur.me; bad.hidden = true;
+    const rules = h('div.as-int-end', h('b', '这局的规矩'), h('p', m.rules.text), h('small', G.meetRules(m)), bad, h('div.as-int-row', editB, give));
+    const end = () => { act.hidden = false; act.replaceChildren(passed ? btn('开局', 'primary', () => { nav.pop(); begin(); }) : rules); };
+    const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
+    q.el._onLeave = () => { hush(); gls.dispose(); };
+    if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
     nav.push(q.el);
-    if (submit) give.click();
+    if (submit && cur.me) give.click();
   }
   // 一张卡：改哪一格就只改那一格
   function paint() {

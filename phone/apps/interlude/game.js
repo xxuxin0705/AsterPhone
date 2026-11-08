@@ -102,21 +102,28 @@ export async function makeCards(owners, all = owners, mode = 'self', rules = '')
 
 /** 车卡会（知道在跑团时可选）：一次 API 写完整场——KP 透露一点、其他人交卡被打回再改、定下规矩、其他人过审的卡、
  *  你交卡时过审 / 被打回说的话、亮卡时的评语。你的卡你自己交，手机照规矩审（checkCard）。
- *  存在 D.meet；上桌的人、本、气氛、车卡方式变了就作废，开局后用掉。s = { kp, party, scenario, ask, mood, mode, lang } */
-const meetKey = s => [s.kp, s.scenario, s.ask, s.mood, s.mode, ...s.party].join('|');
+ *  开会前定好大家统一用新卡、旧卡还是随机（每人各抛一次；没有旧卡的只能车新卡）。用旧卡的不重车，会上为了合规矩改的随身物品、特殊能力只管这一局（adjust）。
+ *  存在 D.meet；上桌的人、本、气氛、车卡方式、新旧卡变了就作废，开局后用掉。s = { kp, party, scenario, ask, mood, mode, use, lang } */
+export const USES = [['new', '新卡'], ['old', '旧卡'], ['mix', '随机']];
+const meetKey = s => [s.kp, s.scenario, s.ask, s.mood, s.mode, s.use, ...s.party].join('|');
 export const meeting = s => D.meet && D.meet.key === meetKey(s) ? D.meet : null;
 export async function meet(s) {
-  const g = { kp: s.kp, know: true, lang: s.lang }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(s.party, s.mode);
+  const fresh = Object.fromEntries(['me', ...s.party].map(o => [o, !lastCard(o) || s.use === 'new' || (s.use === 'mix' && Math.random() < .5)])), news = s.party.filter(o => fresh[o]);
+  const g = { kp: s.kp, know: true, lang: s.lang }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
+  const old = o => fresh[o] ? '' : `；用旧卡：${cardText(lastCard(o))}`;
   const out = await ask('intMeet', {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
-    roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}`, ...s.party.map(o => rosterLine(o, rolled[o]) + `；${speakLine(g, o)}`)].join('\n'),
+    roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}${fresh.me ? '；这局车新卡' : old('me')}`, ...s.party.map(o => rosterLine(o, rolled[o]) + old(o) + `；${speakLine(g, o)}`)].join('\n'),
     mode: MODE_TEXT[s.mode] || '', jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
   }, 3000 + 900 * s.party.length);
-  const r = out.rules, list = Array.isArray(out.cards) ? out.cards : [];
-  if (!Array.isArray(out.lines) || !r || list.length < s.party.length) throw new Error('AI 回的格式不对');
+  const r = out.rules, all = Array.isArray(out.cards) ? out.cards : [], list = all.filter(c => !c.old);
+  if (!Array.isArray(out.lines) || !r || list.length < news.length) throw new Error('AI 回的格式不对');
   const num = v => v == null || v === '' || isNaN(+v) ? null : Math.max(0, Math.round(+v)), talk = L => (Array.isArray(L) ? L : []).filter(l => l && (l.say || l.act));
-  const cards = await keep(s.party.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o])));
-  D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {}, cards: cards.map(c => c.id),
+  const cards = await keep(news.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o]))), adjust = {};
+  for (const o of s.party.filter(o => !fresh[o])) { const x = all.find(c => c.old && c.who === ownerName(o)); if (!x) continue;
+    adjust[o] = { ...(Array.isArray(x.items) ? { items: x.items.map(toItem).filter(Boolean) } : {}), ...(Array.isArray(x.abilities) ? { abilities: x.abilities.map(toPower).filter(Boolean) } : {}) }; }
+  D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {},
+    cards: Object.fromEntries(cards.map(c => [c.owner, c.id])), fresh: fresh.me, adjust,
     rules: { tiers: r.tiers || {}, weapons: num(r.weapons), guns: r.guns !== false, abilities: num(r.abilities), banned: (Array.isArray(r.banned) ? r.banned : []).map(String).filter(Boolean), text: String(r.text || '') } };
   await save(); return D.meet;
 }
@@ -125,6 +132,7 @@ export function checkCard(c, m) {
   const r = m.rules, bad = [], tier = R.TIERS.some(t => t[0] === r.tiers[myName()]) ? r.tiers[myName()] : c.tier || R.TIERS[0][0];
   const all = R.budgetOf(tier) + (c.grown || 0), sk = R.points(c.attrs) + (c.skillUp || 0);
   if (m.mode !== 'random' && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
+  if (m.fresh && c.at < m.at) bad.push('这局要用新卡');
   const w = (c.items || []).filter(x => x.dmg), n = (c.abilities || []).length, things = [...(c.items || []), ...(c.abilities || [])].map(x => x.name).join('、') + (c.assets || '');
   if (r.weapons != null && w.length > r.weapons) bad.push(`武器带了 ${w.length} 件，最多 ${r.weapons} 件`);
   if (!r.guns && w.some(isGun)) bad.push(`不能带枪：${w.filter(isGun).map(x => x.name).join('、')}`);
@@ -148,13 +156,13 @@ const scText = s => { const sc = R.SCENARIOS.find(x => x.id === s.scenario);
   return sc ? `《${sc.title}》\n${sc.blurb}\n各幕：${sc.acts.map((a, i) => `${i + 1}. ${a.title}：${a.goal}（${a.place}）→ ${a.exit}`).join('；')}\n真相：${sc.secret}\n好结局：${sc.endings.good}\n坏结局：${sc.endings.bad}\n（骨架照这个写，可以润色）` : `随机生成一个本${s.ask ? `，要求：${s.ask}` : ''}`; };
 /** 开局。setup = { mood, know 知不知道在跑团, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[], meet 开过的车卡会 } */
 export async function start(setup) {
-  const sc = R.SCENARIOS.find(s => s.id === setup.scenario);
+  const sc = R.SCENARIOS.find(s => s.id === setup.scenario), party = setup.party.map(c => ({ ...c, ...((setup.meet || {}).adjust || {})[c.owner] }));   // 车卡会上为了合规矩改的，只管这一局
   const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', crit: state.apps.interlude.crit,
-    act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: setup.party.map(fromCard) };
-  const story = storyText(), mem = await memoryText([g.kp, ...setup.party.map(c => c.owner)], story);
+    act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard) };
+  const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
-    pc: '你：' + cardText(setup.me), cast: setup.party.map(c => `${ownerName(c.owner)} 扮演 ` + cardText(c)).join('\n'),
+    pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ` + cardText(c)).join('\n'),
     scenario: scText(setup), places: placesText(),
     meet: setup.meet ? `【车卡会】开局前大家开过车卡会，KP 已经透露过：${setup.meet.hint}\n定下的车卡规矩：${setup.meet.rules.text}\n（这局要和透露过的对得上）\n` : '',
   }, 5000, g);

@@ -212,13 +212,9 @@
 .as-int-read__l.is-me { padding-left: 10px; border-left: 2px solid rgba(216,179,106,.5); }
 .as-int-read__l.is-ooc { font-family: var(--font-ui); opacity: .7; }
 .as-int-read__end { margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(216,179,106,.4); border-radius: 6px; font-size: 14px; line-height: 1.7; }
-/* 车卡会：对话在上面滚，按钮钉在最下面；亮卡是一小张档案纸 */
-.as-int-read__end b { font-size: 13px; color: #d8b36a; }
-.as-int-read__end p { margin: 2px 0; }
-.as-int-read__end small { display: block; font: 12px/1.6 var(--font-ui); opacity: .75; }
-.as-int-meet .as-page__body { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; }
-.as-int-meet .as-int-read { flex: 1; min-height: 0; overflow-y: auto; }
-.as-int-meet .as-int-card__bar { padding: 0 18px; }   /* 按钮边和上面的框对齐 */
+/* 车卡会：和玩的时候一样的舞台，背景是书桌；亮卡时卡片摆在人物上面 */
+.as-int-meet__card .as-int-reveal { margin: 0 0 10px; animation: as-int-up 320ms ease both; }
+.as-int-meet__bad { color: #a63a33; }
 .as-int-reveal { display: flex; gap: 10px; align-items: center; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #ece4d2 url(../../assets/interlude/sheet.webp) center / cover; color: #2f2619; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
 .as-int-reveal b { font: 600 15px/1.4 "Noto Serif SC", serif; }
 .as-int-reveal small { display: block; font: 12px/1.5 var(--font-ui); opacity: .75; }
