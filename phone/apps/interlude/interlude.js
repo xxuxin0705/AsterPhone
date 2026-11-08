@@ -676,7 +676,7 @@ function playPage(g) {
         const r = G.push(g, q.req, how); await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, q.label + ' · 孤注一掷', r.text, r.v);
         pending = q.text + '；' + r.text; g.req = { type: 'free' }; send('');
-      }), btn('就这样', 'primary', () => { pending = q.text; g.req = { type: 'free' }; send(''); }))));
+      }), btn('就此罢手', 'primary', () => { pending = q.text; g.req = { type: 'free' }; send(''); }))));
       return;
     }
     if (q.type === 'choose' && Array.isArray(q.options)) act.append(h('div.as-int-opts', q.options.slice(0, 4).map(o => btn(String(o), 'secondary', () => send(String(o))))));
