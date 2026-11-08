@@ -190,7 +190,7 @@ function person(cid, changed) {
     if (!P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
     const s = sheet({ title: '拿去自己的 GPT 画', content: h('div.as-studio__own',
       ...pic('立绘', pt.base, `portrait-${cid}.png`), ...pic('脸部特写（画表情用）', await P.faceCrop(pt), `face-${cid}.png`),
-      h('div.as-studio__row', btn('复制表情提示词', 'secondary', () => copyText(P.gridPrompt, '表情提示词，和脸部特写一起发给 GPT'))),
+      h('div.as-studio__row', btn('复制表情提示词', 'secondary', () => copyText(P.gridPrompt, '表情提示词，和脸部特写一起发给 GPT')), btn('复制动作提示词', 'secondary', () => copyText(P.posePrompt, '动作提示词，和立绘一起发给 GPT'))),
       h('div.as-studio__row', btn('上传画好的表情宫格', 'primary', async () => { const file = await pickFile(); if (!file) return; s.close(); toast('正在切宫格…', true);
           try { const all = P.GRID.filter(Boolean), want = all.filter(k => f.pick.has(k)); await useGrid(await fileToDataURL(file, 2048), want.length ? want : all); } catch (e) { toast('切不开：' + e.message); } }))), cls: 'as-studio__own-sheet' });
   }
