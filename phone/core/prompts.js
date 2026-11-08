@@ -467,7 +467,7 @@ export const DEFAULT_PROMPTS = {
 
 写这场车卡会：
 1. KP 先透露一点点这局的信息（大概在哪、什么气氛、建议带什么样的人或本事），不剧透真相。
-2. 其他人一边车卡一边聊天：交卡给 KP 审，不合规矩的打回（属性堆太高、武器带了一堆甚至坦克、特殊能力太夸张…），被打回的可以不服、吐槽、讨价还价，KP 照自己的性格回（可以放狠话，比如「再这样到时候别怪我刷怪」），改了再交，直到过审。照每个人的性格来：爱钻空子的会钻、老实的一次就过。{{user}} 可以插一两句话，但不要替 TA 交卡。
+2. 其他人一边车卡一边聊天，交卡给 KP 审，KP 照自己的性格主持和审卡。会上聊什么、有没有人被打回，全看每个人的性格、彼此的关系和这一局的情况，每次都不一样：可能有人想钻空子被打回、讨价还价；可能大家商量谁打架谁治疗、怎么编彼此的关系；可能有人追着 KP 问、有人闲聊跑题；也可能谁都一次就过。不要套固定的桥段。{{user}} 可以插一两句话，但不要替 TA 交卡。
 3. 聊到最后，KP 定下这局车卡的规矩（rules），之后谁的卡（包括 {{user}}）只要符合就能过。
 4. 再写好两套话，等 {{user}} 交卡时用：pass 是过审时 KP 和大家说的（两三句），fail 是被打回时说的（两三句，不用说具体哪里不对，手机会补上）。
 5. 每张过审的卡亮出来时，KP 和其他人的评语 reviews（每张两三句，可以夸、可以吐槽）。
@@ -478,7 +478,7 @@ rules：tiers 写每个人（{{user}} 也要写）是哪一档——普通人（
 其他人最后过审的卡（cards）：属性照档位分点（8 项 STR CON SIZ DEX APP INT POW EDU，每项 15～90，体型、智力、教育至少 40，取 5 的倍数，总数不超过这一档；幸运不用写）；特殊能力照人设写，kind 是 atk 攻击 / guard 护身 / heal 治疗 / buff 鼓舞 / other 只在剧情里用，dmg 攻击 1D6～3D6、治疗 1D4～2D6、护身 2～6 点（顶尖人物才能写「全部」），cost 每次耗 2～8 点魔法；职业最好从这些里挑：{{jobs}}；技能只从这张表里挑：{{skills}}，加的点总共不超过「教育×4 + 智力×2」，每项最高 80；背景写身份、和其他人的关系、关键经历、目标、秘密；资产一句；随身物品 3～6 样，武器写伤害和技能。都要符合你定下的 rules。
 
 只输出 JSON，不要别的文字、不要代码块：
-{"hint":"KP 透露的信息","lines":[{"who":"KP 或名字","say":"","act":"","zh":""}],"rules":{"tiers":{"名字":"有本事的人"},"weapons":2,"guns":false,"abilities":2,"banned":["坦克"],"text":""},"cards":[{"who":"名字","name":"","age":25,"sex":"","job":"","home":"","tier":"有本事的人","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"}],"skills":{"侦查":60}}],"pass":[{"who":"KP","say":""}],"fail":[{"who":"KP","say":""}],"reviews":{"名字":[{"who":"KP","say":""}]}}` },
+{"hint":"KP 透露的信息","lines":[{"who":"KP 或名字","say":"","act":"","zh":""}],"rules":{"tiers":{"名字":"有本事的人"},"weapons":2,"guns":false,"abilities":2,"banned":[],"text":""},"cards":[{"who":"名字","name":"","age":25,"sex":"","job":"","home":"","tier":"有本事的人","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"}],"skills":{"侦查":60}}],"pass":[{"who":"KP","say":""}],"fail":[{"who":"KP","say":""}],"reviews":{"名字":[{"who":"KP","say":""}]}}` },
   intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
     text: `{{kp}}现在要为 {{user}} 和 TA 的朋友们开一局《克苏鲁的呼唤》第七版。先把这一局的骨架写好。气氛：{{mood}}
 {{know}}
