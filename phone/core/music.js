@@ -420,10 +420,9 @@ const urlsOf = s => {
   return isQ(s) ? [ne && ne.qq && `${BE}/qq/audio?mid=${s.id}`, ...pub, () => qqUrl(s)].filter(Boolean)
     : [ne && ne.me && `${BE}/audio?id=${s.id}`, !ne && mt, ...pub, ne && !ne.me && `${BE}/audio?id=${s.id}`, ne && mt, `https://music.163.com/song/media/outer/url?id=${s.id}.mp3`].filter(Boolean);
 };
-/** 别处要放一首（幕间的背景音乐、白噪音）：按关键词搜，前几首里第一个拿得到的播放地址 */
-export async function urlFor(word) {
-  for (const s of (await search(word)).slice(0, 3)) for (const x of urlsOf(s)) { const u = typeof x === 'function' ? await x().catch(() => '') : x; if (u) return u; }
-  return '';
+/** 别处要放一首（幕间的背景音乐、白噪音）：按关键词搜，前几首的播放地址一个个交出来（{ url, name }），放不出来就要下一个 */
+export async function* urlsFor(word) {
+  for (const s of (await search(word)).slice(0, 3)) for (const x of urlsOf(s)) { const u = typeof x === 'function' ? await Promise.resolve().then(x).catch(() => '') : x; if (u) yield { url: u, name: label(s) }; }
 }
 /** 普通放法：这首自己那边的链接挨个试；都放不出来就去另一边找同一首（twin）再试；再不行，本地酒馆去 B 站找同名的放；还不行就跳下一首（会员歌、下架的歌常这样） */
 async function plain(s, f, autoplay, twin) {

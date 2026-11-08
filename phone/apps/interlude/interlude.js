@@ -438,14 +438,21 @@ const sceneSrc = k => BASE + 'scene-' + R.placeOf(k) + '.webp';
 function playPage(g) {
   // 背景音乐、白噪音：KP 按场景给关键词，去音乐 App 的音源里搜来循环放；两个开关各管各的，角色说话时调小
   const S = state.apps.interlude, beds = { bgm: new Audio(), amb: new Audio() }, VOL = { bgm: .45, amb: .35 };
-  const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(() => {}); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
+  const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); else bed(k, true); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
   const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), bedBtn('amb', 'rain', '白噪音')] });
-  async function bed(k) {
-    const a = beds[k], w = g[k] || ''; if (w === a._w) return; a._w = w; a.pause();
-    if (!w) return;
-    const u = await M.urlFor(w).catch(e => { log('warn', '幕间', `${k === 'bgm' ? '背景音乐' : '白噪音'}「${w}」没搜到：${e.message}`); return ''; });
-    if (a._w !== w || !u) return;
-    Object.assign(a, { src: u, loop: true, volume: VOL[k] }); if (!S[k + 'Off'] && p.el.isConnected) a.play().catch(() => {});
+  // 这个地址能不能放：等它能开始放（或者出错、10 秒没动静）
+  const can = (a, url) => new Promise(ok => { const done = v => { clearTimeout(t); a.oncanplay = a.onerror = null; ok(v); }, t = setTimeout(() => done(false), 10000); a.oncanplay = () => done(true); a.onerror = () => done(false); a.src = url; a.load(); });
+  // KP 还没给关键词：先按场景搜（「雨夜街道 氛围 纯音乐」）。loud：点了开关才来找的，找的过程和结果都提示
+  async function bed(k, loud) {
+    const a = beds[k], what = k === 'bgm' ? '背景音乐' : '白噪音', w = g[k] || `${R.PLACES[R.placeOf(g.place)].split('（')[0]} ${k === 'bgm' ? '氛围 纯音乐' : '白噪音'}`;
+    if (w === a._w) { if (loud) toast(`还在找${what}…`); return; }
+    a._w = w; a.pause(); if (loud) toast(`正在找${what}…`, true);
+    let r = null;
+    try { for await (const x of M.urlsFor(w)) { if (a._w !== w) return; if (await can(a, x.url)) { r = x; break; } } } catch (e) { log('warn', '幕间', `${what}「${w}」没搜成：${e.message}`); }
+    if (a._w !== w) return;
+    if (!r) { a._w = ''; a.removeAttribute('src'); log('warn', '幕间', `${what}「${w}」没找到能放的`); if (loud) toast(`没找到${what}`); return; }
+    Object.assign(a, { loop: true, volume: VOL[k] });
+    if (!S[k + 'Off'] && p.el.isConnected) a.play().then(() => { if (loud) toast(`在放：${r.name}`); }, e => { log('warn', '幕间', `${what}《${r.name}》放不出来：${e.message}`); if (loud) toast(`${what}放不出来`); });
   }
   const bedAll = () => { bed('bgm'); bed('amb'); };
   const duck = e => { for (const k in beds) beds[k].volume = VOL[k] * (e.detail === 'start' ? .3 : 1); };
@@ -475,7 +482,8 @@ function playPage(g) {
   const mode = g.voice || voiceDefault(), kpc = g.kp && g.kp !== 'sys' && contact(g.kp);
   const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
   const vid = n => n === 'KP' ? (kpc ? g.kp : 'kp') : n === myName() || n === g.pc.name ? 'me' : (G.who(g, n) || {}).id || 'kp';
-  const key = l => `int:a:${g.id}:${g.log.indexOf(l)}`;
+  // 钥匙带上台词本身：台词拆过、改过，就不会念出以前存的那段（以前连旁白一起合成的）
+  const key = l => `int:a:${g.id}:${g.log.indexOf(l)}:${[...l.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`;
   async function voice(l) {
     if (!l || !l.say) return;
     if (vac) { hush(); return; }

@@ -76,3 +76,5 @@
 .as-studio__pick { display: flex; flex-direction: column; gap: 12px; }
 .as-studio__erase { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; gap: 8px; }
 .as-studio__erase .as-btn { flex: 1; }
+/* 立绘后面垫棋盘格：抠没抠干净一眼看得出 */
+.as-studio__stage:has(.as-pt) { background: repeating-conic-gradient(#d4d4d4 0 25%, #f5f5f5 0 50%) 0 0 / 16px 16px; }
