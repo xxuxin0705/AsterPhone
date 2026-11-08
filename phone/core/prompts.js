@@ -45,7 +45,7 @@ export const PROMPT_CATS = [
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'roster', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'cast', 'pc', 'scenario', 'places'] },
-    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'pc', 'cast', 'log', 'input', 'places'] }] },
+    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'pc', 'cast', 'log', 'input', 'places'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -467,8 +467,9 @@ export const DEFAULT_PROMPTS = {
 - 名字像一本跑团模组：短、有画面、带一点谜，常见的样子是「人名 / 地名 + 一个意象」「某某的某某」「某某之谜」「某某与某某」，比如「雾港的守夜人」「第七号房客」「白鸦与铜钟」；不要「××事件」「××调查」这种平的叫法，也不要照搬已有作品的名字。
 - 3～5 幕，每幕有目标和「出口」（满足什么就进下一幕）；真相只有你知道；好 / 坏两种结局各写一句。可以用上调查员背景里的目标和秘密。
 - 开场白 100 字左右，用中文：先接正文，再把大家带进这一局的第一幕。
+- 每幕写 1～3 个关键检定（这幕里最可能要掷的、跟线索或危险有关的）：什么时候掷、掷什么技能，六种结果各会怎样。关键线索失败了也不能永远拿不到，只能换一条更慢、代价更大的路；大失败要当场出事（受伤、掉理智、惊动敌人…）。
 - 只输出 JSON，不要别的文字、不要代码块：
-{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口"}],"secret":"真相","endings":{"good":"","bad":""}}` },
+{"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口","checks":[{"when":"什么时候掷（在哪、做什么）","skill":"技能名","大成功":"","极难成功":"","困难成功":"","普通成功":"","失败":"","大失败":""}]}],"secret":"真相","endings":{"good":"","bad":""}}` },
   intRound: { name: '一回合', cats: ['intRound'], on: true, main: true,
     text: `{{kp}}叙述并扮演所有 NPC 和上桌的角色（除了 {{user}}）。气氛：{{mood}}
 {{know}}
@@ -479,6 +480,16 @@ export const DEFAULT_PROMPTS = {
 各幕：
 {{acts}}
 【现在】第 {{actNo}} 幕「{{act}}」：{{goal}}；出口：{{exit}}。本幕还剩 {{left}} 回合{{must}}
+
+【检定结果】收到骰子结果时，本幕检定表里有的照表写后果；表里没有的照这个分寸：
+- 大成功：拿到线索，再多一个好处（隐藏的细节、道具或先机）
+- 极难成功：线索，加一条别人注意不到的细节
+- 困难成功：完整的线索
+- 普通成功：拿到线索，但只有一半，或者要付一点代价（花时间、被人看见）
+- 失败：这次没拿到，处境变差一点，但剧情照样往前走；关键线索以后换一条更难、代价更大的路还能拿到
+- 大失败：坏事当场发生（受伤、掉理智、惊动敌人…）
+本幕检定表（只有你知道，掷骰之前不要说出各档结果）：
+{{checks}}
 
 【{{user}} 的调查员】{{pc}}
 【上桌的角色】（用各自的性格说话、行动；他们的检定也由手机掷）
@@ -500,7 +511,7 @@ export const DEFAULT_PROMPTS = {
 - pose：这段的动作，按情绪和情景挑，只能是 hips（叉腰）/ wave（挥手打招呼）/ cross（抱臂）/ think（托腮想事）/ fist（握拳加油）/ scratch（挠头不好意思）/ shrug（摊手无奈）/ please（拜托）/ point（指着）/ heart（比心）/ reach（伸手）/ peace（比耶），平常就空着。
 然后提出 request（只能一种）：
 - {"type":"free"}：随便做什么
-- {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么"}：有后果的行动才检定；对方弱用普通，势均力敌用困难，几乎不可能用极难
+- {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么要掷（不写结果）"}：有后果的行动才检定；本幕检定表里的情况出现了就用表里的技能；对方弱用普通，势均力敌用困难，几乎不可能用极难
 - {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
 - {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
 - {"type":"choose","options":["…","…"]}：给几个选项

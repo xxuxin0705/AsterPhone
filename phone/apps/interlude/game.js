@@ -11,7 +11,8 @@ import { connFor } from '../../core/voice.js';
 import { kindOf, hintFor, plain } from '../../core/act.js';
 import { langName } from '../../core/translate.js';
 
-export const CAP = 8;   // 每幕最多几回合，到了 KP 必须推到出口
+export const CAP = 8;
+const GRADES = ['大成功', '极难成功', '困难成功', '普通成功', '失败', '大失败'];   // 每幕最多几回合，到了 KP 必须推到出口
 let D = null, Dkey = '';
 export async function load() { if (D && Dkey === win.key) return D; Dkey = win.key; D = (await kvGet('int:' + win.key).catch(() => null)) || { games: [] }; return D; }
 export const save = () => kvSet('int:' + Dkey, D);
@@ -92,10 +93,10 @@ export async function start(setup) {
     pc: '你：' + cardText(setup.me), cast: setup.party.map(c => `${ownerName(c.owner)} 扮演 ` + cardText(c)).join('\n'),
     scenario: sc ? `《${sc.title}》\n${sc.blurb}\n各幕：${sc.acts.map((a, i) => `${i + 1}. ${a.title}：${a.goal}（${a.place}）→ ${a.exit}`).join('；')}\n真相：${sc.secret}\n好结局：${sc.endings.good}\n坏结局：${sc.endings.bad}\n（骨架照这个写，可以润色）` : `随机生成一个本${setup.ask ? `，要求：${setup.ask}` : ''}`,
     places: placesText(),
-  }, 3000, g);
+  }, 5000, g);
   if (!Array.isArray(out.acts) || !out.acts.length) throw new Error('AI 回的格式不对');
   g.title = String(out.title || (sc ? sc.title : '无题')).trim(); g.intro = String(out.intro || '').trim();
-  g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '' })), secret: out.secret || '', endings: out.endings || {} };
+  g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '', checks: Array.isArray(a.checks) ? a.checks.slice(0, 3) : [] })), secret: out.secret || '', endings: out.endings || {} };
   g.place = g.sk.acts[0].place; g.log.push({ r: 0, who: 'KP', act: g.intro });
   D.games.push(g); await save();
   return g;
@@ -116,6 +117,7 @@ export async function play(g, input) {
   const out = await ask('intRound', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
     actNo: i + 1, act: A[i].title, goal: A[i].goal, exit: A[i].exit, left: Math.max(0, CAP - g.roundIn),
+    checks: (A[i].checks || []).map(c => `- ${c.when}（${c.skill}）：${GRADES.map(k => `${k}：${c[k] || '—'}`).join('；')}`).join('\n') || '（这幕没有，照上面的分寸）',
     must: over ? (last ? '。这是最后一回合：必须在这回合收尾，给出结局（end）' : '。这是本幕最后一回合：必须在这回合达成出口，actDone 写 true') : '',
     pc: pcText(g), cast: castText(g), places: Object.keys(R.PLACES).join(' / '),
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
