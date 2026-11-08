@@ -75,7 +75,7 @@ function person(cid, changed) {
     // 画法：手机里画（免费，眉毛画不了）/ AI 画。切换只藏起眉毛那两行、换按钮上的字
     const rows = P.PARTS.map(([k, name, use]) => {
       const ck = h('span.as-chat-check' + (f.pick.has(k) ? '.is-active' : ''), icon('check', 14, 2.6));
-      const row = item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); if (pt.parts[k]) fig?.pt.peek(k); } });
+      const row = item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); } });
       row.dataset.k = k; row.hidden = f.how === 'local' && !P.LOCAL.includes(k); return row;
     });
     if (pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { Object.assign(pt.boxes, b); await P.save(cid, pt); toast('框好了'); } } }));
@@ -91,7 +91,11 @@ function person(cid, changed) {
     if (isNai()) { const ng = toggleItem({ title: 'NAI 一次画多格（试验）' }, f.naiGrid !== false, v => { f.naiGrid = v; }); ng.dataset.ai = ''; ng.hidden = f.how === 'local'; rows.push(ng); }
     const go = btn(f.how === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情', 'primary', makeParts, { style: { width: '100%' } });
     const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); if ('ai' in r.dataset) r.hidden = v === 'local'; if ('local' in r.dataset) r.hidden = v !== 'local'; }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
-    ctl.replaceChildren(how, group('表情', rows), stop || go,
+    // 做好的表情排一排，点一个立绘就换成那个表情，再点一下换回来
+    const done = P.PARTS.filter(([k]) => pt.parts[k]), chips = done.length && h('div.as-studio__chips', done.map(([k, name]) => h('button', { onclick: e => {
+      const on = !e.currentTarget.classList.contains('is-on'); chips.querySelectorAll('.is-on').forEach(b => b.classList.remove('is-on')); e.currentTarget.classList.toggle('is-on', on); fig?.pt.hold(on ? k : '');
+    } }, name)));
+    ctl.replaceChildren(...(chips ? [chips] : []), how, group('表情', rows), stop || go,
       h('div.as-studio__row', btn('重做立绘', 'secondary', async () => { if (await dialog({ title: '重做立绘？', text: '做好的表情也会一起清掉。', confirm: '重做', danger: true })) { await P.drop(cid); paint(); } }),
         btn('删除', 'danger', async () => { if (await dialog({ title: '删除立绘？', text: '删掉后这个人回到只用头像。', confirm: '删除', danger: true })) { await P.drop(cid); paint(); } })));
   }

@@ -207,7 +207,7 @@ export async function cut(p, src, area) {
   }
   if (!blobs.length) throw new Error('这张和立绘看不出差别');
   const big = Math.max(...blobs.map(x => x.n)), keep = blobs.filter(x => x.n >= big * .3 && x.n >= 6);
-  const pad = 3, x0 = Math.max(0, (Math.min(...keep.map(k => k.x0)) - pad) * S), y0 = Math.max(0, (Math.min(...keep.map(k => k.y0)) - pad) * S);
+  const pad = area ? 8 : 3, x0 = Math.max(0, (Math.min(...keep.map(k => k.x0)) - pad) * S), y0 = Math.max(0, (Math.min(...keep.map(k => k.y0)) - pad) * S);
   const x1 = Math.min(W, (Math.max(...keep.map(k => k.x1)) + pad + 1) * S), y1 = Math.min(H, (Math.max(...keep.map(k => k.y1)) + pad + 1) * S), w = x1 - x0, h = y1 - y0;
   if (w * h > W * H * .18) throw new Error('这张没对齐（整张图都变了），重画一次');
   // 抠：变了的地方不透明，往外一圈慢慢变淡
@@ -217,17 +217,18 @@ export async function cut(p, src, area) {
   mx.putImageData(md, 0, 0);
   // 糊开再把透明度放大四倍 = 往外扩一圈再羽化（不扩的话，原来的眼睛边会从羽化的地方透出来一圈影子）
   const f = canvas(w, h), fx = f.getContext('2d', { willReadFrequently: true }); fx.filter = 'blur(4px)'; fx.drawImage(m, 0, 0);
-  // 靠近 area 边上的慢慢变透明，不然整块换上去时看得出一个方框
-  const fd = fx.getImageData(0, 0, w, h), fw = area ? Math.max(4, Math.min(area[2], area[3]) * .15) : 0;
-  for (let i = 3, j = 0; i < fd.data.length; i += 4, j++) { let a = Math.min(255, fd.data[i] * 4);
-    if (fw) { const X = x0 + j % w, Y = y0 + (j / w | 0); a *= Math.max(0, Math.min(1, Math.min(X - area[0], area[0] + area[2] - X, Y - area[1], area[1] + area[3] - Y) / fw)); }
+  // 靠近 area 边上、抠出来这块的边上都慢慢变透明，不然整块换上去时看得出一个方框
+  const fd = fx.getImageData(0, 0, w, h), fw = area ? Math.max(4, Math.min(area[2], area[3]) * .15) : 0, fb = 3 * S;
+  for (let i = 3, j = 0; i < fd.data.length; i += 4, j++) { let a = Math.min(255, fd.data[i] * 4); const x = j % w, y = j / w | 0;
+    a *= Math.min(1, Math.min(x, w - 1 - x, y, h - 1 - y) / fb);
+    if (fw) { const X = x0 + x, Y = y0 + y; a *= Math.max(0, Math.min(1, Math.min(X - area[0], area[0] + area[2] - X, Y - area[1], area[1] + area[3] - Y) / fw)); }
     fd.data[i] = a; }
   fx.putImageData(fd, 0, 0);
   const out = canvas(w, h), ox = out.getContext('2d'); ox.drawImage(f, 0, 0); ox.globalCompositeOperation = 'source-in'; ox.drawImage(v, x0 * v.naturalWidth / W, y0 * v.naturalHeight / H, w * v.naturalWidth / W, h * v.naturalHeight / H, 0, 0, w, h);
   return { src: out.toDataURL('image/png'), box: [x0, y0, w, h] };
 }
 
-/** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / 'cry' / 'wail' / 'laugh' / 'nervous' / '') 换表情、peek(名字) 亮一下某个表情 */
+/** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / 'cry' / 'wail' / 'laugh' / 'nervous' / '') 换表情、hold(名字) 一直亮着某个表情、peek(名字) 亮一下某个表情 */
 /** 一张宫格出全部表情（作者的主意）：把脸部特写发给 GPT，让它画 4×3 的表情宫格，一次出 12 格；手机里切开、每格对齐到立绘上，再按区域抠。
  *  GRID：宫格里从左到右、从上到下每一格是什么。第一格是平常脸，不用，但能让 GPT 照着原样画 */
 export const GRID = ['', 'eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled', 'blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat'];
@@ -340,6 +341,8 @@ export function figure(id) {
       talking = setInterval(() => { if (!el.isConnected) { clearInterval(talking); return; } mouth = (mouth + 1 + (Math.random() < .3)) % 3; show('mouthOpen', mouth === 1 || (mouth === 2 && !parts.mouthO)); show('mouthO', mouth === 2 && !!parts.mouthO); }, 120); },
     has: k => !!parts[k],
     peek(k) { show(k, true); setTimeout(() => show(k, false), 1200); },
+    // 一直亮着某个表情（照相馆里看效果用）；传空就收起
+    hold(k) { if (el._held) show(el._held, false); el._held = k; if (k) show(k, true); },
   };
   return el;
 }
