@@ -30,9 +30,10 @@ export async function xf(url, o = {}) {
 async function viaTavern(base, models, o, auth) {
   const body = { ...(models ? {} : JSON.parse(o.body)), chat_completion_source: 'custom', custom_url: base, custom_include_headers: `Authorization: ${JSON.stringify(auth)}` };
   const r = await fetch(`/api/backends/chat-completions/${models ? 'status' : 'generate'}`, { method: 'POST', signal: o.signal, headers: { ...(ctx()?.getRequestHeaders?.() || {}), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!models) return r;
-  const j = await r.clone().json().catch(() => null);   // 拉模型失败时酒馆也回 200，只是带着 error
-  return j && !j.error ? r : new Response(JSON.stringify({ error: { message: (j && j.message) || '酒馆那边也没拉到模型' } }), { status: 502 });
+  // 失败时酒馆也回 200，只是带着 error（流式的回复不读，读了就不流了）
+  const j = /json/i.test(r.headers.get('content-type') || '') ? await r.clone().json().catch(() => null) : null;
+  if (models ? j && !j.error : !j?.error) return r;
+  return new Response(JSON.stringify({ error: { message: j?.error?.message || j?.message || (models ? '酒馆那边也没拉到模型' : '酒馆转发也没连上') } }), { status: 502 });
 }
 
 export const CHANNELS = {

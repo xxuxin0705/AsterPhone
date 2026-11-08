@@ -137,7 +137,7 @@ function person(cid, changed) {
       try {
         const ref = f.ref === 'avatar' ? (await P.toBase(c.avatar).catch(() => { throw new Error('头像读不出来，换一张参考图'); })).base : f.ref || undefined;
         const desc = f.desc.trim() || (ref ? '' : nameOf(c));
-        const src = await generateImage(isNai() ? P.naiBase(desc) : P.basePrompt(desc, !!ref), APP, conn(), stop, ref);
+        const src = await generateImage(isNai() ? P.naiBase(desc, !!ref) : P.basePrompt(desc, !!ref), APP, conn(), stop, ref);
         if (stop.aborted) return;
         await P.addVersion(cid, await P.clearBg(await P.toBase(src))); toast('画好了，不满意就再画一张，上面能换着比'); paint();
       } catch (e) { if (stop.aborted) return; if (!e.logId) log('warn', APP, `「${nameOf(c)}」的立绘没画成：${e.message}`, e); toast('没画成：' + e.message); }

@@ -19,15 +19,15 @@ export const PARTS = [
   ['browsAngry', '生气', '生气', 'angry, v-shaped eyebrows', 'eyes', '生气：眉头压低皱起', '其他'],
   ['sweat', '汗', '慌张', 'sweatdrop, nervous', 'face', '慌张：额头边一滴汗', '其他'],
 ];
-export const MUST = ['eyesClosed', 'mouthOpen', 'mouthO'];const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
+export const MUST = ['eyesClosed', 'mouthOpen', 'mouthO'];const LOOK = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow.', BG = 'Plain pure white background. No text, no watermark, no border.';
 /** 第一步：照参考图（或者照描述）画一张方便拆的标准立绘 */
-export const basePrompt = (desc, withRef) => `${withRef ? 'The attached image is a reference for this character\'s identity and drawing style. Redraw THIS character (same face, hair, eye colour, clothing, palette and art style), leaving out any props, scenery and text.' : `Character: ${desc}`}
+export const basePrompt = (desc, withRef) => `${withRef ? 'The attached image is a reference for this character\'s identity and drawing style. Redraw THIS character (same face, hair, eye colour and clothing), leaving out any props, scenery and text.\nMatch the reference\'s art style as exactly as possible, as if the same artist drew it: same line weight and line colour, same colouring and shading method, same palette and saturation, same way of drawing the eyes, same face shape and body proportions. Do not restyle, simplify or clean up the drawing.' : `Character: ${desc}`}
 ${withRef && desc ? `Notes: ${desc}\n` : ''}Framing: straight-on half-body view, head and body facing the viewer squarely, from just above the head down to the waist, centred, shoulders level, a clear empty white margin around the character. Tall portrait canvas.
 The neck is clearly visible between chin and collar. Both eyebrows are fully visible, no hair crossing the eyes or eyebrows. Both arms hang relaxed at the sides; the character holds nothing.
 Neutral expression: eyes open looking straight at the viewer, relaxed closed mouth with a faint smile, eyebrows level.
-${STYLE}`;
+${withRef ? BG : `${LOOK} ${BG}`}`;
 /** NAI 认标签不认长句：照参考图画（角色参考）或者只按描述画 */
-export const naiBase = desc => [desc, 'solo, upper body, front view, facing viewer, looking at viewer, standing straight, arms at sides, centered, white background, simple background, no text, neutral expression, closed mouth, light smile, flat lighting'].filter(Boolean).join(', ');
+export const naiBase = (desc, withRef) => [desc, 'solo, upper body, front view, facing viewer, looking at viewer, standing straight, arms at sides, centered, white background, simple background, no text, neutral expression, closed mouth, light smile', !withRef && 'flat lighting'].filter(Boolean).join(', ');
 /** 几个框连成一个大框，再往外放大（px：按宽、py：按高；up：往上多放，眼睛框往上带上眉毛） */
 const around = (p, bs, px, py, up = 0) => {
   const x = Math.min(...bs.map(b => b[0])), y = Math.min(...bs.map(b => b[1])), w = Math.max(...bs.map(b => b[0] + b[2])) - x, h = Math.max(...bs.map(b => b[1] + b[3])) - y;
