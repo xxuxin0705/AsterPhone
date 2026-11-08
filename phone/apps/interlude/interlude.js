@@ -25,7 +25,7 @@ const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new' };
+const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new', note: '' };
 const MAX_SEATS = 8;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
 let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
@@ -269,6 +269,7 @@ function setupSheet(next, chooseKp) {
   const paintMeet = () => { useF.hidden = !pick.meet; modeF.hidden = pick.meet && pick.use === 'old'; };
   const modeBox = h('div', group('', [item({ title: withInfo('车卡会', '开局前大家边车卡边聊，KP 定下规矩；你的卡自己交给 KP 审。'), right: switchEl(pick.meet, v => { pick.meet = v; paintMeet(); }, '车卡会') })]), useF, modeF);
   paintMeet(); modeBox.hidden = !pick.know;
+  const noteF = field('车卡补充', textarea({ value: pick.note, rows: 2, placeholder: '想怎么车卡', onInput: v => { pick.note = v.trim(); } }));
   const mood = segmented(R.MOODS, pick.mood, v => { pick.mood = v; if (!knowTouched) { const k = v !== 'serious'; if (k !== pick.know) know.click(); knowTouched = false; } });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));
   const kpRow = item({ title: 'KP', value: kpName(), chevron: true, onClick: () => chooseKp(() => { kpRow.querySelector('.as-list-item__value').textContent = kpName(); paintLang(); }) });
@@ -283,7 +284,7 @@ function setupSheet(next, chooseKp) {
   paintLang();
   const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood),
     group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), kpRow]),
-    modeBox, langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
+    modeBox, noteF, langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('下一步：车卡', 'primary', () => { s.close(); next(); }))] });
 }
 
@@ -294,7 +295,7 @@ function cardPage(back) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
   const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
   const meetOn = pick.know && pick.meet, mode = pick.know ? pick.mode : 'self';
-  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, lang: langs() };
+  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, note: pick.note, lang: langs() };
   let sel = 'me', m = meetOn ? G.meeting(ms) : null;
   const fresh = () => { if (m && m.fresh && cur.me && cur.me.at < m.at) cur.me = null; };   // 这局统一用新卡：会前的旧卡不算，你要新车一张
   fresh();
@@ -313,7 +314,7 @@ function cardPage(back) {
   async function make(list) {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast(`KP 在给 ${list.length} 个人车卡…`, { label: '取消', fn: G.cancel, wait: true });
-    try { (await G.makeCards(list, owners, mode, m ? `${m.rules.text}（${G.meetRules(m)}）` : '')).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
+    try { (await G.makeCards(list, owners, mode, m ? `${m.rules.text}（${G.meetRules(m)}）` : '', pick.note)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); }
     catch (e) { failed(e, '没车成'); }
     paintTabs(); paint(); paintBar();
   }
@@ -336,7 +337,7 @@ function cardPage(back) {
     startB.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
-      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m });
+      const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note });
       toast(`《${g.title}》写好了`); back();
       await castRoll(p.el, g); nav.pop(); playPage(g);
     } catch (e) { failed(e, '没开成'); }
