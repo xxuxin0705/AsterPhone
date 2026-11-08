@@ -438,7 +438,8 @@ const sceneSrc = k => BASE + 'scene-' + R.placeOf(k) + '.webp';
 function playPage(g) {
   // 背景音乐、白噪音：KP 按场景给关键词，去音乐 App 的音源里搜来循环放；两个开关各管各的，角色说话时调小
   const S = state.apps.interlude, beds = { bgm: new Audio(), amb: new Audio() }, VOL = { bgm: .45, amb: .35 };
-  const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); else bed(k, true); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
+  // 开着却没在放（手机不让自己出声，只认手指点的那一下）：点一下就放，不是关掉
+  const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { if (!S[k + 'Off'] && beds[k].src && beds[k].paused) { beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); return; } S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); else bed(k, true); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
   const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), bedBtn('amb', 'rain', '白噪音')] });
   // 这个地址能不能放：等它能开始放（或者出错、10 秒没动静）
   const can = (a, url) => new Promise(ok => { const done = v => { clearTimeout(t); a.oncanplay = a.onerror = null; ok(v); }, t = setTimeout(() => done(false), 10000); a.oncanplay = () => done(true); a.onerror = () => done(false); a.src = url; a.load(); });
@@ -488,15 +489,16 @@ function playPage(g) {
     if (!l || !l.say) return;
     if (vac) { hush(); return; }
     const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.classList.add('is-on');
-    try { await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l), onStart: () => pt?.talk(true) }); }
+    try { await made.get(l); await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l), onStart: () => pt?.talk(true) }); }
     catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
     pt?.talk(false);
     if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
   }
   // 提前合成：一句一句排着来，合成好的存着，念的时候直接放
-  const made = new Set(), pre = new AbortController(); let chain = Promise.resolve();
-  const ahead = l => { if (!l || !l.say || l.ooc || made.has(l)) return; made.add(l);
-    chain = chain.then(() => pre.signal.aborted ? null : speakAs(vid(l.who), l.say, { silent: true, acted: true, cache: key(l), stop: pre.signal })).catch(e => log('warn', '幕间', '提前合成没成：' + e.message)); };
+  // 先拆出台词（旧存档里旁白和台词还连着）；念的时候这句正在提前合成就等它，别合成两遍
+  const made = new Map(), pre = new AbortController(); let chain = Promise.resolve();
+  const ahead = l => { if (!l || l.ooc || made.has(l)) return; G.splitSay(l); if (!l.say) return;
+    made.set(l, chain = chain.then(() => pre.signal.aborted ? null : speakAs(vid(l.who), l.say, { silent: true, acted: true, cache: key(l), stop: pre.signal })).catch(e => log('warn', '幕间', '提前合成没成：' + e.message))); };
   const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, ooc, who, box, act);
   p.body.append(hud, stage);
   let queue = [], seen = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
