@@ -8,6 +8,24 @@ export const ATTRS = [['STR', '力量'], ['CON', '体质'], ['DEX', '敏捷'], [
 export const rollAttrs = () => Object.fromEntries(ATTRS.map(([k]) => [k, (['SIZ', 'INT', 'EDU'].includes(k) ? roll(2, 6) + 6 : roll(3, 6)) * 5]));
 /** 由属性算出来的：血、理智、魔法、移动力 */
 export const derived = a => ({ hp: Math.floor((a.CON + a.SIZ) / 10), san: a.POW, mp: Math.floor(a.POW / 5), mov: a.DEX < a.SIZ && a.STR < a.SIZ ? 7 : a.DEX > a.SIZ && a.STR > a.SIZ ? 9 : 8 });
+// 车卡分点（规则书的「点数购买」）：8 项属性的总点数按这个人的本事分三档（作者定的：人类上限 90，再高就不是人了）；
+// 每项 15～90，体型、智力、教育至少 40；幸运照旧掷
+export const TIERS = [['普通人', 460], ['有本事的人', 540], ['顶尖人物', 620]];
+export const budgetOf = tier => (TIERS.find(t => t[0] === tier) || TIERS[0])[1];
+export const minOf = k => ['SIZ', 'INT', 'EDU'].includes(k) ? 40 : 15;
+export const attrSum = a => ATTRS.reduce((s, [k]) => s + (k === 'LUCK' ? 0 : a[k]), 0);
+/** AI 分的属性：每项夹在范围里、取 5 的倍数，总数超了就从最高的往下扣 */
+export function fixAttrs(given = {}, budget) {
+  const a = {};
+  for (const [k] of ATTRS) if (k !== 'LUCK') a[k] = Math.max(minOf(k), Math.min(90, Math.round((+given[k] || 50) / 5) * 5));
+  for (let over = attrSum({ ...a, LUCK: 0 }) - budget; over > 0; over -= 5) {
+    const k = Object.keys(a).filter(x => a[x] - 5 >= minOf(x)).sort((x, y) => a[y] - a[x])[0]; if (!k) break; a[k] -= 5;
+  }
+  a.LUCK = roll(3, 6) * 5;
+  return a;
+}
+// 特殊能力的几种（手机在战斗里能算的）：打人 / 护身 / 治疗 / 鼓舞；「剧情」只在剧情里用，KP 照描述判
+export const POWERS = { atk: '攻击', guard: '护身', heal: '治疗', buff: '鼓舞', other: '剧情' };
 /** 天命五选一：一次掷五套 */
 export const fiveSets = () => Array.from({ length: 5 }, rollAttrs);
 

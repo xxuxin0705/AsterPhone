@@ -72,7 +72,7 @@ export function open() {
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
   const dice = h('div.as-int-traydice', { style: `left:${pct(470, IW)};top:${pct(770, IH)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
-  // 一屏放下整张桌子（作者不要左右拖）：图贴着底，比铺满再小一点好让两边的椅子露出来（顶上空出的一条是深色底）；靠边那两把椅子上的头像往里挪到看得见的地方
+  // 一屏放下整张桌子（作者不要左右拖）：比铺满再小一点好让两边的椅子露出来；图贴着顶，空出的一小截落在底下「上桌」那条后面（贴底的话顶上会空一大块）；靠边那两把椅子上的头像往里挪到看得见的地方
   let W = 0, H = 0, ww = 0, wh = 0, ox = 0, oy = 0, zoom = null;
   const apply = (anim = true) => {
     world.style.transition = anim ? '' : 'none';
@@ -82,7 +82,7 @@ export function open() {
     world.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
   };
   const fit = () => {
-    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH * .86); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = H - wh;
+    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH * .92); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = 0;
     Object.assign(world.style, { width: ww + 'px', height: wh + 'px', left: ox + 'px', top: oy + 'px' });
     const cut = -ox / k + 40; seats.forEach((el, i) => { el.style.left = pct(Math.min(IW - cut, Math.max(cut, CHAIRS[i][4])), IW); });   // 靠边的往里挪
     apply(false);
@@ -347,14 +347,21 @@ function cardPage(back) {
     } }, c.job || '选职业');
     // 属性：点数字改；重掷、五选一
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
+    // 档位和属性点：AI 照人设分的卡才有（自己掷骰的没有档位）；点档位能换
+    const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t, n]) => ({ value: t, label: `${t} · ${n} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
+    const apts = h('div.as-int-pts', tierB, h('span'));
+    const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`; }));
     const paintAttrs = () => {
+      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier);
+      apts.lastChild.textContent = `属性点 ${sum} / ${all}`; apts.classList.toggle('is-over', sum > all);
+      pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]) } }), 10); if (!v) return;
-        c.attrs[k] = Math.max(1, Math.min(99, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
+        c.attrs[k] = Math.max(1, Math.min(90, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
     };
-    const newAttrs = a => { c.attrs = a; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };
+    const newAttrs = a => { c.attrs = a; delete c.tier; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 自己掷骰就不算档位了
     const reroll = btn('重掷', 'secondary', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '3D6×5'); newAttrs(R.rollAttrs()); });
     const five = btn('天命五选一', 'secondary', () => {
       const sets = R.fiveSets();
@@ -375,12 +382,19 @@ function cardPage(back) {
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
     const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, onInput: v => { c.bg[k] = v; saveLater(); } }));
+    // 特殊能力：一条一条列出来，能删
+    const abBox = h('div.as-int-abs');
+    const paintAbs = () => abBox.replaceChildren(...(c.abilities || []).length ? c.abilities.map((x, i) => h('div.as-int-ab', h('b', x.name),
+      h('small', [R.POWERS[x.kind], x.dmg, x.cost && `耗 ${x.cost} 魔法`].filter(Boolean).join(' · ')), x.desc ? h('p', x.desc) : null,
+      h('button', { 'aria-label': '删除', onclick: () => { c.abilities.splice(i, 1); saveLater(); paintAbs(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '没有')]);
+    paintAbs();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
-      h('h3', '属性'), attrBox, derivedEl, h('div.as-int-row', reroll, five),
+      h('h3', '属性'), apts, attrBox, derivedEl, h('div.as-int-row', reroll, five), pendB,
       h('h3', '技能'), pts, skillBox, restB, restBox,
       h('h3', '背景'), bg('身份', 'who'), bg('关系', 'rel'), bg('关键经历', 'past'), bg('目标', 'goal'), bg('秘密', 'secret'),
+      h('h3', '特殊能力'), abBox,
       h('h3', '随身'), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
       field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4,
         onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));
@@ -390,6 +404,18 @@ function cardPage(back) {
   paintTabs(); paint(); paintBar();
   nav.push(p.el);
   if (owners.some(o => !cur[o])) make(owners.filter(o => !cur[o]));   // 进来就把没卡的一起车了
+}
+
+// 分属性点（活着打完一局加的）：每项 − / +，单项不超过 90；底部 取消 | 保存
+function spendSheet(c, done) {
+  const add = {}, left = h('p.as-int-spend__left'), used = () => Object.values(add).reduce((a, b) => a + b, 0);
+  const rows = R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => {
+    const v = h('b', c.attrs[k]);
+    const bump = d => { const cur = add[k] || 0; if (d > 0 ? used() >= c.pend || c.attrs[k] + cur >= 90 : !cur) return; add[k] = cur + d; v.textContent = c.attrs[k] + add[k]; left.textContent = `还剩 ${c.pend - used()} 点`; };
+    return h('div.as-int-spend__row', h('span', n), h('button', { 'aria-label': '减', onclick: () => bump(-1) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(1) }, '+'));
+  });
+  left.textContent = `还剩 ${c.pend} 点`;
+  const s = sheet({ title: '分属性点', content: h('div.as-int-spend', left, ...rows, h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => { await G.spend(c, add); s.close(); done(); }))) });
 }
 
 /** 抛骰子的大画面：盖在页面上，抛完亮出结果 */
@@ -474,10 +500,10 @@ function playPage(g) {
   const scene = k => { if (k === shown) return; shown = k; const n = new Image(); n.src = sceneSrc(k); n.decode().catch(() => {}).then(() => { n.classList.add('is-in'); bg.append(n); setTimeout(() => { bg.firstChild !== n && bg.firstChild.remove(); }, 900);
     gls.dispose(); box.querySelector('.as-glass-cv')?.remove(); gls = glass(box, p.el, n.src, SHADE); }); };
   // 顶上的状态：第几幕、第几回合、血、理智
-  const hud = h('div.as-int-hud'), hudAct = h('span'), hudHp = h('span'), hudSan = h('span'), hudMad = h('span.is-mad');
+  const hud = h('div.as-int-hud'), hudAct = h('span'), hudHp = h('span'), hudSan = h('span'), hudMp = h('span'), hudMad = h('span.is-mad');
   const push = btn('推进', 'secondary', () => send('（推进剧情）'));
-  hud.append(hudAct, hudHp, hudSan, hudMad, push);
-  const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; };
+  hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, push);
+  const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMp.hidden = !(g.pc.abilities || []).length; hudMp.textContent = `✦ ${g.pc.mp}/${g.pc.mpMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; };
   // 人物牌 + 对话框：上面一小行淡淡的旁白（中文），中间是台词，台词不是中文的下面跟一行中文翻译
   const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', face, nameT);
   const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
@@ -575,19 +601,21 @@ function playPage(g) {
     const tag = f => [f.held && '被按住', f.down && '倒地', f.wpn === '徒手' && '没武器'].filter(Boolean).join(' · ');
     const chips = h('div.as-int-foes', alive.map((f, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { foe = f.name; [...chips.children].forEach(x => x.classList.toggle('is-on', x === e.currentTarget)); } }, `${f.name} ♥${f.hp}/${f.hpMax}${tag(f) ? ' · ' + tag(f) : ''}`)));
     // 每一轮在手机里掷完、在对话框里一下下放给你看，不找 AI；打完（或者你中途说话）才把攒下的几轮一起交给 KP 讲，一场战斗只找一两次 AI
-    const go = async (kind, move) => {
+    const go = async (kind, x) => {
       act.replaceChildren();
-      const r = G.fightRound(g, { kind, foe, wpn, def, move }); await G.save(); paintHud();
+      const r = G.fightRound(g, { kind, foe, wpn, def, move: x, skill: x }); await G.save(); paintHud();
       if (r.mine) await rollOverlay(p.el, r.mine.t, r.mine.u, r.cap, '', r.mine.grade);
       pending = [pending, r.text].filter(Boolean).join('\n');
       if (r.over) { send(''); return; }
       show(r.lines.map(t => ({ who: '战斗', act: t })));
     };
     const moveB = btn('战技', 'secondary', async () => { const v = await actionSheet('战技', G.MOVES.map(([k, n]) => ({ value: k, label: n }))); if (v) go('move', v); });
+    const pw = (me.abilities || []).map((x, i) => [x, i]).filter(([x]) => x.kind !== 'other');
+    const powB = pw.length ? btn('能力', 'secondary', async () => { const v = await actionSheet(`能力 · 魔法 ${me.mp}/${me.mpMax}`, pw.map(([x, i]) => ({ value: String(i), label: `${x.name}（${R.POWERS[x.kind]}${x.cost ? ` · 耗 ${x.cost}` : ''}）` }))); if (v != null) go('power', +v); }) : null;
     return h('div.as-int-ask.as-int-fight', h('b', `战斗 · 第 ${F.round + 1} 轮`), chips,
       ws.length > 1 ? h('div.as-int-def', h('span', '武器'), segmented(ws.map(w => [w.name, w.name]), wpn, v => { wpn = v; })) : null,
       h('div.as-int-def', h('span', '防守'), segmented([['dodge', `闪避 ${dg}`], ['back', `反击 ${bw}`]], def, v => { def = v; })),
-      h('div.as-int-row', btn('攻击', 'primary', () => go('atk')), moveB, alive.some(f => /枪/.test(f.wpn)) ? btn('找掩护', 'secondary', () => go('cover')) : null, btn('逃跑', 'secondary', () => go('flee'))));
+      h('div.as-int-row', btn('攻击', 'primary', () => go('atk')), moveB, powB, alive.some(f => /枪/.test(f.wpn)) ? btn('找掩护', 'secondary', () => go('cover')) : null, btn('逃跑', 'secondary', () => go('flee'))));
   }
   async function send(what) {
     if (G.running()) { G.cancel(); return; }
@@ -601,7 +629,14 @@ function playPage(g) {
       prompt();
     }
   }
-  const ending = () => h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text), btn('回到桌上', 'primary', () => nav.pop()));
+  // 结局：活着的人过一遍成长（只算一次），你的属性点在这里分，也能回车卡页再分
+  const ending = () => {
+    const box = h('div.as-int-grow');
+    const paint = list => box.replaceChildren(...(list || []).map(x => h('p', `${x.name}：${x.up.length ? x.up.join('、') : '技能没长'}${x.pts ? ` · 属性 +${x.pts}` : ''}`)),
+      ...(list || []).filter(x => x.me && (G.cardById(x.card) || {}).pend).map(x => btn(`分 ${G.cardById(x.card).pend} 点属性`, 'secondary', () => spendSheet(G.cardById(x.card), () => paint(g.grown)))));
+    G.grow(g).then(() => paint(g.grown));
+    return h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text), box, btn('回到桌上', 'primary', () => nav.pop()));
+  };
   paintHud();
   gls = glass(box, p.el, sceneSrc(g.place), SHADE);
   p.el._onLeave = () => { hush(); pre.abort(); gls.dispose(); for (const k in beds) beds[k].pause(); host.removeEventListener('asterphone-voice', duck); };

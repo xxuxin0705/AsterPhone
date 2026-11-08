@@ -39,7 +39,7 @@ const topSkills = s => Object.entries(s).sort((a, b) => b[1] - a[1]).slice(0, 10
 // 随身物品 { name, dmg, skill }：武器才有伤害和用的技能
 export const itemText = x => x.name + (x.dmg ? `（伤害 ${x.dmg}，用${x.skill || '斗殴'}）` : '');
 const bag = p => (p.items || []).length ? `；随身：${p.items.map(itemText).join('、')}` : '；身上没带东西';
-export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}`;
+export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}`;
 export const isZh = l => !l || /^zh/.test(l);
 /** 这个人说什么语言：开局设置里改过的 → 聊天设置里让 TA 说的 → 中文 */
 export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; const cfg = (chatForContact(id, false) || { cfg: {} }).cfg; return (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
@@ -47,7 +47,7 @@ export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; c
 const toneOf = id => hintFor(kindOf(connFor(id))).replace(/每段/g, '台词').replace(/>> 开头的翻译行不写标签。/, 'zh 翻译不写标签。');
 // 旧存档没有 lang（开局时还没有「说什么语言」）：按开局时会给的默认语言
 const speakLine = (g, id) => { const l = g.lang ? g.lang[id] : langOf(id); return `说话用${langName(isZh(l) ? 'zh-CN' : l)}；台词语气：${toneOf(id)}`; };
-export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
+export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
 const kpText = g => { const c = g.kp !== 'sys' && contact(g.kp);
   return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n${g.know ? '场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n' : ''}`
     : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; };
@@ -70,27 +70,32 @@ const ownerPersona = o => o === 'me' ? myPersona() : personaOf(contact(o));
 const memoryText = async (ids, story) => [await worldText(story).catch(() => ''), await memoryFor(ids.map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
 // all：同桌的所有人（重车时只车其中几个，关系也要写到没重车的人）
 export async function makeCards(owners, all = owners) {
-  const rolled = owners.map(o => ({ o, a: R.rollAttrs() })), story = storyText(), memory = await memoryText(all, story);
+  const story = storyText(), memory = await memoryText(all, story);
   const others = all.filter(o => !owners.includes(o)).map(o => { const c = lastCard(o); return ownerName(o) + (c ? `（这局扮演 ${c.name}，${c.job}）` : ''); });
   const out = await ask('intCards', {
     story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'),
     skills: Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).join('、') + '、闪避（敏捷÷2）、母语（教育）',
-    roster: (others.length ? `同桌的还有：${others.join('、')}（关系也要写到他们）\n` : '') + rolled.map(({ o, a }) => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : ''}：${attrsText(a)}；技能点上限 ${R.points(a)}；人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}`).join('\n'),
+    roster: (others.length ? `同桌的还有：${others.join('、')}（关系也要写到他们）\n` : '') + owners.map(o => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : ''}：人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}`).join('\n'),
   }, 1200 + 700 * owners.length);
   const list = Array.isArray(out.cards) ? out.cards : [];
   if (!list.length) throw new Error('AI 回的格式不对');
-  const made = rolled.map(({ o, a }, i) => {
-    const x = list.find(c => c.who === ownerName(o)) || list[i] || {};
+  const made = owners.map((o, i) => {
+    const x = list.find(c => c.who === ownerName(o)) || list[i] || {}, tier = R.TIERS.some(t => t[0] === x.tier) ? x.tier : R.TIERS[0][0], a = R.fixAttrs(x.attrs, R.budgetOf(tier));
     return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: String(x.sex || ''), job: String(x.job || ''), home: String(x.home || ''),
-      bg: { who: '', rel: '', past: '', goal: '', secret: '', ...(x.bg || {}) }, assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), attrs: a, skills: R.fixSkills(a, x.skills) };
+      bg: { who: '', rel: '', past: '', goal: '', secret: '', ...(x.bg || {}) }, assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, attrs: a, skills: R.fixSkills(a, x.skills),
+      abilities: (Array.isArray(x.abilities) ? x.abilities : []).map(toPower).filter(Boolean).slice(0, 3) };
   });
   (D.cards || (D.cards = [])).push(...made); made.forEach(c => { (D.last || (D.last = {}))[c.owner] = c.id; });
   await save();
   return made;
 }
+// 特殊能力 { name, kind, dmg, cost 耗几点魔法, desc }
+const toPower = x => x && x.name ? { name: String(x.name), kind: x.kind in R.POWERS ? x.kind : 'other', dmg: String(x.dmg || ''), cost: Math.max(0, Math.min(20, Math.round(+x.cost) || 0)), desc: String(x.desc || '') } : null;
+export const powerText = x => `${x.name}（${R.POWERS[x.kind]}${x.dmg ? ' ' + x.dmg : ''}${x.cost ? `，耗 ${x.cost} 魔法` : ''}${x.desc ? '：' + x.desc : ''}）`;
+const powers = p => (p.abilities || []).length ? `；特殊能力：${p.abilities.map(powerText).join('、')}；魔法 ${p.mp ?? R.derived(p.attrs).mp}${p.mpMax ? '/' + p.mpMax : ''}` : '';
 export const toItem = x => typeof x === 'string' ? (x.trim() && { name: x.trim() }) : x && x.name ? { name: String(x.name), ...(x.dmg ? { dmg: String(x.dmg), skill: String(x.skill || '斗殴') } : {}) } : null;
-const cardText = c => `${c.name}（${c.age} 岁，${c.sex}，${c.job}，住在${c.home || '—'}）：${attrsText(c.attrs)}；技能：${topSkills(c.skills)}；背景：${c.bg.who} ${c.bg.past} 和大家的关系：${c.bg.rel || '—'} 目标：${c.bg.goal} 秘密：${c.bg.secret}；资产：${c.assets || '—'}${bag(c)}`;
-const fromCard = c => { const d = R.derived(c.attrs); return { id: c.owner, card: c.id, name: c.name, job: c.job, attrs: c.attrs, skills: { ...c.skills }, hp: d.hp, hpMax: d.hp, san: d.san, sanMax: d.san, bg: c.bg, items: (c.items || []).map(x => ({ ...x })) }; };
+const cardText = c => `${c.name}（${c.age} 岁，${c.sex}，${c.job}，住在${c.home || '—'}）：${attrsText(c.attrs)}；技能：${topSkills(c.skills)}；背景：${c.bg.who} ${c.bg.past} 和大家的关系：${c.bg.rel || '—'} 目标：${c.bg.goal} 秘密：${c.bg.secret}；资产：${c.assets || '—'}${bag(c)}${powers(c)}`;
+const fromCard = c => { const d = R.derived(c.attrs); return { id: c.owner, card: c.id, name: c.name, job: c.job, attrs: c.attrs, skills: { ...c.skills }, hp: d.hp, hpMax: d.hp, san: d.san, sanMax: d.san, bg: c.bg, items: (c.items || []).map(x => ({ ...x })), abilities: (c.abilities || []).map(x => ({ ...x })), mp: d.mp, mpMax: d.mp }; };
 
 /** 开局。setup = { mood, know 知不知道在跑团, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[] } */
 export async function start(setup) {
@@ -154,9 +159,36 @@ export async function play(g, input) {
   await save();
   return lines;
 }
+/** 一局打完（不算放弃）：活着的人照规则书过技能成长——这局用成功过的技能各掷一次 1D100，大于技能值（或大于 95）就加 1D10；
+ *  再加 5 点属性（作者定的：一张卡一共最多加 25 点，单项不超过 90）。你的点留着自己分，同伴的自动加在还没到 90 的最高那项上。
+ *  返回 [{ name, me, up: ['侦查 +4'], pts 这次加了几点, card 卡的 id }]，存在 g.grown 里，只算一次 */
+export const cardById = id => (D.cards || []).find(c => c.id === id) || null;
+export const GROW = 5, GROW_MAX = 25;
+export async function grow(g) {
+  if (g.grown || !g.done || g.done.kind === 'quit') return null;
+  const out = [];
+  for (const p of [g.pc, ...g.party]) {
+    const c = (D.cards || []).find(x => x.id === p.card); if (!c || p.hp <= 0) continue;
+    const up = [];
+    for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = R.d(10); c.skills[k] = Math.min(99, v + n); up.push(`${k} +${n}`); } }
+    const pts = Math.max(0, Math.min(GROW, GROW_MAX - (c.grown || 0)));
+    c.grown = (c.grown || 0) + pts;
+    if (p === g.pc) c.pend = (c.pend || 0) + pts;
+    else if (pts) { const k = Object.keys(c.attrs).filter(x => x !== 'LUCK' && c.attrs[x] < 90).sort((x, y) => c.attrs[y] - c.attrs[x])[0]; if (k) c.attrs[k] = Math.min(90, c.attrs[k] + pts); }
+    out.push({ name: c.name, me: p === g.pc, up, pts, card: c.id });
+  }
+  g.grown = out; await save(); return out;
+}
+/** 你分属性点：add = { STR: 2, ... }，从 c.pend 里扣 */
+export async function spend(c, add) {
+  for (const [k, v] of Object.entries(add)) c.attrs[k] = Math.min(90, c.attrs[k] + v);
+  c.pend = Math.max(0, (c.pend || 0) - Object.values(add).reduce((a, b) => a + b, 0)); await save();
+}
 /** 不玩了：标成放弃 */
 export async function quit(g) { g.done = { kind: 'quit', text: '', at: Date.now() }; await save(); }
 
+// 这局用成功过的技能打个勾，打完一局过成长（属性不打勾）
+const tick = (p, sk) => { if (sk in p.skills) (p.ticks || (p.ticks = {}))[sk] = 1; };
 // 技能值；「力量」「敏捷」这类是属性，读卡上的属性（以前当成技能去找，找不到就按 20 算）
 const valOf = (p, sk) => { const a = R.ATTRS.find(x => x[1] === sk); return a ? p.attrs[a[0]] : p.skills[sk] ?? R.SKILLS[sk] ?? 20; };
 /** 检定的结果写成一句话给 KP（也给人看）；v 是盖在掷骰画面上的那两个字（大成功 / 困难成功 / 失败…） */
@@ -172,6 +204,7 @@ export function resolve(g, req, { skill } = {}) {
     return { r: r.a, v: r.win ? '赢了' : '输了', text: `${name}的${sk}对抗：掷出 ${r.a.v}（${r.a.grade}），对方掷出 ${r.b.v}（${r.b.grade}），${r.win ? '赢了' : '输了'}` };
   }
   const val = valOf(p, sk), b = Math.max(-2, Math.min(2, Math.round(+req.bonus) || 0)), r = R.check(val, req.level, g.crit, b);
+  if (r.ok) tick(p, sk);
   return { r, v: r.grade, text: `${name}的${sk}检定（${req.level || '普通'}${b ? `，${b > 0 ? '奖励' : '惩罚'}骰 ${Math.abs(b)} 个` : ''}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
 }
 
@@ -193,10 +226,12 @@ export function joinFight(g, foes) {
 // 战技三种（只有你会用）：按住（挣脱前每轮动不了，打它多一个奖励骰）、缴械（武器掉了，只能徒手）、撞倒（下一轮爬起来，爬起来前打它多一个奖励骰）
 export const MOVES = [['hold', '按住'], ['disarm', '缴械'], ['knock', '撞倒']];
 /** 这一轮：act = { kind: 'atk' | 'move' | 'cover' | 'flee', foe 对谁, wpn 用什么, def 'dodge' | 'back' 你被近战打时怎么防, move 哪种战技 }。
- *  返回 { lines 这一轮的每一下（给人看）, text 给 KP 的结果, over 打完了没, mine 你自己那一下的骰子, cap } */
+    skill 用第几个特殊能力。
+ *  返回 { lines 这一轮的每一下（给人看）, ev 每一下给像素擂台演的（和 lines 一一对上，没有动作的是 null）, text 给 KP 的结果, over 打完了没, mine 你自己那一下的骰子, cap } */
 export function fightRound(g, act) {
-  const F = g.fight, me = g.pc, up = x => x.hp > 0, out = [], nm = p => p === me ? '你' : p.name;
-  const isFoe = p => F.foes.includes(p), dexOf = p => isFoe(p) ? p.dex : p.attrs.DEX, buildOf = p => isFoe(p) ? p.build : R.build(p.attrs);
+  const F = g.fight, me = g.pc, up = x => x.hp > 0, out = [], ev = [], nm = p => p === me ? '你' : p.name;
+  const say = (t, e = null) => { out.push(t); ev.push(e); };
+  const isFoe = p => F.foes.includes(p), key = p => p === me ? 'me' : isFoe(p) ? 'f' + F.foes.indexOf(p) : p.id, dexOf = p => isFoe(p) ? p.dex : p.attrs.DEX, buildOf = p => isFoe(p) ? p.build : R.build(p.attrs);
   const dodgeOf = p => isFoe(p) ? p.dodge : p.skills.闪避 ?? 20, brawlOf = p => isFoe(p) ? p.brawl : p.skills.斗殴 ?? 25;
   const skillOf = (p, w) => p.skills[w.skill] ?? R.SKILLS[w.skill] ?? 25;
   const wpnOf = p => isFoe(p) ? (p.wpn === '徒手' ? FIST : { name: p.wpn, dmg: p.dmg, skill: /枪/.test(p.wpn) ? '手枪' : '斗殴' }) : p.wpn;
@@ -205,56 +240,80 @@ export function fightRound(g, act) {
   // 怪和同伴：闪避、斗殴里挑高的，两成机会挑另一个；你：自己选的
   const defOf = d => d === me ? act.def : (dodgeOf(d) >= brawlOf(d)) === (Math.random() < .8) ? 'dodge' : 'back';
   const bonusOn = d => d.held || d.down ? 1 : 0;
-  let mine = null, cap = '', fled = false, cover = false;
+  let mine = null, cap = '', fled = false, cover = false, cheer = false;   // cheer：有人用了鼓舞，这一轮我方打人多一个奖励骰
   F.round++;
+  for (const p of [me, ...g.party]) p.guard = 0;
   for (const p of [me, ...g.party]) p.wpn = p === me ? weapons(me).find(x => x.name === act.wpn) || FIST : weapons(p).reduce((a, b) => skillOf(p, b) >= skillOf(p, a) ? b : a);
   const hurt = (a, d, w, top) => {
-    const n = Math.max(0, R.dice(w.dmg, top) + (!isFoe(a) && !isGun(w) ? R.db(a.attrs) : 0) - (isFoe(d) ? d.armor : 0));
+    const raw = R.dice(w.dmg, top) + (!isFoe(a) && !isGun(w) && !w.power ? R.db(a.attrs) : 0), cut = isFoe(d) ? d.armor : Math.min(d.guard || 0, raw), n = Math.max(0, raw - cut);
     d.hp = Math.max(0, d.hp - n);
-    return `伤害 ${n}${isFoe(d) && d.armor ? `（护甲挡了 ${d.armor}）` : ''}，${nm(d)}剩 ${d.hp}/${d.hpMax}${!d.hp ? '，倒下了' : n * 2 >= d.hpMax ? '，重伤' : ''}`;
+    return [n, `伤害 ${n}${cut ? `（${isFoe(d) ? '护甲' : '护身'}挡了 ${cut}）` : ''}，${nm(d)}剩 ${d.hp}/${d.hpMax}${!d.hp ? '，倒下了' : n * 2 >= d.hpMax ? '，重伤' : ''}`];
   };
   // 一下攻击：枪不能防（你找了掩护就多一个惩罚骰）；近战看守方闪避还是反击
   const hit = (a, d, w) => {
-    const gun = isGun(w), r = R.check(isFoe(a) ? a.atk : skillOf(a, w), '普通', g.crit, bonusOn(d) - (gun && d === me && cover ? 1 : 0));
+    const gun = isGun(w), r = R.check(isFoe(a) ? a.atk : skillOf(a, w), '普通', g.crit, bonusOn(d) + (cheer && !isFoe(a) ? 1 : 0) - (gun && d === me && cover ? 1 : 0));
+    if (r.ok && !isFoe(a)) tick(a, w.skill);
+    const e = { kind: 'atk', a: key(a), d: key(d), gun, w: w.name || '', res: r.ok ? 'dodge' : 'miss' };
+    const land = (x, y, ww, rr, res, word) => { const [n, s2] = hurt(x, y, ww, R.rank(rr) >= 3); Object.assign(e, { res, dmg: n, crit: R.rank(rr) >= 3 }); return `，${word}，${s2}`; };
     let t = `${nm(a)}${w.name && w.name !== '徒手' ? '用' + w.name : ''}攻击${nm(d)}：${r.v}（${r.grade}）`;
-    if (gun) { t += r.ok ? `，打中了，${hurt(a, d, w, R.rank(r) >= 3)}` : '，没打中'; out.push(t); return r; }
+    if (gun) { t += r.ok ? land(a, d, w, r, 'hit', '打中了') : '，没打中'; say(t, e); return r; }
     const how = defOf(d), dr = R.check(how === 'dodge' ? dodgeOf(d) : brawlOf(d), '普通', g.crit);
+    if (dr.ok && !isFoe(d)) tick(d, how === 'dodge' ? '闪避' : '斗殴');
     t += `，${nm(d)}${how === 'dodge' ? '闪避' : '反击'} ${dr.v}（${dr.grade}）`;
-    if (how === 'back' && dr.ok && R.rank(dr) > R.rank(r)) t += `，反打回去，${hurt(d, a, melee(d), R.rank(dr) >= 3)}`;
-    else if (r.ok && (how === 'dodge' ? R.rank(r) > R.rank(dr) : R.rank(r) >= R.rank(dr))) t += `，打中了，${hurt(a, d, w, R.rank(r) >= 3)}`;
+    if (how === 'back' && dr.ok && R.rank(dr) > R.rank(r)) t += land(d, a, melee(d), dr, 'back', '反打回去');
+    else if (r.ok && (how === 'dodge' ? R.rank(r) > R.rank(dr) : R.rank(r) >= R.rank(dr))) t += land(a, d, w, r, 'hit', '打中了');
     else t += r.ok ? '，没打着' : '，没打中';
-    out.push(t); return r;
+    say(t, e); return r;
+  };
+  // 特殊能力：先扣魔法；攻击、治疗掷意志，成了才算（攻击闪不开，护甲照挡）；护身、鼓舞不用掷
+  const power = (p, ab, d) => {
+    const tag = `${nm(p)}用「${ab.name}」`, e = { kind: 'power', a: key(p), d: d && key(d), power: ab.kind, res: 'fail' };
+    if ((p.mp ?? 0) < ab.cost) { say(`${tag}，魔法不够了`, e); return null; }
+    p.mp -= ab.cost;
+    const cost = ab.cost ? `（耗 ${ab.cost} 魔法）` : '';
+    if (ab.kind === 'guard') { p.guard = ab.dmg === '全部' ? 999 : +ab.dmg || 4; e.res = 'ok'; say(`${tag}${cost}，这一轮挨打少 ${p.guard >= 999 ? '全部' : p.guard + ' 点'}伤害`, e); return null; }
+    if (ab.kind === 'buff') { cheer = true; e.res = 'ok'; say(`${tag}${cost}，这一轮大家打人都多一个奖励骰`, e); return null; }
+    const r = R.check(p.attrs.POW, '普通', g.crit);
+    if (!r.ok) { say(`${tag}${cost}：意志 ${r.v}（${r.grade}），没成`, e); return r; }
+    if (ab.kind === 'heal') { const t = [me, ...g.party].filter(up).sort((x, y) => x.hp / x.hpMax - y.hp / y.hpMax)[0], n = R.dice(ab.dmg || '1D4'); t.hp = Math.min(t.hpMax, t.hp + n); Object.assign(e, { res: 'ok', d: key(t), dmg: n }); say(`${tag}${cost}：意志 ${r.v}（${r.grade}），给${nm(t)}回了 ${n} 血（${t.hp}/${t.hpMax}）`, e); return r; }
+    const [n, s2] = hurt(p, d, { dmg: ab.dmg || '1D6', power: true }, R.rank(r) >= 3); Object.assign(e, { res: 'hit', dmg: n, crit: R.rank(r) >= 3 });
+    say(`${tag}${cost}打${nm(d)}：意志 ${r.v}（${r.grade}），${s2}`, e); return r;
   };
   // 战技：斗殴对守方的闪避 / 反击；对方体格大一级多一个惩罚骰，大三级做不了
   const move = d => {
     const gap = buildOf(d) - buildOf(me), name = MOVES.find(x => x[0] === act.move)[1];
-    if (gap >= 3) { out.push(`你想${name}${d.name}：它太大了，根本拽不动`); return null; }
+    if (gap >= 3) { say(`你想${name}${d.name}：它太大了，根本拽不动`, { kind: 'move', a: 'me', d: key(d), res: 'fail' }); return null; }
     const r = R.check(brawlOf(me), '普通', g.crit, bonusOn(d) - Math.max(0, gap)), how = defOf(d), dr = R.check(how === 'dodge' ? dodgeOf(d) : brawlOf(d), '普通', g.crit);
     const win = r.ok && (how === 'dodge' ? R.rank(r) > R.rank(dr) : R.rank(r) >= R.rank(dr));
     if (win) { if (act.move === 'hold') d.held = true; if (act.move === 'knock') d.down = true; if (act.move === 'disarm') d.wpn = '徒手'; }
-    out.push(`你想${name}${d.name}${gap > 0 ? `（它比你大，惩罚骰 ${gap} 个）` : ''}：${r.v}（${r.grade}），${d.name}${how === 'dodge' ? '闪避' : '反击'} ${dr.v}（${dr.grade}），${win ? { hold: '按住了', disarm: '它的武器掉了', knock: '撞倒了' }[act.move] : '没成'}`);
+    say(`你想${name}${d.name}${gap > 0 ? `（它比你大，惩罚骰 ${gap} 个）` : ''}：${r.v}（${r.grade}），${d.name}${how === 'dodge' ? '闪避' : '反击'} ${dr.v}（${dr.grade}），${win ? { hold: '按住了', disarm: '它的武器掉了', knock: '撞倒了' }[act.move] : '没成'}`, { kind: 'move', a: 'me', d: key(d), res: win ? act.move : 'fail' });
     return r;
   };
   for (const p of [me, ...g.party, ...F.foes].filter(up).sort((x, y) => dexOf(y) - dexOf(x))) {
     if (!up(p)) continue;
     const foes = F.foes.filter(up), ours = [me, ...g.party].filter(x => up(x) && !(x === me && fled));
     if (isFoe(p)) {
-      if (p.down) { p.down = false; out.push(`${p.name}爬起来了`); continue; }
-      if (p.held) { if (R.opposed(p.brawl, brawlOf(me), g.crit).win) { p.held = false; out.push(`${p.name}挣开了你`); } else out.push(`${p.name}被你按着，挣不开`); continue; }
+      if (p.down) { p.down = false; say(`${p.name}爬起来了`, { kind: 'up', a: key(p) }); continue; }
+      if (p.held) { if (R.opposed(p.brawl, brawlOf(me), g.crit).win) { p.held = false; say(`${p.name}挣开了你`, { kind: 'free', a: key(p) }); } else say(`${p.name}被你按着，挣不开`); continue; }
       for (let i = 0; i < p.n && ours.some(up); i++) hit(p, pick(ours.filter(up)), wpnOf(p));
       continue;
     }
     if (!foes.length) break;
-    if (p !== me) { hit(p, pick(foes), p.wpn); continue; }
-    if (act.kind === 'cover') { mine = R.check(dodgeOf(me), '普通', g.crit); cover = mine.ok; cap = '找掩护（闪避）'; out.push(`你扑倒找掩护：${mine.v}（${mine.grade}），${cover ? '躲好了，这一轮朝你开枪的更难打中' : '没找到地方'}`); continue; }
-    if (act.kind === 'flee') { mine = R.check(me.attrs.DEX, '普通', g.crit); fled = mine.ok; cap = '逃跑（敏捷）'; out.push(`你想逃：${mine.v}（${mine.grade}），${fled ? '逃出去了' : '没逃掉'}`); continue; }
+    if (p !== me) {   // 同伴：有人伤得重就先治，偶尔放攻击能力，其余照常打
+      const ab = (p.abilities || []).find(x => x.kind === 'heal' && x.cost <= p.mp && ours.some(o => o.hp * 2 < o.hpMax)) || (Math.random() < .4 && (p.abilities || []).find(x => x.kind === 'atk' && x.cost <= p.mp));
+      if (ab) power(p, ab, pick(foes)); else hit(p, pick(foes), p.wpn);
+      continue;
+    }
+    if (act.kind === 'cover') { mine = R.check(dodgeOf(me), '普通', g.crit); cover = mine.ok; cap = '找掩护（闪避）'; say(`你扑倒找掩护：${mine.v}（${mine.grade}），${cover ? '躲好了，这一轮朝你开枪的更难打中' : '没找到地方'}`, { kind: 'cover', a: 'me', res: cover }); continue; }
+    if (act.kind === 'flee') { mine = R.check(me.attrs.DEX, '普通', g.crit); fled = mine.ok; cap = '逃跑（敏捷）'; say(`你想逃：${mine.v}（${mine.grade}），${fled ? '逃出去了' : '没逃掉'}`, { kind: 'flee', a: 'me', res: fled }); continue; }
     const d = foes.find(f => f.name === act.foe) || foes[0];
     if (act.kind === 'move') { cap = `${MOVES.find(x => x[0] === act.move)[1]}${d.name}`; mine = move(d); continue; }
+    if (act.kind === 'power') { const ab = me.abilities[act.skill]; cap = `${ab.name}（意志）`; mine = power(me, ab, d); continue; }
     cap = `${me.wpn.name}攻击${d.name}`; mine = hit(me, d, me.wpn);
   }
   for (const p of [me, ...g.party]) delete p.wpn;
   if (!up(me) || fled) for (const f of F.foes) f.held = false;
   const over = !F.foes.some(up) ? '敌人都倒下了，战斗结束' : fled ? '你逃出了战斗' : !up(me) ? '你倒下了' : '';
   if (over) g.fight = null;
-  return { lines: over ? [...out, over] : out, text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, over, mine, cap };
+  return { lines: over ? [...out, over] : out, ev: over ? [...ev, null] : ev, text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, over, mine, cap };
 }

@@ -135,7 +135,8 @@
 .as-int-play .as-int-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,14,24,.35), transparent 30%, transparent 55%, rgba(10,14,24,.75)); }
 .as-int-hud { position: absolute; left: 12px; right: 12px; top: 4px; display: flex; align-items: center; gap: 10px; color: #f1ece2; font: 500 12px/1 var(--font-ui); text-shadow: 0 1px 4px rgba(0,0,0,.7); }
 .as-int-hud .is-mad { color: #f0a0a0; }
-.as-int-hud .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
+.as-int-hud > span { flex: none; white-space: nowrap; } .as-int-hud > span:first-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* 一行写完：挤不下时只缩前面的幕和回合 */
+.as-int-hud .as-btn { flex: none; white-space: nowrap; margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
 .as-int-stage { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 12px 12px; }
 .as-int-who { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: -12px; position: relative; z-index: 1; }
 .as-int-who__face { width: 118px; height: 118px; display: grid; place-items: center; }
@@ -213,3 +214,19 @@
 .as-int-read__end { margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(216,179,106,.4); border-radius: 6px; font-size: 14px; line-height: 1.7; }
 .as-int-play .as-navbar__btn { color: #f1ece2; }
 .as-int-play .as-navbar__btn.is-off { opacity: .4; }
+
+/* 车卡：住地占一整行；档位和属性点；特殊能力；分属性点 */
+.as-int-grid2 > :nth-child(3) { grid-column: 1 / -1; }
+.as-int-tier { margin-right: 8px; padding: 2px 10px; border: 1px solid currentColor; border-radius: 999px; background: none; color: inherit; font: inherit; }
+.as-int-abs { display: grid; gap: 8px; }
+.as-int-ab { position: relative; padding: 8px 32px 8px 10px; border-radius: 10px; background: rgba(47,38,25,.06); }
+.as-int-ab small { display: block; font-size: 12px; opacity: .7; }
+.as-int-ab p { margin: 4px 0 0; font-size: 13px; }
+.as-int-ab button { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; background: none; color: inherit; opacity: .6; }
+.as-int-spend { display: grid; gap: 6px; }
+.as-int-spend__left { margin: 0 0 4px; text-align: center; opacity: .8; }
+.as-int-spend__row { display: grid; grid-template-columns: 1fr 36px 40px 36px; align-items: center; gap: 6px; }
+.as-int-spend__row b { text-align: center; font-variant-numeric: tabular-nums; }
+.as-int-spend__row button { height: 32px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--as-color-text) 8%, transparent); color: inherit; font-size: 18px; }
+.as-int-grow { display: grid; gap: 6px; margin: 8px 0; font-size: 13px; }
+.as-int-grow p { margin: 0; }
