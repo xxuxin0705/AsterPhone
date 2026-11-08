@@ -496,7 +496,7 @@ export const DEFAULT_PROMPTS = {
 - say：嘴里说出来的话，不带引号，用这个人的语言（上面每个人后面写了），开头照他后面写的方式标语气；没说话就空着；
 - zh：say 不是中文时，写它的中文翻译（不带语气标签）；是中文就空着；
 - ooc：场外话写 true（只有上面允许场外时才有）；
-- face：这段的表情，只能是 smile / angry / troubled / shy，平常就空着。
+- face：这段的表情，只能是 smile（笑）/ angry（生气）/ troubled（为难）/ shy（害羞）/ cry（哭）/ wail（大哭）/ laugh（笑到眯眼）/ nervous（慌张冒汗），平常就空着。
 然后提出 request（只能一种）：
 - {"type":"free"}：随便做什么
 - {"type":"check","who":"你 或 角色名","skill":"技能名","level":"普通 / 困难 / 极难","reason":"为什么"}：有后果的行动才检定；对方弱用普通，势均力敌用困难，几乎不可能用极难

@@ -83,4 +83,4 @@
 - NAI 角色参考、局部重绘的请求字段（director_reference_*、infill、-inpainting 模型名、mask 白色重画）：对照 novelai-sdk（caru-ini/novelai-sdk，MIT）的源码写的，代码是自己写的。
 - 照相馆「手机里画」表情（先抹平再画闭眼线 / 嘴型，嘴的大小比例、颜色）：照 RuiC-2D（HRuiCcc/RuiC-2D，MIT）的 tools/art.py 本地绘制改写成网页版。
 - 照相馆「手机里画」用原画睫毛 / 嘴线变形出闭眼、张嘴的思路：参考 Mesh Avatar Studio（shinshin86/mesh-avatar-studio，MIT）不生图时靠网格变形眨眼说话的做法；代码是自己写的。
-- 照相馆的闭眼 / 笑眼 / 脸红贴纸（`phone/assets/portrait/`）：作者用 GPT 生成的素材，抠成透明图。
+- 照相馆的贴纸（闭眼、脸红、哭、大哭、> <、汗，`phone/assets/portrait/`）：作者用 GPT 生成的素材，抠成透明图。

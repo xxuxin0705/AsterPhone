@@ -12,6 +12,10 @@ export const PARTS = [
   ['browsAngry', '生气', '生气', 'BOTH EYEBROWS become angry: the inner end of each brow moves down toward the nose, the outer end stays, same thickness and colour', 'angry, v-shaped eyebrows', 'eyes'],
   ['browsTroubled', '为难', '为难', 'BOTH EYEBROWS become troubled: the inner end of each brow moves up, the outer end stays, same thickness and colour', 'worried, raised inner eyebrows', 'eyes'],
   ['blush', '脸红', '害羞', 'the CHEEKS: a clearly deeper pink blush inside both cheeks, soft edges, staying inside the face outline', 'blush', 'face'],
+  ['eyesCry', '哭', '伤心', 'BOTH EYES closed and crying: each eye a downward-curving closed lash line with a small teardrop at the inner lower corner and one falling drop', 'closed eyes, crying, tears', 'eyes'],
+  ['eyesWail', '大哭', '大哭', 'BOTH EYES squeezed shut in comical wailing: each eye a thick > < shaped stroke with streams of tears running down the cheeks', '> <, crying, streaming tears, comedic', 'face'],
+  ['eyesSqueeze', '> <', '笑到眯眼', 'BOTH EYES squeezed shut as > and < shaped strokes (left eye >, right eye <), comic style', '> <, closed eyes', 'eyes'],
+  ['sweat', '汗', '慌张', 'small blue sweat drops beside the head, near both temples, outside the face', 'sweatdrop, nervous', 'face'],
 ];
 const STYLE = 'Clean cel shading with crisp thin linework, flat even frontal lighting, NO cast shadows, no paper grain, no glow. Plain pure white background. No text, no watermark, no border.';
 /** 第一步：照参考图（或者照描述）画一张方便拆的标准立绘 */
@@ -35,29 +39,54 @@ export function areaOf(p, region) {
   return region === 'eyes' ? around(p, [eyeL, eyeR], .15, .2, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
 }
 
-/** 不找 AI、在手机里画：闭眼、笑眼、脸红用现成的贴纸（作者用 GPT 画好、抠出来的，assets/portrait/），眼睛先抹平再贴；
- *  贴纸跟着两只眼睛的连线转（头歪着也对得上）。嘴用原画自己的嘴线往下拉开（见 lips）。交出 { src, box } */
-export const LOCAL = ['mouthOpen', 'eyesClosed', 'mouthO', 'eyesSmile', 'blush'];
-const STICK = { eyesClosed: 'closed', eyesSmile: 'smile', blush: 'blush' };
+/** 不找 AI、在手机里画：眼睛、脸红、汗滴用现成的贴纸（作者用 GPT 画好、抠出来的，assets/portrait/），眼睛先抹平再贴；
+ *  贴纸里的睫毛换成这个人自己的睫毛色。笑眼 = 闭眼贴纸中间往上拱成弧。
+ *  贴纸放在「脸的方向」上：跟着两只眼睛的连线转，往下挪也是沿着脸往下（头歪也左右对称）。嘴用原画自己的嘴线往下拉开（见 lips）。交出 { src, box } */
+// [贴纸, 宽是眼睛框的几倍, 贴纸上眼睛那条线在多高（0 顶 1 底）, 往脸下方挪几个框高, 要不要先抹掉眼睛]
+const STICK = { eyesClosed: ['closed', 1.05, .5, .15, 1], eyesSmile: ['closed', 1.05, .5, 0, 1], eyesCry: ['cry', 1.25, .4, .1, 1], eyesWail: ['wail', 1.6, .2, 0, 1],
+  eyesSqueeze: ['squeeze', .8, .5, .05, 1], blush: ['blush', 1.4, .5, 0, 0], sweat: ['sweat', .55, .5, 0, 0] };
+export const LOCAL = ['mouthOpen', 'eyesClosed', 'mouthO', 'eyesSmile', 'blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat'];
 export async function drawPart(p, k) {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), { eyeL, eyeR, mouth } = p.boxes;
   x.drawImage(await img(p.base), 0, 0, p.w, p.h);
   if (STICK[k]) {
-    const tilt = Math.atan2(eyeR[1] + eyeR[3] / 2 - eyeL[1] - eyeL[3] / 2, eyeR[0] + eyeR[2] / 2 - eyeL[0] - eyeL[2] / 2);
-    const [L, R] = await Promise.all(['l', 'r'].map(s => img(`assets/portrait/${STICK[k]}-${s}.webp`)));
-    for (const [st, [bx, by, bw, bh]] of [[L, eyeL], [R, eyeR]]) {
-      if (k !== 'blush') smooth(x, [bx, by, bw, bh]);
-      const w = bw * (k === 'blush' ? 1.5 : 1.15), h = st.naturalHeight * w / st.naturalWidth;
-      const cx = bx + bw / 2, cy = k === 'blush' ? by + bh + (mouth[1] - by - bh) * .55 : by + bh * (k === 'eyesSmile' ? .5 : .62);
-      x.save(); x.translate(cx, cy); x.rotate(tilt); x.drawImage(st, -w / 2, -h / 2, w, h); x.restore();
+    const [name, size, line, drop, erase] = STICK[k], mid = b => [b[0] + b[2] / 2, b[1] + b[3] / 2], [lx, ly] = mid(eyeL), [rx, ry] = mid(eyeR), [mx, my] = mid(mouth);
+    const tilt = Math.atan2(ry - ly, rx - lx), dn = [-Math.sin(tilt), Math.cos(tilt)], down = (mx - (lx + rx) / 2) * dn[0] + (my - (ly + ry) / 2) * dn[1];
+    const [L, R] = await Promise.all(['l', 'r'].map(s => img(`assets/portrait/${name}-${s}.webp`)));
+    for (const [st, b, side] of [[L, eyeL, -1], [R, eyeR, 1]]) {
+      const [, , bw, bh] = b, [ex, ey] = mid(b), w = bw * size, h = st.naturalHeight * w / st.naturalWidth, lash = erase && lashOf(x, b);
+      if (erase) smooth(x, b);
+      // 脸红往下挪到眼睛和嘴中间；汗滴放在眼睛外上方；别的按表里挪
+      const off = k === 'blush' ? down * .5 : k === 'sweat' ? -bh * .9 : bh * drop, out = k === 'sweat' ? side * bw * .85 : 0;
+      const t = canvas(Math.ceil(w), Math.ceil(h)), tx = t.getContext('2d', { willReadFrequently: true }); tx.drawImage(st, 0, 0, w, h);
+      if (lash) tint(tx, t.width, t.height, lash);
+      x.save(); x.translate(ex + dn[0] * off - dn[1] * out, ey + dn[1] * off + dn[0] * out); x.rotate(tilt);
+      if (k === 'eyesSmile') for (let i = 0; i < t.width; i++) x.drawImage(t, i, 0, 1, t.height, i - w / 2, -h * line - Math.sin(i / (t.width - 1) * Math.PI) * bh * .35, 1, t.height);
+      else x.drawImage(t, -w / 2, -h * line);
+      x.restore();
     }
   }
   else lips(x, mouth, k === 'mouthO');
-  const a = areaOf(p, k === 'blush' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
+  const a = areaOf(p, k === 'blush' || k === 'sweat' || k === 'eyesWail' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
   o.getContext('2d').drawImage(c, a[0], a[1], a[2], a[3], 0, 0, a[2], a[3]);
   return { src: o.toDataURL('image/png'), box: a };
 }
 const luma = (a, i) => a[i] * .3 + a[i + 1] * .59 + a[i + 2] * .11;
+/** 这个人的睫毛色：眼睛框里最深的那一小撮像素的平均 */
+function lashOf(x, [bx, by, bw, bh]) {
+  const d = x.getImageData(Math.round(bx), Math.round(by), Math.round(bw), Math.round(bh)).data, px = [];
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) px.push(i);
+  px.sort((m, n) => luma(d, m) - luma(d, n));
+  const top = px.slice(0, Math.max(1, px.length * .06 | 0)), c = [0, 1, 2].map(k => top.reduce((s, i) => s + d[i + k], 0) / top.length);
+  return c;
+}
+/** 贴纸换色：深的地方（睫毛）往睫毛色上靠，浅的和偏蓝的（眼泪、高光）不动；保留贴纸自己的明暗 */
+function tint(tx, w, h, [r, g, b]) {
+  const d = tx.getImageData(0, 0, w, h), a = d.data;
+  for (let i = 0; i < a.length; i += 4) { if (!a[i + 3] || a[i + 2] > a[i] + 15) continue; const l = luma(a, i), t = Math.max(0, Math.min(1, (150 - l) / 90)), k = .6 + l / 255;
+    a[i] += (r * k - a[i]) * t; a[i + 1] += (g * k - a[i + 1]) * t; a[i + 2] += (b * k - a[i + 2]) * t; }
+  tx.putImageData(d, 0, 0);
+}
 /** 框里的「线」：比四周深的像素单独拿出来（越深越不透明），颜色就是原画的线色。交出 { c: 只有线的小画布, X, Y, W, H, a: 原像素, on: 哪些是线 } */
 function inkOf(x, [bx, by, bw, bh], cut = .4) {
   const X = Math.max(0, Math.round(bx)), Y = Math.max(0, Math.round(by)), W = Math.round(bw), H = Math.round(bh), d = x.getImageData(X, Y, W, H), a = d.data, on = new Float32Array(W * H);
@@ -91,9 +120,10 @@ function lips(x, b, round) {
  *  四周偏深的（头发、眉毛）不当皮肤色用，免得渗进来一片灰 */
 function smooth(x, [bx, by, bw, bh]) {
   const X = Math.max(0, Math.floor(bx - bw * .3)), Y = Math.max(0, Math.floor(by - bh * .3)), W = Math.ceil(bw * 1.6), H = Math.ceil(bh * 1.6);
-  const d = x.getImageData(X, Y, W, H), a = d.data, cx = bx + bw / 2 - X, cy = by + bh / 2 - Y, rx = bw * .58, ry = bh * .58, hole = new Uint8Array(W * H), ring = [];
+  const d = x.getImageData(X, Y, W, H), a = d.data, cx = bx + bw / 2 - X, cy = by + bh / 2 - Y, rx = bw * .62, ry = bh * .52, hole = new Uint8Array(W * H), ring = [];
   for (let y = 0; y < H; y++) for (let x0 = 0; x0 < W; x0++) { const q = ((x0 - cx) / rx) ** 2 + ((y - cy) / ry) ** 2, j = y * W + x0;
-    if (q < 1) hole[j] = 1; else if (q < 1.35) ring.push(j); }
+    const inBox = x0 + X >= bx - bw * .04 && x0 + X <= bx + bw * 1.04;   // 左右不出框：框外可能就是头发
+    if (q < 1 && inBox) hole[j] = 1; else if (q < 1.35 || !inBox && q < 1) ring.push(j); }
   const ls = ring.map(j => luma(a, j * 4)).sort((m, n) => m - n), skin = ls[ls.length >> 1] - 30;
   // 往外找最近的皮肤色（跳过头发、睫毛这些深色的，它们留着不动）
   const edge = (j, step, n) => { for (let k = 1; k <= n; k++) { const t = j + step * k; if (t < 0 || t >= W * H || (step === 1 || step === -1) && Math.floor(t / W) !== Math.floor(j / W)) return null; if (!hole[t] && luma(a, t * 4) >= skin) return [t, k]; } return null; };
@@ -178,8 +208,8 @@ export async function cut(p, src, area) {
   return { src: out.toDataURL('image/png'), box: [x0, y0, w, h] };
 }
 
-/** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / '') 换表情、peek(名字) 亮一下某个表情 */
-const FACE = { smile: ['eyesSmile'], angry: ['browsAngry'], troubled: ['browsTroubled'], shy: ['blush'] };
+/** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / 'cry' / 'wail' / 'laugh' / 'nervous' / '') 换表情、peek(名字) 亮一下某个表情 */
+const FACE = { smile: ['eyesSmile'], angry: ['browsAngry'], troubled: ['browsTroubled'], shy: ['blush'], cry: ['eyesCry'], wail: ['eyesWail'], laugh: ['eyesSqueeze'], nervous: ['sweat', 'browsTroubled'] };
 export function figure(id) {
   const p = loaded(id); if (!p) return null;
   const el = document.createElement('div'); el.className = 'as-pt'; el.style.aspectRatio = `${p.w} / ${p.h}`;
@@ -190,7 +220,7 @@ export function figure(id) {
   const show = (k, on) => parts[k] && parts[k].classList.toggle('is-on', on);
   let face = '', talking = 0, mouth = 0;
   // 眨眼：每 2.5～6 秒一下；笑眼的时候不眨
-  const blink = () => { if (!el.isConnected && el._born) return; el._born = 1; if (parts.eyesClosed && !FACE[face]?.includes('eyesSmile')) { show('eyesClosed', true); setTimeout(() => show('eyesClosed', false), 130); } setTimeout(blink, 2500 + Math.random() * 3500); };
+  const blink = () => { if (!el.isConnected && el._born) return; el._born = 1; if (parts.eyesClosed && !(FACE[face] || []).some(k => k.startsWith('eyes') && parts[k])) { show('eyesClosed', true); setTimeout(() => show('eyesClosed', false), 130); } setTimeout(blink, 2500 + Math.random() * 3500); };
   setTimeout(blink, 1200);
   el.pt = {
     face(f) { (FACE[face] || []).forEach(k => show(k, false)); face = FACE[f] ? f : ''; (FACE[face] || []).forEach(k => show(k, true)); },
