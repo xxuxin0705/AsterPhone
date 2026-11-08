@@ -452,7 +452,8 @@ function playPage(g) {
   const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
   // 喇叭：只念台词（旁白不念）；再点一下停
   const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(cur); } }, icon('volume', 18, 1.8));
-  const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, more);
+  const backB = h('button.as-int-box__back', { 'aria-label': '上一句', hidden: true, onclick: e => { e.stopPropagation(); back(); } }, '◂');
+  const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more);
   // 场外的话：不进对话框，在上面飘一条灰色小气泡
   const ooc = h('div.as-int-ooc');
   let cur = null, vac = null;
@@ -475,7 +476,7 @@ function playPage(g) {
     chain = chain.then(() => pre.signal.aborted ? null : speakAs(vid(l.who), l.say, { silent: true, acted: true, cache: key(l), stop: pre.signal })).catch(e => log('warn', '幕间', '提前合成没成：' + e.message)); };
   const act = h('div.as-int-act'), stage = h('div.as-int-stage', { 'data-no-swipe': '' }, ooc, who, box, act);
   p.body.append(hud, stage);
-  let queue = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
+  let queue = [], seen = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
   // 照相馆做过立绘的人（包括你）站着出来（会眨眼、说话时动嘴），没做的用头像
   const ofC = c => P.figure(c.id) || avatar(c.avatar, nameOf(c), 110, 'square');
   const faceOf = n => { if (n === 'KP') return kpc ? ofC(kpc) : img('kp'); if (n === myName() || n === g.pc.name) return P.figure('me') || avatar(myAvatar(), myName(), 110, 'square'); const m = G.who(g, n), c = m && contact(m.id); return c ? ofC(c) : h('span.as-int-who__none', n.slice(0, 1)); };
@@ -484,7 +485,7 @@ function playPage(g) {
   const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : n;
   const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? l.act + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${l.zh}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
-  const say = l => { hush(); cur = g.log.includes(l) ? l : null;
+  const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) ? l : null;
     const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
     face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
     actT.textContent = l.text || l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
@@ -495,9 +496,11 @@ function playPage(g) {
     if (G.running(g)) return;
     const had = queue.length;
     while (queue.length && queue[0].ooc) bubble(queue.shift());
-    if (queue.length) { say(queue.shift()); more.hidden = !queue.length; act.hidden = !!queue.length; if (!queue.length) prompt(); return; }
+    if (queue.length) { seen.push(queue[0]); say(queue.shift()); backB.hidden = seen.length < 2; more.hidden = !queue.length; act.hidden = !!queue.length; if (!queue.length) prompt(); return; }
     if (had) prompt();   // 最后剩的都是场外话
   }
+  // 上一句：这次打开以来说过的都能往回翻，翻回去再点对话框接着往下
+  function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); backB.hidden = seen.length < 2; more.hidden = false; act.hidden = true; }
   const show = lines => { queue = lines.slice(); if (mode === 'all') lines.forEach(ahead); act.hidden = true; next(); };
   // 这回合要你做什么
   function prompt() {

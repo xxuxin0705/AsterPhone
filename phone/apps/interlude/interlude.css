@@ -158,6 +158,7 @@
 .as-int-box__voice { position: absolute !important; right: 10px; top: 10px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; }
 .as-int-box__voice.is-on { background: rgba(255,255,255,.4); animation: as-int-bob .6s ease-in-out infinite alternate; }
 .as-int-box p { margin: 0; }
+.as-int-box__back { position: absolute !important; left: 6px; bottom: 2px; padding: 4px 10px; border: 0; background: none; color: #fff; font-size: 14px; opacity: .6; cursor: pointer; }
 .as-int-box__more { position: absolute !important; right: 14px; bottom: 6px; font-size: 14px; opacity: .6; animation: as-int-bob 1s ease-in-out infinite alternate; }
 @keyframes as-int-bob { to { transform: translateY(3px); } }
 .as-int-act { margin-top: 10px; }
