@@ -69,6 +69,8 @@ export function dice(expr, top) {
 }
 /** 伤害加值（近战才加）：看力量 + 体型 */
 export const db = a => { const s = a.STR + a.SIZ; return s < 65 ? -2 : s < 85 ? -1 : s < 125 ? 0 : s < 165 ? dice('1D4') : dice('1D6'); };
+/** 体格（比大小用：擒抱、按倒这类战技，对方大一级多一个惩罚骰，大三级做不了） */
+export const build = a => { const s = a.STR + a.SIZ; return s < 65 ? -2 : s < 85 ? -1 : s < 125 ? 0 : s < 165 ? 1 : 2; };
 /** 理智检定：loss 写成「成功掉/失败掉」，比如 1/1D6 */
 export function sanCheck(san, loss, crit) {
   const [ok, no] = String(loss || '0/1D4').split('/'), r = check(san, '普通', crit);

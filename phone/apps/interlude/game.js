@@ -157,6 +157,8 @@ export async function play(g, input) {
 /** 不玩了：标成放弃 */
 export async function quit(g) { g.done = { kind: 'quit', text: '', at: Date.now() }; await save(); }
 
+// 技能值；「力量」「敏捷」这类是属性，读卡上的属性（以前当成技能去找，找不到就按 20 算）
+const valOf = (p, sk) => { const a = R.ATTRS.find(x => x[1] === sk); return a ? p.attrs[a[0]] : p.skills[sk] ?? R.SKILLS[sk] ?? 20; };
 /** 检定的结果写成一句话给 KP（也给人看）；v 是盖在掷骰画面上的那两个字（大成功 / 困难成功 / 失败…） */
 export function resolve(g, req, { skill } = {}) {
   const p = who(g, req.who) || g.pc, name = p === g.pc ? '你' : p.name, sk = skill || req.skill || '侦查';
@@ -166,55 +168,92 @@ export function resolve(g, req, { skill } = {}) {
     return { r, v: r.grade === '大成功' || r.grade === '大失败' ? r.grade : r.ok ? '成功' : '失败', text: `${name}的理智检定：掷出 ${r.v}（理智 ${r.need}），${r.ok ? '成功' : '失败'}，掉了 ${r.lost} 点${r.lost >= 5 ? `，临时疯狂：${p.mad.name}` : ''}${p.san <= 0 ? '，理智归零' : ''}`, lost: r.lost };
   }
   if (req.type === 'opposed') {
-    const r = R.opposed(p.skills[sk] ?? R.SKILLS[sk] ?? 20, +req.vs || 50, g.crit);
+    const r = R.opposed(valOf(p, sk), +req.vs || 50, g.crit);
     return { r: r.a, v: r.win ? '赢了' : '输了', text: `${name}的${sk}对抗：掷出 ${r.a.v}（${r.a.grade}），对方掷出 ${r.b.v}（${r.b.grade}），${r.win ? '赢了' : '输了'}` };
   }
-  const val = p.skills[sk] ?? R.SKILLS[sk] ?? 20, b = Math.max(-2, Math.min(2, Math.round(+req.bonus) || 0)), r = R.check(val, req.level, g.crit, b);
+  const val = valOf(p, sk), b = Math.max(-2, Math.min(2, Math.round(+req.bonus) || 0)), r = R.check(val, req.level, g.crit, b);
   return { r, v: r.grade, text: `${name}的${sk}检定（${req.level || '普通'}${b ? `，${b > 0 ? '奖励' : '惩罚'}骰 ${Math.abs(b)} 个` : ''}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
 }
 
-/* ---------- 战斗：一轮一轮，手机按敏捷先后替每个人掷（你自己选这一轮做什么），结果交给 KP 讲 ----------
-   敌人 { name, wpn, hp, hpMax, atk 攻击技能, dmg 伤害（已经算上它的力气）, dodge 闪避, dex 敏捷 }：开局时按人数和数值定好，KP 提出战斗时带上 */
+/* ---------- 战斗：一轮一轮，手机按敏捷先后替每个人掷（你自己选这一轮做什么），打完才把结果交给 KP 讲 ----------
+   敌人 { name, wpn, hp, hpMax, atk 攻击, brawl 斗殴（反击用）, dodge 闪避, dex 敏捷, build 体格, armor 护甲, n 一轮打几下, dmg 伤害（已经算上它的力气） }：开局时按人数和数值定好，KP 提出战斗时带上
+   照规则书第七版：近战可以闪避（平手算躲开）或反击（平手算攻方赢，赢了打回去）；枪闪不开也不能反击，只能扑倒找掩护 */
 const FIST = { name: '徒手', dmg: '1D3', skill: '斗殴' };
 export const weapons = p => [FIST, ...(p.items || []).filter(x => x.dmg)];
+const isGun = w => /枪/.test(w.skill || w.name || '');
 export function joinFight(g, foes) {
   const F = g.fight || (g.fight = { round: 0, foes: [] });
   for (const f of Array.isArray(foes) ? foes : []) {
     if (!f || !f.name || F.foes.some(x => x.name === f.name)) continue;
-    const hp = Math.max(1, Math.round(+f.hp) || 10);
-    F.foes.push({ name: String(f.name), wpn: String(f.wpn || ''), hp, hpMax: hp, atk: +f.atk || 40, dmg: String(f.dmg || '1D6'), dodge: +f.dodge || 20, dex: +f.dex || 50 });
+    const hp = Math.max(1, Math.round(+f.hp) || 10), atk = +f.atk || 40;
+    F.foes.push({ name: String(f.name), wpn: String(f.wpn || ''), hp, hpMax: hp, atk, brawl: +f.brawl || atk, dodge: +f.dodge || 20, dex: +f.dex || 50,
+      build: Math.round(+f.build) || 0, armor: Math.max(0, Math.round(+f.armor) || 0), n: Math.min(3, Math.max(1, Math.round(+f.n) || 1)), dmg: String(f.dmg || '1D6') });
   }
 }
-/** 这一轮：act = { kind: 'atk' | 'dodge' | 'flee', foe 打谁, wpn 用什么 }。返回 { lines 这一轮的每一下（给人看）, text 给 KP 的结果, over 打完了没, mine 你自己那一下的骰子, cap } */
+// 战技三种（只有你会用）：按住（挣脱前每轮动不了，打它多一个奖励骰）、缴械（武器掉了，只能徒手）、撞倒（下一轮爬起来，爬起来前打它多一个奖励骰）
+export const MOVES = [['hold', '按住'], ['disarm', '缴械'], ['knock', '撞倒']];
+/** 这一轮：act = { kind: 'atk' | 'move' | 'cover' | 'flee', foe 对谁, wpn 用什么, def 'dodge' | 'back' 你被近战打时怎么防, move 哪种战技 }。
+ *  返回 { lines 这一轮的每一下（给人看）, text 给 KP 的结果, over 打完了没, mine 你自己那一下的骰子, cap } */
 export function fightRound(g, act) {
   const F = g.fight, me = g.pc, up = x => x.hp > 0, out = [], nm = p => p === me ? '你' : p.name;
-  const isFoe = p => F.foes.includes(p), dodgeOf = p => isFoe(p) ? p.dodge : p.skills.闪避 ?? 20, dexOf = p => isFoe(p) ? p.dex : p.attrs.DEX;
+  const isFoe = p => F.foes.includes(p), dexOf = p => isFoe(p) ? p.dex : p.attrs.DEX, buildOf = p => isFoe(p) ? p.build : R.build(p.attrs);
+  const dodgeOf = p => isFoe(p) ? p.dodge : p.skills.闪避 ?? 20, brawlOf = p => isFoe(p) ? p.brawl : p.skills.斗殴 ?? 25;
   const skillOf = (p, w) => p.skills[w.skill] ?? R.SKILLS[w.skill] ?? 25;
+  const wpnOf = p => isFoe(p) ? (p.wpn === '徒手' ? FIST : { name: p.wpn, dmg: p.dmg, skill: /枪/.test(p.wpn) ? '手枪' : '斗殴' }) : p.wpn;
+  const melee = p => { const w = wpnOf(p) || FIST; return isGun(w) ? (isFoe(p) ? FIST : weapons(p).filter(x => !isGun(x)).pop() || FIST) : w; };
   const pick = l => l[Math.floor(Math.random() * l.length)];
-  let mine = null, cap = '', fled = false;
+  // 怪和同伴：闪避、斗殴里挑高的，两成机会挑另一个；你：自己选的
+  const defOf = d => d === me ? act.def : (dodgeOf(d) >= brawlOf(d)) === (Math.random() < .8) ? 'dodge' : 'back';
+  const bonusOn = d => d.held || d.down ? 1 : 0;
+  let mine = null, cap = '', fled = false, cover = false;
   F.round++;
-  // 一下攻击：攻方检定对守方闪避，闪避平手算躲开；打中了掷伤害（近战加力气），极难成功打满
-  const hit = (a, d, skill, w) => {
-    const r = R.check(skill, '普通', g.crit), dg = R.check(dodgeOf(d), '普通', g.crit, d === me && act.kind === 'dodge' ? 1 : 0);
-    let t = `${nm(a)}${w.name ? '用' + w.name : ''}攻击${nm(d)}：掷出 ${r.v}（${r.grade}）`;
-    if (r.ok && R.rank(r) > R.rank(dg)) {
-      const n = Math.max(0, R.dice(w.dmg, R.rank(r) >= 3) + (!isFoe(a) && !/枪/.test(w.skill) ? R.db(a.attrs) : 0));
-      d.hp = Math.max(0, d.hp - n);
-      t += `，${nm(d)}闪避 ${dg.v}（${dg.grade}），打中了，伤害 ${n}（剩 ${d.hp}/${d.hpMax}）${!d.hp ? '，倒下了' : n * 2 >= d.hpMax ? '，重伤' : ''}`;
-    } else t += r.ok ? `，被${nm(d)}闪开了（闪避 ${dg.v}，${dg.grade}）` : '，没打中';
+  for (const p of [me, ...g.party]) p.wpn = p === me ? weapons(me).find(x => x.name === act.wpn) || FIST : weapons(p).reduce((a, b) => skillOf(p, b) >= skillOf(p, a) ? b : a);
+  const hurt = (a, d, w, top) => {
+    const n = Math.max(0, R.dice(w.dmg, top) + (!isFoe(a) && !isGun(w) ? R.db(a.attrs) : 0) - (isFoe(d) ? d.armor : 0));
+    d.hp = Math.max(0, d.hp - n);
+    return `伤害 ${n}${isFoe(d) && d.armor ? `（护甲挡了 ${d.armor}）` : ''}，${nm(d)}剩 ${d.hp}/${d.hpMax}${!d.hp ? '，倒下了' : n * 2 >= d.hpMax ? '，重伤' : ''}`;
+  };
+  // 一下攻击：枪不能防（你找了掩护就多一个惩罚骰）；近战看守方闪避还是反击
+  const hit = (a, d, w) => {
+    const gun = isGun(w), r = R.check(isFoe(a) ? a.atk : skillOf(a, w), '普通', g.crit, bonusOn(d) - (gun && d === me && cover ? 1 : 0));
+    let t = `${nm(a)}${w.name && w.name !== '徒手' ? '用' + w.name : ''}攻击${nm(d)}：${r.v}（${r.grade}）`;
+    if (gun) { t += r.ok ? `，打中了，${hurt(a, d, w, R.rank(r) >= 3)}` : '，没打中'; out.push(t); return r; }
+    const how = defOf(d), dr = R.check(how === 'dodge' ? dodgeOf(d) : brawlOf(d), '普通', g.crit);
+    t += `，${nm(d)}${how === 'dodge' ? '闪避' : '反击'} ${dr.v}（${dr.grade}）`;
+    if (how === 'back' && dr.ok && R.rank(dr) > R.rank(r)) t += `，反打回去，${hurt(d, a, melee(d), R.rank(dr) >= 3)}`;
+    else if (r.ok && (how === 'dodge' ? R.rank(r) > R.rank(dr) : R.rank(r) >= R.rank(dr))) t += `，打中了，${hurt(a, d, w, R.rank(r) >= 3)}`;
+    else t += r.ok ? '，没打着' : '，没打中';
     out.push(t); return r;
+  };
+  // 战技：斗殴对守方的闪避 / 反击；对方体格大一级多一个惩罚骰，大三级做不了
+  const move = d => {
+    const gap = buildOf(d) - buildOf(me), name = MOVES.find(x => x[0] === act.move)[1];
+    if (gap >= 3) { out.push(`你想${name}${d.name}：它太大了，根本拽不动`); return null; }
+    const r = R.check(brawlOf(me), '普通', g.crit, bonusOn(d) - Math.max(0, gap)), how = defOf(d), dr = R.check(how === 'dodge' ? dodgeOf(d) : brawlOf(d), '普通', g.crit);
+    const win = r.ok && (how === 'dodge' ? R.rank(r) > R.rank(dr) : R.rank(r) >= R.rank(dr));
+    if (win) { if (act.move === 'hold') d.held = true; if (act.move === 'knock') d.down = true; if (act.move === 'disarm') d.wpn = '徒手'; }
+    out.push(`你想${name}${d.name}${gap > 0 ? `（它比你大，惩罚骰 ${gap} 个）` : ''}：${r.v}（${r.grade}），${d.name}${how === 'dodge' ? '闪避' : '反击'} ${dr.v}（${dr.grade}），${win ? { hold: '按住了', disarm: '它的武器掉了', knock: '撞倒了' }[act.move] : '没成'}`);
+    return r;
   };
   for (const p of [me, ...g.party, ...F.foes].filter(up).sort((x, y) => dexOf(y) - dexOf(x))) {
     if (!up(p)) continue;
     const foes = F.foes.filter(up), ours = [me, ...g.party].filter(x => up(x) && !(x === me && fled));
-    if (isFoe(p)) { if (ours.length) hit(p, pick(ours), p.atk, { name: p.wpn, dmg: p.dmg }); continue; }
+    if (isFoe(p)) {
+      if (p.down) { p.down = false; out.push(`${p.name}爬起来了`); continue; }
+      if (p.held) { if (R.opposed(p.brawl, brawlOf(me), g.crit).win) { p.held = false; out.push(`${p.name}挣开了你`); } else out.push(`${p.name}被你按着，挣不开`); continue; }
+      for (let i = 0; i < p.n && ours.some(up); i++) hit(p, pick(ours.filter(up)), wpnOf(p));
+      continue;
+    }
     if (!foes.length) break;
-    if (p !== me) { const w = weapons(p).reduce((a, b) => skillOf(p, b) >= skillOf(p, a) ? b : a); hit(p, pick(foes), skillOf(p, w), w); continue; }
-    if (act.kind === 'dodge') { out.push('你这一轮专心闪避'); continue; }
-    if (act.kind === 'flee') { mine = R.check(me.attrs.DEX, '普通', g.crit); fled = mine.ok; cap = '逃跑（敏捷）'; out.push(`你想逃：掷出 ${mine.v}（${mine.grade}），${fled ? '逃出去了' : '没逃掉'}`); continue; }
-    const w = weapons(me).find(x => x.name === act.wpn) || FIST, d = foes.find(f => f.name === act.foe) || foes[0];
-    cap = `${w.name}攻击${d.name}`; mine = hit(me, d, skillOf(me, w), w);
+    if (p !== me) { hit(p, pick(foes), p.wpn); continue; }
+    if (act.kind === 'cover') { mine = R.check(dodgeOf(me), '普通', g.crit); cover = mine.ok; cap = '找掩护（闪避）'; out.push(`你扑倒找掩护：${mine.v}（${mine.grade}），${cover ? '躲好了，这一轮朝你开枪的更难打中' : '没找到地方'}`); continue; }
+    if (act.kind === 'flee') { mine = R.check(me.attrs.DEX, '普通', g.crit); fled = mine.ok; cap = '逃跑（敏捷）'; out.push(`你想逃：${mine.v}（${mine.grade}），${fled ? '逃出去了' : '没逃掉'}`); continue; }
+    const d = foes.find(f => f.name === act.foe) || foes[0];
+    if (act.kind === 'move') { cap = `${MOVES.find(x => x[0] === act.move)[1]}${d.name}`; mine = move(d); continue; }
+    cap = `${me.wpn.name}攻击${d.name}`; mine = hit(me, d, me.wpn);
   }
+  for (const p of [me, ...g.party]) delete p.wpn;
+  if (!up(me) || fled) for (const f of F.foes) f.held = false;
   const over = !F.foes.some(up) ? '敌人都倒下了，战斗结束' : fled ? '你逃出了战斗' : !up(me) ? '你倒下了' : '';
   if (over) g.fight = null;
   return { lines: over ? [...out, over] : out, text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, over, mine, cap };

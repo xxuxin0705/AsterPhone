@@ -568,22 +568,26 @@ function playPage(g) {
     } }, '🎒');
     act.append(h('div.as-int-input', dice, bagB, ta, btn('发送', 'primary', () => send(ta.value.trim()))));
   }
-  // 战斗这一轮：点敌人选打谁，有武器的挑用哪件，攻击 / 闪避（这轮闪避多一个奖励骰）/ 逃跑；一点就收起，免得点两次
+  // 战斗这一轮：点敌人选对谁，有武器的挑用哪件，防守选闪避 / 反击（被近战打时用），再选攻击 / 战技 / 找掩护（有敌人拿枪才有）/ 逃跑；一点就收起，免得点两次
   function fightBox() {
-    const F = g.fight, alive = F.foes.filter(f => f.hp > 0), ws = G.weapons(g.pc);
-    let foe = alive[0].name, wpn = ws[ws.length - 1].name;
-    const chips = h('div.as-int-foes', alive.map((f, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { foe = f.name; [...chips.children].forEach(x => x.classList.toggle('is-on', x === e.currentTarget)); } }, `${f.name} ♥${f.hp}/${f.hpMax}`)));
+    const F = g.fight, me = g.pc, alive = F.foes.filter(f => f.hp > 0), ws = G.weapons(me), dg = me.skills.闪避 ?? 20, bw = me.skills.斗殴 ?? 25;
+    let foe = alive[0].name, wpn = ws[ws.length - 1].name, def = dg >= bw ? 'dodge' : 'back';
+    const tag = f => [f.held && '被按住', f.down && '倒地', f.wpn === '徒手' && '没武器'].filter(Boolean).join(' · ');
+    const chips = h('div.as-int-foes', alive.map((f, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { foe = f.name; [...chips.children].forEach(x => x.classList.toggle('is-on', x === e.currentTarget)); } }, `${f.name} ♥${f.hp}/${f.hpMax}${tag(f) ? ' · ' + tag(f) : ''}`)));
     // 每一轮在手机里掷完、在对话框里一下下放给你看，不找 AI；打完（或者你中途说话）才把攒下的几轮一起交给 KP 讲，一场战斗只找一两次 AI
-    const go = kind => async () => {
+    const go = async (kind, move) => {
       act.replaceChildren();
-      const r = G.fightRound(g, { kind, foe, wpn }); await G.save(); paintHud();
+      const r = G.fightRound(g, { kind, foe, wpn, def, move }); await G.save(); paintHud();
       if (r.mine) await rollOverlay(p.el, r.mine.t, r.mine.u, r.cap, '', r.mine.grade);
       pending = [pending, r.text].filter(Boolean).join('\n');
       if (r.over) { send(''); return; }
       show(r.lines.map(t => ({ who: '战斗', act: t })));
     };
-    return h('div.as-int-ask.as-int-fight', h('b', `战斗 · 第 ${F.round + 1} 轮`), chips, ws.length > 1 ? segmented(ws.map(w => [w.name, w.name]), wpn, v => { wpn = v; }) : null,
-      h('div.as-int-row', btn('攻击', 'primary', go('atk')), btn('闪避', 'secondary', go('dodge')), btn('逃跑', 'secondary', go('flee'))));
+    const moveB = btn('战技', 'secondary', async () => { const v = await actionSheet('战技', G.MOVES.map(([k, n]) => ({ value: k, label: n }))); if (v) go('move', v); });
+    return h('div.as-int-ask.as-int-fight', h('b', `战斗 · 第 ${F.round + 1} 轮`), chips,
+      ws.length > 1 ? h('div.as-int-def', h('span', '武器'), segmented(ws.map(w => [w.name, w.name]), wpn, v => { wpn = v; })) : null,
+      h('div.as-int-def', h('span', '防守'), segmented([['dodge', `闪避 ${dg}`], ['back', `反击 ${bw}`]], def, v => { def = v; })),
+      h('div.as-int-row', btn('攻击', 'primary', () => go('atk')), moveB, alive.some(f => /枪/.test(f.wpn)) ? btn('找掩护', 'secondary', () => go('cover')) : null, btn('逃跑', 'secondary', () => go('flee'))));
   }
   async function send(what) {
     if (G.running()) { G.cancel(); return; }
