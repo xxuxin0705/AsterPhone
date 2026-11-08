@@ -75,17 +75,19 @@
 .as-int-card__head .as-input { padding: 0 2px; height: 26px; background: none; border: 0; border-radius: 0; color: #2f2619; font: 500 15px/1 "Noto Serif SC", serif; box-shadow: none; }
 .as-int-card__head .as-input:first-child { font-size: 19px; height: 30px; }
 .as-int-sheet-empty { text-align: center; padding: 120px 0; opacity: .7; }
-.as-int-sheet-paper h3 { margin: 18px 0 8px; font: 600 15px/1 "Noto Serif SC", serif; letter-spacing: .2em; color: #5a4a3a; border-bottom: 1px solid rgba(90,74,58,.3); padding-bottom: 6px; }
+.as-int-sheet-paper h3 { margin: 16px 0 6px; font: 600 14px/1 "Noto Serif SC", serif; letter-spacing: .2em; border-bottom: 1px solid rgba(47,38,25,.3); padding-bottom: 6px; }
 .as-int-sheet-paper h3:first-child { margin-top: 0; }
-.as-int-sheet-paper .as-field__label { color: #6a5a4a; font-size: 11px; }
-.as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea { background: rgba(255,248,230,.35); border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; color: #2f2619; font-family: inherit; box-shadow: none; }
+.as-int-sheet-paper .as-field { padding: 6px 2px; gap: 4px; }
+.as-int-sheet-paper .as-field__label { color: inherit; font-size: 11.5px; }
+.as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea { padding: 5px 8px; background: rgba(255,248,230,.35); border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; color: #2f2619; font-family: inherit; font-size: 14px; box-shadow: none; }
+.as-int-sheet-paper .as-textarea { min-height: 0; font-size: 13.5px; }
 .as-int-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-.as-int-job { height: 38px; padding: 0 10px; border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; background: rgba(255,248,230,.35); color: #2f2619; font: inherit; text-align: left; cursor: pointer; }
+.as-int-job { height: 30px; padding: 0 10px; border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; background: rgba(255,248,230,.35); color: #2f2619; font: inherit; text-align: left; cursor: pointer; }
 .as-int-attrs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.as-int-attr { display: grid; grid-template-columns: 1fr auto; align-items: baseline; padding: 6px 8px; border: 1px solid rgba(27,42,82,.18); border-radius: 6px; background: rgba(255,248,230,.3); color: #2f2619; font-family: inherit; cursor: pointer; text-align: left; }
-.as-int-attr small { font-size: 12px; color: #6a4a2a; }
-.as-int-attr b { font-size: 20px; font-weight: 600; }
-.as-int-attr i { grid-column: 1 / -1; font-style: normal; font-size: 10px; opacity: .6; text-align: right; }
+.as-int-attr { display: grid; grid-template-columns: 1fr auto; align-items: baseline; padding: 4px 8px; border: 1px solid rgba(27,42,82,.18); border-radius: 6px; background: rgba(255,248,230,.3); color: #2f2619; font-family: inherit; cursor: pointer; text-align: left; }
+.as-int-attr small { font-size: 12px; }
+.as-int-attr b { font-size: 17px; font-weight: 600; }
+.as-int-attr i { grid-column: 1 / -1; font-style: normal; font-size: 10px; text-align: right; }
 .as-int-derived { margin: 8px 0; font-size: 13px; }
 .as-int-hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: #8a3a1c; }
 .as-int-stars { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
@@ -97,12 +99,19 @@
 .as-int-pts.is-over { color: #b0302a; }
 .as-int-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
 .as-int-skill { display: grid; grid-template-columns: 1fr auto 22px 2.2em 22px; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px dotted rgba(27,42,82,.2); font-size: 13px; }
-.as-int-skill small { font-size: 10px; opacity: .5; }
+.as-int-skill small { font-size: 10px; }
 .as-int-skill > span { cursor: pointer; }
 .as-int-skill.is-job > span { color: #7a3a14; font-weight: 600; }
-.as-int-skill b { text-align: center; font-size: 15px; }
+.as-int-skill b { text-align: center; font-size: 14px; }
 .as-int-skill button { width: 22px; height: 22px; padding: 0; border: 1px solid rgba(27,42,82,.3); border-radius: 50%; background: none; color: #2f2619; font-size: 14px; line-height: 1; cursor: pointer; }
 .as-int-more { margin: 8px 0 4px; padding: 0; border: 0; background: none; color: #6a3a1c; font: inherit; font-size: 13px; cursor: pointer; }
+/* 夜里：深色档案纸（白天那张调暗做的），浅字、金棕色标题，格子是深色 */
+.as-phone[data-mode="night"] .as-int-card__scroll { background-image: url(../../assets/interlude/sheet-night.webp); }
+.as-phone[data-mode="night"] :is(.as-int-sheet-paper, .as-int-card__head, .as-int-card__head .as-input, .as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea, .as-int-job, .as-int-attr, .as-int-skill button) { color: #ece4d2; }
+.as-phone[data-mode="night"] :is(.as-int-sheet-paper h3, .as-int-sheet-paper .as-field__label, .as-int-attr small, .as-int-more, .as-int-skill.is-job > span) { color: #d6b77f; }
+.as-phone[data-mode="night"] :is(.as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea, .as-int-job, .as-int-attr) { background: rgba(0,0,0,.3); border-color: rgba(236,228,210,.16); }
+.as-phone[data-mode="night"] :is(.as-int-sheet-paper h3, .as-int-skill, .as-int-skill button) { border-color: rgba(236,228,210,.22); }
+.as-phone[data-mode="night"] :is(.as-int-hint, .as-int-pts.is-over) { color: #f08a7e; }
 .as-int-card__bar { flex: none; display: flex; gap: 8px; }
 .as-int-card__bar .as-btn { flex: 1; }
 
@@ -163,6 +172,11 @@
 .as-int-box .as-glass-cv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
 .as-int-box > :not(.as-glass-cv) { position: relative; z-index: 1; }
 .as-int-box.is-css { -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); }
+/* 玻璃的着色跟着日夜（作者记的液态玻璃做法）：夜里深玻璃白字，白天浅玻璃深字 */
+.as-int-box::after { content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; background: rgb(20 20 24 / .3); pointer-events: none; }
+.as-phone:not([data-mode="night"]) .as-int-box::after { background: rgb(255 255 255 / .55); }
+.as-phone:not([data-mode="night"]) :is(.as-int-box, .as-int-box__back) { color: #1d1d1f; text-shadow: none; }
+.as-phone:not([data-mode="night"]) .as-int-box__voice { background: rgba(0,0,0,.08); color: #1d1d1f; }
 .as-int-box__voice { position: absolute !important; right: 10px; top: 10px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; }
 .as-int-box__voice.is-on { background: rgba(255,255,255,.4); animation: as-int-bob .6s ease-in-out infinite alternate; }
 .as-int-box p { margin: 0; }
@@ -180,7 +194,7 @@
 .as-int-ask b { font-weight: 500; flex: 1; }
 .as-int-ask .as-int-row { width: 100%; }   /* 孤注一掷：两个按钮排一行 */
 .as-int-fight { margin-bottom: 8px; } .as-int-fight > .as-segmented, .as-int-fight > .as-int-row { width: 100%; }
-.as-int-fight .as-int-row .as-btn { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+:is(.as-int-fight, .as-int-end) .as-int-row .as-btn { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
 .as-int-def { display: flex; align-items: center; gap: 10px; width: 100%; } .as-int-def > span { font-size: 13px; opacity: .75; flex: none; } .as-int-def > .as-segmented { flex: 1; }
 .as-int-foes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
 .as-int-foes button { padding: 5px 10px; border: 1px solid rgba(47,38,25,.3); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 13px; }
@@ -189,6 +203,9 @@
 .as-int-wait .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
 .as-int-end { padding: 14px 16px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); display: flex; flex-direction: column; gap: 8px; }
 .as-int-end p { margin: 0; font-size: 14px; line-height: 1.7; }
+/* 夜里底下这几块换深色（夜里按钮是白字，浅底上看不见） */
+.as-phone[data-mode="night"] :is(.as-int-ask, .as-int-wait, .as-int-end, .as-int-input .as-textarea, .as-int-dicebtn) { background: rgba(30,28,26,.94); color: #ece4d2; }
+.as-phone[data-mode="night"] .as-int-foes button.is-on { background: #ece4d2; color: #2f2619; }
 
 /* 对话框里：旁白小一点淡一点，台词是主角，翻译再小一行 */
 .as-int-box__act { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 4px !important; }
@@ -223,6 +240,22 @@
 /* 车卡会：和玩的时候一样的舞台，背景是书桌；亮卡时卡片摆在人物上面 */
 .as-int-meet__card .as-int-reveal { margin: 0 0 10px; animation: as-int-up 320ms ease both; }
 .as-int-meet__bad { color: #a63a33; }
+.as-phone[data-mode="night"] .as-int-meet__bad { color: #f08a7e; }
+/* 结尾的团公告：钉在墙上的羊皮纸（开场动画那张纸 + 蜡封当图钉），在舞台上面空着的那块；字多就在纸里滑，放大时盖住舞台 */
+.as-int-meet .as-page__body { display: flex; flex-direction: column; }
+.as-int-meet .as-int-stage { position: relative; margin-top: auto; }
+.as-int-post { position: relative; z-index: 2; min-height: 0; display: flex; flex-direction: column; margin: 12px 20px 12px; padding: 2px 6px; color: #2f2619; font-family: "Noto Serif SC", serif;
+  border: 30px solid transparent; border-image: url(../../assets/interlude/scroll.webp) 110 fill stretch; transform: rotate(-1.2deg); filter: drop-shadow(0 10px 14px rgba(0,0,0,.45)); cursor: pointer; }
+.as-int-post[hidden] { display: none; }
+.as-phone[data-mode="night"] .as-int-post { filter: brightness(.82) sepia(.12) drop-shadow(0 10px 14px rgba(0,0,0,.55)); }
+.as-int-post > img { position: absolute; top: -40px; right: -22px; width: 36px; transform: rotate(-14deg); pointer-events: none; }
+.as-int-post > b { flex: none; margin-bottom: 6px; text-align: center; font: 600 15px/1.3 "Noto Serif SC", serif; letter-spacing: .3em; }
+.as-int-post__text { min-height: 0; overflow-y: auto; font-size: 13px; line-height: 1.7; -webkit-mask-image: linear-gradient(#000 calc(100% - 14px), transparent); mask-image: linear-gradient(#000 calc(100% - 14px), transparent); }
+.as-int-post__text p { margin: 0; }
+.as-int-post__text p + p { margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(47,38,25,.35); }
+.as-int-post.is-big { position: absolute; inset: 0 10px 10px; margin: 0; z-index: 5; transform: none; animation: as-int-pop 260ms var(--as-ease-spring, ease) both; }
+.as-int-post.is-big .as-int-post__text { font-size: 14.5px; }
+@keyframes as-int-pop { from { transform: scale(.86) rotate(-1.2deg); opacity: .5; } }
 .as-int-notice { display: grid; gap: 8px; padding: 0 4px 12px; font-size: 14px; line-height: 1.7; }
 .as-int-notice p { margin: 0; }
 .as-int-notice b { font-weight: 500; }

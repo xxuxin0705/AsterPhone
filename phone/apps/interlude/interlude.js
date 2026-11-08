@@ -384,7 +384,10 @@ function cardPage(back, resume) {
     const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(); } }, icon('volume', 18, 1.8));
     const backB = h('button.as-int-box__back', { 'aria-label': '上一句', onclick: e => { e.stopPropagation(); back(); } }, '◂');
     const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
-    q.body.append(h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
+    // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来放大，再点挂回去；纸先解码好再钉上，不然有一帧只有字
+    const paper = new Image(); paper.src = BASE + 'scroll.webp'; const paperOk = paper.decode().catch(() => {});
+    const pin = h('div.as-int-post', { hidden: true, onclick: () => pin.classList.toggle('is-big') }, img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)));
+    q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
     let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
     const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
     async function voice() {
@@ -409,22 +412,22 @@ function cardPage(back, resume) {
     function next() { if (!queue.length) return; seen.push(queue.shift()); say(seen.at(-1)); if (!queue.length) end(); }
     function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); act.hidden = true; }
     const play = lines => { queue.push(...lines); act.hidden = true; next(); };
-    // 演完：没过审的时候是规矩 + 改卡 / 交卡，过了就是开局
+    // 演完：没过审的时候是改卡 / 交卡，过了就是开局
     const bad = h('p.as-int-meet__bad');
     const editB = btn(cur.me ? '改我的卡' : '车我的卡', 'secondary', () => { nav.pop(); if (sel !== 'me') { sel = 'me'; paintTabs(); paint(); paintBar(); } });
     const give = btn('交卡', 'primary', () => {
       const list = G.checkCard(cur.me, m);
       if (list.length) { bad.textContent = '没过：' + list.join('；'); bad.hidden = false; if (tries++ || !m.fail.length) end(); else play(m.fail); return; }
       const t = R.tierOf(m.rules.tiers[myName()]); if (m.mode !== 'random' && t) { cur.me.tier = t; G.save(); }   // 过了：你的档位照会上定的
-      passed = true; play([...m.pass, ...owners.flatMap(o => { const c = cardOf(o), rv = m.reviews[ownerName(o)] || m.reviews[c.name];
+      pin.hidden = passed = true; play([...m.pass, ...owners.flatMap(o => { const c = cardOf(o), rv = m.reviews[ownerName(o)] || m.reviews[c.name];
         return [{ who: ownerName(o), act: `亮卡：${c.name} · ${c.job}`, o }, ...(Array.isArray(rv) ? rv : []).map(l => ({ ...l, o }))]; })]);
     });
     give.hidden = !cur.me; bad.hidden = true;
-    // 演完：团公告、回顾（到现在为止的整场对话）各一个按钮，点开是单子，舞台不被挤掉；下面改卡 / 交卡，过了就是开局
+    // 演完：团公告钉在墙上；回顾（到现在为止的整场对话）点开是单子，和改卡 / 交卡排一行；过了就是回顾 / 开局
     const log = () => sheet({ title: '回顾', content: h('div.as-int-log', seen.map(l => h('div', h('b', l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : idOf(l.who) === 'me' ? '你' : l.who),
       l.act ? h('small', l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null))) });
-    const rules = h('div.as-int-end', h('div.as-int-row', btn('团公告', 'secondary', notice), btn('回顾', 'secondary', log)), bad, h('div.as-int-row', editB, give));
-    const end = () => { act.hidden = false; act.replaceChildren(passed ? h('div.as-int-end', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', () => { nav.pop(); begin(); }))) : rules); };
+    const rules = h('div.as-int-end', bad, h('div.as-int-row', btn('回顾', 'secondary', log), editB, give));
+    const end = () => { act.hidden = false; paperOk.then(() => { pin.hidden = passed; }); act.replaceChildren(passed ? h('div.as-int-end', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', () => { nav.pop(); begin(); }))) : rules); };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
     if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
