@@ -161,7 +161,7 @@ async function splash(host) {
   for (const ch of line) { if (x.measureText(cur + ch).width > pw * .74 && cur && !'。，、；：？！—」'.includes(ch)) { rows.push(cur); cur = ''; } cur += ch; }   // 标点不开头
   if (cur) rows.push(cur);
   const top = .5 - (rows.length - 1) * .08;
-  const lines = [...rows.map((t, i) => [t, size, top + i * .16, 0]), ['——致调查员', size * .7, top + rows.length * .16 + .04, 1]];
+  const lines = rows.map((t, i) => [t, size, top + i * .16, 0]);
   const gold = (y0, y1) => { const g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, '#f6e3a1'); g.addColorStop(.5, '#c9973c'); g.addColorStop(1, '#8a6224'); return g; };
   const xOf = (t, sz, right) => right ? px + pw * .86 - x.measureText(t).width : W / 2 - x.measureText(t).width / 2;   // 左边
   // 深蓝的字、鎏金的边：先描一圈金，再把字填上
