@@ -205,7 +205,9 @@ export function clearBg(p, type = 'image/png') {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), i = new Image();
   return new Promise((ok, no) => { i.onload = ok; i.onerror = no; i.src = p.base; }).then(() => {
     x.drawImage(i, 0, 0); const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, seen = new Uint8Array(W * H), st = [];
-    const white = k => a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235;
+    // 底色看四个角：浅色（米白、浅灰）就连它一起去掉；深色不敢去，衣服、头发常常也是深的
+    const bg = [0, W - 1, (H - 1) * W, H * W - 1].reduce((s, k) => s.map((v, i) => v + a[k * 4 + i] / 4), [0, 0, 0]), light = Math.min(...bg) > 170;
+    const white = k => a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235 || light && bg.every((v, i) => Math.abs(a[k * 4 + i] - v) < 16);
     for (let x0 = 0; x0 < W; x0++) st.push(x0, (H - 1) * W + x0); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
     while (st.length) { const k = st.pop(); if (seen[k] || !white(k)) continue; seen[k] = 1; a[k * 4 + 3] = 0; const px = k % W;
       if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
