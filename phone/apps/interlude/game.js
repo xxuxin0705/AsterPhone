@@ -123,7 +123,7 @@ export async function makeCards(owners, all = owners, s = {}) {
   }, 1200 + 700 * owners.length);
   const list = Array.isArray(out.cards) ? out.cards : [];
   if (!list.length) throw new Error('AI 回的格式不对');
-  if (!m && !s.meet) D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, hint: String(out.hint || ''), rules: toRules(out.rules) };
+  if (!m && !s.meet) D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), rules: toRules(out.rules) };
   const r = (meeting(s) || {}).rules;
   return keep(owners.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o], r)));
 }
@@ -136,6 +136,8 @@ export const USES = [['new', '新卡'], ['old', '旧卡'], ['mix', '随机']];
 const meetKey = s => [s.kp, s.scenario, s.ask, s.mood, s.mode, s.use, s.note, !!s.meet, ...(s.party || [])].join('|');
 /** 这一桌的团公告（不开车卡会时和车卡一起写的，或者车卡会） */
 export const meeting = s => D.meet && D.meet.key === meetKey(s) ? D.meet : null;
+/** 开团公告 / 车卡会时的开局设置（退出、刷新后回来接上） */
+export const savedPick = () => D.meet && D.meet.pick;
 export async function meet(s) {
   const fresh = Object.fromEntries(['me', ...s.party].map(o => [o, !lastCard(o) || s.use === 'new' || (s.use === 'mix' && Math.random() < .5)])), news = s.party.filter(o => fresh[o]);
   const g = { kp: s.kp, know: true, lang: s.lang }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
@@ -151,7 +153,7 @@ export async function meet(s) {
   const cards = await keep(news.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o], rules))), adjust = {};
   for (const o of s.party.filter(o => !fresh[o])) { const x = all.find(c => c.old && c.who === ownerName(o)); if (!x) continue;
     adjust[o] = { ...(Array.isArray(x.items) ? { items: x.items.map(toItem).filter(Boolean) } : {}), ...(Array.isArray(x.abilities) ? { abilities: x.abilities.map(toPower).filter(Boolean) } : {}) }; }
-  D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {},
+  D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {},
     cards: Object.fromEntries(cards.map(c => [c.owner, c.id])), fresh: fresh.me, adjust, rules };
   await save(); return D.meet;
 }

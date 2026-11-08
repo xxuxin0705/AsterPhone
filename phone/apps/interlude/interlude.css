@@ -12,7 +12,8 @@
 /* ---------- 书桌：一张比屏幕宽的图，左右拖着看；点东西镜头推过去 ---------- */
 .as-int-desk .as-page__body { pointer-events: none; }
 .as-int-scene { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #1b2232; }
-.as-int-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 600ms cubic-bezier(.3, .7, .2, 1); }
+/* will-change：桌子一开始就是单独一层。不然点了推镜头时才临时分层、重新画图，手机上会有一帧整张桌子是空的（作者录屏里一闪） */
+.as-int-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 600ms cubic-bezier(.3, .7, .2, 1); will-change: transform; }
 .as-int-world > img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; -webkit-user-drag: none; user-select: none; }
 .as-int-world > img.is-night { opacity: 0; }
 .as-int-scene.is-lit .as-int-world > img.is-night { opacity: 1; }

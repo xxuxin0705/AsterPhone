@@ -27,6 +27,11 @@ const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
 const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new', note: '' };
 const MAX_SEATS = 8;
+const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
+// 这一桌的设置：车卡会 / 团公告照它认（换了人、本、车卡方式就作废）；pick 跟着存进去，退出、刷新后回来能接上
+const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode: pick.know ? pick.mode : 'self', use: pick.use, note: pick.note,
+  meet: !!(pick.know && pick.meet), lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
+let restored = false;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
 let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
 const failed = (e, what) => { if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', what + '：' + e.message, e); toast(what + '：' + e.message); } };
@@ -42,7 +47,8 @@ const pct = (v, all) => v / all * 100 + '%';
 export function open() {
   const more = navBtn('more', '更多', async () => {
     const g = G.current();
-    const v = await actionSheet('幕间', [g ? { value: 'quit', label: `放弃《${g.title}》`, danger: true } : null, { value: 'rule', label: '规则小抄' }].filter(Boolean));
+    const v = await actionSheet('幕间', [g ? { value: 'quit', label: `放弃《${g.title}》`, danger: true } : null, !g && G.meeting(table()) ? { value: 'setup', label: '改开局设置' } : null, { value: 'rule', label: '规则小抄' }].filter(Boolean));
+    if (v === 'setup') setupSheet(() => cardPage(syncBar), chooseKp);
     if (v === 'quit' && await dialog({ title: '放弃这一局？', text: '放弃后回到桌上，可以开新的一局。', confirm: '放弃', danger: true })) { await G.quit(g); syncBar(); }
     if (v === 'rule') dialog({ title: '规则小抄', text: '掷 1D100，小于等于技能值就成功；困难要小于等于一半，极难要小于等于五分之一。看到可怕的东西要掷理智，一次掉 5 点以上会临时发疯。血归零倒地，理智归零退场。', confirm: '知道了', cancel: '' });
   });
@@ -126,10 +132,10 @@ export function open() {
     pick.kp = v; pick.party = pick.party.filter(id => id !== v); paintSeats(); syncBar(); then && then();
   }
   // 底下一条：谁上桌 + 开局 / 继续
-  const who = h('span'), go = btn('开局', 'primary', () => { const g = G.current(); if (g) playPage(g); else setupSheet(() => cardPage(syncBar), chooseKp); });
+  const who = h('span'), go = btn('开局', 'primary', () => { const g = G.current(); if (g) playPage(g); else if (G.meeting(table())) cardPage(syncBar, true); else setupSheet(() => cardPage(syncBar), chooseKp); });
   const bar = h('div.as-int-bar', who, go); p.body.append(bar);
-  function syncBar() { const g = G.current(); who.textContent = `上桌：${[myName(), ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : '开局'; }
-  G.load().then(syncBar);
+  function syncBar() { const g = G.current(); who.textContent = `上桌：${[myName(), ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
+  G.load().then(() => { const saved = G.savedPick(); if (!restored && saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } restored = true; syncBar(); });
   p.el._onShow = syncBar;
   if (state.apps.interlude.splash) splash(p.el);
   return p.el;
@@ -291,11 +297,9 @@ function setupSheet(next, chooseKp) {
 /* ---------- 调查员卡：上面一排头像切换，下面是这个人的卡（羊皮纸）；没卡的人一起让 AI 车 ---------- */
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size, size > 60 ? 'square' : 'round') : avatar(contact(o).avatar, nameOf(contact(o)), size, size > 60 ? 'square' : 'round');
-function cardPage(back) {
+function cardPage(back, resume) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
-  const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
-  const meetOn = pick.know && pick.meet, mode = pick.know ? pick.mode : 'self';
-  const ms = { kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode, use: pick.use, note: pick.note, meet: meetOn, lang: langs() };
+  const ms = table(), meetOn = ms.meet;
   let sel = 'me', m = G.meeting(ms);   // 这桌的团公告：开车卡会时是那场会，不开时是车卡时 KP 一起写的
   const fresh = () => { if (m && m.fresh && cur.me && cur.me.at < m.at) cur.me = null; };   // 这局统一用新卡：会前的旧卡不算，你要新车一张
   fresh();
@@ -489,7 +493,7 @@ function cardPage(back) {
   }
   paintTabs(); paint(); paintBar();
   nav.push(p.el);
-  if (meetOn) { if (!m) holdMeet(); }   // 开着车卡会：进来就开会（其他人的卡在会上车）
+  if (meetOn) { if (!m) holdMeet(); else if (resume) meetPage(true); }   // 开着车卡会：进来就开会（其他人的卡在会上车）；「继续车卡」进来直接回到会上
   else if (owners.some(o => !cur[o])) make(owners.filter(o => !cur[o]));   // 进来就把没卡的一起车了
 }
 

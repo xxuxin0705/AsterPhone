@@ -37,6 +37,9 @@ const sysDark = () => {
   try { return !!(window.parent !== window && window.parent.matchMedia(q).matches); } catch (e) { return false; }
 };
 const wantNight = () => state.settings.mode === 'night' || (state.settings.mode === 'auto' && sysDark());
+// 夜间告诉浏览器「这页是暗色的」：不然开着「网页深色主题」的浏览器会再自动调暗一遍（把浅色头像当图标反色、输入框变灰）；
+// 只靠 base.css 的 prefers-color-scheme 不够，有的浏览器在 iframe 里不报系统是暗色
+const markNight = night => { phone.dataset.mode = night ? 'night' : 'day'; document.documentElement.style.colorScheme = night ? 'dark' : ''; };
 function setNight(night, originEl, instant) {
   let origin = null;
   if (originEl) {
@@ -44,7 +47,7 @@ function setNight(night, originEl, instant) {
     origin = [(r.left + r.width / 2 - p.left) / p.width, (r.top + r.height / 2 - p.top) / p.height];
   }
   if ((phone.dataset.mode === 'night') !== night || instant) wallpaper.setNight(night, origin || [.5, .12], instant);
-  phone.dataset.mode = night ? 'night' : 'day';
+  markNight(night);
 }
 /* ---------- 壁纸：锁屏一张、桌面一张 ---------- */
 let wallTok = 0, wallReady = Promise.resolve();
@@ -214,7 +217,7 @@ async function boot() {
     lockNow: () => onVisible(false), showWall, refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
     wantNight, activeChat: null, inDnd,
   });
-  phone.dataset.mode = wantNight() ? 'night' : 'day';
+  markNight(wantNight());
   nav.initNav($('#stack'), { onHomeBack: closePhone, onStackChange });
   initHome();
   initLock({ onUnlock });
