@@ -120,16 +120,17 @@ export async function meet(s) {
     rules: { tiers: r.tiers || {}, weapons: num(r.weapons), guns: r.guns !== false, abilities: num(r.abilities), banned: (Array.isArray(r.banned) ? r.banned : []).map(String).filter(Boolean), text: String(r.text || '') } };
   await save(); return D.meet;
 }
-/** 照车卡会的规矩审你的卡：回不合规矩的地方（空的就是过了） */
+/** 照车卡会的规矩审你的卡：回不合规矩的地方（空的就是过了）。活着打完几局长的属性（grown）、技能（skillUp）是挣来的，不算超 */
 export function checkCard(c, m) {
   const r = m.rules, bad = [], tier = R.TIERS.some(t => t[0] === r.tiers[myName()]) ? r.tiers[myName()] : c.tier || R.TIERS[0][0];
-  if (m.mode !== 'random' && R.attrSum(c.attrs) > R.budgetOf(tier)) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}最多 ${R.budgetOf(tier)}`);
+  const all = R.budgetOf(tier) + (c.grown || 0), sk = R.points(c.attrs) + (c.skillUp || 0);
+  if (m.mode !== 'random' && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
   const w = (c.items || []).filter(x => x.dmg), n = (c.abilities || []).length, things = [...(c.items || []), ...(c.abilities || [])].map(x => x.name).join('、') + (c.assets || '');
   if (r.weapons != null && w.length > r.weapons) bad.push(`武器带了 ${w.length} 件，最多 ${r.weapons} 件`);
   if (!r.guns && w.some(isGun)) bad.push(`不能带枪：${w.filter(isGun).map(x => x.name).join('、')}`);
   if (r.abilities != null && n > r.abilities) bad.push(`特殊能力 ${n} 个，最多 ${r.abilities} 个`);
   const ban = r.banned.filter(b => things.includes(b)); if (ban.length) bad.push(`不准带：${ban.join('、')}`);
-  if (R.spent(c.attrs, c.skills) > R.points(c.attrs)) bad.push(`技能点 ${R.spent(c.attrs, c.skills)}，最多 ${R.points(c.attrs)}`);
+  if (R.spent(c.attrs, c.skills) > sk) bad.push(`技能点 ${R.spent(c.attrs, c.skills)}，最多 ${sk}`);
   return bad;
 }
 export const meetRules = m => { const t = m.mode !== 'random' && R.TIERS.find(x => x[0] === m.rules.tiers[myName()]);
@@ -217,7 +218,7 @@ export async function grow(g) {
   for (const p of [g.pc, ...g.party]) {
     const c = (D.cards || []).find(x => x.id === p.card); if (!c || p.hp <= 0) continue;
     const up = [];
-    for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = R.d(10); c.skills[k] = Math.min(99, v + n); up.push(`${k} +${n}`); } }
+    for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = R.d(10); c.skills[k] = Math.min(99, v + n); c.skillUp = (c.skillUp || 0) + n; up.push(`${k} +${n}`); } }
     const pts = Math.max(5, Math.min(25, Math.round(+(g.done.grow || {})[p.name]) || (g.done.kind === 'good' ? 15 : 10)));
     c.grown = (c.grown || 0) + pts;
     if (p === g.pc) c.pend = (c.pend || 0) + pts;
