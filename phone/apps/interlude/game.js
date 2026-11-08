@@ -129,7 +129,7 @@ export async function play(g, input) {
     actNo: i + 1, act: A[i].title, goal: A[i].goal, exit: A[i].exit, left: Math.max(0, CAP - g.roundIn),
     checks: (A[i].checks || []).map(c => `- ${c.when}（${c.skill}）：${GRADES.map(k => `${k}：${c[k] || '—'}`).join('；')}`).join('\n') || '（这幕没有，照上面的分寸）',
     foes: (A[i].foes || []).map(f => `- ${JSON.stringify(f)}`).join('\n') || '（这幕没定，真要打起来照上面的分寸现定）',
-    fight: g.fight ? `\n【正在战斗】第 ${g.fight.round} 轮打完了；敌人：${g.fight.foes.map(f => `${f.name} 血 ${f.hp}/${f.hpMax}`).join('、')}。战斗由手机一轮轮替所有人掷，你只讲这一轮发生了什么（照收到的结果，不要改伤害和血），下一轮照旧提 fight；敌人投降、逃走或者剧情要停下时写 fightEnd: true。\n` : '',
+    fight: g.fight ? `\n【正在战斗】第 ${g.fight.round} 轮打完了；敌人：${g.fight.foes.map(f => `${f.name} 血 ${f.hp}/${f.hpMax}`).join('、')}。战斗由手机一轮轮替所有人掷，玩家中途说话时才把这几轮的结果交给你：照结果把这几轮讲成一段（不要改伤害和血），再接玩家说的；战斗还会接着由手机打，不用再提 fight；敌人投降、逃走或者剧情要停下时写 fightEnd: true。\n` : '',
     must: over ? (last ? '。这是最后一回合：必须在这回合收尾，给出结局（end）' : '。这是本幕最后一回合：必须在这回合达成出口，actDone 写 true') : '',
     pc: pcText(g), cast: castText(g), places: Object.keys(R.PLACES).join(' / '),
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
@@ -185,7 +185,7 @@ export function joinFight(g, foes) {
     F.foes.push({ name: String(f.name), wpn: String(f.wpn || ''), hp, hpMax: hp, atk: +f.atk || 40, dmg: String(f.dmg || '1D6'), dodge: +f.dodge || 20, dex: +f.dex || 50 });
   }
 }
-/** 这一轮：act = { kind: 'atk' | 'dodge' | 'flee', foe 打谁, wpn 用什么 }。返回 { text 给 KP 的结果, mine 你自己那一下的骰子, cap } */
+/** 这一轮：act = { kind: 'atk' | 'dodge' | 'flee', foe 打谁, wpn 用什么 }。返回 { lines 这一轮的每一下（给人看）, text 给 KP 的结果, over 打完了没, mine 你自己那一下的骰子, cap } */
 export function fightRound(g, act) {
   const F = g.fight, me = g.pc, up = x => x.hp > 0, out = [], nm = p => p === me ? '你' : p.name;
   const isFoe = p => F.foes.includes(p), dodgeOf = p => isFoe(p) ? p.dodge : p.skills.闪避 ?? 20, dexOf = p => isFoe(p) ? p.dex : p.attrs.DEX;
@@ -217,5 +217,5 @@ export function fightRound(g, act) {
   }
   const over = !F.foes.some(up) ? '敌人都倒下了，战斗结束' : fled ? '你逃出了战斗' : !up(me) ? '你倒下了' : '';
   if (over) g.fight = null;
-  return { text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, mine, cap };
+  return { lines: over ? [...out, over] : out, text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, over, mine, cap };
 }

@@ -573,11 +573,14 @@ function playPage(g) {
     const F = g.fight, alive = F.foes.filter(f => f.hp > 0), ws = G.weapons(g.pc);
     let foe = alive[0].name, wpn = ws[ws.length - 1].name;
     const chips = h('div.as-int-foes', alive.map((f, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { foe = f.name; [...chips.children].forEach(x => x.classList.toggle('is-on', x === e.currentTarget)); } }, `${f.name} ♥${f.hp}/${f.hpMax}`)));
+    // 每一轮在手机里掷完、在对话框里一下下放给你看，不找 AI；打完（或者你中途说话）才把攒下的几轮一起交给 KP 讲，一场战斗只找一两次 AI
     const go = kind => async () => {
       act.replaceChildren();
       const r = G.fightRound(g, { kind, foe, wpn }); await G.save(); paintHud();
       if (r.mine) await rollOverlay(p.el, r.mine.t, r.mine.u, r.cap, '', r.mine.grade);
-      pending = r.text; send('');
+      pending = [pending, r.text].filter(Boolean).join('\n');
+      if (r.over) { send(''); return; }
+      show(r.lines.map(t => ({ who: '战斗', act: t })));
     };
     return h('div.as-int-ask.as-int-fight', h('b', `战斗 · 第 ${F.round + 1} 轮`), chips, ws.length > 1 ? segmented(ws.map(w => [w.name, w.name]), wpn, v => { wpn = v; }) : null,
       h('div.as-int-row', btn('攻击', 'primary', go('atk')), btn('闪避', 'secondary', go('dodge')), btn('逃跑', 'secondary', go('flee'))));
