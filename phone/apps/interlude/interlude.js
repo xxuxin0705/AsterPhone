@@ -428,11 +428,11 @@ function cardPage(back) {
     // 档位和属性点：AI 照人设分的卡才有（自己掷骰的没有档位）；点档位能换
     const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t, n]) => ({ value: t, label: `${t} · ${n} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
     const apts = h('div.as-int-pts', tierB, h('span'));
-    const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`; }));
+    const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`; }));
     const paintAttrs = () => {
       apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
       apts.lastChild.textContent = `属性点 ${sum} / ${all}${up ? ` + 成长 ${up}` : ''}`; apts.classList.toggle('is-over', sum > all + up);
-      pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`;
+      pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]) } }), 10); if (!v) return;
         c.attrs[k] = Math.max(1, Math.min(90, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
@@ -486,16 +486,17 @@ function cardPage(back) {
   else if (owners.some(o => !cur[o])) make(owners.filter(o => !cur[o]));   // 进来就把没卡的一起车了
 }
 
-// 分属性点（活着打完一局加的）：每项 − / +，单项不超过 90；底部 取消 | 保存
+// 分成长点（活着打完一局给的）：点 + 就掷 1D100，大于现在的值才加 1，没过这点也用掉了（越高越难长，作者定的）；掷了就算，没有退回
 function spendSheet(c, done) {
-  const add = {}, left = h('p.as-int-spend__left'), used = () => Object.values(add).reduce((a, b) => a + b, 0);
+  const left = h('p.as-int-spend__left', `还剩 ${c.pend} 点`), said = h('p.as-int-spend__left');
   const rows = R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => {
     const v = h('b', c.attrs[k]);
-    const bump = d => { const cur = add[k] || 0; if (d > 0 ? used() >= c.pend || c.attrs[k] + cur >= 90 : !cur) return; add[k] = cur + d; v.textContent = c.attrs[k] + add[k]; left.textContent = `还剩 ${c.pend - used()} 点`; };
-    return h('div.as-int-spend__row', h('span', n), h('button', { 'aria-label': '减', onclick: () => bump(-1) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(1) }, '+'));
+    return h('div.as-int-spend__row', h('span', n), v, h('button', { 'aria-label': '加', onclick: async () => {
+      const r = await G.raise(c, k); if (!r) return;
+      v.textContent = c.attrs[k]; left.textContent = `还剩 ${c.pend} 点`; said.textContent = `${n}：掷出 ${r.r}，${r.ok ? '长了 1 点' : `没大过 ${r.was}，没长`}`;
+    } }, '+'));
   });
-  left.textContent = `还剩 ${c.pend} 点`;
-  const s = sheet({ title: '分属性点', content: h('div.as-int-spend', left, ...rows, h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => { await G.spend(c, add); s.close(); done(); }))) });
+  const s = sheet({ title: '分成长点', onClose: done, content: h('div.as-int-spend', left, said, ...rows, h('div.as-prompt-bar', btn('完成', 'primary', () => s.close()))) });
 }
 
 /** 抛骰子的大画面：盖在页面上，抛完亮出结果 */
@@ -712,8 +713,8 @@ function playPage(g) {
   // 结局：活着的人过一遍成长（只算一次），你的属性点在这里分，也能回车卡页再分
   const ending = () => {
     const box = h('div.as-int-grow');
-    const paint = list => box.replaceChildren(...(list || []).map(x => h('p', `${x.name}：${x.up.length ? x.up.join('、') : '技能没长'}${x.pts ? ` · 属性 +${x.pts}` : ''}`)),
-      ...(list || []).filter(x => x.me && (G.cardById(x.card) || {}).pend).map(x => btn(`分 ${G.cardById(x.card).pend} 点属性`, 'secondary', () => spendSheet(G.cardById(x.card), () => paint(g.grown)))));
+    const paint = list => box.replaceChildren(...(list || []).map(x => h('p', `${x.name}：${x.up.length ? x.up.join('、') : '技能没长'}${x.pts ? ` · 成长点 +${x.pts}` : ''}`)),
+      ...(list || []).filter(x => x.me && (G.cardById(x.card) || {}).pend).map(x => btn(`分 ${G.cardById(x.card).pend} 成长点`, 'secondary', () => spendSheet(G.cardById(x.card), () => paint(g.grown)))));
     G.grow(g).then(() => paint(g.grown));
     return h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text), box, btn('回到桌上', 'primary', () => nav.pop()));
   };

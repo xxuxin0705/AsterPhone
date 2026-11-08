@@ -231,7 +231,7 @@
 .as-int-ab button { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; background: none; color: inherit; opacity: .6; }
 .as-int-spend { display: grid; gap: 6px; }
 .as-int-spend__left { margin: 0 0 4px; text-align: center; opacity: .8; }
-.as-int-spend__row { display: grid; grid-template-columns: 1fr 36px 40px 36px; align-items: center; gap: 6px; }
+.as-int-spend__row { display: grid; grid-template-columns: 1fr 40px 36px; align-items: center; gap: 6px; }
 .as-int-spend__row b { text-align: center; font-variant-numeric: tabular-nums; }
 .as-int-spend__row button { height: 32px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--as-color-text) 8%, transparent); color: inherit; font-size: 18px; }
 .as-int-grow { display: grid; gap: 6px; margin: 8px 0; font-size: 13px; }

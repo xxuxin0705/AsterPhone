@@ -15,7 +15,12 @@ import { langName } from '../../core/translate.js';
 export const CAP = 8;
 const GRADES = ['大成功', '极难成功', '困难成功', '普通成功', '失败', '大失败'];   // 每幕最多几回合，到了 KP 必须推到出口
 let D = null, Dkey = '';
-export async function load() { if (D && Dkey === win.key) return D; Dkey = win.key; D = (await kvGet('int:' + win.key).catch(() => null)) || { games: [] }; return D; }
+export async function load() {
+  if (D && Dkey === win.key) return D; Dkey = win.key; D = (await kvGet('int:' + win.key).catch(() => null)) || { games: [] };
+  // 旧卡：技能改过名、补上后来加的技能、超过 90 的压回 90；没打完的局里的技能也改名
+  for (const c of D.cards || []) c.skills = R.fixSkills(c.attrs, R.renamed(c.skills));
+  for (const g of D.games.filter(g => !g.done)) for (const p of [g.pc, ...g.party]) p.skills = R.renamed(p.skills);
+  return D; }
 export const save = () => kvSet('int:' + Dkey, D);
 export const current = () => D.games.find(g => !g.done) || null;
 export const all = () => (D ? D.games : []);
@@ -216,8 +221,9 @@ export async function play(g, input) {
   await save();
   return lines;
 }
-/** 一局打完（不算放弃）：活着的人照规则书过技能成长——这局用成功过的技能各掷一次 1D100，大于技能值（或大于 95）就加 1D10；
- *  再加属性点：KP 在结局时按这局表现给每人 5～25 点（作者定的；没给就好结局 15、坏结局 10），单项不超过 90。你的点留着自己分，同伴的自动加在还没到 90 的那几项上。
+/** 一局打完（不算放弃）：活着的人照规则书过技能成长——这局用成功过的技能各掷一次 1D100，大于技能值（或大于 95）就加 1D10，最高 90；
+ *  再给成长点：KP 在结局时按这局表现给每人 5～25 点（作者定的；没给就好结局 15、坏结局 10）。属性越高越难长：每点要掷 1D100 大于现在的值才加 1，没过这点就白用了，单项不超过 90。
+ *  你的点留着自己分（raise），同伴的随机挑还没到 90 的属性掷。
  *  返回 [{ name, me, up: ['侦查 +4'], pts 这次加了几点, card 卡的 id }]，存在 g.grown 里，只算一次 */
 export const cardById = id => (D.cards || []).find(c => c.id === id) || null;
 export async function grow(g) {
@@ -226,19 +232,21 @@ export async function grow(g) {
   for (const p of [g.pc, ...g.party]) {
     const c = (D.cards || []).find(x => x.id === p.card); if (!c || p.hp <= 0) continue;
     const up = [];
-    for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = R.d(10); c.skills[k] = Math.min(99, v + n); c.skillUp = (c.skillUp || 0) + n; up.push(`${k} +${n}`); } }
+    for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = Math.min(R.MAX_SKILL - v, R.d(10)); if (n <= 0) continue; c.skills[k] = v + n; c.skillUp = (c.skillUp || 0) + n; up.push(`${k} +${n}`); } }
     const pts = Math.max(5, Math.min(25, Math.round(+(g.done.grow || {})[p.name]) || (g.done.kind === 'good' ? 15 : 10)));
     c.grown = (c.grown || 0) + pts;
     if (p === g.pc) c.pend = (c.pend || 0) + pts;
-    else for (let left = pts; left > 0;) { const k = Object.keys(c.attrs).filter(x => x !== 'LUCK' && c.attrs[x] < 90).sort((x, y) => c.attrs[y] - c.attrs[x])[0]; if (!k) break; const add = Math.min(left, 90 - c.attrs[k]); c.attrs[k] += add; left -= add; }
-    out.push({ name: c.name, me: p === g.pc, up, pts, card: c.id });
+    else { const got = {}; for (let i = 0; i < pts; i++) { const ks = Object.keys(c.attrs).filter(x => x !== 'LUCK' && c.attrs[x] < 90), k = ks[R.d(ks.length) - 1]; if (!k) break; if (R.d100().v > c.attrs[k]) { c.attrs[k]++; got[k] = (got[k] || 0) + 1; } }
+      for (const [k, n] of Object.entries(got)) up.push(`${R.ATTRS.find(x => x[0] === k)[1]} +${n}`); }
+    out.push({ name: c.name, me: p === g.pc, up, pts: p === g.pc ? pts : 0, card: c.id });
   }
   g.grown = out; await save(); return out;
 }
-/** 你分属性点：add = { STR: 2, ... }，从 c.pend 里扣 */
-export async function spend(c, add) {
-  for (const [k, v] of Object.entries(add)) c.attrs[k] = Math.min(90, c.attrs[k] + v);
-  c.pend = Math.max(0, (c.pend || 0) - Object.values(add).reduce((a, b) => a + b, 0)); await save();
+/** 你分一点成长点到某项属性：掷 1D100，大于现在的值才加 1，没过这点也用掉了；掷了就算（马上存） */
+export async function raise(c, k) {
+  if (!c.pend || c.attrs[k] >= 90) return null;
+  const was = c.attrs[k], r = R.d100().v; c.pend--; if (r > was) c.attrs[k]++;
+  await save(); return { r, was, ok: r > was };
 }
 /** 不玩了：标成放弃 */
 export async function quit(g) { g.done = { kind: 'quit', text: '', at: Date.now() }; await save(); }
