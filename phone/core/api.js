@@ -430,7 +430,7 @@ async function imageRaw(prompt, conn, ref) {
         return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
       }
       case 'siliconflow': {
-        const res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        const res = await xf(oaiBase(base) + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5, ...(ref ? { image: ref } : {}) }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return keep(u);
@@ -535,7 +535,7 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
       if (!res.ok) await bad(res); return audioOf(res);
     }
     case 'mimo': {
-      const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      const res = await xf(oaiBase(base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({ model: conn.model || 'mimo-v2.5-tts', messages: [{ role: 'assistant', content: text }], audio: { format: 'mp3', voice: v || 'mimo_default' } }) });
       if (!res.ok) await bad(res);
       const j = await res.json(), d = j.choices?.[0]?.message?.audio?.data; if (!d) throw new Error('MiMo 没有返回声音');
@@ -561,7 +561,7 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
       return URL.createObjectURL(b64ToBlob(j.data));
     }
     default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
-      const res = await xf(base + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
+      const res = await xf(oaiBase(base) + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
         body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed, ...(act.instructions && { instructions: act.instructions }), ...(act.emoText && { emo_text: act.emoText, use_emo_text: true }) }) });
       if (!res.ok) await bad(res); return audioOf(res);
     }
@@ -775,7 +775,7 @@ export async function testCompat(conn) {
 /** 测向量接口：把「你好」变成一串数字 */
 export async function testEmbed(conn) {
   const key = keysOf(conn)[0] || '';
-  const res = await xf(trim(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
+  const res = await xf(oaiBase(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
   if (!res.ok) throw new Error(await readErr(res));
   const j = await res.json(), v = j.data?.[0]?.embedding;
   if (!Array.isArray(v)) throw new Error('接口没有返回向量');
