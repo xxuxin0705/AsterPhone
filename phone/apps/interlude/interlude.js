@@ -111,7 +111,7 @@ export function open() {
     const L = {
       kp: ['主位 · KP', kc ? `${nameOf(kc)} 来主持` : '中立的守秘人，不下场', [['换 KP', () => chooseKp(() => focus(k, el))]]],
       chair: ['座位', n ? `上桌：${pick.party.map(id => nameOf(contact(id))).join('、')}` : '还没有人上桌', [['选谁上桌', choose]]],
-      files: ['卷宗', done ? `打完了 ${done} 局` : '还没有打完的局', [['翻卷宗', () => { unzoom(); archivePage(); }]]],
+      files: ['卷宗', done ? `打完了 ${done} 局` : '还没有打完的局', [['翻卷宗', () => { unzoom(); archivePage(syncBar, resume); }]]],
       cards: ['调查员卡', '你和上桌的人各一张', [['看卡 · 车卡', () => { unzoom(); cardPage(syncBar); }]]],
       tray: ['骰子盘', '1D100', [['掷一下', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '1D100', '掷出 ' + r.v); }]]],
       map: ['旧地图 · DND', '还没开放', []],
@@ -135,7 +135,8 @@ export function open() {
   const who = h('span'), go = btn('开局', 'primary', () => { const g = G.current(); if (g) playPage(g); else if (G.meeting(table())) cardPage(syncBar, true); else setupSheet(() => cardPage(syncBar), chooseKp); });
   const bar = h('div.as-int-bar', who, go); p.body.append(bar);
   function syncBar() { const g = G.current(); who.textContent = `上桌：${[myName(), ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
-  G.load().then(() => { const saved = G.savedPick(); if (!restored && saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } restored = true; syncBar(); });
+  const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
+  G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
   if (state.apps.interlude.splash) splash(p.el);
   return p.el;
@@ -529,12 +530,16 @@ function rollOverlay(host, t, u, caption, result, verdict) {
 }
 
 /* ---------- 卷宗：打完的每一局一份，点开从头看一遍（只看，不念） ---------- */
-function archivePage() {
+function archivePage(sync, resume) {
   const p = page({ app: 'interlude', id: 'int-archive', title: '卷宗', large: true, back: true, cls: 'as-int-archive' });
   const ymd = t => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
   const END = { good: '好结局', bad: '坏结局', quit: '没打完' };
+  const names = ids => [myName(), ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
+  // 还没开局的车卡会 / 团公告：点了把开局设置接上，回到车卡（开着车卡会就回到会上）
+  const mt = G.savedPick() ? G.meetNow() : null, ing = mt ? [h('button.as-int-file', { onclick: () => { nav.pop(); resume(); cardPage(sync, true); } },
+    h('b', mt.lines ? '车卡会' : '车卡'), h('small', `${ymd(mt.at)} · ${names(G.savedPick().party)}`), h('span.is-going', '进行中'))] : [];
   const list = G.all().filter(g => g.done).slice().reverse();
-  p.body.append(list.length ? h('div.as-int-files', list.map(g => h('button.as-int-file', { onclick: () => readPage(g) },
+  p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => h('button.as-int-file', { onclick: () => readPage(g) },
     h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${[myName(), ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')))) : empty('还没有打完的局'));
   nav.push(p.el);
 }
