@@ -300,6 +300,15 @@ export function resolve(g, req, { skill } = {}) {
   if (r.ok) tick(p, sk);
   return { r, v: r.grade, text: `${name}的${sk}检定（${req.level || '普通'}${b ? `，${b > 0 ? '奖励' : '惩罚'}骰 ${Math.abs(b)} 个` : ''}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
 }
+/** 孤注一掷（照规则书）：普通检定失败了，换个做法（how）再掷一次，难度和奖惩骰照旧；再失败就算大失败（国内跑团的做法，作者定的）。
+ *  战斗、理智、对抗、暗骰不能孤注一掷；大失败也不能（已经出事了） */
+export const canPush = (req, res) => req.type === 'check' && !req.hidden && res.v === '失败';
+export function push(g, req, how) {
+  const res = resolve(g, req);
+  if (!res.r.ok) res.v = '大失败';
+  res.text = `孤注一掷（${how}）：${res.text}${res.r.ok ? '' : '，孤注一掷失败，算大失败'}`;
+  return res;
+}
 
 /* ---------- 战斗：一轮一轮，手机按敏捷先后替每个人掷（你自己选这一轮做什么），打完才把结果交给 KP 讲 ----------
    敌人 { name, wpn, hp, hpMax, atk 攻击, brawl 斗殴（反击用）, dodge 闪避, dex 敏捷, build 体格, armor 护甲, n 一轮打几下, dmg 伤害（已经算上它的力气） }：开局时按人数和数值定好，KP 提出战斗时带上

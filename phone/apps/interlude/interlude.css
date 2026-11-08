@@ -173,6 +173,7 @@
 .as-int-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); }
 .as-int-ask small { width: 100%; font-size: 12px; opacity: .75; }
 .as-int-ask b { font-weight: 500; flex: 1; }
+.as-int-ask .as-int-row { width: 100%; }   /* 孤注一掷：两个按钮排一行 */
 .as-int-fight { margin-bottom: 8px; } .as-int-fight > .as-segmented, .as-int-fight > .as-int-row { width: 100%; }
 .as-int-fight .as-int-row .as-btn { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
 .as-int-def { display: flex; align-items: center; gap: 10px; width: 100%; } .as-int-def > span { font-size: 13px; opacity: .75; flex: none; } .as-int-def > .as-segmented { flex: 1; }

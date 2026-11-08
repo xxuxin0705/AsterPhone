@@ -661,10 +661,22 @@ function playPage(g) {
       const mine = !q.who || q.who === '你' || q.who === g.pc.name, name = mine ? '' : `替${q.who}`;
       const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}${+q.bonus > 0 ? ' · 奖励骰' : +q.bonus < 0 ? ' · 惩罚骰' : ''}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
-        const r = G.resolve(g, q); await G.save(); paintHud();
+        const r = G.resolve(g, q); if (G.canPush(q, r)) g.req = { type: 'push', req: q, text: r.text, label };   // 失败了先问要不要孤注一掷（先存着，退出再进来还是这一步）
+        await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, label, r.text, r.v);
+        if (g.req.type === 'push') { prompt(); return; }
         pending = r.text; g.req = { type: 'free' }; send('');   // 掷完直接交给 KP，接着讲成功 / 失败之后怎样
       })));
+      return;
+    }
+    // 孤注一掷：换个做法再掷一次，难度不变，再失败算大失败
+    if (q.type === 'push') {
+      act.append(h('div.as-int-ask', h('b', withInfo(`${q.req.skill} · 失败`, '可以换个做法孤注一掷：难度不变，再失败就算大失败。')), h('div.as-int-row', btn('孤注一掷', 'secondary', async () => {
+        const how = ((await dialog({ title: '孤注一掷', text: '再失败就算大失败', input: { placeholder: '换个做法' } })) || '').trim(); if (!how) return;
+        const r = G.push(g, q.req, how); await G.save(); paintHud();
+        await rollOverlay(p.el, r.r.t, r.r.u, q.label + ' · 孤注一掷', r.text, r.v);
+        pending = q.text + '；' + r.text; g.req = { type: 'free' }; send('');
+      }), btn('就这样', 'primary', () => { pending = q.text; g.req = { type: 'free' }; send(''); }))));
       return;
     }
     if (q.type === 'choose' && Array.isArray(q.options)) act.append(h('div.as-int-opts', q.options.slice(0, 4).map(o => btn(String(o), 'secondary', () => send(String(o))))));
@@ -707,6 +719,7 @@ function playPage(g) {
   }
   async function send(what) {
     if (G.running()) { G.cancel(); return; }
+    if (g.req.type === 'push') { pending = [pending, g.req.text].filter(Boolean).join('；'); g.req = { type: 'free' }; }
     const inp = [pending, what].filter(Boolean).join('；') || '（什么都没做，让 KP 继续）';
     act.replaceChildren(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel)));
     try {
