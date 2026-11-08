@@ -392,8 +392,8 @@ function cardPage(back) {
     const apts = h('div.as-int-pts', tierB, h('span'));
     const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`; }));
     const paintAttrs = () => {
-      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier);
-      apts.lastChild.textContent = `属性点 ${sum} / ${all}`; apts.classList.toggle('is-over', sum > all);
+      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
+      apts.lastChild.textContent = `属性点 ${sum} / ${all}${up ? ` + 成长 ${up}` : ''}`; apts.classList.toggle('is-over', sum > all + up);
       pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 点属性没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]) } }), 10); if (!v) return;
@@ -413,10 +413,11 @@ function cardPage(back) {
     const restB = h('button.as-int-more', { onclick: () => { restBox.hidden = !restBox.hidden; restB.textContent = restBox.hidden ? '其余技能 ▾' : '收起 ▴'; } }, '其余技能 ▾');
     restBox.hidden = true;
     function paintSkills() {
-      const base = R.baseSkills(c.attrs), used = R.spent(c.attrs, c.skills), all = R.points(c.attrs);
-      pts.textContent = `技能点 ${used} / ${all}`; pts.classList.toggle('is-over', used > all);
+      const base = R.baseSkills(c.attrs), all = R.points(c.attrs), up = c.skillUp || 0;
+      const count = () => { const u = R.spent(c.attrs, c.skills); pts.textContent = `技能点 ${u} / ${all}${up ? ` + 成长 ${up}` : ''}`; pts.classList.toggle('is-over', u > all + up); };
+      count();
       const row = k => { const v = h('b', c.skills[k]);
-        const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; const u = R.spent(c.attrs, c.skills); pts.textContent = `技能点 ${u} / ${all}`; pts.classList.toggle('is-over', u > all); saveLater(); };
+        const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; count(); saveLater(); };
         return h('div.as-int-skill', h('span', k), h('small', base[k]), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
