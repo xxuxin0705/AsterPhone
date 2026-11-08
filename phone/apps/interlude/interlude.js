@@ -424,7 +424,9 @@ function cardPage(back) {
       const j = v === '__own' ? ((await dialog({ title: '职业', input: { value: c.job } })) || '').trim() : v;
       if (!j) return;
       set('job', j); jobB.textContent = j;
-      if (R.JOBS.some(x => x[0] === j) && await dialog({ title: '按这个职业重新分技能？', text: '本职技能按职业重新加点，兴趣点要自己再加。', confirm: '重新分' })) { c.skills = R.jobSkills(c.attrs, j); saveLater(); paintSkills(); }
+      if (!R.JOBS.some(x => x[0] === j)) return;
+      c.jobSkills = R.jobsOf({ job: j }); saveLater(); paintSkills();   // 换成表里的职业：本职技能跟着换
+      if (await dialog({ title: '按这个职业重新分技能？', text: '本职技能按职业重新加点，兴趣点要自己再加。', confirm: '重新分' })) { c.skills = R.jobSkills(c.attrs, j); saveLater(); paintSkills(); }
     } }, c.job || '选职业');
     // 属性：点数字改；重掷、五选一
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
@@ -449,17 +451,18 @@ function cardPage(back) {
       const s = sheet({ title: '挑一套', content: h('div.as-actions', sets.map(a => h('button.as-actions__item', { onclick: () => { s.close(); newAttrs(a); } },
         h('span', R.ATTRS.map(([k, n]) => `${n.slice(0, 1)}${a[k]}`).join(' ') + `　共 ${R.ATTRS.reduce((t, [k]) => t + (k === 'LUCK' ? 0 : a[k]), 0)}`)))) });
     });
-    // 技能：加过点的排前面，− / + 每次 5 点；点数超了标红
+    // 技能：加过点的排前面，− / + 每次 5 点；本职技能名字标色，点名字能改是不是本职；点数超了标红
     const pts = h('div.as-int-pts'), skillBox = h('div.as-int-skills'), restBox = h('div.as-int-skills.is-rest');
     const restB = h('button.as-int-more', { onclick: () => { restBox.hidden = !restBox.hidden; restB.textContent = restBox.hidden ? '其余技能 ▾' : '收起 ▴'; } }, '其余技能 ▾');
     restBox.hidden = true;
     function paintSkills() {
-      const base = R.baseSkills(c.attrs), all = R.points(c.attrs), up = c.skillUp || 0;
-      const count = () => { const u = R.spent(c.attrs, c.skills); pts.textContent = `技能点 ${u} / ${all}${up ? ` + 成长 ${up}` : ''}`; pts.classList.toggle('is-over', u > all + up); };
+      const base = R.baseSkills(c.attrs), up = c.skillUp || 0;
+      const count = () => { const u = R.usage(c.attrs, c.skills, R.jobsOf(c)); pts.textContent = `本职 ${u.job}/${u.jobAll} · 兴趣 ${u.hobby}/${u.hobbyAll}${up ? `+${up}` : ''}`; pts.classList.toggle('is-over', u.hobby > u.hobbyAll + up); };
       count();
       const row = k => { const v = h('b', c.skills[k]);
         const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; count(); saveLater(); };
-        return h('div.as-int-skill', h('span', k), h('small', base[k]), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); };
+        const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
+          const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', base[k]), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
@@ -475,9 +478,10 @@ function cardPage(back) {
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, derivedEl, h('div.as-int-row', reroll, five), pendB,
       h('h3', '技能'), pts, skillBox, restB, restBox,
-      h('h3', '背景'), bg('身份', 'who'), bg('关系', 'rel'), bg('关键经历', 'past'), bg('目标', 'goal'), bg('秘密', 'secret'),
+      h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
-      h('h3', '随身'), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
+      h('h3', '资产'), h('div.as-int-grid2', line('消费水平', 'living'), line('现金', 'cash')), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
+      h('h3', '随身'),
       field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4,
         onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));
     paintAttrs(); paintSkills();

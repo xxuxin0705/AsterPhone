@@ -93,6 +93,8 @@
 .as-int-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
 .as-int-skill { display: grid; grid-template-columns: 1fr auto 22px 2.2em 22px; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px dotted rgba(27,42,82,.2); font-size: 13px; }
 .as-int-skill small { font-size: 10px; opacity: .5; }
+.as-int-skill > span { cursor: pointer; }
+.as-int-skill.is-job > span { color: #7a3a14; font-weight: 600; }
 .as-int-skill b { text-align: center; font-size: 15px; }
 .as-int-skill button { width: 22px; height: 22px; padding: 0; border: 1px solid rgba(27,42,82,.3); border-radius: 50%; background: none; color: #2f2619; font-size: 14px; line-height: 1; cursor: pointer; }
 .as-int-more { margin: 8px 0 4px; padding: 0; border: 0; background: none; color: #6a3a1c; font: inherit; font-size: 13px; cursor: pointer; }

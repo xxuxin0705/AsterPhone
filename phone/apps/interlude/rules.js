@@ -31,7 +31,7 @@ export const POWERS = { atk: '攻击', guard: '护身', heal: '治疗', buff: '�
 /** 天命五选一：一次掷五套 */
 export const fiveSets = () => Array.from({ length: 5 }, rollAttrs);
 
-// 技能和基础值：照作者给的现代调查员卡（第七版）。点数：职业 EDU×4 + 兴趣 INT×2；每项最高 90，成长也到 90 为止（作者定的）
+// 技能和基础值：照作者给的现代调查员卡（第七版）。点数分两份：本职点 EDU×4 只能加在本职技能上，兴趣点 INT×2 哪项都能加；每项最高 90，成长也到 90 为止（作者定的）
 export const SKILLS = { 侦查: 25, 聆听: 20, 图书馆使用: 20, 话术: 5, 说服: 10, 恐吓: 15, 魅惑: 15, 心理学: 10, 精神分析: 1, 潜行: 20, 急救: 30, 医学: 1, 神秘学: 5, 克苏鲁神话: 0,
   机械维修: 10, 电气维修: 10, 电子学: 1, 计算机使用: 5, 操作重机: 1, 锁匠: 1, 妙手: 10, 攀爬: 20, 跳跃: 20, 游泳: 20, 投掷: 20, 汽车驾驶: 20, 驾驶: 1, 领航: 10, 生存: 10, 追踪: 10,
   斗殴: 25, 手枪: 20, 步枪: 25, 历史: 5, 考古学: 1, 人类学: 1, 估价: 5, 会计: 5, 法律: 5, 科学: 1, 博物学: 10, 技艺: 5, 语言: 1, 乔装: 5, 信用评级: 0 };
@@ -40,12 +40,16 @@ export const MAX_SKILL = 90;
 const RENAMED = [['开锁', '锁匠'], ['导航', '领航'], ['驾驶', '汽车驾驶'], ['艺术', '技艺'], ['外语', '语言']];
 export const renamed = sk => { const o = { ...sk }; for (const [a, b] of RENAMED) if (a in o && !(b in o)) { o[b] = o[a]; delete o[a]; } return o; };
 export const baseSkills = a => ({ ...SKILLS, 闪避: Math.floor(a.DEX / 2), 母语: a.EDU });
-export const points = a => a.EDU * 4 + a.INT * 2;
-export const spent = (a, sk) => { const b = baseSkills(a); return Object.entries(sk).reduce((n, [k, v]) => n + Math.max(0, v - (b[k] ?? 0)), 0); };
-/** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告），没给的用基础值 */
-export function fixSkills(a, given = {}, max = MAX_SKILL) {
-  const out = baseSkills(a);
-  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(max, Math.round(+v)));
+/** 两份点各用了多少：本职技能先用本职点，不够的算兴趣点；jobs 本职技能 */
+export function usage(a, sk, jobs = []) {
+  const b = baseSkills(a), job = a.EDU * 4, hobby = a.INT * 2; let j = 0, o = 0;
+  for (const [k, v] of Object.entries(sk)) { const n = Math.max(0, v - (b[k] ?? 0)); if (jobs.includes(k)) j += n; else o += n; }
+  return { job: Math.min(j, job), hobby: o + Math.max(0, j - job), jobAll: job, hobbyAll: hobby };
+}
+/** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告：本职技能 max、其他 hobbyMax），没给的用基础值 */
+export function fixSkills(a, given = {}, max = MAX_SKILL, hobbyMax = max, jobs = null) {
+  const out = baseSkills(a), cap = k => !jobs || jobs.includes(k) ? max : hobbyMax;
+  for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(cap(k), Math.round(+v)));
   return out;
 }
 /** 常见职业和它的本职技能（换职业时按这个重新分职业点） */
@@ -54,6 +58,8 @@ export const JOBS = [['私家侦探', '侦查 聆听 心理学 乔装 锁匠 话
   ['作家', '图书馆使用 历史 心理学 神秘学 技艺 母语 侦查 话术'], ['律师', '法律 说服 心理学 图书馆使用 话术 信用评级 侦查 聆听'], ['古董商', '估价 历史 考古学 侦查 话术 说服 图书馆使用 语言'],
   ['护士', '急救 医学 心理学 聆听 侦查 说服 科学 潜行'], ['艺术家', '技艺 心理学 侦查 魅惑 历史 话术 聆听 语言'], ['退伍军人', '步枪 手枪 斗殴 急救 生存 攀爬 潜行 恐吓'],
   ['神秘学家', '神秘学 历史 图书馆使用 语言 心理学 侦查 考古学 说服'], ['司机', '汽车驾驶 机械维修 领航 侦查 聆听 话术 斗殴 心理学']];
+/** 一张卡的本职技能：车卡时定的（AI 写的、自己标的），没有就照职业表 */
+export const jobsOf = c => c.jobSkills || ((JOBS.find(j => j[0] === c.job) || [])[1] || '').split(' ').filter(Boolean);
 /** 按职业分职业点：越靠前的本职技能分得越多；兴趣点留着自己加 */
 export function jobSkills(a, job) {
   const out = baseSkills(a), list = ((JOBS.find(j => j[0] === job) || [])[1] || '').split(' ').filter(k => k in out);

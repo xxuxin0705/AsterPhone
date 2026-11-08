@@ -440,7 +440,7 @@ export const DEFAULT_PROMPTS = {
 {{scenario}}
 
 {{notice}}
-团公告是真实跑团车卡前 KP 发的：hint 写这局的背景（时间、地点、出了什么事、调查员为什么会卷进来，不剧透真相）；rules 写车卡规矩——base 购点（普通人的属性总点数，新手团 460～480，越高越难打）、attrMin / attrMax 每项属性的下限和上限（常见 30～80，桌上有最强者就把上限放到 90）、skillMax 每项技能最高多少（常见 70～80，最多 90）、skills 推荐技能（这局一定用得上的三五个）、weapons 每人最多几件武器、guns 能不能带枪、abilities 每人最多几个特殊能力、banned 不准带的东西（比如护甲、炸药）、text 一句话说规矩。卡都要符合团公告。
+团公告是真实跑团车卡前 KP 发的：hint 写这局的背景（时间、地点、出了什么事、调查员为什么会卷进来，不剧透真相）；rules 写车卡规矩——base 购点（普通人的属性总点数，新手团 460～480，越高越难打）、attrMin / attrMax 每项属性的下限和上限（常见 30～80，桌上有最强者就把上限放到 90）、skillMax 本职技能最高多少（常见 70～80，最多 90）、hobbyMax 其他技能最高多少（常见 50～60）、skills 推荐技能（这局一定用得上的三五个）、weapons 每人最多几件武器、guns 能不能带枪、abilities 每人最多几个特殊能力、banned 不准带的东西（比如护甲、炸药）、text 一句话说规矩。卡都要符合团公告。
 
 【要车卡的人】
 {{roster}}
@@ -452,12 +452,12 @@ export const DEFAULT_PROMPTS = {
 - 属性照人设和剧情分（不是掷骰）：先判断这个人是哪一档——普通人（总点数 = 团公告的购点）、能力者（受过训练或者有特殊能力，比常人强，购点 +80）、最强者（人设里写明是最强那一档的强者，购点 +160），再把点数分给 8 项：力量 STR、体质 CON、体型 SIZ、敏捷 DEX、外貌 APP、智力 INT、意志 POW、教育 EDU。每项在团公告的上下限里（最低 15、最高 90），体型、智力、教育至少 40，都取 5 的倍数；90 是人类的极限，最强者也是很多项在 80～90，不会超过 90。分完总数不能超过这一档。幸运由手机掷，不用写。
 - 特殊能力：照人设和世界观写（比如咒术师的术式、超能力、特别的本事），普通人 0～1 个（不夸张的小本事）、能力者 1～2 个、最强者 2～3 个，不超过团公告。每个写：名字；kind 是哪一种——atk 攻击（掷意志，成功就造成 dmg 伤害，闪不开）、guard 护身（这一轮挨打少 dmg 点伤害，写「全部」就是全挡）、heal 治疗（掷意志，成功给同伴回 dmg 血）、buff 鼓舞（这一轮同伴打人都多一个奖励骰）、other 只在剧情里用（侦查、感知、移动这类，KP 照描述判）；dmg：攻击 1D6～3D6、治疗 1D4～2D6、护身 2～6 点（最强者才能写「全部」）；cost：每用一次耗几点魔法（魔法 = 意志÷5，2～8 点，越强越贵，「全部」至少 6）；desc 一句话说它是什么、有什么限制。
 - 职业：最好从这些常见职业里挑最贴合人设的一个：{{jobs}}；实在都不合适可以自己写。
-- 背景各一两句：身份、和这几个人在正文里是什么关系（每个人都写到：同学、搭档、谁救过谁…）、关键经历、目标、秘密（秘密可以和剧情或某个人有关）。
-- 资产：照信用评级和正文写一句（现金、住处、家里的条件）。
+- 背景照调查员卡背面的格子写，每格一两句：look 形象描述（长相、身高、穿着、给人的感觉，照属性写）、trait 特质（性格最鲜明的一点）、belief 思想与信念、people 重要之人、place 意义非凡之地、treasure 宝贵之物、story 背景故事（出身、经历、为什么会卷进来）、rel 调查员同伴（和这几个人在正文里是什么关系，每个人都写到：同学、搭档、谁救过谁…）；scars 伤口和疤痕、phobia 恐惧症和狂躁症、tomes 神话典籍法术和魔法物品、encounter 第三类接触，这四格人设和正文里有才写，没有就空着。
+- 资产：照信用评级和正文写：living 消费水平（穷困 / 标准 / 富裕 / 豪富…）、cash 现金、assets 资产（住处、存款、家里的条件）。
 - 随身物品 3～6 样：这个人在正文里真会带在身上的东西（证件、手机、绷带、手电、绳子…），别每个人都带枪，武器件数、能不能带枪、不准带的照团公告；武器写伤害和用的技能：小刀 1D4（斗殴）、棍棒 1D6（斗殴）、球棒 1D8（斗殴）、手枪 1D10（手枪）、步枪 2D6（步枪）、霰弹枪 4D6（步枪）。
-- 技能只从这张表里挑：{{skills}}。职业技能 8 项、兴趣技能几项；每人加的点总共不超过「教育×4 + 智力×2」（照你分的属性算），每项不超过团公告的技能上限，推荐技能尽量点上；没写的按基础值。
+- 技能只从这张表里挑：{{skills}}。先定这个职业的 8 项本职技能（jobSkills）；点数分两份（照你分的属性算）：本职点 = 教育×4，只能加在本职技能上；兴趣点 = 智力×2，哪项都能加（本职技能也行）。本职技能不超过团公告的 skillMax，其他技能不超过 hobbyMax，推荐技能尽量点上；没写的按基础值。
 - 只输出 JSON，不要别的文字、不要代码块：
-{"hint":"团公告的背景","rules":{"base":460,"attrMin":30,"attrMax":80,"skillMax":75,"skills":["侦查","聆听","图书馆使用"],"weapons":1,"guns":false,"abilities":2,"banned":[],"text":""},"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","tier":"普通人 / 能力者 / 最强者","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"},{"name":"折叠刀","dmg":"1D4","skill":"斗殴"}],"skills":{"侦查":60}}]}` },
+{"hint":"团公告的背景","rules":{"base":460,"attrMin":30,"attrMax":80,"skillMax":75,"hobbyMax":50,"skills":["侦查","聆听","图书馆使用"],"weapons":1,"guns":false,"abilities":2,"banned":[],"text":""},"cards":[{"who":"要车卡的人（照上面写）","name":"","age":25,"sex":"","job":"","home":"","tier":"普通人 / 能力者 / 最强者","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"look":"","trait":"","belief":"","people":"","place":"","treasure":"","story":"","rel":"","scars":"","phobia":"","tomes":"","encounter":""},"living":"","cash":"","assets":"","items":[{"name":"绷带"},{"name":"折叠刀","dmg":"1D4","skill":"斗殴"}],"jobSkills":["侦查","聆听"],"skills":{"侦查":60}}]}` },
   intMeet: { name: '车卡会', cats: ['intMeet'], on: true, main: true,
     text: `{{kp}}这一局开打之前，大家先开一个「车卡会」：所有人都知道是在跑团，坐在桌边一边车卡一边聊天。气氛：{{mood}}
 
@@ -479,12 +479,12 @@ export const DEFAULT_PROMPTS = {
 5. 每张过审的卡亮出来时，KP 和其他人的评语 reviews（每张两三句，可以夸、可以吐槽；{{user}} 用旧卡的话 TA 的也写）。
 每句一两句话，lines 总共 20～40 句。说话的语言和语气照上面每个人后面写的；台词不是中文的写 zh 翻译。
 
-hint 写团公告的背景。rules 照真实跑团的团公告定：base 购点（普通人的属性总点数，新手团 460～480，越高越难打）；attrMin / attrMax 每项属性的下限和上限（常见 30～80，桌上有最强者就把上限放到 90）；skillMax 每项技能最高多少（常见 70～80，最多 90）；skills 推荐技能（这局一定用得上的三五个）；weapons 每人最多几件武器；guns 能不能带枪；abilities 每人最多几个特殊能力；banned 不准带的东西（比如护甲、炸药）；tiers 写每个人（{{user}} 也要写）是哪一档——普通人（购点）/ 能力者（受过训练或者有特殊能力，购点 +80）/ 最强者（人设里写明是最强那一档的强者，购点 +160）；text 一句话说规矩。
+hint 写团公告的背景。rules 照真实跑团的团公告定：base 购点（普通人的属性总点数，新手团 460～480，越高越难打）；attrMin / attrMax 每项属性的下限和上限（常见 30～80，桌上有最强者就把上限放到 90）；skillMax 本职技能最高多少（常见 70～80，最多 90）；hobbyMax 其他技能最高多少（常见 50～60）；skills 推荐技能（这局一定用得上的三五个）；weapons 每人最多几件武器；guns 能不能带枪；abilities 每人最多几个特殊能力；banned 不准带的东西（比如护甲、炸药）；tiers 写每个人（{{user}} 也要写）是哪一档——普通人（购点）/ 能力者（受过训练或者有特殊能力，购点 +80）/ 最强者（人设里写明是最强那一档的强者，购点 +160）；text 一句话说规矩。
 
-其他人最后过审的卡（cards）：用旧卡的人只有在会上改了东西才写，写成 {"who":"名字","old":true,"items":[改完的随身物品],"abilities":[改完的特殊能力]}；车新卡的人写整张卡：属性照档位分点（8 项 STR CON SIZ DEX APP INT POW EDU，每项在规矩的上下限里，体型、智力、教育至少 40，取 5 的倍数，总数不超过这一档；幸运不用写）；特殊能力照人设写，kind 是 atk 攻击 / guard 护身 / heal 治疗 / buff 鼓舞 / other 只在剧情里用，dmg 攻击 1D6～3D6、治疗 1D4～2D6、护身 2～6 点（最强者才能写「全部」），cost 每次耗 2～8 点魔法；职业最好从这些里挑：{{jobs}}；技能只从这张表里挑：{{skills}}，加的点总共不超过「教育×4 + 智力×2」，每项不超过规矩的技能上限；背景写身份、和其他人的关系、关键经历、目标、秘密；资产一句；随身物品 3～6 样，武器写伤害和技能。都要符合你定下的 rules。
+其他人最后过审的卡（cards）：用旧卡的人只有在会上改了东西才写，写成 {"who":"名字","old":true,"items":[改完的随身物品],"abilities":[改完的特殊能力]}；车新卡的人写整张卡：属性照档位分点（8 项 STR CON SIZ DEX APP INT POW EDU，每项在规矩的上下限里，体型、智力、教育至少 40，取 5 的倍数，总数不超过这一档；幸运不用写）；特殊能力照人设写，kind 是 atk 攻击 / guard 护身 / heal 治疗 / buff 鼓舞 / other 只在剧情里用，dmg 攻击 1D6～3D6、治疗 1D4～2D6、护身 2～6 点（最强者才能写「全部」），cost 每次耗 2～8 点魔法；职业最好从这些里挑：{{jobs}}；技能只从这张表里挑：{{skills}}，先定 8 项本职技能（jobSkills），本职点 = 教育×4 只能加在本职技能上，兴趣点 = 智力×2 哪项都能加，本职技能不超过 skillMax、其他不超过 hobbyMax；背景照调查员卡背面的格子写（look 形象描述、trait 特质、belief 思想与信念、people 重要之人、place 意义非凡之地、treasure 宝贵之物、story 背景故事、rel 调查员同伴，scars 伤口和疤痕、phobia 恐惧症和狂躁症、tomes 神话典籍法术和魔法物品、encounter 第三类接触这四格有才写）；资产写 living 消费水平、cash 现金、assets 资产；随身物品 3～6 样，武器写伤害和技能。都要符合你定下的 rules。
 
 只输出 JSON，不要别的文字、不要代码块：
-{"hint":"团公告的背景","lines":[{"who":"KP 或名字","say":"","act":"","zh":""}],"rules":{"base":460,"attrMin":30,"attrMax":80,"skillMax":75,"skills":["侦查","聆听","图书馆使用"],"weapons":1,"guns":false,"abilities":2,"banned":[],"tiers":{"名字":"能力者"},"text":""},"cards":[{"who":"名字","name":"","age":25,"sex":"","job":"","home":"","tier":"能力者","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"who":"","rel":"","past":"","goal":"","secret":""},"assets":"","items":[{"name":"绷带"}],"skills":{"侦查":60}}],"pass":[{"who":"KP","say":""}],"fail":[{"who":"KP","say":""}],"reviews":{"名字":[{"who":"KP","say":""}]}}` },
+{"hint":"团公告的背景","lines":[{"who":"KP 或名字","say":"","act":"","zh":""}],"rules":{"base":460,"attrMin":30,"attrMax":80,"skillMax":75,"hobbyMax":50,"skills":["侦查","聆听","图书馆使用"],"weapons":1,"guns":false,"abilities":2,"banned":[],"tiers":{"名字":"能力者"},"text":""},"cards":[{"who":"名字","name":"","age":25,"sex":"","job":"","home":"","tier":"能力者","attrs":{"STR":50,"CON":50,"SIZ":60,"DEX":50,"APP":50,"INT":70,"POW":60,"EDU":70},"abilities":[{"name":"","kind":"atk","dmg":"2D6","cost":4,"desc":""}],"bg":{"look":"","trait":"","belief":"","people":"","place":"","treasure":"","story":"","rel":"","scars":"","phobia":"","tomes":"","encounter":""},"living":"","cash":"","assets":"","items":[{"name":"绷带"}],"jobSkills":["侦查","聆听"],"skills":{"侦查":60}}],"pass":[{"who":"KP","say":""}],"fail":[{"who":"KP","say":""}],"reviews":{"名字":[{"who":"KP","say":""}]}}` },
   intStart: { name: '开局', cats: ['intStart'], on: true, main: true,
     text: `{{kp}}现在要为 {{user}} 和 TA 的朋友们开一局《克苏鲁的呼唤》第七版。先把这一局的骨架写好。气氛：{{mood}}
 {{know}}
@@ -558,7 +558,7 @@ hint 写团公告的背景。rules 照真实跑团的团公告定：base 购点�
 - {"type":"opposed","skill":"技能名","vs":对方的技能值,"reason":""}：和某个人较劲
 - {"type":"san","loss":"成功掉/失败掉，比如 1/1D6","reason":""}：看到可怕的东西
 - {"type":"choose","options":["…","…"]}：给几个选项
-场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt（战斗里的伤手机已经算过，别再写）。有人捡到、用掉、丢了东西写 items。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15}}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）。
+场景换了就写 place（只能用：{{places}}）。换场景或气氛变了才写 bgm、amb（不变就空着）：bgm 是去音乐 App 搜背景音乐的关键词，要纯音乐，比如「雨夜 钢琴 纯音乐」「紧张 悬疑 配乐」；amb 是白噪音的关键词，比如「雨声 白噪音」「篝火 白噪音」「人群 嘈杂 白噪音」。有人受伤写 hurt（战斗里的伤手机已经算过，别再写）。有人捡到、用掉、丢了东西写 items。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15},"bg":{"调查员名字":{"scars":"","phobia":"","tomes":"","encounter":"","people":"","treasure":""}}}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）；bg 写这局在每个还活着的调查员背景上新留下的，一格一句，没有就不写：scars 伤口和疤痕、phobia 恐惧症和狂躁症（这局发过疯、吓出毛病的）、tomes 拿到的神话典籍法术和魔法物品、encounter 第三类接触（亲眼见到的神话生物）、people 新的重要之人、treasure 新的宝贵之物。
 只输出 JSON，不要别的文字、不要代码块：
 {"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","drop":"用掉或丢了的东西"}],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
