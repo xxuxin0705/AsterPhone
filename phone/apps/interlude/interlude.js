@@ -535,9 +535,11 @@ function archivePage(sync, resume) {
   const ymd = t => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
   const END = { good: '好结局', bad: '坏结局', quit: '没打完' };
   const names = ids => [myName(), ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
-  // 还没开局的车卡会 / 团公告：点了把开局设置接上，回到车卡（开着车卡会就回到会上）
-  const mt = G.savedPick() ? G.meetNow() : null, ing = mt ? [h('button.as-int-file', { onclick: () => { nav.pop(); resume(); cardPage(sync, true); } },
-    h('b', mt.lines ? '车卡会' : '车卡'), h('small', `${ymd(mt.at)} · ${names(G.savedPick().party)}`), h('span.is-going', '进行中'))] : [];
+  // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
+  const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
+  const cur = G.current(), mt = G.savedPick() ? G.meetNow() : null;
+  const ing = [cur && going(`《${cur.title}》`, `${ymd(cur.at)} · ${names(cur.party.map(m => m.id))}`, () => playPage(cur)),
+    mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
   const list = G.all().filter(g => g.done).slice().reverse();
   p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => h('button.as-int-file', { onclick: () => readPage(g) },
     h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${[myName(), ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')))) : empty('还没有打完的局'));
