@@ -91,14 +91,20 @@ function person(cid, changed) {
     const tip = !line() ? '还没有生图线：表情会先用手机画个简单版，动作画不了' : isGpt() ? '' : `现在的生图线不是 GPT，最推荐用 GPT 的线：一次画完、贴得最准${isNai() ? '；NAI 画不了动作' : ''}`;
     const pickRow = (kind, all) => { const r = item({ title: '要哪些', value: `${sel[kind].length} 个`, chevron: true, onClick: async () => { const v = await choose(kind, all, sel[kind]); if (!v) return; sel[kind] = v; await P.setSel(cid, sel); r.querySelector('.as-list-item__value').textContent = `${v.length} 个`; } }); return r; };
     ctl.replaceChildren(...(strip ? [strip] : []), ...chips('表情', faces, k => fig?.pt.hold(k)), ...chips('动作', poses, k => fig?.pt.pose(k)), alts,
-      group('表情', [pickRow('face', P.PARTS), item({ title: '生成表情', value: `${faces.length} / ${P.PARTS.length}`, chevron: true, onClick: makeFaces }), ...own('表情', () => P.facePrompt(P.selOf(cid).face), useGrid)], tip),
+      group('表情', [pickRow('face', P.PARTS), item({ title: '生成表情', value: `${faces.length} / ${P.PARTS.length}`, chevron: true, onClick: makeFaces }), line() && item({ title: '手机自己画表情', value: '不花钱', chevron: true, onClick: drawLocal }), ...own('表情', () => P.facePrompt(P.selOf(cid).face), useGrid)].filter(Boolean), tip),
       group('动作', [pickRow('pose', P.POSES), item({ title: '生成动作', value: `${poses.length} / ${P.POSES.length}`, chevron: true, onClick: makePoses }), ...own('动作', () => P.posePrompt(P.selOf(cid).pose), usePoses)]),
       group('', [item({ title: '立绘图片', value: '下载 · 复制', chevron: true, onClick: async () => { const v = await actionSheet('立绘图片', [{ value: 'dl', label: '下载' }, { value: 'cp', label: '复制图片' }]); const src = await P.onWhite(pt); if (v === 'dl') download(src, `portrait-${cid}.png`); if (v === 'cp') copyImg(src); } }),
         pt.boxes && item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { Object.assign(pt.boxes, b); await P.save(cid, pt); toast('框好了'); } } }),
-        // 戴眼镜的：框一下两边镜片；只有没生图线、手机自己画闭眼时用得上
-        pt.boxes && !line() && item({ title: '眼镜', value: pt.boxes.lensL ? '框好了' : '没戴', chevron: true, onClick: glasses })].filter(Boolean)),
+        // 戴眼镜的：框一下两边镜片；手机自己画闭眼时用得上
+        pt.boxes && item({ title: '眼镜', value: pt.boxes.lensL ? '框好了' : '没戴', chevron: true, onClick: glasses })].filter(Boolean)),
       ...make,
       h('div.as-studio__row', btn('删除', 'danger', async () => { if (await dialog({ title: '删掉这个人的全部立绘？', text: '删掉后这个人回到只用头像。', confirm: '删除', danger: true })) { await P.drop(cid); paint(); } })));
+  }
+  async function glasses(e) {
+    const pt = P.loaded(cid), row = e.currentTarget, v = await actionSheet('眼镜', [{ value: 'set', label: pt.boxes.lensL ? '重新框镜片' : '框镜片' }, pt.boxes.lensL && { value: 'off', label: '没戴眼镜', danger: true }].filter(Boolean));
+    if (v === 'off') { delete pt.boxes.lensL; delete pt.boxes.lensR; }
+    if (v === 'set') { if (taken()) return; const b = await frameAll([['lensL', '框住左边镜片'], ['lensR', '框住右边镜片']]); if (!b) return; Object.assign(pt.boxes, b); }
+    if (v) { await P.save(cid, pt); row.querySelector('.as-list-item__value').textContent = pt.boxes.lensL ? '框好了' : '没戴'; }
   }
   // 一张小图：点了用它，右上角 × 删掉（只剩一张时不能删）
   function thumb(src, on, use, del) {
@@ -145,10 +151,17 @@ function person(cid, changed) {
   }
   // 表情要知道眼睛和嘴在哪（切开后按这几块换）：第一次先框一下，框一次就记住
   const ready = async () => { const pt = P.loaded(cid); if (P.hasBoxes(pt)) return true; if (taken()) return false; const b = await frameAll(); if (!b) return false; pt.boxes = b; await P.save(cid, pt); return true; };
+  // 手机自己画：贴纸闭眼、代码画嘴，不找 AI；只画挑了的、手机画得了的
+  async function drawLocal() {
+    const pt = P.loaded(cid);
+    if (!await ready() || taken()) return;
+    for (const k of P.selOf(cid).face.filter(k => P.LOCAL.includes(k))) P.addAlt(pt, k, await P.drawPart(pt, k));
+    await P.save(cid, pt); toast(line() ? '画好了，点上面的按钮看看' : '先用手机画了简单版，接上生图线再生成会好很多'); paint();
+  }
   async function makeFaces() {
     const pt = P.loaded(cid), keys = P.selOf(cid).face;
     if (!await ready()) return;
-    if (!line()) { if (taken()) return; for (const k of keys.filter(k => P.LOCAL.includes(k))) P.addAlt(pt, k, await P.drawPart(pt, k)); await P.save(cid, pt); toast('先用手机画了简单版，接上生图线再生成会好很多'); paint(); return; }
+    if (!line()) return drawLocal();
     if (isNai()) return work('NAI 正在画表情…', async (stop, say) => {
       const bad = [], tiles = await P.naiTiles(pt), batches = P.naiBatches(keys);
       for (const [i, b] of batches.entries()) {
