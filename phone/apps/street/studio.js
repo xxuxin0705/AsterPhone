@@ -2,7 +2,7 @@
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, sheet, icon } from '../../core/ui.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, sheet, icon, segmented, slider } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -94,7 +94,7 @@ function person(cid, changed) {
       group('表情', [pickRow('face', P.PARTS), item({ title: '生成表情', value: `${faces.length} / ${P.PARTS.length}`, chevron: true, onClick: makeFaces }), line() && item({ title: '手机自己画表情', value: '不花钱', chevron: true, onClick: drawLocal }), ...own('表情', () => P.facePrompt(P.selOf(cid).face), useGrid)].filter(Boolean), tip),
       group('动作', [pickRow('pose', P.POSES), item({ title: '生成动作', value: `${poses.length} / ${P.POSES.length}`, chevron: true, onClick: makePoses }), ...own('动作', () => P.posePrompt(P.selOf(cid).pose), usePoses)]),
       group('', [item({ title: '立绘图片', value: '下载 · 复制', chevron: true, onClick: async () => { const v = await actionSheet('立绘图片', [{ value: 'dl', label: '下载' }, { value: 'cp', label: '复制图片' }]); const src = await P.onWhite(pt); if (v === 'dl') download(src, `portrait-${cid}.png`); if (v === 'cp') copyImg(src); } }),
-        item({ title: '擦掉没抠干净的', chevron: true, onClick: erase }),
+        item({ title: '修补抠图', chevron: true, onClick: erase }),
         pt.boxes && item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { Object.assign(pt.boxes, b); await P.save(cid, pt); toast('框好了'); } } }),
         // 戴眼镜的：框一下两边镜片；手机自己画闭眼时用得上
         pt.boxes && item({ title: '眼镜', value: pt.boxes.lensL ? '框好了' : '没戴', chevron: true, onClick: glasses })].filter(Boolean)),
@@ -107,18 +107,49 @@ function person(cid, changed) {
     if (v === 'set') { if (taken()) return; const b = await frameAll([['lensL', '框住左边镜片'], ['lensR', '框住右边镜片']]); if (!b) return; Object.assign(pt.boxes, b); }
     if (v) { await P.save(cid, pt); row.querySelector('.as-list-item__value').textContent = pt.boxes.lensL ? '框好了' : '没戴'; }
   }
-  // 擦掉没抠干净的：点哪块，和它连着的同色一片就变透明；能连着点、撤销，点「完成」才存
-  function erase() {
+  // 修补抠图（照 Peel 的修补页）：点擦 = 点哪块，连着的同色一片变透明；擦 / 补回 = 手指涂，边缘软一点。在画布上改，能撤销，点「完成」才存
+  // 补回从抠之前的原图拿；以前做的立绘没存原图，就从这次修之前的样子拿
+  async function erase() {
     if (taken()) return;
-    const pt = P.loaded(cid), was = [], lay = h('div.as-studio__frame', { 'data-no-swipe': '' }), base = fig.firstChild;
-    const end = async ok => { lay.remove(); if (ok && was.length) { await P.save(cid, pt); toast('擦好了'); } else { if (was.length) { pt.base = was[0]; base.src = pt.base; } toast('没改'); } };
-    lay.onpointerdown = async e => {
-      if (e.target.closest('.as-studio__erase')) return;
-      e.preventDefault(); const r = fig.getBoundingClientRect(), k = pt.w / r.width, b = await P.wipe(pt, (e.clientX - r.left) * k, (e.clientY - r.top) * k);
-      if (b === pt.base) return; was.push(pt.base); pt.base = b; base.src = b;
+    const pt = P.loaded(cid), base = fig.firstChild, was = [], org = new Image(); org.src = pt.orig ||= pt.base;
+    const cv = h('canvas.as-studio__cv', { width: pt.w, height: pt.h }), x = cv.getContext('2d', { willReadFrequently: true });
+    await org.decode().catch(() => {}); x.drawImage(base, 0, 0); fig.append(cv); base.style.visibility = 'hidden';
+    let mode = 'tap', size = 18, last = null;
+    const lay = h('div.as-studio__frame', { 'data-no-swipe': '' }), dot = h('i.as-studio__dot');
+    const snap = () => was.push(new Promise(r => cv.toBlob(r)));
+    const end = async ok => {
+      lay.remove();
+      if (ok && was.length) { pt.base = cv.toDataURL('image/png'); base.src = pt.base; await base.decode().catch(() => {}); await P.save(cid, pt); toast('修好了'); } else toast('没改');
+      base.style.visibility = ''; cv.remove();
     };
-    lay.append(h('div.as-studio__erase', btn('取消', 'secondary', () => end(false)), btn('撤销', 'secondary', () => { if (was.length) { pt.base = was.pop(); base.src = pt.base; } }), btn('完成', 'primary', () => end(true))));
-    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('点没抠干净的地方');
+    // 一个软边的圆：擦就挖掉，补回就把原图的这一圈盖回来
+    const stamp = (cx, cy, r) => {
+      const g = x.createRadialGradient(cx, cy, r * .5, cx, cy, r); g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      if (mode === 'erase') { x.globalCompositeOperation = 'destination-out'; x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); x.globalCompositeOperation = 'source-over'; return; }
+      const t = h('canvas', { width: Math.ceil(r * 2), height: Math.ceil(r * 2) }), tx = t.getContext('2d'), L = cx - r, T = cy - r;
+      tx.drawImage(org, -L, -T); tx.globalCompositeOperation = 'destination-in'; tx.translate(-L, -T); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
+      x.drawImage(t, L, T);
+    };
+    const at = e => { const R = fig.getBoundingClientRect(), k = pt.w / R.width, L = lay.getBoundingClientRect(); Object.assign(dot.style, { left: e.clientX - L.left + 'px', top: e.clientY - L.top + 'px', width: size * 2 + 'px', height: size * 2 + 'px' }); return [(e.clientX - R.left) * k, (e.clientY - R.top) * k, size * k]; };
+    lay.onpointerdown = e => {
+      if (e.target.closest('.as-studio__erase, .as-studio__brush')) return;
+      e.preventDefault(); const [px, py, r] = at(e);
+      if (mode === 'tap') { const s = new Promise(ok => cv.toBlob(ok)); if (P.wipe(x, pt.w, pt.h, px, py)) was.push(s); return; }
+      snap(); lay.setPointerCapture(e.pointerId); dot.hidden = false; stamp(px, py, r); last = [px, py];
+    };
+    lay.onpointermove = e => {
+      if (!last) return;
+      const [px, py, r] = at(e), d = Math.hypot(px - last[0], py - last[1]), n = Math.ceil(d / (r / 3));
+      for (let i = 1; i <= n; i++) stamp(last[0] + (px - last[0]) * i / n, last[1] + (py - last[1]) * i / n, r);
+      last = [px, py];
+    };
+    lay.onpointerup = lay.onpointercancel = () => { last = null; dot.hidden = true; };
+    const sl = slider({ min: 6, max: 40, step: 1, value: size, onInput: v => { size = v; } });
+    sl.hidden = true;
+    lay.append(dot, h('div.as-studio__brush', segmented([['tap', '点擦'], ['erase', '擦'], ['back', '补回']], mode, v => { mode = v; sl.hidden = v === 'tap'; }), sl),
+      h('div.as-studio__erase', btn('取消', 'secondary', () => end(false)), btn('撤销', 'secondary', async () => { const b = await was.pop(); if (!b) return; const i = await createImageBitmap(b); x.clearRect(0, 0, pt.w, pt.h); x.drawImage(i, 0, 0); }), btn('完成', 'primary', () => end(true))));
+    dot.hidden = true;
+    stage.append(lay); stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   // 一张小图：点了用它，右上角 × 删掉（只剩一张时不能删）
   function thumb(src, on, use, del) {

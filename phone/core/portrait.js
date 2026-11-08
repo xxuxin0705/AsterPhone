@@ -164,7 +164,7 @@ function derive(v) {
   for (const [k, list] of Object.entries(v.alt)) { const x = list[Math.min(v.on[k] ?? 0, list.length - 1)]; if (x) (isPose(k) ? v.poses : v.parts)[k] = x; }
   return v;
 }
-const pack = r => ({ use: r.use, sel: r.sel, vers: r.vers.map(({ base, w, h, boxes, alt, on, e }) => ({ base, w, h, boxes, alt, on, e })) });
+const pack = r => ({ use: r.use, sel: r.sel, vers: r.vers.map(({ base, orig, w, h, boxes, alt, on, e }) => ({ base, orig, w, h, boxes, alt, on, e })) });
 const put = (id, r) => { cache.set(id, r); return kvSet('pt:' + id, pack(r)); };
 export async function load(id) {
   if (!cache.has(id)) {
@@ -222,14 +222,13 @@ function fill(a, W, H, seeds, ok) {
     if (px > 0) st.push(k - 1); if (px < W - 1) st.push(k + 1); if (k >= W) st.push(k - W); if (k < W * (H - 1)) st.push(k + W); }
   return n ? seen : null;
 }
-/** 点一下擦掉：和点的那个点连着、颜色差不多的一片变透明，再往外带走两圈过渡的杂色。交出新的立绘图 */
-export async function wipe(p, x0, y0) {
-  const i = await img(p.base), c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(i, 0, 0);
-  const d = x.getImageData(0, 0, p.w, p.h), a = d.data, W = p.w, H = p.h, k0 = Math.round(y0) * W + Math.round(x0), c0 = [0, 1, 2].map(j => a[k0 * 4 + j]);
+/** 点一下擦掉：和点的那个点连着、颜色差不多的一片变透明，再往外带走两圈过渡的杂色。直接改在画布上，擦到了交出 true */
+export function wipe(x, W, H, x0, y0) {
+  const d = x.getImageData(0, 0, W, H), a = d.data, k0 = Math.round(y0) * W + Math.round(x0), c0 = [0, 1, 2].map(j => a[k0 * 4 + j]);
   const near = (k, t) => a[k * 4 + 3] && c0.every((v, j) => Math.abs(a[k * 4 + j] - v) < t);
-  const seen = fill(a, W, H, [k0], k => near(k, 24)); if (!seen) return p.base;
+  const seen = fill(a, W, H, [k0], k => near(k, 24)); if (!seen) return false;
   for (let r = 0; r < 2; r++) { const add = []; for (let k = 0; k < W * H; k++) { const px = k % W; if (!seen[k] && near(k, 72) && (px > 0 && seen[k - 1] || px < W - 1 && seen[k + 1] || seen[k - W] || seen[k + W])) add.push(k); } add.forEach(k => { seen[k] = 1; a[k * 4 + 3] = 0; }); }
-  x.putImageData(d, 0, 0); return c.toDataURL('image/png');
+  x.putImageData(d, 0, 0); return true;
 }
 export function clearBg(p, type = 'image/png') {
   const c = canvas(p.w, p.h), x = c.getContext('2d', { willReadFrequently: true }), i = new Image();
@@ -241,7 +240,7 @@ export function clearBg(p, type = 'image/png') {
     const white = k => !dark && a[k * 4] > 235 && a[k * 4 + 1] > 235 && a[k * 4 + 2] > 235 || (light || dark) && bg.every((v, i) => Math.abs(a[k * 4 + i] - v) < 16);
     for (let x0 = 0; x0 < W; x0++) st.push(x0, ...(dark ? [] : [(H - 1) * W + x0])); for (let y0 = 0; y0 < H; y0++) st.push(y0 * W, y0 * W + W - 1);
     if (!fill(a, W, H, st, white)) return p;
-    peel(a, W, H); x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL(type, .92), e: 1 };
+    peel(a, W, H); x.putImageData(d, 0, 0); return { ...p, base: c.toDataURL(type, .92), orig: p.base, e: 1 };   // orig：抠之前的原图，修补时「补回」用
   });
 }
 
