@@ -61,7 +61,8 @@
 .as-studio__frame { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; background: rgba(0,0,0,.08); }
 .as-studio__box { position: absolute; display: none; border: 2px dashed var(--as-color-accent, #ff8a3d); border-radius: 6px; background: rgba(255,138,61,.12); }
 .as-studio__own { display: grid; gap: 12px; padding-bottom: 8px; }
-.as-studio__own img { width: 100%; border-radius: 14px; }
+.as-studio__own img { width: 100%; max-height: 42vh; object-fit: contain; border-radius: 14px; background: color-mix(in srgb, var(--as-color-text) 5%, transparent); }
+.as-studio__own-t { font-size: 14px; margin-top: 6px; }
 .as-studio__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; }
 .as-studio__chips button { padding: 6px 14px; border: 0; border-radius: 999px; font: inherit; font-size: 14px; color: var(--as-color-text); background: color-mix(in srgb, var(--as-color-text) 7%, transparent); }
 .as-studio__chips button.is-on { color: #fff; background: var(--as-color-accent, #ff8a3d); }

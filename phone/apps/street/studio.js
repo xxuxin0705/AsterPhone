@@ -87,7 +87,7 @@ function person(cid, changed) {
       if (v) { await P.save(cid, pt); gl.querySelector('.as-list-item__value').textContent = pt.boxes.lensL ? '框好了' : '没戴'; toast(pt.boxes.lensL ? '框好了，再画一次闭眼就会贴在镜片后面' : '好'); }
     } }); gl.dataset.local = ''; gl.hidden = f.how !== 'local'; rows.push(gl); }
     // 用自己的 GPT 画：存脸部图 + 复制提示词，画好的宫格传回来切
-    const own = item({ title: '用自己的 GPT 画', chevron: true, onClick: ownGpt }); own.dataset.ai = ''; own.hidden = f.how === 'local'; rows.push(own);
+    rows.push(item({ title: '下载图片 · 复制提示词', sub: '拿去自己的 GPT 画', chevron: true, onClick: ownGpt }));
     if (isNai()) { const ng = toggleItem({ title: 'NAI 一次画多格（试验）' }, f.naiGrid !== false, v => { f.naiGrid = v; }); ng.dataset.ai = ''; ng.hidden = f.how === 'local'; rows.push(ng); }
     const go = btn(f.how === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情', 'primary', makeParts, { style: { width: '100%' } });
     const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); if ('ai' in r.dataset) r.hidden = v === 'local'; if ('local' in r.dataset) r.hidden = v !== 'local'; }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
@@ -180,14 +180,19 @@ function person(cid, changed) {
     await P.save(cid, pt); if (bad.length) log('warn', APP, `「${nameOf(c)}」宫格里这几格没对上`, why.join('\n'));
     toast(bad.length ? `${bad.join('、')} 没对上，可以再试一次` : '表情做好了，点一下可以看看'); paint();
   }
+  // 图片：下载（存成文件）或复制（贴到 GPT 对话框里）；网页里两样都不行时，长按图片也能存
+  const download = async (src, name) => { const u = URL.createObjectURL(await (await fetch(src)).blob()); const a = Object.assign(document.createElement('a'), { href: u, download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 3e4); };
+  const copyImg = async src => { try { const b = await (await fetch(src)).blob(); await navigator.clipboard.write([new ClipboardItem({ [b.type]: b })]); toast('已复制图片'); } catch (e) { toast('这里复制不了图片，点下载或长按图片保存'); } };
+  const copyText = (t, what) => navigator.clipboard?.writeText(t).then(() => toast(`已复制${what}`), () => toast('复制失败'));
+  const pic = (title, src, file) => [h('b.as-studio__own-t', title), h('img', { src, alt: '' }), h('div.as-studio__row', btn('下载', 'secondary', () => download(src, file)), btn('复制图片', 'secondary', () => copyImg(src)))];
   async function ownGpt() {
     const pt = P.loaded(cid);
     if (!P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
-    const s = sheet({ title: '用自己的 GPT 画', content: h('div.as-studio__own',
-      h('img', { src: await P.faceCrop(pt), alt: '' }),
-      h('div.as-studio__row', btn('复制提示词', 'secondary', () => navigator.clipboard?.writeText(P.gridPrompt).then(() => toast('已复制，和上面这张图一起发给 GPT'), () => toast('复制失败'))),
-        btn('上传画好的', 'primary', async () => { const file = await pickFile(); if (!file) return; s.close(); toast('正在切宫格…', true);
-          try { const all = P.GRID.filter(Boolean), want = all.filter(k => f.pick.has(k)); await useGrid(await fileToDataURL(file, 2048), want.length ? want : all); } catch (e) { toast('切不开：' + e.message); } }))) });
+    const s = sheet({ title: '拿去自己的 GPT 画', content: h('div.as-studio__own',
+      ...pic('立绘', pt.base, `portrait-${cid}.png`), ...pic('脸部特写（画表情用）', await P.faceCrop(pt), `face-${cid}.png`),
+      h('div.as-studio__row', btn('复制表情提示词', 'secondary', () => copyText(P.gridPrompt, '表情提示词，和脸部特写一起发给 GPT'))),
+      h('div.as-studio__row', btn('上传画好的表情宫格', 'primary', async () => { const file = await pickFile(); if (!file) return; s.close(); toast('正在切宫格…', true);
+          try { const all = P.GRID.filter(Boolean), want = all.filter(k => f.pick.has(k)); await useGrid(await fileToDataURL(file, 2048), want.length ? want : all); } catch (e) { toast('切不开：' + e.message); } }))), cls: 'as-studio__own-sheet' });
   }
 
   // 在立绘上依次拖几个框（默认左眼、右眼、嘴），框过的留在上面；交出 { eyeL, eyeR, mouth }（立绘上的 [x, y, w, h]），点提示条上的取消交出 null
