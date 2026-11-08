@@ -462,17 +462,20 @@ async function imageRaw(prompt, conn, ref) {
       }
       default: {     // OpenAI 官方 / 第三方：默认走 /images/generations；有的中转站只能走聊天接口出图
         const base = oaiBase(conn.base);
-        if (I.mode === 'chat') {
+        const chat = async () => {
           const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
             body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: ((t) => ref ? [{ type: 'text', text: t }, { type: 'image_url', image_url: { url: ref } }] : t)(full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})`) }] }) });
           if (!res.ok) await fail(res);
           const u = imageInReply(await res.json()); if (!u) throw new Error('聊天接口的回复里没有图片'); return keep(u);
-        }
+        };
+        if (I.mode === 'chat') return chat();
         const body = { model: conn.model || undefined, prompt: full + (neg ? `\n\nAvoid: ${neg}` : ''), n: 1, size: `${W}x${H}` };
         let res;
         if (ref) {   // 照图改：/images/edits，图片按文件传
           const fd = new FormData(); Object.entries(body).forEach(([k, v]) => v != null && fd.append(k, String(v))); fd.append('image', await (await fetch(ref)).blob(), 'image.png');
           res = await xf(base + '/images/edits', { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: fd });
+          // 回一个不是 JSON 的 404：这家根本没有照图改图的接口（只开了聊天接口那条路），改走聊天接口；回 JSON 的 404 是别的错（比如模型不存在），照常报
+          if (res.status === 404 && !/json/i.test(res.headers.get('content-type') || '')) { note('warn', '连接', `「${conn.name}」没有照图改图的接口，改走聊天接口`, `${base}/images/edits 回了 404`); return chat(); }
         } else res = await xf(base + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) await fail(res);
         const j = await res.json(), d = (j.data || [])[0] || {};

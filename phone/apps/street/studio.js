@@ -69,7 +69,8 @@ function person(cid, changed) {
     const vers = P.versions(cid), at = P.using(cid);
     const strip = vers.length > 1 && h('div.as-studio__alts', vers.map((v, i) => thumb(v.base, i === at, () => P.useVersion(cid, i).then(paint),
       async () => { if (await dialog({ title: '删掉这张立绘？', text: '它的表情和动作也一起删掉。', confirm: '删除', danger: true })) { await P.dropVersion(cid, i); paint(); } })));
-    const make = [group(pt ? '再画一张立绘' : '立绘', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } }))]),
+    const make = [group(pt ? '再画一张立绘' : '立绘', [refRow, h('div.as-field', textarea({ rows: 3, value: f.desc, placeholder: '描述', onInput: v => { f.desc = v; } })),
+      item({ title: '复制立绘提示词', chevron: true, onClick: () => copyText(P.basePrompt(f.desc.trim() || (f.ref ? '' : nameOf(c)), !!f.ref), f.ref ? '立绘提示词，和参考图一起发给 GPT' : '立绘提示词') })]),
       stop || (f.ref ? h('div.as-studio__row', btn('直接用这张', 'secondary', asIs), btn('AI 画立绘', 'primary', makeBase)) : btn('AI 画立绘', 'primary', makeBase, { style: { width: '100%' } }))];
     if (!pt) return ctl.replaceChildren(...make);
     // 做好的表情、动作各排一排：点一个立绘就换上，再点一下换回来；有好几个候选的，下面再排一排候选
