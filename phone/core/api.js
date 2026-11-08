@@ -461,6 +461,7 @@ async function imageRaw(prompt, conn, ref) {
         throw new Error('ComfyUI 等了 3 分钟还没出图');
       }
       default: {     // OpenAI 官方 / 第三方：默认走 /images/generations；有的中转站只能走聊天接口出图
+        const base = oaiBase(conn.base);
         if (I.mode === 'chat') {
           const res = await xf(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
             body: JSON.stringify({ model: conn.model || undefined, stream: false, messages: [{ role: 'user', content: ((t) => ref ? [{ type: 'text', text: t }, { type: 'image_url', image_url: { url: ref } }] : t)(full + (neg ? `\n\nAvoid: ${neg}` : '') + `\n\n(size ${W}x${H})`) }] }) });
