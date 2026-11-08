@@ -36,7 +36,7 @@ const around = (p, bs, px, py, up = 0) => {
 export const hasBoxes = p => !!(p.boxes && p.boxes.eyeL);
 export function areaOf(p, region) {
   const { eyeL, eyeR, mouth } = p.boxes;
-  return region === 'eyes' ? around(p, [eyeL, eyeR], .15, .2, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
+  return region === 'eyes' ? around(p, [eyeL, eyeR], .3, .25, 1) : region === 'mouth' ? around(p, [mouth], .5, .6) : around(p, [eyeL, eyeR, mouth], .3, .5);
 }
 
 /** 不找 AI、在手机里画：眼睛、脸红、汗滴用现成的贴纸（作者用 GPT 画好、抠出来的，assets/portrait/），眼睛先抹平再贴；
@@ -53,6 +53,8 @@ export async function drawPart(p, k) {
     const [name, size, line, drop, erase] = STICK[k], mid = b => [b[0] + b[2] / 2, b[1] + b[3] / 2], [lx, ly] = mid(eyeL), [rx, ry] = mid(eyeR), [mx, my] = mid(mouth);
     const tilt = Math.atan2(ry - ly, rx - lx), dn = [-Math.sin(tilt), Math.cos(tilt)], down = (mx - (lx + rx) / 2) * dn[0] + (my - (ly + ry) / 2) * dn[1];
     const [L, R] = await Promise.all(['l', 'r'].map(s => img(`assets/portrait/${name}-${s}.webp`)));
+    // 戴眼镜：先把镜片那块原样存下，贴完再盖回去（镜片后面隐约透出闭眼）
+    const lens = k !== 'sweat' && p.boxes.lensL ? [p.boxes.lensL, p.boxes.lensR].map(b => [b, x.getImageData(...b)]) : [];
     for (const [st, b, side] of [[L, eyeL, -1], [R, eyeR, 1]]) {
       const [, , bw, bh] = b, [ex, ey] = mid(b), w = bw * size, h = st.naturalHeight * w / st.naturalWidth, lash = erase && lashOf(x, b);
       if (erase) smooth(x, b);
@@ -65,9 +67,21 @@ export async function drawPart(p, k) {
       else x.drawImage(t, -w / 2, -h * line);
       x.restore();
     }
+    for (const [[gx, gy, gw, gh], G] of lens) {
+      // 镜片的颜色：取镜片下半圈（那里没有眼睛）的平均；新画的眼睛上盖一层这个颜色。镜框（边上一圈）照原样
+      const now = x.getImageData(gx, gy, gw, gh), a = now.data, g = G.data, tone = [0, 0, 0]; let n = 0;
+      for (let y = gh >> 1; y < gh; y++) for (let x0 = 0; x0 < gw; x0++) if (((x0 / gw - .5) * 2) ** 2 + ((y / gh - .5) * 2) ** 2 < .5) { const i = (y * gw + x0) * 4; for (let c = 0; c < 3; c++) tone[c] += g[i + c]; n++; }
+      tone.forEach((v, c) => tone[c] = v / n);
+      const cover = (tone[0] * .3 + tone[1] * .59 + tone[2] * .11) < 110 ? .7 : .2;   // 墨镜只隐约透出，透明镜片基本看得清
+      for (let y = 0; y < gh; y++) for (let x0 = 0; x0 < gw; x0++) { const q = ((x0 / gw - .5) * 2) ** 2 + ((y / gh - .5) * 2) ** 2, i = (y * gw + x0) * 4; if (q >= 1) continue;
+        if (q > .72) for (let c = 0; c < 4; c++) a[i + c] = g[i + c]; else for (let c = 0; c < 3; c++) a[i + c] = a[i + c] * (1 - cover) + tone[c] * cover; }
+      x.putImageData(now, gx, gy);
+    }
   }
   else lips(x, mouth, k === 'mouthO');
-  const a = areaOf(p, k === 'blush' || k === 'sweat' || k === 'eyesWail' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth'), o = canvas(a[2], a[3]);
+  let a = areaOf(p, k === 'blush' || k === 'sweat' || k === 'eyesWail' ? 'face' : k.startsWith('eyes') ? 'eyes' : 'mouth');
+  if (k.startsWith('eyes') && p.boxes.lensL) a = around(p, [a, p.boxes.lensL, p.boxes.lensR], 0, 0);
+  const o = canvas(a[2], a[3]);
   o.getContext('2d').drawImage(c, a[0], a[1], a[2], a[3], 0, 0, a[2], a[3]);
   return { src: o.toDataURL('image/png'), box: a };
 }
@@ -203,12 +217,95 @@ export async function cut(p, src, area) {
   mx.putImageData(md, 0, 0);
   // 糊开再把透明度放大四倍 = 往外扩一圈再羽化（不扩的话，原来的眼睛边会从羽化的地方透出来一圈影子）
   const f = canvas(w, h), fx = f.getContext('2d', { willReadFrequently: true }); fx.filter = 'blur(4px)'; fx.drawImage(m, 0, 0);
-  const fd = fx.getImageData(0, 0, w, h); for (let i = 3; i < fd.data.length; i += 4) fd.data[i] = Math.min(255, fd.data[i] * 4); fx.putImageData(fd, 0, 0);
+  // 靠近 area 边上的慢慢变透明，不然整块换上去时看得出一个方框
+  const fd = fx.getImageData(0, 0, w, h), fw = area ? Math.max(4, Math.min(area[2], area[3]) * .15) : 0;
+  for (let i = 3, j = 0; i < fd.data.length; i += 4, j++) { let a = Math.min(255, fd.data[i] * 4);
+    if (fw) { const X = x0 + j % w, Y = y0 + (j / w | 0); a *= Math.max(0, Math.min(1, Math.min(X - area[0], area[0] + area[2] - X, Y - area[1], area[1] + area[3] - Y) / fw)); }
+    fd.data[i] = a; }
+  fx.putImageData(fd, 0, 0);
   const out = canvas(w, h), ox = out.getContext('2d'); ox.drawImage(f, 0, 0); ox.globalCompositeOperation = 'source-in'; ox.drawImage(v, x0 * v.naturalWidth / W, y0 * v.naturalHeight / H, w * v.naturalWidth / W, h * v.naturalHeight / H, 0, 0, w, h);
   return { src: out.toDataURL('image/png'), box: [x0, y0, w, h] };
 }
 
 /** 一个会动的立绘（没有立绘返回 null）。返回的元素上有 .pt：talk(true / false) 说话、face('smile' / 'angry' / 'troubled' / 'shy' / 'cry' / 'wail' / 'laugh' / 'nervous' / '') 换表情、peek(名字) 亮一下某个表情 */
+/** 一张宫格出全部表情（作者的主意）：把脸部特写发给 GPT，让它画 4×3 的表情宫格，一次出 12 格；手机里切开、每格对齐到立绘上，再按区域抠。
+ *  GRID：宫格里从左到右、从上到下每一格是什么。第一格是平常脸，不用，但能让 GPT 照着原样画 */
+export const GRID = ['', 'eyesClosed', 'mouthOpen', 'mouthO', 'eyesSmile', 'browsAngry', 'browsTroubled', 'blush', 'eyesCry', 'eyesWail', 'eyesSqueeze', 'sweat'];
+export const gridPrompt = `附件是一个角色的脸部特写。请画一张 4 列 × 3 行的表情宫格图，共 12 格，格子之间用白色细线隔开。
+每一格都和附件构图完全一样：同样的取景范围、同样的脸的大小和位置、同样的发型、头的角度和画风，只改表情；不改的地方保持原样。
+从左到右、从上到下依次是：
+1 平常（和附件一模一样）
+2 轻轻闭眼（嘴不变）
+3 张嘴说「啊」（眼睛不变）
+4 嘴巴小小圆圆说「哦」（眼睛不变）
+5 眯眼笑：弯弯的笑眼（嘴不变）
+6 生气：眉头压低皱起
+7 为难：眉头往上抬、眉尾下垂
+8 脸红害羞：两颊明显泛红
+9 哭：闭眼流泪
+10 大哭：眼睛闭成 > <，两道眼泪往下流
+11 用力闭眼成 > <
+12 慌张：额头边一滴汗
+不要文字、编号、边框装饰。`;
+/** 发给 GPT 的脸部特写：以两只眼睛和嘴的中间为中心，正方形，边长约是两眼外侧距离的 1.3 倍（刘海到下巴）；白底 */
+export function gridRect(p) {
+  const [x, y, w, h] = around(p, [p.boxes.eyeL, p.boxes.eyeR, p.boxes.mouth], 0, 0), s = Math.round(Math.min(Math.max(w * 1.3, h * 2), p.w, p.h));
+  return [Math.round(Math.max(0, Math.min(p.w - s, x + w / 2 - s / 2))), Math.round(Math.max(0, Math.min(p.h - s, y + h / 2 - s / 2))), s, s];
+}
+export async function faceCrop(p) {
+  const [x, y, s] = gridRect(p), c = canvas(512, 512), cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, 512, 512);
+  cx.drawImage(await img(p.base), x, y, s, s, 0, 0, 512, 512); return c.toDataURL('image/png');
+}
+/** 切宫格：找白色的分隔线（找不到就按 4×3 均分），交出每格的 [x, y, w, h] */
+function cells(d, W, H) {
+  const white = (i) => d[i] > 238 && d[i + 1] > 238 && d[i + 2] > 238;
+  const runs = (n, m, at) => { const gap = []; for (let a = 0; a < n; a++) { let k = 0; for (let b = 0; b < m; b += 2) k += white(at(a, b)); gap.push(k / (m / 2) > .96); }
+    const seg = []; let s = -1; gap.forEach((g, a) => { if (!g && s < 0) s = a; if ((g || a === n - 1) && s >= 0) { const e = g ? a : a + 1; if (e - s > n / 12) seg.push([s, e - s]); s = -1; } }); return seg; };
+  let cs = runs(W, H, (a, b) => (b * W + a) * 4), rs = runs(H, W, (a, b) => (a * W + b) * 4);
+  if (cs.length !== 4) cs = [0, 1, 2, 3].map(i => [Math.round(i * W / 4), Math.round(W / 4)]);
+  if (rs.length !== 3) rs = [0, 1, 2].map(i => [Math.round(i * H / 3), Math.round(H / 3)]);
+  return rs.flatMap(([y, h]) => cs.map(([x, w]) => [x, y, w, h]));
+}
+/** 把一格对到立绘上：先当它就是发出去的那块脸，再在小图上试一点点缩放和挪动，挑最像的（比灰度，先各自减掉平均） */
+function align(base, cell, R) {
+  const N = 96, k = N / R[2], gray = (c, sx, sy, sw, sh, w, h) => { const t = canvas(w, h), x = t.getContext('2d', { willReadFrequently: true }); x.drawImage(c, sx, sy, sw, sh, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h); let m = 0; for (let i = 0; i < g.length; i++) { g[i] = luma(d, i * 4); m += g[i]; } m /= g.length; for (let i = 0; i < g.length; i++) g[i] -= m; return g; };
+  const M = 12, B = gray(base, R[0] - M / k, R[1] - M / k, R[2] + 2 * M / k, R[3] + 2 * M / k, N + 2 * M, N + 2 * M);
+  let best = [Infinity, 1, 0, 0, 1];
+  for (let s = .9; s <= 1.101; s += .025) {
+    // 格子不一定是正方形：宽按 N*s，高按格子自己的长宽比
+    const n = Math.round(N * s), m = Math.round(n * cell.r[3] / cell.r[2]), C = gray(cell.c, ...cell.r, n, m), S = N + 2 * M;
+    for (let dy = -M; dy <= M; dy++) for (let dx = -M; dx <= M; dx++) {
+      const ox = Math.round((N - n) / 2) + M + dx, oy = Math.round((N - m) / 2) + M + dy;
+      const x0 = Math.max(0, -ox), y0 = Math.max(0, -oy), x1 = Math.min(n, S - ox), y1 = Math.min(m, S - oy); if ((x1 - x0) * (y1 - y0) < n * m * .7) continue;
+      let e = 0, c = 0; for (let y = y0; y < y1; y += 2) for (let x = x0; x < x1; x += 2) { const v = C[y * n + x] - B[(y + oy) * S + x + ox]; e += v * v; c++; }
+      e /= c; if (e < best[0]) best = [e, s, ox, oy, m / n]; }
+  }
+  const [, s, ox, oy, as] = best;   // 小图上这一格放在 (ox, oy)、宽 N*s → 换回立绘上的位置
+  return [R[0] + (ox - M) / k, R[1] + (oy - M) / k, R[2] * s, R[2] * s * as];
+}
+/** 宫格图 → 各个表情。want：要哪些（不在宫格里的跳过）。交出 { parts: {名字: {src, box}}, bad: [没成的叫什么], why: [为什么] } */
+export async function cutGrid(p, src, want) {
+  const g = await img(src), gc = canvas(g.naturalWidth, g.naturalHeight), gx = gc.getContext('2d', { willReadFrequently: true }); gx.drawImage(g, 0, 0);
+  const cs = cells(gx.getImageData(0, 0, gc.width, gc.height).data, gc.width, gc.height), base = await img(p.base), R = gridRect(p), parts = {}, bad = [], why = [];
+  const flat = canvas(p.w, p.h), fx = flat.getContext('2d', { willReadFrequently: true }); fx.fillStyle = '#fff'; fx.fillRect(0, 0, p.w, p.h); fx.drawImage(base, 0, 0, p.w, p.h);
+  for (const [i, k] of GRID.entries()) {
+    if (!k || !want.includes(k)) continue;
+    const name = PARTS.find(x => x[0] === k)[1];
+    try {
+      const r = cs[i], at = align(flat, { c: gc, r }, R), v = canvas(p.w, p.h), vx = v.getContext('2d', { willReadFrequently: true });
+      vx.drawImage(flat, 0, 0); vx.drawImage(gc, ...r, ...at);
+      // 颜色校一下：GPT 重画会整体偏一点色，拿要换的那块四周一圈比平均色差，整块减掉
+      const A = areaOf(p, PARTS.find(x => x[0] === k)[5]), mg = Math.round(Math.min(A[2], A[3]) * .3), O = [Math.max(0, A[0] - mg), Math.max(0, A[1] - mg)];
+      O.push(Math.min(p.w, A[0] + A[2] + mg) - O[0], Math.min(p.h, A[1] + A[3] + mg) - O[1]);
+      const d0 = fx.getImageData(...O).data, im = vx.getImageData(...O), d1 = im.data, off = [0, 0, 0]; let n = 0;
+      for (let y = 0; y < O[3]; y += 2) for (let x = 0; x < O[2]; x += 2) { const X = x + O[0], Y = y + O[1]; if (X >= A[0] && X < A[0] + A[2] && Y >= A[1] && Y < A[1] + A[3]) continue; const j = (y * O[2] + x) * 4; for (let c = 0; c < 3; c++) off[c] += d1[j + c] - d0[j + c]; n++; }
+      if (n) { for (let j = 0; j < d1.length; j += 4) for (let c = 0; c < 3; c++) d1[j + c] -= off[c] / n; vx.putImageData(im, O[0], O[1]); }
+      parts[k] = await cut(p, v.toDataURL('image/png'), A);
+    } catch (e) { bad.push(name); why.push(`${name}：${e.message}`); }
+  }
+  return { parts, bad, why };
+}
+
 const FACE = { smile: ['eyesSmile'], angry: ['browsAngry'], troubled: ['browsTroubled'], shy: ['blush'], cry: ['eyesCry'], wail: ['eyesWail'], laugh: ['eyesSqueeze'], nervous: ['sweat', 'browsTroubled'] };
 export function figure(id) {
   const p = loaded(id); if (!p) return null;

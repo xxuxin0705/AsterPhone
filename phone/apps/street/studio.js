@@ -2,7 +2,7 @@
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, contact } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
-import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, segmented } from '../../core/ui.js';
+import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, icon, segmented, sheet } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { log } from '../../core/log.js';
@@ -20,6 +20,8 @@ const who = id => id === 'me' ? { id, name: myName(), avatar: myAvatar() } : con
 const TALL = { 'openai-image': '1024x1536', 'image-compat': '1024x1536', siliconflow: '768x1024' };
 const conn = size => { const c = resolveConn('image', 'studio'); return c && { ...c, img: { ...c.img, size: size || TALL[c.type] || '832x1216' } }; };
 const isNai = () => resolveConn('image', 'studio')?.type === 'novelai';
+// 能照着图改的 OpenAI 类生图线：一次画一张 12 格表情宫格（作者的主意），切开用
+const gridLine = () => ['openai-image', 'image-compat'].includes(resolveConn('image', 'studio')?.type);
 // NAI 局部重绘：按立绘的长宽比挑一个 64 的倍数、不超过 1024×1024 面积的尺寸（送去的图拉伸铺满，回来缩回原大小正好对上）
 const naiSize = (w, h) => { const H = Math.round(Math.sqrt(1048576 * h / w) / 64) * 64; return `${Math.min(1024, Math.round(H * w / h / 64) * 64)}x${Math.min(H, 1536)}`; };
 const sub = c => { const p = P.loaded(c.id); return p ? `有立绘${Object.keys(p.parts).length ? ` · ${Object.keys(p.parts).length} 个表情` : ''}` : '只有头像'; };
@@ -76,9 +78,18 @@ function person(cid, changed) {
       const row = item({ title: name, sub: pt.parts[k] ? '已有' : use !== name && use, right: ck, onClick: () => { f.pick.has(k) ? f.pick.delete(k) : f.pick.add(k); ck.classList.toggle('is-active', f.pick.has(k)); if (pt.parts[k]) fig?.pt.peek(k); } });
       row.dataset.k = k; row.hidden = f.how === 'local' && !P.LOCAL.includes(k); return row;
     });
-    if (pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { pt.boxes = b; await P.save(cid, pt); toast('框好了'); } } }));
+    if (pt.boxes) rows.push(item({ title: '眼睛和嘴的位置', value: '重新框', chevron: true, onClick: async () => { if (taken()) return; const b = await frameAll(); if (b) { Object.assign(pt.boxes, b); await P.save(cid, pt); toast('框好了'); } } }));
+    // 戴眼镜的：框一下两边镜片，手机里画闭眼时贴在镜片后面
+    if (pt.boxes) { const gl = item({ title: '眼镜', value: pt.boxes.lensL ? '框好了' : '没戴', chevron: true, onClick: async () => {
+      const v = await actionSheet('眼镜', [{ value: 'set', label: pt.boxes.lensL ? '重新框镜片' : '框镜片' }, pt.boxes.lensL && { value: 'off', label: '没戴眼镜', danger: true }].filter(Boolean));
+      if (v === 'off') { delete pt.boxes.lensL; delete pt.boxes.lensR; }
+      if (v === 'set') { if (taken()) return; const b = await frameAll([['lensL', '框住左边镜片'], ['lensR', '框住右边镜片']]); if (!b) return; Object.assign(pt.boxes, b); }
+      if (v) { await P.save(cid, pt); gl.querySelector('.as-list-item__value').textContent = pt.boxes.lensL ? '框好了' : '没戴'; toast(pt.boxes.lensL ? '框好了，再画一次闭眼就会贴在镜片后面' : '好'); }
+    } }); gl.dataset.local = ''; gl.hidden = f.how !== 'local'; rows.push(gl); }
+    // 用自己的 GPT 画：存脸部图 + 复制提示词，画好的宫格传回来切
+    const own = item({ title: '用自己的 GPT 画', chevron: true, onClick: ownGpt }); own.dataset.ai = ''; own.hidden = f.how === 'local'; rows.push(own);
     const go = btn(f.how === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情', 'primary', makeParts, { style: { width: '100%' } });
-    const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
+    const how = segmented([['local', '手机里画 · 免费'], ['ai', 'AI 画']], f.how, v => { f.how = v; rows.forEach(r => { if (r.dataset.k) r.hidden = v === 'local' && !P.LOCAL.includes(r.dataset.k); if ('ai' in r.dataset) r.hidden = v === 'local'; if ('local' in r.dataset) r.hidden = v !== 'local'; }); go.textContent = v === 'local' ? '免费画勾选的表情' : 'AI 画勾选的表情'; });
     ctl.replaceChildren(how, group('表情', rows), stop || go,
       h('div.as-studio__row', btn('重做立绘', 'secondary', async () => { if (await dialog({ title: '重做立绘？', text: '做好的表情也会一起清掉。', confirm: '重做', danger: true })) { await P.drop(cid); paint(); } }),
         btn('删除', 'danger', async () => { if (await dialog({ title: '删除立绘？', text: '删掉后这个人回到只用头像。', confirm: '删除', danger: true })) { await P.drop(cid); paint(); } })));
@@ -112,9 +123,16 @@ function person(cid, changed) {
     const pt = P.loaded(cid), local = f.how === 'local', todo = P.PARTS.filter(([k]) => f.pick.has(k) && (!local || P.LOCAL.includes(k)));
     if (!todo.length) { toast('先勾要哪些表情'); return; }
     if (!local && !conn()) { toast('还没有生图连接：设置 → 连接 → 生图 里插一根线'); return; }
-    // 手机里画、NAI 只重画框里那一块：都要先在立绘上框出两只眼睛和嘴（框一次就记住）
-    const nai = !local && isNai();
-    if ((local || nai) && !P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    // 手机里画、NAI 只重画框里那一块、宫格对位置：都要先在立绘上框出两只眼睛和嘴（框一次就记住）
+    const nai = !local && isNai(), grid = !local && gridLine();
+    if ((local || nai || grid) && !P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    if (grid) return work('正在画表情宫格（一次画完）…', async stop => {
+      try {
+        const src = await generateImage(P.gridPrompt, APP, conn('1536x1024'), stop, await P.faceCrop(pt));
+        if (stop.aborted) return;
+        await useGrid(src, todo.map(t => t[0]));
+      } catch (e) { if (stop.aborted) return; if (!e.logId) log('warn', APP, `「${nameOf(c)}」的表情宫格没画成：${e.message}`, e); toast('没画成：' + e.message); }
+    });
     if (local) {
       if (taken()) return;
       for (const [k] of todo) { pt.parts[k] = await P.drawPart(pt, k); f.pick.delete(k); }
@@ -135,9 +153,26 @@ function person(cid, changed) {
     });
   }
 
-  // 在立绘上依次拖三个框（左眼、右眼、嘴），框过的留在上面；交出 { eyeL, eyeR, mouth }（立绘上的 [x, y, w, h]），点提示条上的取消交出 null
-  const frameAll = () => new Promise(done => {
-    const steps = [['eyeL', '框住左边那只眼睛'], ['eyeR', '框住右边那只眼睛'], ['mouth', '框住嘴']], got = {}, lay = h('div.as-studio__frame', { 'data-no-swipe': '' });   // 往右拖框别被当成「滑动返回」
+  // 宫格切开、对齐、抠；只留勾了的
+  async function useGrid(src, want) {
+    const pt = P.loaded(cid), { parts, bad, why } = await P.cutGrid(pt, src, want);
+    for (const k in parts) { pt.parts[k] = parts[k]; f.pick.delete(k); }
+    await P.save(cid, pt); if (bad.length) log('warn', APP, `「${nameOf(c)}」宫格里这几格没对上`, why.join('\n'));
+    toast(bad.length ? `${bad.join('、')} 没对上，可以再试一次` : '表情做好了，点一下可以看看'); paint();
+  }
+  async function ownGpt() {
+    const pt = P.loaded(cid);
+    if (!P.hasBoxes(pt)) { if (taken()) return; const b = await frameAll(); if (!b) return; pt.boxes = b; await P.save(cid, pt); }
+    const s = sheet({ title: '用自己的 GPT 画', content: h('div.as-studio__own',
+      h('img', { src: await P.faceCrop(pt), alt: '' }),
+      h('div.as-studio__row', btn('复制提示词', 'secondary', () => navigator.clipboard?.writeText(P.gridPrompt).then(() => toast('已复制，和上面这张图一起发给 GPT'), () => toast('复制失败'))),
+        btn('上传画好的', 'primary', async () => { const file = await pickFile(); if (!file) return; s.close(); toast('正在切宫格…', true);
+          try { const all = P.GRID.filter(Boolean), want = all.filter(k => f.pick.has(k)); await useGrid(await fileToDataURL(file, 2048), want.length ? want : all); } catch (e) { toast('切不开：' + e.message); } }))) });
+  }
+
+  // 在立绘上依次拖几个框（默认左眼、右眼、嘴），框过的留在上面；交出 { eyeL, eyeR, mouth }（立绘上的 [x, y, w, h]），点提示条上的取消交出 null
+  const frameAll = (steps = [['eyeL', '框住左边那只眼睛'], ['eyeR', '框住右边那只眼睛'], ['mouth', '框住嘴']]) => new Promise(done => {
+    const got = {}, lay = h('div.as-studio__frame', { 'data-no-swipe': '' });   // 往右拖框别被当成「滑动返回」
     let s = null, box = null;
     const end = v => { lay.remove(); removeEventListener('pointermove', move); removeEventListener('pointerup', up); done(v); };
     const ask = () => { const [k, label] = steps[Object.keys(got).length]; box = h('i.as-studio__box'); lay.append(box); toast(label, { label: '取消', fn: () => { end(null); toast('已取消'); }, wait: true }); };
@@ -148,7 +183,7 @@ function person(cid, changed) {
       s = null;
       if (w < 8 || hh < 4) { box.style.display = ''; return; }
       got[steps[Object.keys(got).length][0]] = [(Math.min(x0, e.clientX) - r.left) * k, (Math.min(y0, e.clientY) - r.top) * k, w, hh].map(Math.round);
-      Object.keys(got).length === 3 ? end(got) : ask();
+      Object.keys(got).length === steps.length ? end(got) : ask();
     };
     lay.onpointerdown = e => { e.preventDefault(); s = { x: e.clientX, y: e.clientY, L: lay.getBoundingClientRect() }; };
     addEventListener('pointermove', move); addEventListener('pointerup', up);

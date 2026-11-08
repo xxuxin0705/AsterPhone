@@ -60,3 +60,5 @@
 
 .as-studio__frame { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; background: rgba(0,0,0,.08); }
 .as-studio__box { position: absolute; display: none; border: 2px dashed var(--as-color-accent, #ff8a3d); border-radius: 6px; background: rgba(255,138,61,.12); }
+.as-studio__own { display: grid; gap: 12px; padding-bottom: 8px; }
+.as-studio__own img { width: 100%; border-radius: 14px; }
