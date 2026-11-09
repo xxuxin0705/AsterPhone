@@ -293,6 +293,10 @@
 .as-int-ab p { margin: 4px 0 0; font-size: 13px; }
 .as-int-ab button { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; background: none; color: inherit; opacity: .6; }
 .as-int-spend { display: grid; gap: 6px; }
+.as-int-step { display: grid; gap: 10px; text-align: center; }
+.as-int-step > b { font-size: 44px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.as-int-step__row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.as-int-step__row button { height: 44px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--as-color-text) 8%, transparent); color: inherit; font-size: 18px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .as-int-spend__left { margin: 0 0 4px; text-align: center; opacity: .8; }
 .as-int-spend__row { display: grid; grid-template-columns: 1fr 40px 36px; align-items: center; gap: 6px; }
 .as-int-spend__row b { text-align: center; font-variant-numeric: tabular-nums; }

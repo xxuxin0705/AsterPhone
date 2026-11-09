@@ -486,10 +486,10 @@ function cardPage(back, resume) {
       pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         if (k === 'LUCK') return toast('幸运只能掷，不能改');
-        const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]), inputmode: 'numeric' } }), 10); if (!v) return;
-        const most = free ? 90 : Math.min(90, c.attrs[k] + all + up - sum);   // 总点数不能超过档位
-        if (v > most) toast(`${n}最多 ${most}：${tier}一共 ${all + up} 点`);
-        c.attrs[k] = Math.max(1, Math.min(most, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
+        stepSheet(n, () => c.attrs[k], v => {
+          const most = free ? 90 : Math.min(90, c.attrs[k] + all + up - R.attrSum(c.attrs));   // 总点数不能超过档位，到顶了就加不上去（底下那行会写还剩 0 点）
+          c.attrs[k] = Math.max(1, Math.min(most, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
+        }, () => [!free && `还剩 ${all + up - R.attrSum(c.attrs)} 点`, c.attrs[k] >= 90 && '最高 90'].filter(Boolean).join(' · '));
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
       const left = all + up - sum, hi = m && c.at >= m.at ? m.rules.attrMax : 90;
@@ -504,7 +504,7 @@ function cardPage(back, resume) {
       const s = sheet({ title: '挑一套', content: h('div.as-actions', sets.map(a => h('button.as-actions__item', { onclick: () => { s.close(); newAttrs(a); } },
         h('span', R.ATTRS.map(([k, n]) => `${n.slice(0, 1)}${a[k]}`).join(' ') + `　共 ${R.ATTRS.reduce((t, [k]) => t + (k === 'LUCK' ? 0 : a[k]), 0)}`)))) });
     });
-    // 技能：加过点的排前面，− / + 每次 5 点，点数字能填具体的；本职技能名字标色，点名字能改是不是本职；点数超了标红
+    // 技能：加过点的排前面，− / + 每次 5 点，点数字能一点一点调；本职技能名字标色，点名字能改是不是本职；点数超了标红
     const pts = h('div.as-int-pts'), skillBox = h('div.as-int-skills'), restBox = h('div.as-int-skills.is-rest');
     const restB = h('button.as-int-more', { onclick: () => { restBox.hidden = !restBox.hidden; restB.textContent = restBox.hidden ? '其余技能 ▾' : '收起 ▴'; } }, '其余技能 ▾');
     restBox.hidden = true;
@@ -512,8 +512,8 @@ function cardPage(back, resume) {
       const base = R.baseSkills(c.attrs), up = c.skillUp || 0;
       const count = () => { const u = R.usage(c.attrs, c.skills, R.jobsOf(c)); pts.textContent = `本职 ${u.job}/${u.jobAll} · 兴趣 ${u.hobby}/${u.hobbyAll}${up ? `+${up}` : ''}`; pts.classList.toggle('is-over', u.hobby > u.hobbyAll + up); };
       count();
-      // − / + 一次 5 点；要具体到某一点（61、62）就点数字直接填
-      const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: async () => { const n = parseInt(await dialog({ title: k, input: { value: String(c.skills[k]), inputmode: 'numeric' } }), 10); if (n) bump(n - c.skills[k]); } }, c.skills[k]);
+      // − / + 一次 5 点；要具体到某一点（61、62）就点数字，−5 −1 +1 +5 慢慢调
+      const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: () => stepSheet(k, () => c.skills[k], n => bump(n - c.skills[k]), () => pts.textContent) }, c.skills[k]);
         const bump = d => { const n = c.skills[k] + d; c.skills[k] = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(R.MAX_SKILL, n)); if (k === CR && c.skills[k] !== n) toast(`${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}`); v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
           const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
@@ -553,6 +553,13 @@ function cardPage(back, resume) {
 }
 
 // 分成长点（活着打完一局给的）：点 + 就掷 1D100，大于现在的值才加 1，没过这点也用掉了（越高越难长，作者定的）；掷了就算，没有退回
+/** 调一个数（属性、技能）：−5 −1 +1 +5，点了马上改，不用打字；note 是底下那行（还剩几点） */
+function stepSheet(title, get, set, note) {
+  const v = h('b', get()), tip = h('p.as-int-spend__left', note());
+  const go = d => { set(get() + d); v.textContent = get(); tip.textContent = note(); };
+  const s = sheet({ title, content: h('div.as-int-step', v, tip, h('div.as-int-step__row', ...[-5, -1, 1, 5].map(d => h('button', { onclick: () => go(d) }, (d < 0 ? '−' : '+') + Math.abs(d)))),
+    h('div.as-prompt-bar', btn('完成', 'primary', () => s.close()))) });
+}
 function spendSheet(c, done) {
   const left = h('p.as-int-spend__left', `还剩 ${c.pend} 点`), said = h('p.as-int-spend__left');
   const rows = R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => {
