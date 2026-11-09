@@ -118,7 +118,7 @@ function toCard(o, x, rolled, r) {
 const num = v => v == null || v === '' || isNaN(+v) ? null : Math.max(0, Math.round(+v)), strs = L => (Array.isArray(L) ? L : []).map(String).filter(Boolean);
 function toRules(r = {}) {
   const lo = Math.max(15, Math.min(60, num(r.attrMin) ?? 15));
-  return { base: Math.max(400, Math.min(560, num(r.base) ?? 460)), attrMin: lo, attrMax: Math.max(lo + 20, Math.min(90, num(r.attrMax) ?? 90)), skillMax: Math.max(50, Math.min(90, num(r.skillMax) ?? 90)), hobbyMax: Math.max(30, Math.min(num(r.skillMax) ?? 90, 90, num(r.hobbyMax) ?? 90)),
+  return { base: Math.max(400, Math.min(560, num(r.base) ?? 460)), attrMin: lo, attrMax: Math.max(lo + 20, Math.min(90, num(r.attrMax) ?? 90)), skillMax: Math.max(50, Math.min(90, num(r.skillMax) ?? 80)), hobbyMax: Math.max(30, Math.min(num(r.skillMax) ?? 80, 90, num(r.hobbyMax) ?? 60)),   // 没写就照常见的：本职 80、兴趣 60
     skills: strs(r.skills), weapons: num(r.weapons), guns: r.guns !== false, abilities: num(r.abilities), banned: strs(r.banned), text: String(r.text || ''),
     tiers: Object.fromEntries(Object.entries(r.tiers || {}).map(([k, v]) => [k, R.tierOf(v) || R.TIERS[0][0]])),
     money: r.money && r.money.unit ? { unit: String(r.money.unit).slice(0, 8), rate: +r.money.rate > 0 ? +r.money.rate : 1 } : { unit: '美元', rate: 1 } };   // 当地的钱：KP 按故事的年代、地方定
@@ -207,7 +207,7 @@ export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一
   const [clo, chi] = R.crOf(c.job), cr = c.skills.信用评级 || 0; if (fresh && (cr < clo || cr > chi)) bad.push(`信用评级要在 ${clo}～${chi}（${c.job}）`);
   const out = fresh && c.tier ? R.ATTRS.filter(([k]) => k !== 'LUCK' && (c.attrs[k] < r.attrMin || c.attrs[k] > r.attrMax)) : [];
   if (out.length) bad.push(`属性要在 ${r.attrMin}～${r.attrMax}：${out.map(([k, n]) => n + c.attrs[k]).join('、')}`);
-  const base = R.baseSkills(c.attrs), hi = fresh ? Object.entries(c.skills).filter(([k, v]) => v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
+  const base = R.baseSkills(c.attrs), hi = fresh && !c.skillUp ? Object.entries(c.skills).filter(([k, v]) => v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
   if (hi.length) bad.push(`技能超了上限（本职 ${r.skillMax}${r.hobbyMax < r.skillMax ? `、其他 ${r.hobbyMax}` : ''}）：${hi.map(([k, v]) => k + ' ' + v).join('、')}`);
   const w = (c.items || []).filter(x => x.dmg), n = (c.abilities || []).length, things = [...(c.items || []), ...(c.abilities || [])].map(x => x.name).join('、') + (c.assets || '');
   if (r.weapons != null && w.length > r.weapons) bad.push(`武器带了 ${w.length} 件，最多 ${r.weapons} 件`);

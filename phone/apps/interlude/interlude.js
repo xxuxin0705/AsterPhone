@@ -468,7 +468,11 @@ function cardPage(back, resume) {
       const j = v === '__own' ? ((await dialog({ title: '职业', input: { value: c.job } })) || '').trim() : v;
       if (!j) return;
       set('job', j); jobB.textContent = j;
-      if (!R.JOBS.some(x => x[0] === j)) return;
+      if (!R.JOBS.some(x => x[0] === j)) {   // 自己写的职业：自己挑本职技能（最多 8 个；信用评级总算本职，克苏鲁神话不能当本职）
+        const got = await pickMany('本职技能（最多 8 个）', Object.keys(R.baseSkills(c.attrs)).filter(k => k !== CR && k !== '克苏鲁神话').map(k => ({ key: k, name: k, avatar: false })), { preselect: R.jobsOf(c).filter(k => k !== CR) });
+        if (got) { if (got.length > 8) toast('最多 8 个，先要前 8 个'); c.jobSkills = got.slice(0, 8); saveLater(); paintSkills(); }
+        return;
+      }
       c.jobSkills = R.jobsOf({ job: j }); c.skills[CR] = R.crFit(c.skills[CR], j); saveLater(); paintSkills(); paintWealth();   // 换成表里的职业：本职技能、信用评级的范围跟着换
       if (await dialog({ title: '按这个职业重新分技能？', text: '本职技能按职业重新加点，兴趣点要自己再加。', confirm: '重新分' })) { c.skills = R.jobSkills(c.attrs, j); saveLater(); paintSkills(); paintWealth(); }
     } }, c.job || '选职业');
@@ -513,13 +517,13 @@ function cardPage(back, resume) {
       // 两份点还剩多少（兴趣点含打完几局长的）；点不够了就加不上去
       const left = (sk = c.skills) => { const u = R.usage(c.attrs, sk, R.jobsOf(c)); return [u.jobAll - u.job, u.hobbyAll + up - u.hobby]; };
       const count = () => { const [j, o] = left(); pts.textContent = `本职还剩 ${j} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', o < 0); };
-      // 每项最高：团公告定了就照公告（本职 skillMax、其他 hobbyMax，只管这局新车的卡），不然 90；信用评级照职业
-      const r = m && c.at >= m.at ? m.rules : null, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
+      // 每项最高：这局新车的卡照团公告（本职 skillMax、其他 hobbyMax），没有团公告照常见的本职 80、兴趣 60；跑过局长过的卡到 90；信用评级照职业
+      const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
       // 点数字：和属性一样弹 −5 −1 +1 +5，不用打字
       const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], n => bump(n - c.skills[k]),
           () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) && `最高 ${hiOf(k)}`].filter(Boolean).join(' · ')) }, c.skills[k]);
-        const bump = d => { let n = k === CR ? R.crFit(c.skills[k] + d, c.job) : Math.max(base[k], Math.min(hiOf(k), c.skills[k] + d));
+        const bump = d => { let n = k === CR ? R.crFit(c.skills[k] + d, c.job) : Math.max(base[k], Math.min(Math.max(hiOf(k), c.skills[k]), c.skills[k] + d));   // 本来就比上限高的（旧卡）按 + 不会被压下去
           while (n > c.skills[k] && left({ ...c.skills, [k]: n })[1] < 0) n--;   // 点不够：退到刚好够的地方
           c.skills[k] = n; v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
@@ -542,7 +546,7 @@ function cardPage(back, resume) {
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
-      h('h3', '技能'), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
+      h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只能加在本职技能上，兴趣点哪项都能加。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
       h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,

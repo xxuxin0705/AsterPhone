@@ -25,7 +25,7 @@ export function pickMany(title, list, { preselect = [], disabled = [] } = {}) {
     const rows = list.map(x => {
       const ck = h('span.as-chat-check' + (sel.has(x.key) ? '.is-active' : '') + (disabled.includes(x.key) ? '.is-disabled' : ''), icon('check', 14, 2.6));
       return h('div.as-chat-pick__row', { role: 'button', onclick: () => { if (disabled.includes(x.key)) return; sel.has(x.key) ? sel.delete(x.key) : sel.add(x.key); ck.classList.toggle('is-active', sel.has(x.key)); } },
-        ck, h('span', x.name), x.note && h('span.as-muted', x.note), avatar(x.avatar, x.name, 34));
+        ck, h('span', x.name), x.note && h('span.as-muted', x.note), x.avatar !== false && avatar(x.avatar, x.name, 34));
     });
     const s = sheet({ title, onClose: () => { if (!done) res(null); }, content: h('div.as-stack-gap', h('div.as-chat-pick', rows),
       btn('确定', 'primary', () => { done = true; s.close(); res([...sel]); })) });
