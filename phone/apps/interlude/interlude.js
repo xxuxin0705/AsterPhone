@@ -473,32 +473,37 @@ function cardPage(back, resume) {
     } }, c.job || '选职业');
     // 属性：点数字改；重掷、五选一
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
-    // 档位和属性点：AI 照人设分的卡才有（自己掷骰的没有档位）；点档位能换
+    // 档位和属性点：点档位能换
     const tierB = h('button.as-int-tier', { onclick: async () => { const v = await actionSheet('档位', R.TIERS.map(([t]) => ({ value: t, label: `${t} · ${R.budgetOf(t, c.base)} 点`, active: c.tier === t }))); if (v) { set('tier', v); paintAttrs(); } } });
     const apts = h('div.as-int-pts', tierB, h('span')), hint = h('p.as-int-hint');
     const pendB = btn('', 'secondary', () => spendSheet(c, () => { paintAttrs(); pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`; }));
     const paintAttrs = () => {
-      apts.hidden = !c.tier; tierB.textContent = c.tier || ''; const sum = R.attrSum(c.attrs), all = R.budgetOf(c.tier, c.base), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
-      apts.lastChild.textContent = `属性点 ${sum} / ${all}${up ? ` + 成长 ${up}` : ''}`; apts.classList.toggle('is-over', sum > all + up);
+      // 档位：卡上的，没有就照团公告给你的，再没有就是普通人（和交卡时审的一样）；车卡会定了「随机」的不卡总点数
+      const tier = c.tier || (m && R.tierOf(m.rules.tiers[ownerName(c.owner)])) || R.TIERS[0][0], free = m && m.mode === 'random';
+      tierB.textContent = tier; const sum = R.attrSum(c.attrs), all = R.budgetOf(tier, c.base), up = c.grown || 0;   // 活着打完几局长的点是挣来的，不算超
+      apts.lastChild.textContent = free ? `属性点 ${sum}` : `属性点 ${sum} / ${all}${up ? ` + 成长 ${up}` : ''}`; apts.classList.toggle('is-over', !free && sum > all + up);
       pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
-        const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]) } }), 10); if (!v) return;
-        c.attrs[k] = Math.max(1, Math.min(90, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
+        if (k === 'LUCK') return toast('幸运只能掷，不能改');
+        const v = parseInt(await dialog({ title: n, input: { value: String(c.attrs[k]), inputmode: 'numeric' } }), 10); if (!v) return;
+        const most = free ? 90 : Math.min(90, c.attrs[k] + all + up - sum);   // 总点数不能超过档位
+        if (v > most) toast(`${n}最多 ${most}：${tier}一共 ${all + up} 点`);
+        c.attrs[k] = Math.max(1, Math.min(most, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
       const left = all + up - sum, hi = m && c.at >= m.at ? m.rules.attrMax : 90;
-      hint.textContent = [c.tier && (left >= 0 ? `还剩 ${left} 点` : `超了 ${-left} 点`), ...R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => c.attrs[k] < R.minOf(k) ? `${n}至少 ${R.minOf(k)}`
+      hint.textContent = [!free && (left >= 0 ? `还剩 ${left} 点` : `超了 ${-left} 点`), ...R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => c.attrs[k] < R.minOf(k) ? `${n}至少 ${R.minOf(k)}`
         : c.attrs[k] < 30 ? `${n} ${c.attrs[k]} 太低了，${LOW[k]}` : c.attrs[k] > hi ? `${n}超过这局上限 ${hi}` : '')].filter(Boolean).join('；');
       hint.hidden = !hint.textContent;
     };
-    const newAttrs = a => { c.attrs = a; delete c.tier; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 自己掷骰就不算档位了
+    const newAttrs = a => { c.attrs = a; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 掷出来的也照档位算总点数，超了标红
     const reroll = btn('重掷', 'secondary', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '3D6×5'); newAttrs(R.rollAttrs()); });
     const five = btn('天命五选一', 'secondary', () => {
       const sets = R.fiveSets();
       const s = sheet({ title: '挑一套', content: h('div.as-actions', sets.map(a => h('button.as-actions__item', { onclick: () => { s.close(); newAttrs(a); } },
         h('span', R.ATTRS.map(([k, n]) => `${n.slice(0, 1)}${a[k]}`).join(' ') + `　共 ${R.ATTRS.reduce((t, [k]) => t + (k === 'LUCK' ? 0 : a[k]), 0)}`)))) });
     });
-    // 技能：加过点的排前面，− / + 每次 5 点；本职技能名字标色，点名字能改是不是本职；点数超了标红
+    // 技能：加过点的排前面，− / + 每次 5 点，点数字能填具体的；本职技能名字标色，点名字能改是不是本职；点数超了标红
     const pts = h('div.as-int-pts'), skillBox = h('div.as-int-skills'), restBox = h('div.as-int-skills.is-rest');
     const restB = h('button.as-int-more', { onclick: () => { restBox.hidden = !restBox.hidden; restB.textContent = restBox.hidden ? '其余技能 ▾' : '收起 ▴'; } }, '其余技能 ▾');
     restBox.hidden = true;
@@ -506,7 +511,8 @@ function cardPage(back, resume) {
       const base = R.baseSkills(c.attrs), up = c.skillUp || 0;
       const count = () => { const u = R.usage(c.attrs, c.skills, R.jobsOf(c)); pts.textContent = `本职 ${u.job}/${u.jobAll} · 兴趣 ${u.hobby}/${u.hobbyAll}${up ? `+${up}` : ''}`; pts.classList.toggle('is-over', u.hobby > u.hobbyAll + up); };
       count();
-      const row = k => { const v = h('b', c.skills[k]);
+      // − / + 一次 5 点；要具体到某一点（61、62）就点数字直接填
+      const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: async () => { const n = parseInt(await dialog({ title: k, input: { value: String(c.skills[k]), inputmode: 'numeric' } }), 10); if (n) bump(n - c.skills[k]); } }, c.skills[k]);
         const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; count(); saveLater(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
           const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', base[k]), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };

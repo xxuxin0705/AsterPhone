@@ -277,7 +277,7 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
       field1 = h('input.as-input', { placeholder: `请输入 ${typed}` });
       ok.disabled = true; field1.addEventListener('input', () => { ok.disabled = field1.value.trim() !== typed; ok.classList.toggle('is-ready', !ok.disabled); });
     } else if (inp) {
-      field1 = h('input.as-input', { placeholder: inp.placeholder || '', value: inp.value || '' });
+      field1 = h('input.as-input', { placeholder: inp.placeholder || '', value: inp.value || '', inputmode: inp.inputmode || null });   // inputmode: 'numeric' 弹数字键盘
       field1.addEventListener('keydown', e => { if (e.key === 'Enter') done(field1.value); });
     }
     const box = h('div.as-dialog', { role: 'alertdialog' }, h('div.as-dialog__title', title), text && h('div.as-dialog__text', text), field1,

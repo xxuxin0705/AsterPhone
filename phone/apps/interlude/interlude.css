@@ -107,7 +107,7 @@
 .as-int-skill small { font-size: 10px; }
 .as-int-skill > span { cursor: pointer; }
 .as-int-skill.is-job > span { color: #7a3a14; font-weight: 600; }
-.as-int-skill b { text-align: center; font-size: 14px; }
+.as-int-skill b { text-align: center; font-size: 14px; cursor: pointer; }
 .as-int-skill button { width: 22px; height: 22px; padding: 0; border: 1px solid rgba(27,42,82,.3); border-radius: 50%; background: none; color: #2f2619; font-size: 14px; line-height: 1; cursor: pointer; }
 .as-int-more { margin: 8px 0 4px; padding: 0; border: 0; background: none; color: #6a3a1c; font: inherit; font-size: 13px; cursor: pointer; }
 /* 夜里：深色档案纸（白天那张调暗做的），浅字、金棕色标题，格子是深色 */
