@@ -311,9 +311,9 @@ const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 // 团公告的羊皮纸（车卡会墙上那张、卡片页点开的都是它）：先写你的档位和规矩，虚线下面是背景；底下小箭头朝下能展开、朝上收起。
 // 日夜两张纸先解码好再放上去，不然有一帧只有字
 const postEl = m => h('div.as-int-post', img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)), h('i.as-int-post__more', icon('chevron', 16, 2)));
-// 念台词的小喇叭：点了先转圈（在合成），出声了亮起来；转圈时再点是取消，出声时再点是停
-const voiceBtn = fn => { const vol = icon('volume', 18, 1.8), b = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); fn(); } }, vol);
-  b.set = st => { b.st = st; b.replaceChildren(st === 'load' ? h('span.as-spin') : vol); b.classList.toggle('is-on', st === 'on'); }; return b; };
+// 念台词的小喇叭：点了先转圈（在合成），出声了变成暂停键（和电台一样）；转圈时再点是取消，出声时再点是停
+const voiceBtn = fn => { const vol = icon('volume', 18, 1.8), stop = icon('pause', 18, 1.8), b = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); fn(); } }, vol);
+  b.set = st => { b.st = st; b.replaceChildren(st === 'load' ? h('span.as-spin') : st === 'on' ? stop : vol); b.classList.toggle('is-on', st === 'on'); }; return b; };
 const paper = () => Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
 const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
 // 属性填得太低时的提醒（自己填卡时实时显示）

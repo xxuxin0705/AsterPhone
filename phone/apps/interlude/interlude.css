@@ -179,7 +179,7 @@
 .as-int-box::after { content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; background: rgb(20 20 24 / .22); pointer-events: none; }
 .as-phone:not([data-mode="night"]) .as-int-box::after { background: rgb(255 255 255 / .14); }
 .as-int-box__voice { position: absolute !important; right: 10px; top: 10px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; }
-.as-int-box__voice.is-on { background: rgba(255,255,255,.4); animation: as-int-bob .6s ease-in-out infinite alternate; }
+.as-int-box__voice.is-on { background: rgba(255,255,255,.4); }
 .as-int-box p { margin: 0; }
 /* 翻上一句 / 还有下一句的小箭头：放在对话框左右两边的正中间 */
 .as-int-box__back { position: absolute !important; left: 2px; top: 50%; margin-top: -18px; padding: 6px 8px; border: 0; background: none; color: #fff; font-size: 20px; line-height: 24px; opacity: .6; cursor: pointer; }
