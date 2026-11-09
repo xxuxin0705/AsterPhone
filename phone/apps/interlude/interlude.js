@@ -757,9 +757,12 @@ function playPage(g) {
     if (g.done) { act.append(ending()); return; }
     const q = g.fight ? { type: 'free' } : g.req;
     if (g.fight) act.append(fightBox());
-    // 检定：都是你点了才掷（不暗骰，作者定的）；同一个场景要掷的人一起：画面上掷你（没你就是第一个人），其他人手机跟着掷
+    // 检定：你自己点了才掷；只有心理学是 KP 的暗骰（作者定的）：手机替 KP 暗着掷，结果只交给 KP，你只听 KP 讲你看出了什么
+    const ws = [].concat(q.who || '你');
+    if (q.type === 'check' && q.hidden && q.skill === '心理学') { pending = [pending, ...ws.map(w => '（暗骰）' + G.resolve(g, { ...q, who: w }).text)].filter(Boolean).join('；'); g.req = { type: 'free' }; toast('KP 暗暗掷了一次骰'); send(''); return; }
+    // 同一个场景要掷的人一起：画面上掷你（没你就是第一个人），其他人手机跟着掷
     if (q.type === 'check' || q.type === 'san' || q.type === 'opposed') {
-      const ws = [].concat(q.who || '你'), mine = ws.some(w => w === '你' || w === g.pc.name), rest = ws.filter(w => w !== '你' && w !== g.pc.name && G.who(g, w));
+      const mine = ws.some(w => w === '你' || w === g.pc.name), rest = ws.filter(w => w !== '你' && w !== g.pc.name && G.who(g, w));
       const lead = mine ? '你' : rest.shift() || '你', name = lead === '你' ? '' : `替${lead}${rest.length ? '等人' : ''}`;
       const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}${+q.bonus > 0 ? ' · 奖励骰' : +q.bonus < 0 ? ' · 惩罚骰' : ''}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
