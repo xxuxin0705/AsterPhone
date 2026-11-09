@@ -214,7 +214,7 @@ export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一
   if (!r.guns && w.some(isGun)) bad.push(`不能带枪：${w.filter(isGun).map(x => x.name).join('、')}`);
   if (r.abilities != null && n > r.abilities) bad.push(`特殊能力 ${n} 个，最多 ${r.abilities} 个`);
   const ban = r.banned.filter(b => things.includes(b)); if (ban.length) bad.push(`不准带：${ban.join('、')}`);
-  if (u.hobby > u.hobbyAll + (c.skillUp || 0)) bad.push(`技能点超了：本职 ${u.job}/${u.jobAll}，兴趣 ${u.hobby}/${u.hobbyAll}${c.skillUp ? ` + 成长 ${c.skillUp}` : ''}`);
+  if (u.job > u.jobAll || u.hobby > u.hobbyAll + (c.skillUp || 0)) bad.push(`技能点超了：本职 ${u.job}/${u.jobAll}，兴趣 ${u.hobby}/${u.hobbyAll}${c.skillUp ? ` + 成长 ${c.skillUp}` : ''}`);
   return bad;
 }
 export const meetRules = m => { const t = m.mode !== 'random' && R.tierOf(m.rules.tiers[myName()]);

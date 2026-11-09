@@ -516,7 +516,7 @@ function cardPage(back, resume) {
       const base = R.baseSkills(c.attrs), up = c.skillUp || 0;
       // 两份点还剩多少（兴趣点含打完几局长的）；点不够了就加不上去
       const left = (sk = c.skills) => { const u = R.usage(c.attrs, sk, R.jobsOf(c)); return [u.jobAll - u.job, u.hobbyAll + up - u.hobby]; };
-      const count = () => { const [j, o] = left(); pts.textContent = `本职还剩 ${j} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', o < 0); };
+      const count = () => { const [j, o] = left(); pts.textContent = `本职${j < 0 ? `超了 ${-j}` : `还剩 ${j}`} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', j < 0 || o < 0); };
       // 每项最高：这局新车的卡照团公告（本职 skillMax、其他 hobbyMax），没有团公告照常见的本职 80、兴趣 60；母语和跑过局长过的卡到 90；信用评级照职业
       const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r || k === '母语' ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
@@ -524,7 +524,7 @@ function cardPage(back, resume) {
       const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], fit, bump,
           () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) ? `最高 ${hiOf(k)}` : c.skills[k] <= base[k] && `最低 ${base[k]}`].filter(Boolean).join(' · ')) }, c.skills[k]);
         const fit = n => { n = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(Math.max(hiOf(k), c.skills[k]), n));   // 本来就比上限高的（旧卡）按 + 不会被压下去
-          const o = Math.min(0, left()[1]); while (n > c.skills[k] && left({ ...c.skills, [k]: n })[1] < o) n--; return n; };   // 点不够：退到刚好够的地方（兴趣点本来就超了的旧卡，本职点还能用）
+          const i = R.jobsOf(c).includes(k) ? 0 : 1, o = Math.min(0, left()[i]); while (n > c.skills[k] && left({ ...c.skills, [k]: n })[i] < o) n--; return n; };   // 点不够：退到刚好够的地方（本职技能看本职点，其他看兴趣点）
         const bump = n => { c.skills[k] = n; v.textContent = n; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
           const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), v); return el; };
@@ -546,7 +546,7 @@ function cardPage(back, resume) {
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
-      h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只能加在本职技能上，兴趣点哪项都能加。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
+      h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只加在本职技能上，兴趣点只加在其他技能上。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
       h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,

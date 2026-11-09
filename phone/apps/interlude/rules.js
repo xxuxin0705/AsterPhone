@@ -40,11 +40,11 @@ export const MAX_SKILL = 90;
 const RENAMED = [['开锁', '锁匠'], ['导航', '领航'], ['驾驶', '汽车驾驶'], ['艺术', '技艺'], ['外语', '语言']];
 export const renamed = sk => { const o = { ...sk }; for (const [a, b] of RENAMED) if (a in o && !(b in o)) { o[b] = o[a]; delete o[a]; } return o; };
 export const baseSkills = a => ({ ...SKILLS, 闪避: Math.floor(a.DEX / 2), 母语: a.EDU });
-/** 两份点各用了多少：本职技能先用本职点，不够的算兴趣点；jobs 本职技能。兴趣点比规则书多给 50（作者定的） */
+/** 两份点各用了多少：本职点只加本职技能，兴趣点只加其他技能（作者定的，规则书里兴趣点也能加本职）；jobs 本职技能。兴趣点比规则书多给 50（作者定的） */
 export function usage(a, sk, jobs = []) {
   const b = baseSkills(a), job = a.EDU * 4, hobby = a.INT * 2 + 50; let j = 0, o = 0;
   for (const [k, v] of Object.entries(sk)) { const n = Math.max(0, v - (b[k] ?? 0)); if (jobs.includes(k)) j += n; else o += n; }
-  return { job: Math.min(j, job), hobby: o + Math.max(0, j - job), jobAll: job, hobbyAll: hobby };
+  return { job: j, hobby: o, jobAll: job, hobbyAll: hobby };
 }
 /** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告：本职技能 max、其他 hobbyMax；母语一开始就等于教育，不管上限），没给的用基础值 */
 export function fixSkills(a, given = {}, max = MAX_SKILL, hobbyMax = max, jobs = null) {
