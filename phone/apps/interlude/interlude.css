@@ -201,12 +201,13 @@
 .as-int-foes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
 .as-int-foes button { padding: 5px 10px; border: 1px solid rgba(47,38,25,.3); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 13px; }
 .as-int-foes button.is-on { background: #2f2619; color: #f1ece2; }
-.as-int-wait { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(236,228,210,.96); color: #2f2619; font: 400 14px/1 var(--font-cn); }
+/* 等 KP 写的那条：不要底色，直接放在背景上（作者要的） */
+.as-int-wait { display: flex; align-items: center; gap: 8px; padding: 10px 2px; color: #f1ece2; text-shadow: 0 1px 4px rgba(0,0,0,.6); font: 400 14px/1 var(--font-cn); }
 .as-int-wait .as-btn { margin-left: auto; padding: 4px 12px; min-height: 28px; font-size: 12px; }
 .as-int-end { padding: 14px 16px; background: rgba(236,228,210,.96); color: #2f2619; font-family: var(--font-cn); display: flex; flex-direction: column; gap: 8px; }
 .as-int-end p { margin: 0; font-size: 14px; line-height: 1.7; }
 /* 夜里底下这几块换深色（夜里按钮是白字，浅底上看不见） */
-.as-phone[data-mode="night"] :is(.as-int-ask, .as-int-wait, .as-int-end:not(.is-bare), .as-int-input .as-textarea, .as-int-dicebtn) { background: rgba(30,28,26,.94); color: #ece4d2; }
+.as-phone[data-mode="night"] :is(.as-int-ask, .as-int-end:not(.is-bare), .as-int-input .as-textarea, .as-int-dicebtn) { background: rgba(30,28,26,.94); color: #ece4d2; }
 .as-phone[data-mode="night"] .as-int-foes button.is-on { background: #ece4d2; color: #2f2619; }
 
 /* 对话框里：旁白小一点淡一点，台词是主角，翻译再小一行 */

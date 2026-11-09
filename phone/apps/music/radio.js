@@ -717,7 +717,7 @@ function openBook(b) {
     if (t !== talking) { talking = t; fig.pt.talk(t); }
     if (!c) return;
     if (j !== ci) {
-      ci = j; sayT.textContent = c.t; sayTr.textContent = c.tr; sayTr.parentNode.hidden = !c.tr; row._fit();
+      ci = j; sayT.textContent = c.tr || c.t; sayTr.textContent = c.tr ? c.t : ''; sayTr.parentNode.hidden = !c.tr;   // 有中文翻译时中文当大字、原文小字（和幕间一样） row._fit();
       if (k != null && j) { row.classList.remove('is-turn'); void row.offsetWidth; row.classList.add('is-turn'); }
     }
     row.style.setProperty('--p', (k == null ? 100 : Math.min(100, Math.max(0, (k - c.a) / (c.b - c.a)) * 100)).toFixed(1) + '%');

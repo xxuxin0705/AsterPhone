@@ -97,13 +97,13 @@ async function tavernStatus() {
     }
     return null;
 }
-let lastCheck = 0;
+let lastCheck = 0, gitCheck = null;
 /** 返回 { local, remote, newer }；force = 手机里点「检查更新」，这时就算点过「知道了」也照样提示。
  *  GitHub 读得到就先按它马上弹；酒馆自己的检查要先 git fetch，慢几秒，但 GitHub 读不到（国内网络、Tauri 酒馆）时靠它 */
 async function checkUpdate(force) {
     lastCheck = Date.now();
     const show = (v, skip) => { if (force || localStorage.getItem(SKIP_KEY) !== skip) showUpdateCard(v, skip); };
-    const git = tavernStatus();
+    const git = gitCheck = tavernStatus();
     const [l, r] = await Promise.all([
         fetch(BASE + 'manifest.json', { cache: 'no-cache' }).then(x => x.json()).catch(() => ({})),
         fetch(REMOTE, { cache: 'no-cache' }).then(x => x.json()).catch(() => null),
@@ -130,6 +130,8 @@ function showUpdateCard(v, skip) {
 }
 /** 让酒馆替我们 git pull 一下，好了就刷新页面。插件装在「所有用户」还是「当前用户」不知道，两种都试 */
 async function updateNow() {
+    // 卡片是 GitHub 一说有新版就弹，酒馆自己的检查（git fetch）还要慢几秒；这时去更新，同一个文件夹里两个 git 撞在一起，第一次会失败。先等它跑完
+    await gitCheck;
     for (const global of await installedGlobal()) {
         try {
             const res = await fetch('/api/extensions/update', { method: 'POST', headers: stHeaders(), body: JSON.stringify({ extensionName: extName(), global }) });

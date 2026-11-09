@@ -424,7 +424,8 @@ function cardPage(back, resume) {
       if ((shelf.dataset.o || '') !== (l.o || '')) { shelf.dataset.o = l.o || ''; const c = l.o && cardOf(l.o);
         shelf.replaceChildren(...c ? [h('div.as-int-reveal', ownerFace(l.o, 40), h('div', h('b', `${c.name} · ${c.job}`),
           h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')), (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null))] : []); }
-      actT.textContent = l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
+      // 台词不是中文的：中文当大字，原文小字放下面（作者读中文；念的还是原文）
+      actT.textContent = l.act || ''; sayT.textContent = l.zh || (l.say ? plain(l.say) : ''); zhT.textContent = l.zh ? plain(l.say) : '';
       actT.hidden = !l.act; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !l.say; backB.hidden = seen.length < 2; more.hidden = !queue.length;
       if (l.say && vmode !== 'tap') voice(); };
     function next() { if (!queue.length) return; seen.push(queue.shift()); say(seen.at(-1)); if (!queue.length) end(); }
@@ -687,7 +688,7 @@ function playPage(g) {
   const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) ? l : null;
     const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
     face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
-    actT.textContent = l.text || l.act || ''; sayT.textContent = l.say ? plain(l.say) : ''; zhT.textContent = l.zh || '';
+    actT.textContent = l.text || l.act || ''; sayT.textContent = l.zh || (l.say ? plain(l.say) : ''); zhT.textContent = l.zh ? plain(l.say) : '';
     actT.hidden = !actT.textContent; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !(cur && l.say);
     if (mode === 'next') queue.filter(x => !x.ooc).slice(0, 2).forEach(ahead);
     if (cur && l.say && mode !== 'tap') voice(cur); };
