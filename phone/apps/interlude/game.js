@@ -34,7 +34,7 @@ export function cancel() { if (job) job.ac.abort(); }
 const strip = t => String(t).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').replace(/```(?:json)?/g, '');
 function parse(t) {
   const s = strip(t), i = s.indexOf('{'), j = s.lastIndexOf('}');
-  try { return JSON.parse(s.slice(i, j + 1)); } catch (e) { throw new Error(open(t) ? 'AI 回到一半断了（接着写了两次也没写完）' : 'AI 回的格式不对'); }
+  try { return JSON.parse(s.slice(i, j + 1)); } catch (e) { throw new Error(open(t) ? 'AI 回到一半断了（字数到了上限）' : 'AI 回的格式不对'); }
 }
 /** 括号还没合上：回到一半断了（字数到了上限） */
 function open(t) {
@@ -49,9 +49,10 @@ const MORE = '\n\n【你上一次回到下面这里就断了（字数到了上�
 async function ask(cat, vars, maxTokens, g) {
   const ac = new AbortController(), conn = resolveConn('text', 'interlude'), prompt = compose(cat, vars); job = { g, ac };
   try {
-    // 回到一半断了：把写出来的给它，让它接着写，最多接两次（作者要的）
+    // 回到一半断了：把写出来的给它，让它接着写（作者要的；设置里能关、能定最多补几次）
+    const A = state.apps.interlude, most = A.more === false ? 0 : A.moreMax || 2;
     let out = await generate({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt });
-    for (let n = 0; n < 2 && open(out); n++) out = glue(strip(out), await generate({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt: prompt + MORE + strip(out) }));
+    for (let n = 0; n < most && open(out); n++) out = glue(strip(out), await generate({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt: prompt + MORE + strip(out) }));
     return parse(out);
   } finally { job = null; }
 }

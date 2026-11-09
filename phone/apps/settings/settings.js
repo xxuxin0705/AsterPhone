@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.257';
+export const VERSION = '0.8.258';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -131,6 +131,8 @@ function openApps() {
 function openInterludeApp() {
   const a = state.apps.interlude;
   sub('app-interlude', '幕间', (body, re) => {
+    // 写到一半断了接着写（作者要的）：开关一拨只显示 / 收起「最多补写」那行，不重画
+    const moreF = field('最多补写', segmented([['1', '1 次'], ['2', '2 次'], ['3', '3 次']], String(a.moreMax || 2), v => { a.moreMax = +v; commit('apps'); })); moreF.hidden = a.more === false;
     const own = a.conn.text !== 'follow' && state.connections.text.find(x => x.id === a.conn.text);
     body.append(group('使用的连接', [item({ title: '文字', value: own ? own.name : '跟随全局 →', chevron: true, onClick: async () => {
       const r = await actionSheet('幕间用的文字连接', [{ value: 'follow', label: '跟随全局', active: !own }, ...state.connections.text.map(x => ({ value: x.id, label: x.name, active: own && own.id === x.id })), { value: '__go', label: '去管理连接…', icon: 'link' }]);
@@ -153,6 +155,8 @@ function openInterludeApp() {
         const r = await actionSheet('大成功 / 大失败', CRITS.map(([v, l]) => ({ value: v, label: l, active: a.crit === v })));
         if (r) { a.crit = r; commit('apps'); re(); }
       } }),
+      toggleItem({ title: withInfo('写到一半断了自动补写', 'AI 写到一半被字数上限截断时，把写出来的给它，让它接着写完。每补一次多找一次 AI。') }, a.more !== false, v => { a.more = v; commit('apps'); moreF.hidden = !v; }),
+      moreF,
     ].filter(Boolean)));
   });
 }
