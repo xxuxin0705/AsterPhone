@@ -544,15 +544,20 @@ function cardPage(back, resume) {
       h('button', { 'aria-label': '删除', onclick: () => { c.abilities.splice(i, 1); saveLater(); paintAbs(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
     paintAbs();
     // 武器：名字随便写，伤害照档位挑、技能点选（不准带枪的局里没有枪）；其他随身物品一行一样
-    const ws = (c.items || []).filter(x => x.dmg), wBox = h('div.as-int-abs');
-    const others = textarea({ value: (c.items || []).filter(x => !x.dmg).map(x => x.name).join('\n'), rows: 3, placeholder: '暂无', onInput: () => saveItems() });
-    const saveItems = () => set('items', [...ws.filter(w => w.name), ...others.value.split('\n').map(G.toItem).filter(Boolean)]);
+    const ws = (c.items || []).filter(x => x.dmg), os = (c.items || []).filter(x => !x.dmg), wBox = h('div.as-int-abs'), oBox = h('div.as-int-abs');
+    const saveItems = () => set('items', [...ws, ...os].filter(x => x.name));
+    const nText = n => n ? `×${n}` : '∞';
     const pickW = async (b, w, title, list, k, text) => { const v = await actionSheet(title, list.map(([value, label]) => ({ value, label, active: value === w[k] }))); if (v) { w[k] = v; b.textContent = text(v); saveItems(); } };
     const paintW = () => wBox.replaceChildren(...ws.length ? ws.map(w => h('div.as-int-wpn', input({ value: w.name, placeholder: '名字', onInput: v => { w.name = v.trim(); saveItems(); } }),
       h('button', { onclick: e => pickW(e.currentTarget, w, '伤害', R.DMG.map(([d, n, eg]) => [d, `${n} · ${R.dmgRange(d)} 点（${eg}）`]), 'dmg', R.dmgRange) }, R.dmgRange(w.dmg)),
       h('button', { onclick: e => pickW(e.currentTarget, w, '用哪个技能', ['斗殴', '手枪', '步枪', '投掷'].filter(k => !m || m.rules.guns || !/枪/.test(k)).map(k => [k, k]), 'skill', v => v) }, w.skill),
       h('button', { 'aria-label': '删除', onclick: () => { ws.splice(ws.indexOf(w), 1); saveItems(); paintW(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
-    paintW();
+    // 其他随身物品：次数点选，1～10 次或 ∞ 一直能用
+    const paintO = () => oBox.replaceChildren(...os.length ? os.map(o => h('div.as-int-wpn.is-thing', input({ value: o.name, placeholder: '名字', onInput: v => { o.name = v.trim(); saveItems(); } }),
+      h('button', { onclick: async e => { const b = e.currentTarget, v = await actionSheet('能用几次', [...Array.from({ length: 10 }, (_, i) => String(i + 1)), '∞'].map(k => ({ value: k, label: k === '∞' ? '∞ 一直能用' : k + ' 次', active: k === String(o.n || '∞') })));
+        if (v) { if (v === '∞') delete o.n; else o.n = +v; b.textContent = nText(o.n); saveItems(); } } }, nText(o.n)),
+      h('button', { 'aria-label': '删除', onclick: () => { os.splice(os.indexOf(o), 1); saveItems(); paintO(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
+    paintW(); paintO();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
@@ -564,7 +569,7 @@ function cardPage(back, resume) {
       field('都有些什么', textarea({ value: c.assets || '', rows: 2, placeholder: '暂无', onInput: v => set('assets', v) })),
       h('h3', '随身'),
       field(withInfo('武器', '名字随便写，伤害照档位挑，最重到步枪那档。'), wBox), h('div.as-int-row', btn('加一件武器', 'secondary', () => { ws.push({ name: '', dmg: '1D6', skill: '斗殴' }); paintW(); wBox.lastChild.firstChild.focus(); })),
-      field('其他随身物品', others));
+      field(withInfo('其他随身物品', '用得完的（绷带、药）选次数，用一次少一次；一直能用的（手机、手电）选 ∞。'), oBox), h('div.as-int-row', btn('加一样东西', 'secondary', () => { os.push({ name: '', n: 1 }); paintO(); oBox.lastChild.firstChild.focus(); })));
     paintAttrs(); paintSkills();
     sheetEl.scrollTop = 0;
   }
@@ -630,7 +635,7 @@ function archivePage(sync, resume) {
   nav.push(p.el);
 }
 function readPage(g) {
-  const p = page({ app: 'interlude', id: 'int-read', title: g.title, large: true, back: true, cls: 'as-int-archive' });
+  const p = page({ app: 'interlude', id: 'int-read', title: g.title, large: true, back: true, cls: 'as-int-archive', right: navText('片头', () => castRoll(p.el, g)) });
   p.body.append(h('div.as-int-read', g.log.map(l => h('div.as-int-read__l' + (l.me ? '.is-me' : '') + (l.ooc ? '.is-ooc' : ''),
     h('b', l.me || l.who === '你' || l.who === myName() || l.who === g.pc.name ? '你' : l.who), l.text || l.act ? h('p.is-act', plain(l.text || l.act)) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', plain(l.zh)) : null)),
     g.done && g.done.text ? h('div.as-int-read__end', g.done.text) : null));
@@ -658,6 +663,7 @@ function playPage(g) {
   // 开着却没在放（手机不让自己出声，只认手指点的那一下）：点一下就放，不是关掉
   const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { if (!S[k + 'Off'] && beds[k].src && beds[k].paused) { beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); return; } S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); else bed(k, true); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
   const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), bedBtn('amb', 'rain', '白噪音')] });
+  Object.assign(p.nav.querySelector('.as-navbar__title'), { role: 'button', onclick: () => castRoll(p.el, g) });   // 点标题重看片头
   // 这个地址能不能放：等它能开始放（或者出错、10 秒没动静）
   const can = (a, url) => new Promise(ok => { const done = v => { clearTimeout(t); a.oncanplay = a.onerror = null; ok(v); }, t = setTimeout(() => done(false), 10000); a.oncanplay = () => done(true); a.onerror = () => done(false); a.src = url; a.load(); });
   // KP 还没给关键词：先按场景搜（「雨夜街道 氛围 纯音乐」）。loud：点了开关才来找的，找的过程和结果都提示
@@ -751,17 +757,19 @@ function playPage(g) {
     if (g.done) { act.append(ending()); return; }
     const q = g.fight ? { type: 'free' } : g.req;
     if (g.fight) act.append(fightBox());
-    // 暗骰：手机照样掷，结果只交给 KP
-    if (q.type === 'check' && q.hidden) { const r = G.resolve(g, q); pending = [pending, '（暗骰）' + r.text].filter(Boolean).join('；'); g.req = { type: 'free' }; toast('KP 暗暗掷了一次骰'); send(''); return; }
+    // 检定：都是你点了才掷（不暗骰，作者定的）；同一个场景要掷的人一起：画面上掷你（没你就是第一个人），其他人手机跟着掷
     if (q.type === 'check' || q.type === 'san' || q.type === 'opposed') {
-      const mine = !q.who || q.who === '你' || q.who === g.pc.name, name = mine ? '' : `替${q.who}`;
+      const ws = [].concat(q.who || '你'), mine = ws.some(w => w === '你' || w === g.pc.name), rest = ws.filter(w => w !== '你' && w !== g.pc.name && G.who(g, w));
+      const lead = mine ? '你' : rest.shift() || '你', name = lead === '你' ? '' : `替${lead}${rest.length ? '等人' : ''}`;
       const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}${+q.bonus > 0 ? ' · 奖励骰' : +q.bonus < 0 ? ' · 惩罚骰' : ''}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
-        const r = G.resolve(g, q); if (G.canPush(q, r)) g.req = { type: 'push', req: q, text: r.text, label };   // 失败了先问要不要孤注一掷（先存着，退出再进来还是这一步）
+        const r = G.resolve(g, { ...q, who: lead }), more = rest.map(w => [w, G.resolve(g, { ...q, who: w })]), text = [r.text, ...more.map(x => x[1].text)].join('；');
+        if (lead === '你' && G.canPush(q, r)) g.req = { type: 'push', req: { ...q, who: lead }, text, label };   // 失败了先问要不要孤注一掷（先存着，退出再进来还是这一步）
         await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, label, r.text, r.v);
+        if (more.length) toast(more.map(([w, x]) => `${w} ${x.v}`).join(' · '));
         if (g.req.type === 'push') { prompt(); return; }
-        pending = r.text; g.req = { type: 'free' }; send('');   // 掷完直接交给 KP，接着讲成功 / 失败之后怎样
+        pending = text; g.req = { type: 'free' }; send('');   // 掷完直接交给 KP，接着讲每个人成功 / 失败之后怎样
       })));
       return;
     }

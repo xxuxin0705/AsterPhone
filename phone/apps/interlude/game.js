@@ -57,9 +57,10 @@ export const sexOf = s => /女/.test(s) ? '女' : /男/.test(s) ? '男' : '';
 const attrsText = a => R.ATTRS.map(([k, n]) => `${n} ${a[k]}`).join('、');
 const topSkills = s => Object.entries(s).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k} ${v}`).join('、');
 // 随身物品 { name, dmg, skill }：武器才有伤害和用的技能
-export const itemText = x => x.name + (x.dmg ? `（伤害 ${x.dmg}，用${x.skill || '斗殴'}）` : '');
+export const itemText = x => x.name + (x.dmg ? `（伤害 ${x.dmg}，用${x.skill || '斗殴'}）` : x.n ? `（还能用 ${x.n} 次）` : '');
 const bag = p => (p.items || []).length ? `；随身：${p.items.map(itemText).join('、')}` : '；身上没带东西';
-export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}`;
+const relOf = p => `；调查员同伴：${(p.bg && p.bg.rel) || '没写'}`;
+export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}${relOf(g.pc)}`;
 export const isZh = l => !l || /^zh/.test(l);
 /** 这个人说什么语言：开局设置里改过的 → 聊天设置里让 TA 说的 → 中文 */
 export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; const cfg = (chatForContact(id, false) || { cfg: {} }).cfg; return (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
@@ -67,16 +68,18 @@ export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; c
 const toneOf = id => hintFor(kindOf(connFor(id))).replace(/每段/g, '台词').replace(/>> 开头的翻译行不写标签。/, 'zh 翻译不写标签。');
 // 旧存档没有 lang（开局时还没有「说什么语言」）：按开局时会给的默认语言
 const speakLine = (g, id) => { const l = g.lang ? g.lang[id] : langOf(id); return `说话用${langName(isZh(l) ? 'zh-CN' : l)}；台词语气：${toneOf(id)}`; };
-export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
+export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}${relOf(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
 // 玩家本人：旁白用第二人称「你」，只有别人在台词里叫到才叫名字（作者定的，提升代入感）；AI 替不替你说话、行动照开局设置
 const youText = g => `写到 ${myName()}（玩家本人）的旁白一律用第二人称「你」（比如「你被他蹭得有点痒」），不写名字；只有别人在台词里叫到 TA 时才叫名字。${g.speak
   ? '可以抢话：照 TA 的人设和刚才的情形，把 TA 大概会做的事、会说的话也演出来（台词的 who 写「你」），别替 TA 做改变走向的大决定。' : '不要替 TA 说话、做决定、写 TA 的动作，TA 说什么、做什么由 TA 自己来。'}\n`;
 const kpText = g => youText(g) + (() => { const c = g.kp !== 'sys' && contact(g.kp);
   return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n${g.know ? '场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n' : ''}`
     : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; })();
+// 认识谁：照各自卡上的「调查员同伴」（作者定的）；分头行动时不知道对方那边的事
+const REL = '调查员之间的关系照各自卡上的「调查员同伴」：写到了的互相认识，没写到的开局时互不认识，要在戏里先认识一下；分头行动时，不在一起的人不知道对方那边发生了什么，汇合后要在戏里交换情报。';
 const knowText = g => g.know
-  ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：调查员之间还没在戏里认识、没交换过情报时，戏里就不能知道对方那边发生的事，要在戏里走一遍认识、交换情报的过程（场外可以吐槽「就当我们叽里呱啦交换完了」）。'
-  : '所有人都当真，这就是他们的经历，不出戏，不要场外话。';
+  ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：' + REL + '（场外可以吐槽「就当我们叽里呱啦交换完了」，戏里还是要走一遍）'
+  : '所有人都当真，这就是他们的经历，不出戏，不要场外话。' + REL;
 /** 一句台词给人看 / 给 KP 看的样子 */
 export const lineText = l => l.text ? plain(l.text) : `${l.ooc ? '（场外）' : ''}${plain(l.act)}${l.say ? `「${plain(l.say)}」` : ''}`;
 
@@ -223,7 +226,7 @@ export const meetRules = m => { const t = m.mode !== 'random' && R.tierOf(m.rule
 const toPower = x => x && x.name ? { name: String(x.name), kind: x.kind in R.POWERS ? x.kind : 'other', dmg: String(x.dmg || ''), cost: Math.max(0, Math.min(20, Math.round(+x.cost) || 0)), desc: String(x.desc || '') } : null;
 export const powerText = x => `${x.name}（${R.POWERS[x.kind]}${x.dmg ? ' ' + x.dmg : ''}${x.cost ? `，耗 ${x.cost} 魔法` : ''}${x.desc ? '：' + x.desc : ''}）`;
 const powers = p => (p.abilities || []).length ? `；特殊能力：${p.abilities.map(powerText).join('、')}；魔法 ${p.mp ?? R.derived(p.attrs).mp}${p.mpMax ? '/' + p.mpMax : ''}` : '';
-export const toItem = x => typeof x === 'string' ? (x.trim() && { name: x.trim() }) : x && x.name ? { name: String(x.name), ...(x.dmg ? { dmg: R.fitDmg(String(x.dmg)), skill: String(x.skill || '斗殴') } : {}) } : null;
+export const toItem = x => typeof x === 'string' ? (x.trim() && { name: x.trim() }) : x && x.name ? { name: String(x.name), ...(x.dmg ? { dmg: R.fitDmg(String(x.dmg)), skill: String(x.skill || '斗殴') } : +x.n > 0 ? { n: Math.round(+x.n) } : {}) } : null;
 const cardText = c => `${c.name}（${c.age} 岁，${c.sex}，${c.job}，住在${c.home || '—'}）：${attrsText(c.attrs)}；技能：${topSkills(c.skills)}；背景：${BG.filter(([k]) => c.bg[k]).map(([k, n]) => `${n}：${c.bg[k]}`).join('；') || '—'}；消费水平 ${c.living || '—'}，现金 ${c.cash || '—'}，资产 ${c.assets || '—'}${bag(c)}${powers(c)}`;
 const fromCard = c => { const d = R.derived(c.attrs); return { id: c.owner, card: c.id, name: c.name, job: c.job, attrs: c.attrs, skills: { ...c.skills }, hp: d.hp, hpMax: d.hp, san: d.san, sanMax: d.san, bg: c.bg, items: (c.items || []).map(x => ({ ...x })), abilities: (c.abilities || []).map(x => ({ ...x })), mp: d.mp, mpMax: d.mp }; };
 
@@ -286,8 +289,10 @@ export async function play(g, input) {
   if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
   if (out.fightEnd || g.fight && !g.fight.foes.some(f => f.hp > 0)) g.fight = null;
   for (const x of Array.isArray(out.items) ? out.items : []) { const p = who(g, x.who) || g.pc, L = p.items || (p.items = []);
-    if (x.drop) { const k = L.findIndex(y => y.name.includes(String(x.drop)) || String(x.drop).includes(y.name)); if (k >= 0) L.splice(k, 1); }
-    const n = toItem(x.add); if (n) L.push(n); }
+    const find = s => L.findIndex(y => y.name.includes(String(s)) || String(s).includes(y.name));
+    if (x.drop) { const k = find(x.drop); if (k >= 0) L.splice(k, 1); }
+    if (x.use) { const k = find(x.use); if (k >= 0 && L[k].n && !--L[k].n) L.splice(k, 1); }   // 有次数的用一次少一次，用完就没了；没写次数的一直能用
+    const n = toItem(typeof x.add === 'string' ? { name: x.add.trim(), n: x.n } : x.add); if (n) L.push(n); }
   if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, at: Date.now() }; g.req = { type: 'free' }; }
   await save();
   return lines;
@@ -345,8 +350,8 @@ export function resolve(g, req, { skill } = {}) {
   return { r, v: r.grade, text: `${name}的${sk}检定（${req.level || '普通'}${b ? `，${b > 0 ? '奖励' : '惩罚'}骰 ${Math.abs(b)} 个` : ''}）：掷出 ${r.v}，技能 ${val}，${r.grade}` };
 }
 /** 孤注一掷（照规则书）：普通检定失败了，换个做法（how）再掷一次，难度和奖惩骰照旧；再失败就算大失败（国内跑团的做法，作者定的）。
- *  战斗、理智、对抗、暗骰不能孤注一掷；大失败也不能（已经出事了） */
-export const canPush = (req, res) => req.type === 'check' && !req.hidden && res.v === '失败';
+ *  战斗、理智、对抗不能孤注一掷；大失败也不能（已经出事了） */
+export const canPush = (req, res) => req.type === 'check' && res.v === '失败';
 export function push(g, req, how) {
   const res = resolve(g, req);
   if (!res.r.ok) res.v = '大失败';
