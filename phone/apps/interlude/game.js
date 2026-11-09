@@ -135,14 +135,17 @@ export async function makeCards(owners, all = owners, s = {}) {
   const others = all.filter(o => !owners.includes(o)).map(o => { const c = lastCard(o); return ownerName(o) + (c ? `（这局扮演 ${c.name}，${c.job}）` : ''); });
   const out = await ask('intCards', {
     story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(), mode: (MODE_TEXT[s.mode] || '') + noteText(s.note),
-    scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车，不用再写 hint 和 rules）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
-    roster: (others.length ? `同桌的还有：${others.join('、')}（关系也要写到他们）\n` : '') + owners.map(o => rosterLine(o, rolled[o])).join('\n'),
+    scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车；JSON 里不要再写 hint 和 rules，只写 cards）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
+    roster: (others.length ? `同桌的还有：${others.join('、')}（他们的卡已经车好了，不要写他们的卡；只在背景里写到和他们的关系）\n下面这 ${owners.length} 个人要车卡，cards 里正好 ${owners.length} 张：\n` : '') + owners.map(o => rosterLine(o, rolled[o])).join('\n'),
   }, Math.min(8000, 1500 + 1800 * owners.length));   // 一张卡（12 格背景、资产、技能）要 1500～2000；8000 是不少模型一次能回的上限
   const list = Array.isArray(out.cards) ? out.cards : [];
   if (!list.length) throw new Error('AI 回的格式不对');
   if (!m && !s.meet) D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), rules: toRules(out.rules) };
   const r = (meeting(s) || {}).rules;
-  return keep(owners.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o], r)));
+  // 认卡：who 照名字认（写成「你」、名字多了少了几个字也认）；AI 多写了别人的卡、又认不出是谁的，就不乱拿别人的那张
+  const whose = (o, c) => { const n = ownerName(o), w = String(c.who || ''); return !!w && (w === n || n.includes(w) || w.includes(n) || o === 'me' && w === '你'); };
+  return keep(owners.map((o, i) => { const x = list.find(c => whose(o, c)) || list.length === owners.length && list[i];
+    if (!x) throw new Error(`AI 没写${ownerName(o)}的卡`); return toCard(o, x, rolled[o], r); }));
 }
 
 /** 车卡会（知道在跑团时可选）：一次 API 写完整场——KP 先发团公告、其他人交卡被打回再改、定下规矩、其他人过审的卡、
