@@ -70,7 +70,7 @@ export async function write(c, { events = [], floors = null, photos = [] }, stop
     about = `【最近的事】\n${story}` + (msgs.length ? `\n\n【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : m.from === 'them' ? name : ''}：${m.text}`).join('\n')}` : '');
   }
   const scan = floors || events.length ? about : story;
-  const w = await worldText(scan).catch(() => ''), mem = await memoryFor([c], scan).catch(() => '');
+  const w = await worldText(scan).catch(() => ''), mem = await memoryFor([c], scan).then(x => x.join(''), () => '');
   const raw = await generate({ conn: resolveConn('text', 'diary'), system: '', app: '日记', maxTokens: 1600, stop,
     prompt: compose('diaryWrite', { palettes: themeNames(), char: name, persona: (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）', world: (w ? `\n【世界书】\n${w}\n` : '') + mem, about, time: time.forPrompt() }) });
   const body = String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();

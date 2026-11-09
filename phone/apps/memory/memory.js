@@ -39,7 +39,8 @@ export function open() {
         if (!tree) { if (!(await dialog({ title: `给 ${nameOf(c)} 挂一串念念铃？`, confirm: '挂' }))) return; d.trees.push(c.id); await M.save(); draw(); return; }
         openTree(c);
       } });
-    box.replaceChildren(...(all.length ? [
+    box.replaceChildren(group('', [d.wait.length ? item({ title: '等你看', value: String(d.wait.length), chevron: true, onClick: openWait }) : null,
+      item({ title: '刚才想起了什么', chevron: true, onClick: openPeek })].filter(Boolean)), ...(all.length ? [
       all.some(x => x.tree) ? group('挂了铃的', all.filter(x => x.tree).map(row)) : null,
       all.some(x => !x.tree) ? group('还没挂', all.filter(x => !x.tree).map(row)) : null,
     ].filter(Boolean) : [empty('还没有联系人')]));
@@ -78,7 +79,7 @@ function openTree(c) {
   // 搜索：标题、经过、地点、标签、关键词、原话、日期里有这几个字的，点一件就滑到那只铃
   function search() {
     const box = h('div'), all = () => M.evOf(c).filter(e => !e.off);
-    const fill = w => box.replaceChildren(...(!w ? [] : all().filter(e => [e.title, e.text, e.place, e.at, e.quote, ...e.tags, ...(e.keys || [])].some(x => x && x.includes(w))).slice(0, 30)
+    const fill = w => box.replaceChildren(...(!w ? [] : all().filter(e => [e.title, e.text, e.place, e.at, e.quote, e.line, ...e.tags, ...(e.keys || [])].some(x => x && x.includes(w))).slice(0, 30)
       .map(e => item({ title: e.title, sub: [ymd(e.at), e.place].filter(Boolean).join(' · '), chevron: true, onClick: () => { s.close(); close(); S.find(e); } }))));
     const q = input({ placeholder: '想找什么', onInput: v => fill(v.trim()) }), s = sheet({ title: '找一件事', content: [q, box] });
     setTimeout(() => q.focus(), 300);
@@ -104,6 +105,12 @@ function openList(c) {
         await M.save(); draw();
       } })),
     ]));
+    // 故事线：一条线一行，点开按先后列出这条线上的事
+    const lines = new Map();
+    for (const e of all) if (e.line) lines.set(e.line, [...(lines.get(e.line) || []), e]);
+    if (lines.size) nb.push(group('故事线', [...lines].map(([n, l]) => item({ title: n, sub: `${l.length} 件 · 最近：${l[l.length - 1].title}`, chevron: true, onClick: () => {
+      const s = sheet({ title: n, content: l.map(e => item({ title: e.title, sub: ymd(e.at), chevron: true, onClick: () => { s.close(); editEvent(e); } })) });
+    } }))));
     const days = M.daysOf(c, d), md = x => x.date ? ymd(x.date) : x.md.replace(/^0?(\d+)-0?(\d+)$/, '每年$1月$2日');
     nb.push(group('日子', [...days.map(x => item({ title: x.what, sub: `${x.kind || '其他'} · ${md(x)}`, chevron: true, onClick: () => editDay(x) })),
       item({ icon: icon('plus', 18, 2), title: '加一个日子', onClick: () => editDay(null) })]));
@@ -112,10 +119,10 @@ function openList(c) {
     // 按年月分组，最近的在上面
     const months = new Map();
     for (const e of ev) { const k = ym(e.at); if (!months.has(k)) months.set(k, []); months.get(k).push(e); }
-    for (const [k, list] of months) nb.push(group(k, list.map(e => item({ cls: 'as-mem-ev' + (e.off ? '.is-off' : ''),
-      title: h('span', e.pin ? h('span.as-mem-pin', icon('bookmark', 14, 2)) : null, e.title),
+    for (const [k, list] of months) nb.push(group(k, list.map(e => item({ cls: 'as-mem-ev' + (e.off || e.mark === 'no' ? '.is-off' : ''),
+      title: h('span', e.pin ? h('span.as-mem-pin', icon('bookmark', 14, 2)) : null, e.mark === 'hi' ? h('span.as-mem-pin', icon('star', 14, 2)) : null, e.title),
       sub: [ymd(e.at) + (e.guess ? '（推测）' : ''), e.part, e.place].filter(Boolean).join(' · '),
-      value: e.off ? '已撤回' : '★'.repeat(e.imp), chevron: true, onClick: () => editEvent(e) }))));
+      value: e.off ? '已撤回' : e.mark === 'no' ? '噪声' : '★'.repeat(e.imp), chevron: true, onClick: () => editEvent(e) }))));
     if (!ev.length) nb.push(empty('还没有记忆', btn('去整理', 'secondary', openSort)));
     box.replaceChildren(...nb);
   }
@@ -183,9 +190,11 @@ async function editEvent(e) {
       field('经过', textarea({ value: x.text, rows: 3, onInput: v => { x.text = v.trim(); } })),
       field('人物', input({ value: x.who, onInput: v => { x.who = v; } })),
       field('标签', input({ value: x.tags, onInput: v => { x.tags = v; } })),
+      field('故事线', input({ value: x.line || '', onInput: v => { x.line = v.trim(); } })),
       field('影响', input({ value: x.after || '', onInput: v => { x.after = v.trim(); } })),
       field('原话', textarea({ value: x.quote || '', rows: 2, onInput: v => { x.quote = v.trim(); } }))]),
     group('重要度', [h('div.as-mem-imp', segmented([1, 2, 3, 4, 5].map(n => [n, '★'.repeat(n)]), x.imp, v => { x.imp = v; }))]),
+    group(withInfo('想起', '高光：聊到沾边的事时更容易想起来。噪声：留着，但不会自己想起来，只记得有过这件事。'), [h('div.as-mem-imp', segmented([['', '一般'], ['hi', '高光'], ['no', '噪声']], x.mark || '', v => { x.mark = v; }))]),
     h('div.as-mem-acts', flag('pin', '取消钉住', '钉住'), flag('off', '恢复', '撤回'),
       btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这件事？', confirm: '删除', danger: true }))) return; d.ev.splice(d.ev.indexOf(e), 1); await M.save(); nav.pop(); })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', async () => {
@@ -195,6 +204,43 @@ async function editEvent(e) {
       d.ev.sort((a, b) => (a.at || '9999').localeCompare(b.at || '9999'));
       await M.save(); nav.pop();
     })));
+  nav.push(p.el);
+}
+
+/* ---------- 刚才想起了什么：最近几次聊天时 TA 想起了哪几件、为什么；想错了点「不该想起」，那几个词以后不会再让 TA 想起这件 ---------- */
+function openPeek() {
+  const p = page({ app: 'memory', id: 'memory-peek', title: '刚才想起了什么', back: true }), noBox = h('div');
+  const row = (prev, [e, why, words]) => item({ title: e.title, sub: [why, prev && prev.items.some(x => x[0] === e) && '上次也想起了'].filter(Boolean).join(' · '), chevron: true, onClick: async () => {
+    const v = await actionSheet(e.title, [{ value: 'see', label: '看这件事' }, ...(words && words.length ? [{ value: 'no', label: '不该想起', danger: true }] : [])]);
+    if (v === 'see') editEvent(e);
+    if (v !== 'no') return;
+    e.no = [...new Set([...(e.no || []), ...words])]; await M.save(); toast('这几个词以后不会再让 TA 想起这件事'); paintNo();
+  } });
+  async function paintNo() {
+    const l = (await M.load()).ev.filter(e => e.no && e.no.length);
+    noBox.replaceChildren(...(l.length ? [group(withInfo('不该想起的', '右边这几个词以后不会再让 TA 想起这件事。点一下能改回来。'), l.map(e => item({ title: e.title, sub: e.no.join('、'), onClick: async () => {
+      if (await actionSheet(e.title, [{ value: 'undo', label: '改回来' }]) !== 'undo') return;
+      delete e.no; await M.save(); paintNo();
+    } })))] : []));
+  }
+  p.body.append(...(M.peeks.length ? M.peeks.map((r, i) => group(r.who.join('、'), [item({ title: r.said || '（还没聊）', sub: '聊到这句时' }),
+    ...(r.items.length ? r.items.map(x => row(M.peeks[i + 1], x)) : [item({ title: '什么都没想起' })])])) : [empty('聊过天后，这里会列出 TA 想起了哪几件事')]), noBox);
+  paintNo();
+  nav.push(p.el);
+}
+
+/* ---------- 等你看：自动记下的先放这里，点「留下」TA 才会记得 ---------- */
+async function openWait() {
+  const p = page({ app: 'memory', id: 'memory-wait', title: '等你看', back: true }), d = await M.load(), none = empty('都看完了');
+  const from = s => s.startsWith('story:') ? `正文第 ${s.slice(6)} 层` : '手机聊天';
+  const what = x => [...x.ev.map(e => [e.title, `${ymd(e.at)} · ${e.text}`]), ...x.rel.map(r => [`${r.a}和${r.b}：${r.kind}`, r.now]), ...x.facts.map(f => [`${f.about}：${f.text}`, '了解']),
+    ...x.days.map(y => [y.what, y.kind]), ...x.todo.map(t => [t.text, '没完的事']), ...x.done.map(t => [t.text, '做完了']), ...x.ppl.map(q => [q.name, q.who || '新出场的人'])];
+  none.hidden = d.wait.length > 0;
+  p.body.append(...d.wait.map(w => {
+    const el = h('div.as-mem-wait', group(from(w.src), what(w.x).map(([title, sub]) => item({ title, sub }))), h('div.as-mem-acts', btn('不要', 'secondary', () => done(false)), btn('留下', 'primary', () => done(true))));
+    const done = async ok => { await M.settle(w, ok); el.remove(); none.hidden = d.wait.length > 0; };
+    return el;
+  }), none);
   nav.push(p.el);
 }
 
@@ -305,7 +351,8 @@ function openSet() {
   // 记忆关着时自动记也不跑，那一组就不显示
   const auto = group(withInfo('自动记', '跟着剧情记：正文生成时顺手写下值得记的事，不另外花钱。手机聊天时顺手记：TA 回你消息时顺手记下，也不另外花钱。'), [
       h('div.as-field', h('span.as-field__label', '跟着剧情记'), segmented([['off', '不记'], ['maybe', '有值得记的才记'], ['every', '每楼都记']], S().story, v => { S().story = v; commit('apps'); commit('inject'); })),
-      toggleItem({ title: '手机聊天时顺手记' }, S().chat !== false, on => { S().chat = on; commit('apps'); })]);
+      toggleItem({ title: '手机聊天时顺手记' }, S().chat !== false, on => { S().chat = on; commit('apps'); }),
+      toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在念念铃首页的「等你看」里，你点「留下」TA 才会记得。') }, !!S().wait, on => { S().wait = on; commit('apps'); })]);
   auto.hidden = !S().on;
   p.body.append(group('', [connItem, toggleItem({ title: '聊天时带上记忆' }, S().on, on => { S().on = on; auto.hidden = !on; commit('apps'); commit('inject'); })]), auto);
   nav.push(p.el);

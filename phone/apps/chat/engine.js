@@ -5,11 +5,11 @@ import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs } fro
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
-import { memoryFor, fromChat, dropChat } from '../../core/memory.js';
+import { memoryFor, fromChat, dropChat, lineNames } from '../../core/memory.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
-import { compose, myName, myPersona, chatScheme, myAvatar } from '../../core/promptstore.js';
+import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, money } from './msgtypes.js';
 import { translate } from '../../core/translate.js';
 
@@ -211,27 +211,29 @@ function historyText(msgs, c, n = 24) {
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
-/** 世界书 + 念念铃里 TA 们记得的事（people：这次说话的 TA 们） */
-async function worldBlock(scan, people = []) {
-  const w = await worldText(scan).catch(() => ''), m = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念铃', '读不到记忆：' + e.message); return ''; });
-  return (w ? `\n【世界书】\n${w}\n` : '') + m;
+/** 世界书 + 念念铃里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
+ *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
+async function worldBlock(scan, people = [], cat, sid) {
+  const w = await worldText(scan).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '念念铃', '读不到记忆：' + e.message); return ['', '']; });
+  const own = cat && blocksIn(cat, sid).some(b => b.on && b.text.includes('{{memory}}'));
+  return { world: (w ? `\n【世界书】\n${w}\n` : '') + m + (own ? '' : r), memory: own ? r : '' };
 }
+/** 前面不常变的（人设、世界书、一直记着的、正文）走缓存：从第一处每次都会变的地方（聊天记录、这会儿想起的、时间）切开 */
+const cacheAt = (p, ...vs) => Math.min(p.length, ...vs.filter(Boolean).map(v => p.indexOf(v)).filter(i => i >= 0));
 /** 念念铃：让 TA 回消息时顺手把值得记的写进 <astermem>（不多调一次 AI） */
-const memNote = () => state.apps.memory.on && state.apps.memory.chat !== false ? '\n\n' + compose('memChat') : '';
+const memNote = () => state.apps.memory.on && state.apps.memory.chat !== false ? '\n\n' + compose('memChat', { lines: lineNames() }) : '';
 /** 把回复里的 <astermem> 拿出来（没写完被截断的也去掉），剩下的才是消息 */
 const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<astermem>([\s\S]*?)<\/astermem>/gi, (_, x) => { mem += x + '\n'; return ''; }).replace(/<astermem>[\s\S]*$/i, ''); return [text, mem.trim()]; };
 const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '念念铃', '记不下这段聊天：' + e.message));
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
-  const story = storyNow(), history = historyText(msgs, c);
-  return {
-    system: specialsGuide(rc),
-    prompt: compose('dm', {
-      char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
-      story, world: await worldBlock(story + '\n' + history, [c]), time: time.forPrompt(), history, min, max,
-    }, chatScheme('dm', cfg.prompt)),
-  };
+  const story = storyNow(), history = historyText(msgs, c), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid);
+  const prompt = compose('dm', {
+    char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
+    story, ...wb, time: t, history, min, max,
+  }, sid);
+  return { system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t) };
 }
 const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function parseReply(raw, c) {
@@ -259,7 +261,7 @@ export async function requestReply(chat, opts = {}) {
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote() + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
-    const raw = await generate({ conn, system, prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
+    const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
     const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
@@ -326,10 +328,11 @@ export async function requestGroupReply(chat, opts = {}) {
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
     const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
-    const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, world: await worldBlock(story + '\n' + history, members),
-      time: time.forPrompt(), history, max: chat.cfg.maxSpeakers || 3 }, chatScheme('group', chat.cfg.prompt)) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
+    const t = time.forPrompt(), sid = chatScheme('group', chat.cfg.prompt), wb = await worldBlock(story + '\n' + history, members, 'group', sid);
+    const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
+      time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
     const rc = replyCfg(chat);
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
@@ -506,7 +509,7 @@ export async function deliverFromStory(c, text, groupName = '') {
 export async function genMoment(c, stop) {
   const conn = resolveConn('text', 'chat');
   const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400, stop,
-    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c]), time: time.forPrompt() }) });
+    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: (await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c])).world, time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
   let hiddenFromMe = false;

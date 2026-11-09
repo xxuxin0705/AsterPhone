@@ -164,7 +164,7 @@ export async function generate(opts) {
   }
   throw last;
 }
-async function generateOnce({ conn, system = '', prompt = '', temperature, maxTokens = 700, app = '聊天', stop, onPart }) {
+async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, maxTokens = 700, app = '聊天', stop, onPart }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -202,9 +202,11 @@ async function generateOnce({ conn, system = '', prompt = '', temperature, maxTo
       });
     } else if (conn.type === 'claude') {
       out = await withKey(async key => {
-        // 提示词缓存：人设 / 设定这类每次都一样的东西走缓存，便宜又快
-        const sys = !system ? undefined : (conn.adv && conn.adv.cache) ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system;
-        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, stream, messages: [{ role: 'user', content: prompt }] };
+        // 提示词缓存：人设 / 设定这类每次都一样的东西走缓存，便宜又快。keep：提示词前面这么多字每次都一样（聊天时人设、世界书、一直记着的、正文），也走缓存
+        const cache = conn.adv && conn.adv.cache, mark = { cache_control: { type: 'ephemeral' } };
+        const sys = !system ? undefined : cache ? [{ type: 'text', text: system, ...mark }] : system;
+        const content = cache && keep > 0 && keep < prompt.length ? [{ type: 'text', text: prompt.slice(0, keep), ...mark }, { type: 'text', text: prompt.slice(keep) }] : prompt;
+        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, stream, messages: [{ role: 'user', content }] };
         if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
         const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
           method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });

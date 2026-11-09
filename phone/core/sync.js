@@ -11,6 +11,7 @@ import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
 import { themeNames } from './diary.js';
+import { lineNames } from './memory.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
 const seen = new Set();
@@ -50,7 +51,7 @@ export function tagInstruction() {
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
   const mem = state.apps.memory, people = [myName(), ...state.contacts.map(c => c.name)].filter(Boolean).join('、');
-  return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
+  return `[AsterPhone 格式说明]\n${text}` + (mem.on && mem.story !== 'off' ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people, lines: lineNames() }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 // 跟着剧情写日记：每隔几楼写一篇。这次要生成的是第几楼（重新生成 / 换 swipe 时最后一楼就是它自己），轮到谁就列谁的名字
 function diaryNote() {
