@@ -490,9 +490,9 @@ function cardPage(back, resume) {
       pendB.hidden = !c.pend; pendB.textContent = `还有 ${c.pend} 成长点没分`;
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         if (k === 'LUCK') return toast('幸运只能掷，不能改');
-        stepSheet(n, () => c.attrs[k], v => {
-          const most = free ? 90 : Math.min(90, c.attrs[k] + all + up - R.attrSum(c.attrs));   // 总点数不能超过档位，到顶了就加不上去（底下那行会写还剩 0 点）
-          c.attrs[k] = Math.max(1, Math.min(most, v)); c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
+        // 总点数不能超过档位，到顶了就加不上去（底下那行会写还剩 0 点）；本来就超了的旧卡按 + − 不会被一下压下去
+        stepSheet(n, () => c.attrs[k], v => Math.max(1, Math.min(free ? 90 : Math.min(90, Math.max(c.attrs[k], c.attrs[k] + all + up - R.attrSum(c.attrs))), v)), v => {
+          c.attrs[k] = v; c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
         }, () => [!free && `还剩 ${all + up - R.attrSum(c.attrs)} 点`, c.attrs[k] >= 90 && '最高 90'].filter(Boolean).join(' · '));
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
@@ -521,11 +521,11 @@ function cardPage(back, resume) {
       const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
       // 点数字：和属性一样弹 −5 −1 +1 +5，不用打字
-      const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], n => bump(n - c.skills[k]),
-          () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) && `最高 ${hiOf(k)}`].filter(Boolean).join(' · ')) }, c.skills[k]);
-        const bump = d => { let n = k === CR ? R.crFit(c.skills[k] + d, c.job) : Math.max(base[k], Math.min(Math.max(hiOf(k), c.skills[k]), c.skills[k] + d));   // 本来就比上限高的（旧卡）按 + 不会被压下去
-          while (n > c.skills[k] && left({ ...c.skills, [k]: n })[1] < 0) n--;   // 点不够：退到刚好够的地方
-          c.skills[k] = n; v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
+      const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], fit, bump,
+          () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) ? `最高 ${hiOf(k)}` : c.skills[k] <= base[k] && `最低 ${base[k]}`].filter(Boolean).join(' · ')) }, c.skills[k]);
+        const fit = n => { n = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(Math.max(hiOf(k), c.skills[k]), n));   // 本来就比上限高的（旧卡）按 + 不会被压下去
+          const o = Math.min(0, left()[1]); while (n > c.skills[k] && left({ ...c.skills, [k]: n })[1] < o) n--; return n; };   // 点不够：退到刚好够的地方（兴趣点本来就超了的旧卡，本职点还能用）
+        const bump = n => { c.skills[k] = n; v.textContent = n; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
           const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), v); return el; };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
@@ -565,10 +565,11 @@ function cardPage(back, resume) {
 
 // 分成长点（活着打完一局给的）：点 + 就掷 1D100，大于现在的值才加 1，没过这点也用掉了（越高越难长，作者定的）；掷了就算，没有退回
 /** 调一个数（属性、技能）：−5 −1 +1 +5，点了马上改，不用打字；note 是底下那行（还剩几点） */
-function stepSheet(title, get, set, note) {
-  const v = h('b', get()), tip = h('p.as-int-spend__left', note());
-  const go = d => { set(get() + d); v.textContent = get(); tip.textContent = note(); };
-  const s = sheet({ title, content: h('div.as-int-step', v, tip, h('div.as-int-step__row', ...[-5, -1, 1, 5].map(d => h('button', { onclick: () => go(d) }, (d < 0 ? '−' : '+') + Math.abs(d)))),
+function stepSheet(title, get, fit, set, note) {   // fit：按下去会变成多少；变不了的按钮变灰
+  const v = h('b'), tip = h('p.as-int-spend__left'), bs = [-5, -1, 1, 5].map(d => Object.assign(h('button', { onclick: () => { set(fit(get() + d)); paint(); } }, (d < 0 ? '−' : '+') + Math.abs(d)), { d }));
+  const paint = () => { v.textContent = get(); tip.textContent = note(); for (const b of bs) b.disabled = fit(get() + b.d) === get(); };
+  paint();
+  const s = sheet({ title, content: h('div.as-int-step', v, tip, h('div.as-int-step__row', ...bs),
     h('div.as-prompt-bar', btn('完成', 'primary', () => s.close()))) });
 }
 function spendSheet(c, done) {

@@ -296,6 +296,7 @@
 .as-int-step > b { font-size: 44px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .as-int-step__row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .as-int-step__row button { height: 44px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--as-color-text) 8%, transparent); color: inherit; font-size: 18px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.as-int-step__row button:disabled { opacity: .35; cursor: default; }
 .as-int-spend__left { margin: 0 0 4px; text-align: center; opacity: .8; }
 .as-int-spend__row { display: grid; grid-template-columns: 1fr 40px 36px; align-items: center; gap: 6px; }
 .as-int-spend__row b { text-align: center; font-variant-numeric: tabular-nums; }
