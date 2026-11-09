@@ -375,10 +375,7 @@ function cardPage(back, resume) {
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
       const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
-      setupOk = false;
-      toast('KP 在演开场…', { label: '取消', fn: G.cancel, wait: true });   // 骨架写好接着演第一回合，到第一次要掷骰为止；没演成就进去点「推进」
-      await G.play(g, '（开场白刚念完：接着往下演，交代清楚现场和大家在做什么，演到第一次需要掷骰的地方，request 写那次检定）', true).then(() => toast(`《${g.title}》写好了`), e => failed(e, '开场没演完'));
-      back();
+      setupOk = false; toast(`《${g.title}》写好了`); back();
       const at = host.isConnected ? host : p.el;
       if (at.isConnected) { await castRoll(at, g); if (at !== p.el) nav.pop(); nav.pop(); }
       playPage(g);

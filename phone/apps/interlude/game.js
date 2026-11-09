@@ -241,14 +241,19 @@ export async function start(setup) {
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
-    pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ` + cardText(c)).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
+    pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ${cardText(c)}；${speakLine(g, c.owner)}`).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
     scenario: scText(setup), places: placesText(),
     meet: setup.meet ? `【团公告】开局前 KP 发过团公告${setup.meet.lines ? '，大家还一起开了车卡会' : ''}：\n${noticeText(setup.meet)}\n（这局要和公告对得上）\n` : '',
-  }, 5000, g);
+  }, 8000, g);
   if (!Array.isArray(out.acts) || !out.acts.length) throw new Error('AI 回的格式不对');
   g.title = String(out.title || (sc ? sc.title : '无题')).trim(); g.intro = String(out.intro || '').trim();
   g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '', checks: Array.isArray(a.checks) ? a.checks.slice(0, 3) : [], foes: Array.isArray(a.foes) ? a.foes.slice(0, 6) : [] })), secret: out.secret || '', endings: out.endings || {} };
-  g.place = g.sk.acts[0].place; g.log.push({ r: 0, who: 'KP', act: g.intro });
+  g.place = g.sk.acts[0].place;
+  // 开场白后面接着演第一回合，演到第一次要掷骰（和骨架一起写，开局只找一次 AI）；没写就只有开场白，进去点「推进」
+  const open = linesOf(g, out); g.log.push({ r: 0, who: 'KP', act: g.intro }, ...open); if (open.length) g.round = g.roundIn = 1;
+  if (out.place && out.place in R.PLACES) g.place = out.place; if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
+  g.req = out.request && out.request.type ? out.request : { type: 'free' };
+  if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
   D.games.push(g); if (setup.meet) delete D.meet; await save();
   return g;
 }
@@ -263,7 +268,10 @@ export function splitSay(l) {
 }
 export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n)) || null;
 /** 一回合：input 是你做的事（已经带上骰子结果）。回来的 lines 记进 log，request 存到 g.req */
-export async function play(g, input, quiet) {   // quiet：这句不是你说的（开场自动演第一回合），不记进记录
+const str = v => String(v || '').trim();
+// AI 写的一回合的台词（开局时开场白后面接着演的那回合也一样）
+const linesOf = (g, out) => { const L = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc && g.know ? { ooc: true } : {}) })); L.forEach(splitSay); return L; };
+export async function play(g, input) {
   const A = g.sk.acts, i = g.act, last = i >= A.length - 1, over = g.roundIn >= CAP - 1;
   const out = await ask('intRound', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
@@ -275,11 +283,9 @@ export async function play(g, input, quiet) {   // quiet：这句不是你说的
     pc: pcText(g), cast: castText(g), places: Object.keys(R.PLACES).join(' / '),
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
   }, 2400, g);
-  const str = v => String(v || '').trim();
-  const lines = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc && g.know ? { ooc: true } : {}) }));
-  lines.forEach(splitSay);
+  const lines = linesOf(g, out);
   if (!lines.length) throw new Error('AI 回的格式不对');
-  g.round++; g.roundIn++; g.log.push(...quiet ? [] : [{ r: g.round, who: myName(), text: input, me: true }], ...lines);
+  g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));
