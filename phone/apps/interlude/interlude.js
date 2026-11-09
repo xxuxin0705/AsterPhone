@@ -2,7 +2,7 @@
 // 打开是一张斜着看下去的 2.5D 书桌（GPT 画的一张图，一屏放下，不拖）；点桌上的东西镜头推过去、浮出玻璃标签：
 // 主位（谁当 KP）、椅子（谁上桌）、档案袋（卷宗：进行中和打完的局）、调查员卡（车卡）、骰子盘（掷着玩）、台灯（点了直接开关灯）、旧地图（DND）、火漆信（剧本杀）。
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
-import { h, debounce } from '../../core/util.js';
+import { h, debounce, onLongPress } from '../../core/util.js';
 import { state, contact, commit } from '../../core/store.js';
 import { page, navBtn, navText, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty } from '../../core/ui.js';
 import { LANGS, langName } from '../../core/translate.js';
@@ -114,7 +114,7 @@ export function open() {
   function focus(k, el) {
     const r = el.getBoundingClientRect(), w = world.getBoundingClientRect();
     zoom = [((r.left + r.right) / 2 - w.left) / w.width * IW, ((r.top + r.bottom) / 2 - w.top) / w.height * IH]; apply(); scene.classList.add('is-zoomed');
-    const n = pick.party.length, kc = pick.kp !== 'sys' && contact(pick.kp), done = G.all().filter(g => g.done).length, going = !!G.current() + !!G.meetNow();
+    const n = pick.party.length, kc = pick.kp !== 'sys' && contact(pick.kp), done = G.all().filter(g => g.done).length, going = G.all().filter(g => !g.done).length + !!G.meetNow();
     const L = {
       kp: ['主位 · KP', kc ? `${nameOf(kc)} 来主持` : '中立的守秘人，不下场', [['换 KP', () => chooseKp(() => focus(k, el))]]],
       chair: ['座位', n ? `上桌：${pick.party.map(id => nameOf(contact(id))).join('、')}` : '还没有人上桌', [['选谁上桌', () => choose()]]],
@@ -140,8 +140,9 @@ export function open() {
   }
   // 底下一条：谁上桌 + 开局 / 继续
   const who = h('span'), go = btn('开局', 'primary', () => { const g = G.current(); if (g) playPage(g); else if (G.meeting(table())) cardPage(syncBar, true); else setupSheet(() => cardPage(syncBar), chooseKp, choose); });
-  const bar = h('div.as-int-bar', who, go); p.body.append(bar);
-  function syncBar() { const g = G.current(); who.textContent = `上桌：${['你', ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
+  const newB = btn('新开一局', 'secondary', () => setupSheet(() => cardPage(syncBar), chooseKp, choose));
+  const bar = h('div.as-int-bar', who, newB, go); p.body.append(bar);
+  function syncBar() { const g = G.current(); who.hidden = !!g; newB.hidden = !g; bar.classList.toggle('is-going', !!g); who.textContent = `上桌：${['你', ...pick.party.map(id => nameOf(contact(id)))].join('、')}`; go.textContent = g ? `继续《${g.title}》` : G.meeting(table()) ? '继续车卡' : '开局'; }
   const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
   G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
@@ -267,7 +268,8 @@ function thud() {
 /* ---------- 开局设置：本、气氛、知不知道在跑团、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */
 export const VOICE_MODES = [['tap', '点了才合成'], ['next', '提前合成下两句'], ['all', '全部合成']];
 const voiceDefault = () => ({ auto: 'next' }[state.apps.interlude.voice] || state.apps.interlude.voice || 'tap');
-function setupSheet(next, chooseKp, choose) {
+let setupOk = false;   // 这一局的开局设置定过没有：从书桌「调查员卡」直接进来点开局时要先定
+function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页开局前补定，只问这一局怎么玩
   if (pick.know == null) pick.know = pick.mood !== 'serious';
   pick.voice = pick.voice || voiceDefault();
   const ask = textarea({ value: pick.ask, rows: 2, placeholder: '想玩什么', onInput: v => { pick.ask = v.trim(); } });
@@ -300,10 +302,10 @@ function setupSheet(next, chooseKp, choose) {
     } }); return row; }), '旁白都用中文；台词不是中文的，下面跟一行中文翻译'));
   paintLang();
   const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood),
-    group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), kpRow, partyRow,
+    group('', [item({ title: withInfo('知道在跑团', '知道：大家是坐在桌边玩的玩家，会有场外的吐槽和闲聊（灰色小气泡）。不知道：所有人都当真，不出戏。'), right: know }), ...chooseKp ? [kpRow, partyRow] : [],
       item({ title: withInfo('抢话', '开着：车卡会和跑团里，AI 会把你大概会做的事、会说的话也演出来。关着：只写别人，你的话自己说。'), right: switchEl(pick.speak, v => { pick.speak = v; }, '抢话') })]),
-    modeBox, noteF, langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
-    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('下一步：车卡', 'primary', () => { s.close(); next(); }))] });
+    ...chooseKp ? [modeBox, noteF] : [], langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
+    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn(chooseKp ? '下一步：车卡' : '开局', 'primary', () => { s.close(); setupOk = true; next(); }))] });
 }
 
 /* ---------- 调查员卡：上面一排头像切换，下面是这个人的卡（羊皮纸）；没卡的人一起让 AI 车 ---------- */
@@ -335,7 +337,7 @@ function cardPage(back, resume) {
   const saveLater = debounce(() => G.save(), 400);
   const makeB = btn('AI 车卡', 'primary', () => meetOn && !m ? holdMeet() : G.running() || owners.some(o => !cur[o]) ? make(owners.filter(o => !cur[o])) : redo());
   const swapB = btn('换卡', 'secondary', () => swapCard());
-  const startB = btn('开局', 'primary', () => meetOn && !G.running() ? meetPage(true, true) : begin());
+  const startB = btn('开局', 'primary', () => meetOn && !G.running() ? meetPage(true, true) : setupOk || G.running() ? begin() : setupSheet(() => begin()));
   p.body.append(tabs, scroller, h('div.as-int-card__bar', swapB, makeB, startB));
   const paintBar = () => { const miss = owners.filter(o => !cur[o]).length; makeB.textContent = meetOn && !m ? '开车卡会' : miss ? `AI 车卡（${miss} 人）` : '重车';
     startB.textContent = meetOn ? '交卡' : '开局'; startB.hidden = meetOn ? !m || !cur.me : !!miss; swapB.hidden = !cur[sel]; meetB.hidden = !m; };
@@ -373,7 +375,10 @@ function cardPage(back, resume) {
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
       const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
-      toast(`《${g.title}》写好了`); back();
+      setupOk = false;
+      toast('KP 在演开场…', { label: '取消', fn: G.cancel, wait: true });   // 骨架写好接着演第一回合，到第一次要掷骰为止；没演成就进去点「推进」
+      await G.play(g, '（开场白刚念完：接着往下演，交代清楚现场和大家在做什么，演到第一次需要掷骰的地方，request 写那次检定）', true).then(() => toast(`《${g.title}》写好了`), e => failed(e, '开场没演完'));
+      back();
       const at = host.isConnected ? host : p.el;
       if (at.isConnected) { await castRoll(at, g); if (at !== p.el) nav.pop(); nav.pop(); }
       playPage(g);
@@ -626,12 +631,14 @@ function archivePage(sync, resume) {
   const names = ids => ['你', ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
   // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
   const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
-  const cur = G.current(), mt = G.savedPick() ? G.meetNow() : null;
-  const ing = [cur && going(`《${cur.title}》`, `${ymd(cur.at)} · ${names(cur.party.map(m => m.id))}`, () => playPage(cur)),
+  // 长按一局：删掉（没打完的也能删）
+  const del = (el, g) => { onLongPress(el, async () => { if (await dialog({ title: `删除《${g.title}》？`, text: '删了就找不回来了。', confirm: '删除', danger: true })) { await G.dropGame(g); el.remove(); sync(); } }); return el; };
+  const mt = G.savedPick() ? G.meetNow() : null;
+  const ing = [...G.all().filter(g => !g.done).sort((a, b) => (b.seen || b.at) - (a.seen || a.at)).map(g => del(going(`《${g.title}》`, `${ymd(g.at)} · ${names(g.party.map(m => m.id))}`, () => playPage(g)), g)),
     mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
   const list = G.all().filter(g => g.done).slice().reverse();
-  p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => h('button.as-int-file', { onclick: () => readPage(g) },
-    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')))) : empty('还没有打完的局'));
+  p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => del(h('button.as-int-file', { onclick: () => readPage(g) },
+    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')), g))) : empty('还没有打完的局'));
   nav.push(p.el);
 }
 function readPage(g) {
@@ -658,6 +665,7 @@ function castRoll(host, g) {
 /* ---------- 玩：老照片场景 + 人物牌 + 对话框，一回合一次 API ---------- */
 const sceneSrc = k => BASE + 'scene-' + R.placeOf(k) + '.webp';
 function playPage(g) {
+  g.seen = Date.now(); G.save();   // 继续的是最近玩过的那局
   // 背景音乐、白噪音：KP 按场景给关键词，去音乐 App 的音源里搜来循环放；两个开关各管各的，角色说话时调小
   const S = state.apps.interlude, beds = { bgm: new Audio(), amb: new Audio() }, VOL = { bgm: .45, amb: .35 };
   // 开着却没在放（手机不让自己出声，只认手指点的那一下）：点一下就放，不是关掉

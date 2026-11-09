@@ -25,7 +25,8 @@ export async function load() {
   for (const g of D.games.filter(g => !g.done)) for (const p of [g.pc, ...g.party]) p.skills = R.renamed(p.skills);
   return D; }
 export const save = () => kvSet('int:' + Dkey, D);
-export const current = () => D.games.find(g => !g.done) || null;
+export const current = () => D.games.filter(g => !g.done).sort((a, b) => (b.seen || b.at) - (a.seen || a.at))[0] || null;   // 好几局没打完时：最近玩过的那局
+export async function dropGame(g) { D.games = D.games.filter(x => x !== g); await save(); }
 export const all = () => (D ? D.games : []);
 export let job = null;   // { g, ac }：正在等 AI 的那一步
 export const running = g => job && (!g || job.g === g);
@@ -262,7 +263,7 @@ export function splitSay(l) {
 }
 export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n)) || null;
 /** 一回合：input 是你做的事（已经带上骰子结果）。回来的 lines 记进 log，request 存到 g.req */
-export async function play(g, input) {
+export async function play(g, input, quiet) {   // quiet：这句不是你说的（开场自动演第一回合），不记进记录
   const A = g.sk.acts, i = g.act, last = i >= A.length - 1, over = g.roundIn >= CAP - 1;
   const out = await ask('intRound', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
@@ -278,7 +279,7 @@ export async function play(g, input) {
   const lines = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc && g.know ? { ooc: true } : {}) }));
   lines.forEach(splitSay);
   if (!lines.length) throw new Error('AI 回的格式不对');
-  g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
+  g.round++; g.roundIn++; g.log.push(...quiet ? [] : [{ r: g.round, who: myName(), text: input, me: true }], ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));
