@@ -515,7 +515,7 @@ function cardPage(back, resume) {
       const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: async () => { const n = parseInt(await dialog({ title: k, input: { value: String(c.skills[k]), inputmode: 'numeric' } }), 10); if (n) bump(n - c.skills[k]); } }, c.skills[k]);
         const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; count(); saveLater(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
-          const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', base[k]), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
+          const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
