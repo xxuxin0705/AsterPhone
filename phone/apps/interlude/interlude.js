@@ -384,9 +384,9 @@ function cardPage(back, resume) {
     const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(); } }, icon('volume', 18, 1.8));
     const backB = h('button.as-int-box__back', { 'aria-label': '上一句', onclick: e => { e.stopPropagation(); back(); } }, '◂');
     const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
-    // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来放大，再点挂回去；纸先解码好再钉上，不然有一帧只有字
-    const paper = new Image(); paper.src = BASE + 'scroll.webp'; const paperOk = paper.decode().catch(() => {});
-    const pin = h('div.as-int-post', { hidden: true, onclick: () => pin.classList.toggle('is-big') }, img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)));
+    // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来展开（有多少字展开多少），再点挂回去；日夜两张纸先解码好再钉上，不然有一帧只有字
+    const paperOk = Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
+    const pin = h('div.as-int-post', { hidden: true, onclick: () => pin.classList.toggle('is-big') }, img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)), h('i.as-int-post__more', icon('chevron', 16, 2)));
     q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
     let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
     const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
