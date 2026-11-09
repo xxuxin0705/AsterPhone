@@ -280,7 +280,7 @@ export async function play(g, input) {
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (p && Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp))); }
   for (const p of [g.pc, ...g.party]) if (p.mad && --p.mad.left <= 0) p.mad = null;
-  if (out.actDone && !last) { g.act++; g.roundIn = 0; g.place = A[g.act].place; }
+  if (out.actDone && !last) { g.act++; g.roundIn = 0; g.place = A[g.act].place; for (const p of [g.pc, ...g.party]) if (p.mpMax) p.mp = Math.min(p.mpMax, p.mp + Math.ceil(p.mpMax / 2)); }   // 每过一幕回一半魔法（作者定的）
   g.req = out.request && out.request.type ? out.request : { type: 'free' };
   if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
   if (out.fightEnd || g.fight && !g.fight.foes.some(f => f.hp > 0)) g.fight = null;

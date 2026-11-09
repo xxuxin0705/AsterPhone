@@ -491,9 +491,7 @@ function cardPage(back, resume) {
       attrBox.replaceChildren(...R.ATTRS.map(([k, n]) => h('button.as-int-attr', { onclick: async () => {
         if (k === 'LUCK') return toast('幸运只能掷，不能改');
         // 总点数不能超过档位，到顶了就加不上去（底下那行会写还剩 0 点）；本来就超了的旧卡按 + − 不会被一下压下去
-        stepSheet(n, () => c.attrs[k], v => Math.max(1, Math.min(free ? 90 : Math.min(90, Math.max(c.attrs[k], c.attrs[k] + all + up - R.attrSum(c.attrs))), v)), v => {
-          c.attrs[k] = v; c.skills = R.fixSkills(c.attrs, c.skills); saveLater(); paintAttrs(); paintSkills();
-        }, () => [!free && `还剩 ${all + up - R.attrSum(c.attrs)} 点`, c.attrs[k] >= 90 && '最高 90'].filter(Boolean).join(' · '));
+        stepSheet(n, () => c.attrs[k], v => Math.max(1, Math.min(free ? 90 : Math.min(90, Math.max(c.attrs[k], c.attrs[k] + all + up - R.attrSum(c.attrs))), v)), v => newAttrs({ ...c.attrs, [k]: v }), () => [!free && `还剩 ${all + up - R.attrSum(c.attrs)} 点`, c.attrs[k] >= 90 && '最高 90'].filter(Boolean).join(' · '));
       } }, h('small', n), h('b', c.attrs[k]), h('i', `${Math.floor(c.attrs[k] / 2)} / ${Math.floor(c.attrs[k] / 5)}`))));
       const d = R.derived(c.attrs); derivedEl.textContent = `血 ${d.hp} · 理智 ${d.san} · 魔法 ${d.mp} · 移动 ${d.mov}`;
       const left = all + up - sum, hi = m && c.at >= m.at ? m.rules.attrMax : 90;
@@ -501,7 +499,7 @@ function cardPage(back, resume) {
         : c.attrs[k] < 30 ? `${n} ${c.attrs[k]} 太低了，${LOW[k]}` : c.attrs[k] > hi ? `${n}超过这局上限 ${hi}` : '')].filter(Boolean).join('；');
       hint.hidden = !hint.textContent;
     };
-    const newAttrs = a => { c.attrs = a; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 掷出来的也照档位算总点数，超了标红
+    const newAttrs = a => { if (c.skills.母语 === c.attrs.EDU) c.skills.母语 = a.EDU; c.attrs = a; c.skills = R.fixSkills(a, c.skills); saveLater(); paintAttrs(); paintSkills(); };   // 掷出来的也照档位算总点数，超了标红；母语没改过就跟着教育变
     const reroll = btn('重掷', 'secondary', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '3D6×5'); newAttrs(R.rollAttrs()); });
     const five = btn('天命五选一', 'secondary', () => {
       const sets = R.fiveSets();
@@ -518,12 +516,12 @@ function cardPage(back, resume) {
       const left = (sk = c.skills) => { const u = R.usage(c.attrs, sk, R.jobsOf(c)); return [u.jobAll - u.job, u.hobbyAll + up - u.hobby]; };
       const count = () => { const [j, o] = left(); pts.textContent = `本职${j < 0 ? `超了 ${-j}` : `还剩 ${j}`} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', j < 0 || o < 0); };
       // 每项最高：这局新车的卡照团公告（本职 skillMax、其他 hobbyMax），没有团公告照常见的本职 80、兴趣 60；母语和跑过局长过的卡到 90；信用评级照职业
-      const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r || k === '母语' ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
+      const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, lo = k => k === '母语' ? 10 : base[k], hiOf = k => k === CR ? R.crOf(c.job)[1] : !r || k === '母语' ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
       // 点数字：和属性一样弹 −5 −1 +1 +5，不用打字
       const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], fit, bump,
-          () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) ? `最高 ${hiOf(k)}` : c.skills[k] <= base[k] && `最低 ${base[k]}`].filter(Boolean).join(' · ')) }, c.skills[k]);
-        const fit = n => { n = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(Math.max(hiOf(k), c.skills[k]), n));   // 本来就比上限高的（旧卡）按 + 不会被压下去
+          () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) ? `最高 ${hiOf(k)}` : c.skills[k] <= lo(k) && `最低 ${lo(k)}`].filter(Boolean).join(' · ')) }, c.skills[k]);
+        const fit = n => { n = k === CR ? R.crFit(n, c.job) : Math.max(lo(k), Math.min(Math.max(hiOf(k), c.skills[k]), n));   // 本来就比上限高的（旧卡）按 + 不会被压下去
           const i = R.jobsOf(c).includes(k) ? 0 : 1, o = Math.min(0, left()[i]); while (n > c.skills[k] && left({ ...c.skills, [k]: n })[i] < o) n--; return n; };   // 点不够：退到刚好够的地方（本职技能看本职点，其他看兴趣点）
         const bump = n => { c.skills[k] = n; v.textContent = n; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
@@ -540,7 +538,7 @@ function cardPage(back, resume) {
     const abBox = h('div.as-int-abs');
     const paintAbs = () => abBox.replaceChildren(...(c.abilities || []).length ? c.abilities.map((x, i) => h('div.as-int-ab', h('b', x.name),
       h('small', [R.POWERS[x.kind], x.dmg, x.cost && `耗 ${x.cost} 魔法`].filter(Boolean).join(' · ')), x.desc ? h('p', x.desc) : null,
-      h('button', { 'aria-label': '删除', onclick: () => { c.abilities.splice(i, 1); saveLater(); paintAbs(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '没有')]);
+      h('button', { 'aria-label': '删除', onclick: () => { c.abilities.splice(i, 1); saveLater(); paintAbs(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
     paintAbs();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
@@ -550,9 +548,9 @@ function cardPage(back, resume) {
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
       h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,
-      field('都有些什么', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
+      field('都有些什么', textarea({ value: c.assets || '', rows: 2, placeholder: '暂无', onInput: v => set('assets', v) })),
       h('h3', '随身'),
-      field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4,
+      field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4, placeholder: '暂无',
         onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));
     paintAttrs(); paintSkills();
     sheetEl.scrollTop = 0;
