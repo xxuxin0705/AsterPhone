@@ -316,6 +316,7 @@ const voiceBtn = fn => { const vol = icon('volume', 18, 1.8), stop = icon('pause
   b.set = st => { b.st = st; b.replaceChildren(st === 'load' ? h('span.as-spin') : st === 'on' ? stop : vol); b.classList.toggle('is-on', st === 'on'); }; return b; };
 const paper = () => Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
 const SEXES = [['男', '男'], ['女', '女']];   // 能点就不打字
+const CR = '信用评级';
 const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
 // 属性填得太低时的提醒（自己填卡时实时显示）
 const LOW = { STR: '搬东西、打架都吃亏', CON: '血少、容易病倒', SIZ: '血少、一推就倒', DEX: '跑得慢、躲不开', APP: '第一印象差，社交难', INT: '难想通线索，兴趣点也少', POW: '理智低、容易发疯', EDU: '本职点少' };
@@ -468,8 +469,8 @@ function cardPage(back, resume) {
       if (!j) return;
       set('job', j); jobB.textContent = j;
       if (!R.JOBS.some(x => x[0] === j)) return;
-      c.jobSkills = R.jobsOf({ job: j }); saveLater(); paintSkills();   // 换成表里的职业：本职技能跟着换
-      if (await dialog({ title: '按这个职业重新分技能？', text: '本职技能按职业重新加点，兴趣点要自己再加。', confirm: '重新分' })) { c.skills = R.jobSkills(c.attrs, j); saveLater(); paintSkills(); }
+      c.jobSkills = R.jobsOf({ job: j }); c.skills[CR] = R.crFit(c.skills[CR], j); saveLater(); paintSkills(); paintWealth();   // 换成表里的职业：本职技能、信用评级的范围跟着换
+      if (await dialog({ title: '按这个职业重新分技能？', text: '本职技能按职业重新加点，兴趣点要自己再加。', confirm: '重新分' })) { c.skills = R.jobSkills(c.attrs, j); saveLater(); paintSkills(); paintWealth(); }
     } }, c.job || '选职业');
     // 属性：点数字改；重掷、五选一
     const attrBox = h('div.as-int-attrs'), derivedEl = h('div.as-int-derived');
@@ -513,12 +514,16 @@ function cardPage(back, resume) {
       count();
       // − / + 一次 5 点；要具体到某一点（61、62）就点数字直接填
       const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: async () => { const n = parseInt(await dialog({ title: k, input: { value: String(c.skills[k]), inputmode: 'numeric' } }), 10); if (n) bump(n - c.skills[k]); } }, c.skills[k]);
-        const bump = d => { c.skills[k] = Math.max(base[k], Math.min(R.MAX_SKILL, c.skills[k] + d)); v.textContent = c.skills[k]; count(); saveLater(); };
+        const bump = d => { const n = c.skills[k] + d; c.skills[k] = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(R.MAX_SKILL, n)); if (k === CR && c.skills[k] !== n) toast(`${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}`); v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
           const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
+    // 消费水平、现金、资产：照信用评级算（规则书那张表），钱换成团公告定的当地的钱；不用填
+    const wealthEl = h('p.as-int-derived'), money = (m && m.rules.money) || { unit: '美元', rate: 1 };
+    const paintWealth = () => { const [lv, cash, own] = R.wealth(c.skills[CR] || 0); wealthEl.textContent = `${lv} · 现金 ${R.moneyText(cash, money)} · 资产 ${own ? R.moneyText(own, money) + (own >= 1e8 ? '以上' : '') : '没有'}`; };
+    paintWealth();
     const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, onInput: v => { c.bg[k] = v; saveLater(); } }));
     // 特殊能力：一条一条列出来，能删
     const abBox = h('div.as-int-abs');
@@ -533,7 +538,8 @@ function cardPage(back, resume) {
       h('h3', '技能'), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
       h('h3', '特殊能力'), abBox,
-      h('h3', '资产'), h('div.as-int-grid2', line('消费水平', 'living'), line('现金', 'cash')), field('资产', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
+      h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,
+      field('都有些什么', textarea({ value: c.assets || '', rows: 2, onInput: v => set('assets', v) })),
       h('h3', '随身'),
       field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4,
         onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));

@@ -112,8 +112,9 @@ const skillsText = () => Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).j
 function toCard(o, x, rolled, r) {
   const tier = rolled ? undefined : R.tierOf(x.tier) || R.TIERS[0][0], a = rolled || R.fixAttrs(x.attrs, R.budgetOf(tier, r && r.base), r), base = R.baseSkills(a);
   const given = (Array.isArray(x.jobSkills) ? x.jobSkills : []).map(String).filter(k => k in base).slice(0, 8), jobs = given.length ? given : R.jobsOf({ job: x.job });
+  const sk = R.fixSkills(a, x.skills, r && r.skillMax, r && r.hobbyMax, jobs); sk.信用评级 = R.crFit(sk.信用评级, x.job);
   return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: sexOf(x.sex), job: String(x.job || ''), home: String(x.home || ''),
-    bg: Object.fromEntries(BG.map(([k]) => [k, String((x.bg || {})[k] || '')])), living: String(x.living || ''), cash: String(x.cash || ''), assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, base: r && r.base, attrs: a, skills: R.fixSkills(a, x.skills, r && r.skillMax, r && r.hobbyMax, jobs), jobSkills: jobs,
+    bg: Object.fromEntries(BG.map(([k]) => [k, String((x.bg || {})[k] || '')])), living: String(x.living || ''), cash: String(x.cash || ''), assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, base: r && r.base, attrs: a, skills: sk, jobSkills: jobs,
     abilities: (Array.isArray(x.abilities) ? x.abilities : []).map(toPower).filter(Boolean).slice(0, 3) };
 }
 /** 团公告的规矩（真实跑团车卡前 KP 发的）：base 购点（普通人的属性总点数，能力者、最强者另外多给）、attrMin / attrMax 每项属性上下限、
@@ -123,7 +124,8 @@ function toRules(r = {}) {
   const lo = Math.max(15, Math.min(60, num(r.attrMin) ?? 15));
   return { base: Math.max(400, Math.min(560, num(r.base) ?? 460)), attrMin: lo, attrMax: Math.max(lo + 20, Math.min(90, num(r.attrMax) ?? 90)), skillMax: Math.max(50, Math.min(90, num(r.skillMax) ?? 90)), hobbyMax: Math.max(30, Math.min(num(r.skillMax) ?? 90, 90, num(r.hobbyMax) ?? 90)),
     skills: strs(r.skills), weapons: num(r.weapons), guns: r.guns !== false, abilities: num(r.abilities), banned: strs(r.banned), text: String(r.text || ''),
-    tiers: Object.fromEntries(Object.entries(r.tiers || {}).map(([k, v]) => [k, R.tierOf(v) || R.TIERS[0][0]])) };
+    tiers: Object.fromEntries(Object.entries(r.tiers || {}).map(([k, v]) => [k, R.tierOf(v) || R.TIERS[0][0]])),
+    money: r.money && r.money.unit ? { unit: String(r.money.unit).slice(0, 8), rate: +r.money.rate > 0 ? +r.money.rate : 1 } : { unit: '美元', rate: 1 } };   // 当地的钱：KP 按故事的年代、地方定
 }
 const rulesLine = r => [`购点 ${r.base}`, `属性 ${r.attrMin}～${r.attrMax}`, `本职技能最高 ${r.skillMax}`, r.hobbyMax < r.skillMax && `兴趣技能最高 ${r.hobbyMax}`, r.weapons != null && `武器最多 ${r.weapons} 件`, !r.guns && '不能带枪',
   r.abilities != null && `特殊能力最多 ${r.abilities} 个`, r.banned.length && `不准带：${r.banned.join('、')}`, r.skills.length && `推荐技能：${r.skills.join('、')}`].filter(Boolean).join(' · ');
@@ -203,6 +205,7 @@ export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一
   const all = R.budgetOf(tier, r.base) + (c.grown || 0), jobs = R.jobsOf(c), u = R.usage(c.attrs, c.skills, jobs);
   if ((!m || m.mode !== 'random') && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
   if (m && m.fresh && !fresh) bad.push('这局要用新卡');
+  const [clo, chi] = R.crOf(c.job), cr = c.skills.信用评级 || 0; if (fresh && (cr < clo || cr > chi)) bad.push(`信用评级要在 ${clo}～${chi}（${c.job}）`);
   const out = fresh && c.tier ? R.ATTRS.filter(([k]) => k !== 'LUCK' && (c.attrs[k] < r.attrMin || c.attrs[k] > r.attrMax)) : [];
   if (out.length) bad.push(`属性要在 ${r.attrMin}～${r.attrMax}：${out.map(([k, n]) => n + c.attrs[k]).join('、')}`);
   const base = R.baseSkills(c.attrs), hi = fresh ? Object.entries(c.skills).filter(([k, v]) => v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
