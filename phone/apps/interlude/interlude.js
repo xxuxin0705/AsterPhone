@@ -303,6 +303,9 @@ const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 // 团公告的羊皮纸（车卡会墙上那张、卡片页点开的都是它）：先写你的档位和规矩，虚线下面是背景；底下小箭头朝下能展开、朝上收起。
 // 日夜两张纸先解码好再放上去，不然有一帧只有字
 const postEl = m => h('div.as-int-post', img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)), h('i.as-int-post__more', icon('chevron', 16, 2)));
+// 念台词的小喇叭：点了先转圈（在合成），出声了亮起来；转圈时再点是取消，出声时再点是停
+const voiceBtn = fn => { const vol = icon('volume', 18, 1.8), b = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); fn(); } }, vol);
+  b.set = st => { b.st = st; b.replaceChildren(st === 'load' ? h('span.as-spin') : vol); b.classList.toggle('is-on', st === 'on'); }; return b; };
 const paper = () => Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
 const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
 // 属性填得太低时的提醒（自己填卡时实时显示）
@@ -389,22 +392,22 @@ function cardPage(back, resume) {
     const cardOf = o => ({ ...cur[o], ...(m.adjust || {})[o] });
     const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), shelf = h('div.as-int-meet__card');
     const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
-    const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(); } }, icon('volume', 18, 1.8));
+    const voiceB = voiceBtn(() => voice());
     const backB = h('button.as-int-box__back', { 'aria-label': '上一句', onclick: e => { e.stopPropagation(); back(); } }, '◂');
     const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
     // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来展开（有多少字展开多少），再点挂回去
     const paperOk = paper(), pin = postEl(m); pin.hidden = true; pin.onclick = () => pin.classList.toggle('is-big');
     q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
     let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
-    const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
+    const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.set(); } };
     async function voice() {
       if (!now || !now.say) return;
-      if (vac) { hush(); return; }
-      const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.classList.add('is-on');
-      try { await speakAs(idOf(now.who), now.say, { stop: ac.signal, acted: true, cache: `int:m:${m.at}:${[...now.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`, onStart: () => pt?.talk(true) }); }
+      if (vac) { if (voiceB.st === 'load') toast('已取消'); hush(); return; }
+      const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.set('load');
+      try { await speakAs(idOf(now.who), now.say, { stop: ac.signal, acted: true, cache: `int:m:${m.at}:${[...now.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`, onStart: () => { voiceB.set('on'); pt?.talk(true); } }); }
       catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
       pt?.talk(false);
-      if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
+      if (vac === ac) { vac = null; voiceB.set(); }
     }
     // 亮卡那几句带着 o：卡片一直摆在上面，换人才换
     const say = l => { hush(); now = l; const id = idOf(l.who);
@@ -635,27 +638,27 @@ function playPage(g) {
   // 人物牌 + 对话框：上面一小行淡淡的旁白（中文），中间是台词，台词不是中文的下面跟一行中文翻译
   const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', face, nameT);
   const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
-  // 喇叭：只念台词（旁白不念）；再点一下停
-  const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(cur); } }, icon('volume', 18, 1.8));
+  // 喇叭：只念台词（旁白不念）
+  const voiceB = voiceBtn(() => voice(cur));
   const backB = h('button.as-int-box__back', { 'aria-label': '上一句', hidden: true, onclick: e => { e.stopPropagation(); back(); } }, '◂');
   const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more);
   // 场外的话：不进对话框，在上面飘一条灰色小气泡
   const ooc = h('div.as-int-ooc');
   let cur = null, vac = null;
   const mode = g.voice || voiceDefault(), kpc = g.kp && g.kp !== 'sys' && contact(g.kp);
-  const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
+  const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.set(); } };
   const mine = n => n === '你' || n === myName() || n === g.pc.name;
   const vid = n => n === 'KP' ? (kpc ? g.kp : 'kp') : mine(n) ? 'me' : (G.who(g, n) || {}).id || 'kp';
   // 钥匙带上台词本身：台词拆过、改过，就不会念出以前存的那段（以前连旁白一起合成的）
   const key = l => `int:a:${g.id}:${g.log.indexOf(l)}:${[...l.say].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0)}`;
   async function voice(l) {
     if (!l || !l.say) return;
-    if (vac) { hush(); return; }
-    const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.classList.add('is-on');
-    try { await made.get(l); await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l), onStart: () => pt?.talk(true) }); }
+    if (vac) { if (voiceB.st === 'load') toast('已取消'); hush(); return; }
+    const ac = vac = new AbortController(), pt = face.firstChild.pt; voiceB.set('load');
+    try { await made.get(l); await speakAs(vid(l.who), l.say, { stop: ac.signal, acted: true, cache: key(l), onStart: () => { voiceB.set('on'); pt?.talk(true); } }); }
     catch (e) { if (!ac.signal.aborted) { log('warn', '幕间', '念不出来：' + e.message); toast('念不出来：' + e.message); } }
     pt?.talk(false);
-    if (vac === ac) { vac = null; voiceB.classList.remove('is-on'); }
+    if (vac === ac) { vac = null; voiceB.set(); }
   }
   // 提前合成：一句一句排着来，合成好的存着，念的时候直接放
   // 先拆出台词（旧存档里旁白和台词还连着）；念的时候这句正在提前合成就等它，别合成两遍

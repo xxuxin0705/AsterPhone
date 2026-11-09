@@ -167,21 +167,21 @@
 .as-int-who__face img[src$="kp.webp"] { object-fit: contain; background: #0d1119; }
 .as-int-who__none { width: 110px; height: 110px; display: grid; place-items: center; background: #3b4863; color: #f1ece2; border-radius: 8px; border: 2px solid #ece4d2; font: 500 40px/1 var(--font-cn); }
 .as-int-who__name { padding: 3px 12px; background: #ece4d2; color: #2f2619; font: 500 13px/1.4 var(--font-cn); letter-spacing: .08em; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
-.as-int-box { position: relative; min-height: 96px; padding: 24px 44px 18px 18px; border-radius: 22px; overflow: hidden; color: #fff; font: 400 15px/1.7 var(--font-cn); text-shadow: 0 1px 4px rgba(0,0,0,.55);
+.as-int-box { position: relative; min-height: 96px; padding: 24px 44px 18px 30px; border-radius: 22px; overflow: hidden; color: #fff; font: 400 15px/1.7 var(--font-cn); text-shadow: 0 1px 4px rgba(0,0,0,.55);
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 10px 30px rgba(0,0,0,.35); cursor: pointer; }
 .as-int-box .as-glass-cv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
 .as-int-box > :not(.as-glass-cv) { position: relative; z-index: 1; }
 .as-int-box.is-css { -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); }
-/* 玻璃的着色跟着日夜（作者记的液态玻璃做法）：夜里深玻璃白字，白天浅玻璃深字 */
-.as-int-box::after { content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; background: rgb(20 20 24 / .3); pointer-events: none; }
-.as-phone:not([data-mode="night"]) .as-int-box::after { background: rgb(255 255 255 / .55); }
-.as-phone:not([data-mode="night"]) :is(.as-int-box, .as-int-box__back) { color: #1d1d1f; text-shadow: none; }
-.as-phone:not([data-mode="night"]) .as-int-box__voice { background: rgba(0,0,0,.08); color: #1d1d1f; }
+/* 玻璃的着色跟着日夜（作者记的液态玻璃做法，着色要薄，不然像加了泥）：夜里薄薄一层深色，白天薄薄一层白；
+   身后的桌子偏暗（亮度不到一半），照那个做法字用白的 */
+.as-int-box::after { content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; background: rgb(20 20 24 / .22); pointer-events: none; }
+.as-phone:not([data-mode="night"]) .as-int-box::after { background: rgb(255 255 255 / .14); }
 .as-int-box__voice { position: absolute !important; right: 10px; top: 10px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; }
 .as-int-box__voice.is-on { background: rgba(255,255,255,.4); animation: as-int-bob .6s ease-in-out infinite alternate; }
 .as-int-box p { margin: 0; }
-.as-int-box__back { position: absolute !important; left: 6px; bottom: 2px; padding: 4px 10px; border: 0; background: none; color: #fff; font-size: 14px; opacity: .6; cursor: pointer; }
-.as-int-box__more { position: absolute !important; right: 14px; bottom: 6px; font-size: 14px; opacity: .6; animation: as-int-bob 1s ease-in-out infinite alternate; }
+/* 翻上一句 / 还有下一句的小箭头：放在对话框左右两边的正中间 */
+.as-int-box__back { position: absolute !important; left: 2px; top: 50%; margin-top: -18px; padding: 6px 8px; border: 0; background: none; color: #fff; font-size: 20px; line-height: 24px; opacity: .6; cursor: pointer; }
+.as-int-box__more { position: absolute !important; right: 14px; top: 50%; margin-top: -12px; font-size: 20px; line-height: 24px; opacity: .6; animation: as-int-bob 1s ease-in-out infinite alternate; }
 @keyframes as-int-bob { to { transform: translateY(3px); } }
 .as-int-act { margin-top: 10px; }
 .as-int-input { display: flex; gap: 8px; align-items: flex-end; }
