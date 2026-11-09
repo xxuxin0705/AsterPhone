@@ -68,10 +68,10 @@
 .as-int-tabs button.is-on .as-avatar { box-shadow: 0 0 0 2px #d8b36a; }
 .as-int-tabs button.is-none::after { content: ""; position: absolute; top: 0; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: #e5787a; }
 /* 钉在桌布上的档案纸（作者给的图）：左上的拍立得放头像，字在纸上滚 */
-.as-int-card__scroll { flex: 1; min-height: 0; position: relative; background: url(../../assets/interlude/sheet.webp) center / 100% 100% no-repeat; }
+.as-int-card__scroll { flex: 1; min-height: 0; position: relative; touch-action: pan-y; background: url(../../assets/interlude/sheet.webp) center / 100% 100% no-repeat; }
 .as-int-card__photo { position: absolute; left: 9%; top: 6.5%; width: 29%; aspect-ratio: 1; display: grid; place-items: center; transform: rotate(-3deg); }
 .as-int-card__photo .as-avatar { width: 82% !important; height: 82% !important; border-radius: 2px !important; filter: sepia(.35) contrast(.95); font-size: 36px !important; }
-.as-int-sheet-paper { position: absolute; inset: 24% 7% 5% 7%; overflow-y: auto; padding: 6px 4px 24px; color: #2f2619; font-family: "Noto Serif SC", "Songti SC", serif;
+.as-int-sheet-paper { position: absolute; inset: 24% 7% 5% 7%; overflow-y: auto; touch-action: pan-y; padding: 6px 4px 24px; color: #2f2619; font-family: "Noto Serif SC", "Songti SC", serif;
   -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 24px), transparent); }
 .as-int-card__head { position: absolute; left: 43%; right: 7%; top: 7%; height: 15%; display: flex; flex-direction: column; justify-content: center; gap: 2px; color: #2f2619; font-family: "Noto Serif SC", serif; }
 .as-int-card__head .as-input { padding: 0 2px; height: 26px; background: none; border: 0; border-radius: 0; color: #2f2619; font: 500 15px/1 "Noto Serif SC", serif; box-shadow: none; }
@@ -279,6 +279,7 @@
 .as-int-log p { margin: 2px 0 0; font-size: 15px; line-height: 1.7; }
 .as-int-log small { display: block; font-size: 12.5px; line-height: 1.6; opacity: .65; }
 .as-int-reveal { display: flex; gap: 10px; align-items: center; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #ece4d2 url(../../assets/interlude/sheet.webp) center / cover; color: #2f2619; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+.as-phone[data-mode="night"] :is(.as-int-reveal, .as-int-file) { background-color: #2a2622; background-image: url(../../assets/interlude/sheet-night.webp); color: #ece4d2; }
 .as-int-reveal b { font: 600 15px/1.4 "Noto Serif SC", serif; }
 .as-int-reveal small { display: block; font: 12px/1.5 var(--font-ui); opacity: .75; }
 .as-int-play .as-navbar__btn { color: #f1ece2; }

@@ -366,16 +366,19 @@ function cardPage(back, resume) {
     else return;
     paintTabs(); paint(); paintBar();
   }
-  async function begin() {
+  // 开局：在哪按的就在哪等（车卡会上按的就留在书桌前），写好了放片头再进游戏；等的时候退回去了就直接进游戏
+  async function begin(b = startB, host = p.el) {
     if (G.running()) { G.cancel(); return; }
-    startB.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
+    const old = b.textContent; b.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
       const g = await G.start({ mood: pick.mood, know: pick.know, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
       toast(`《${g.title}》写好了`); back();
-      await castRoll(p.el, g); nav.pop(); playPage(g);
+      const at = host.isConnected ? host : p.el;
+      if (at.isConnected) { await castRoll(at, g); if (at !== p.el) nav.pop(); nav.pop(); }
+      playPage(g);
     } catch (e) { failed(e, '没开成'); }
-    paintBar();
+    b.textContent = old; paintBar();
   }
   // 团公告（不开车卡会时）：背景 + 规矩
   // 卡片页点开团公告：就是墙上那张纸取下来，摆在正中间，点哪都收起
@@ -427,7 +430,7 @@ function cardPage(back, resume) {
         shelf.replaceChildren(...c ? [h('div.as-int-reveal', ownerFace(l.o, 40), h('div', h('b', `${c.name} · ${c.job}`),
           h('small', [c.tier, R.ATTRS.filter(([k]) => k !== 'LUCK').map(([k, n]) => n + c.attrs[k]).join(' ')].filter(Boolean).join(' · ')), (c.abilities || []).length ? h('small', c.abilities.map(x => x.name).join('、')) : null))] : []); }
       // 台词不是中文的：中文当大字，原文小字放下面（作者读中文；念的还是原文）
-      actT.textContent = l.act || ''; sayT.textContent = l.zh || (l.say ? plain(l.say) : ''); zhT.textContent = l.zh ? plain(l.say) : '';
+      actT.textContent = plain(l.act); sayT.textContent = plain(l.zh || l.say); zhT.textContent = l.zh ? plain(l.say) : '';
       actT.hidden = !l.act; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !l.say; backB.hidden = seen.length < 2; more.hidden = !queue.length;
       if (l.say && vmode !== 'tap') voice(); };
     function next() { if (!queue.length) return; seen.push(queue.shift()); say(seen.at(-1)); if (!queue.length) end(); }
@@ -446,9 +449,9 @@ function cardPage(back, resume) {
     give.hidden = !cur.me; bad.hidden = true;
     // 演完：团公告钉在墙上；回顾（到现在为止的整场对话）点开是单子，和改卡 / 交卡排一行；过了就是回顾 / 开局
     const log = () => sheet({ title: '回顾', content: h('div.as-int-log', seen.map(l => h('div', h('b', l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : idOf(l.who) === 'me' ? '你' : l.who),
-      l.act ? h('small', l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null))) });
+      l.act ? h('small', plain(l.act)) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', plain(l.zh)) : null))) });
     const rules = h('div.as-int-end.is-bare', bad, h('div.as-int-row', btn('回顾', 'secondary', log), editB, give));
-    const end = () => { act.hidden = false; paperOk.then(() => { pin.hidden = passed; }); act.replaceChildren(passed ? h('div.as-int-end.is-bare', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', () => { nav.pop(); begin(); }))) : rules); };
+    const end = () => { act.hidden = false; paperOk.then(() => { pin.hidden = passed; }); act.replaceChildren(passed ? h('div.as-int-end.is-bare', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', e => begin(e.currentTarget, q.el)))) : rules); };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
     if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
@@ -629,7 +632,7 @@ function archivePage(sync, resume) {
 function readPage(g) {
   const p = page({ app: 'interlude', id: 'int-read', title: g.title, large: true, back: true, cls: 'as-int-archive' });
   p.body.append(h('div.as-int-read', g.log.map(l => h('div.as-int-read__l' + (l.me ? '.is-me' : '') + (l.ooc ? '.is-ooc' : ''),
-    h('b', l.me || l.who === '你' || l.who === myName() || l.who === g.pc.name ? '你' : l.who), l.text || l.act ? h('p.is-act', l.text || l.act) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', l.zh) : null)),
+    h('b', l.me || l.who === '你' || l.who === myName() || l.who === g.pc.name ? '你' : l.who), l.text || l.act ? h('p.is-act', plain(l.text || l.act)) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', plain(l.zh)) : null)),
     g.done && g.done.text ? h('div.as-int-read__end', g.done.text) : null));
   nav.push(p.el);
 }
@@ -723,12 +726,12 @@ function playPage(g) {
   let lastWho = '';
   P.preload(['me', kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
   const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : mine(n) ? '你' : n;
-  const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? l.act + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${l.zh}` : ''}）`);
+  const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? plain(l.act) + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${plain(l.zh)}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
   const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) ? l : null;
     const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
     face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
-    actT.textContent = l.text || l.act || ''; sayT.textContent = l.zh || (l.say ? plain(l.say) : ''); zhT.textContent = l.zh ? plain(l.say) : '';
+    actT.textContent = plain(l.text || l.act); sayT.textContent = plain(l.zh || l.say); zhT.textContent = l.zh ? plain(l.say) : '';
     actT.hidden = !actT.textContent; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !(cur && l.say);
     if (mode === 'next') queue.filter(x => !x.ooc).slice(0, 2).forEach(ahead);
     if (cur && l.say && mode !== 'tap') voice(cur); };

@@ -78,7 +78,7 @@ const knowText = g => g.know
   ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：调查员之间还没在戏里认识、没交换过情报时，戏里就不能知道对方那边发生的事，要在戏里走一遍认识、交换情报的过程（场外可以吐槽「就当我们叽里呱啦交换完了」）。'
   : '所有人都当真，这就是他们的经历，不出戏，不要场外话。';
 /** 一句台词给人看 / 给 KP 看的样子 */
-export const lineText = l => l.text || `${l.ooc ? '（场外）' : ''}${l.act || ''}${l.say ? `「${plain(l.say)}」` : ''}`;
+export const lineText = l => l.text ? plain(l.text) : `${l.ooc ? '（场外）' : ''}${plain(l.act)}${l.say ? `「${plain(l.say)}」` : ''}`;
 
 /* ---------- 调查员卡：跟着人存（一个人可以有好几张），下次上桌默认用上次那张 ----------
    卡 { id, owner: 'me' | 联系人 id, name, age, sex, job, home, bg: { 背景的格子，见 BG }, living 消费水平, cash 现金, assets 资产, items, attrs, skills, jobSkills 本职技能, at } */
