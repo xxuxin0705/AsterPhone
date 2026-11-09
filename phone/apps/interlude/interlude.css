@@ -244,7 +244,7 @@
 /* 结尾的团公告：钉在墙上的羊皮纸（开场动画那张纸 + 蜡封当图钉），在舞台上面空着的那块；字多就在纸里滑，放大时盖住舞台 */
 .as-int-meet .as-page__body { display: flex; flex-direction: column; }
 .as-int-meet .as-int-stage { position: relative; margin-top: auto; }
-.as-int-post { position: relative; z-index: 2; min-height: 0; display: flex; flex-direction: column; margin: 12px 20px 12px; padding: 2px 6px; color: #2f2619; font-family: "Noto Serif SC", serif;
+.as-int-post { position: relative; z-index: 2; box-sizing: border-box; min-height: 0; display: flex; flex-direction: column; margin: 12px 20px 12px; padding: 2px 6px; color: #2f2619; font-family: "Noto Serif SC", serif;
   border: 30px solid transparent; border-image: url(../../assets/interlude/scroll.webp) 110 fill stretch; transform: rotate(-1.2deg); filter: drop-shadow(0 10px 14px rgba(0,0,0,.45)); cursor: pointer; }
 .as-int-post[hidden] { display: none; }
 .as-phone[data-mode="night"] .as-int-post { border-image-source: url(../../assets/interlude/scroll-night.webp); color: #ece4d2; filter: drop-shadow(0 10px 14px rgba(0,0,0,.6)); }
@@ -254,8 +254,9 @@
 .as-int-post__text { min-height: 0; overflow-y: auto; font-size: 13px; line-height: 1.7; -webkit-mask-image: linear-gradient(#000 calc(100% - 14px), transparent); mask-image: linear-gradient(#000 calc(100% - 14px), transparent); }
 .as-int-post__text p { margin: 0; }
 .as-int-post__text p + p { margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(47,38,25,.35); }
-.as-int-post.is-big { position: absolute; top: 12px; left: 10px; right: 10px; max-height: calc(100% - 24px); margin: 0; z-index: 5; transform: none; animation: as-int-pop 260ms var(--as-ease-spring, ease) both; }
+.as-int-post.is-big { position: absolute; inset: 12px 10px; height: fit-content; max-height: calc(100% - 24px); margin: auto 0; z-index: 5; transform: none; animation: as-int-pop 260ms var(--as-ease-spring, ease) both; }
 .as-int-post.is-big .as-int-post__text { font-size: 14.5px; }
+.as-dialog-mask > .as-int-post.is-big { inset: 64px 16px; max-height: calc(100% - 128px); }
 /* 纸底下的小箭头：朝下是还能展开，朝上是收起 */
 .as-int-post__more { flex: none; align-self: center; display: flex; margin-top: 2px; opacity: .65; transform: rotate(90deg); transition: transform 200ms var(--as-ease-out, ease); }
 .as-int-post.is-big .as-int-post__more { transform: rotate(-90deg); }

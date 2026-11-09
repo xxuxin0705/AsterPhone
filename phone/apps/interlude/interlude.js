@@ -300,6 +300,10 @@ function setupSheet(next, chooseKp) {
 
 /* ---------- 调查员卡：上面一排头像切换，下面是这个人的卡（羊皮纸）；没卡的人一起让 AI 车 ---------- */
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
+// 团公告的羊皮纸（车卡会墙上那张、卡片页点开的都是它）：先写你的档位和规矩，虚线下面是背景；底下小箭头朝下能展开、朝上收起。
+// 日夜两张纸先解码好再放上去，不然有一帧只有字
+const postEl = m => h('div.as-int-post', img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)), h('i.as-int-post__more', icon('chevron', 16, 2)));
+const paper = () => Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
 const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
 // 属性填得太低时的提醒（自己填卡时实时显示）
 const LOW = { STR: '搬东西、打架都吃亏', CON: '血少、容易病倒', SIZ: '血少、一推就倒', DEX: '跑得慢、躲不开', APP: '第一印象差，社交难', INT: '难想通线索，兴趣点也少', POW: '理智低、容易发疯', EDU: '本职点少' };
@@ -361,7 +365,11 @@ function cardPage(back, resume) {
     paintBar();
   }
   // 团公告（不开车卡会时）：背景 + 规矩
-  const notice = () => sheet({ title: '团公告', content: h('div.as-int-notice', h('p', m.hint), h('b', m.rules.text), h('small', G.meetRules(m))) });
+  // 卡片页点开团公告：就是墙上那张纸取下来，摆在正中间，点哪都收起
+  const notice = () => paper().then(() => {
+    const mask = h('div.as-dialog-mask', { onclick: () => { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 200); } }, postEl(m));
+    mask.firstChild.classList.add('is-big'); document.querySelector('.as-phone').append(mask); requestAnimationFrame(() => mask.classList.add('is-open'));
+  });
   // 车卡会：一次 API 写完整场，其他人的卡也在会上车好
   async function holdMeet() {
     if (G.running()) { G.cancel(); return; }
@@ -384,9 +392,8 @@ function cardPage(back, resume) {
     const voiceB = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); voice(); } }, icon('volume', 18, 1.8));
     const backB = h('button.as-int-box__back', { 'aria-label': '上一句', onclick: e => { e.stopPropagation(); back(); } }, '◂');
     const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
-    // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来展开（有多少字展开多少），再点挂回去；日夜两张纸先解码好再钉上，不然有一帧只有字
-    const paperOk = Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
-    const pin = h('div.as-int-post', { hidden: true, onclick: () => pin.classList.toggle('is-big') }, img('seal'), h('b', '团公告'), h('div.as-int-post__text', h('p', G.meetRules(m)), h('p', m.hint)), h('i.as-int-post__more', icon('chevron', 16, 2)));
+    // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来展开（有多少字展开多少），再点挂回去
+    const paperOk = paper(), pin = postEl(m); pin.hidden = true; pin.onclick = () => pin.classList.toggle('is-big');
     q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
     let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
     const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.classList.remove('is-on'); } };
