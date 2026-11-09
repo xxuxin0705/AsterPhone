@@ -504,19 +504,26 @@ function cardPage(back, resume) {
       const s = sheet({ title: '挑一套', content: h('div.as-actions', sets.map(a => h('button.as-actions__item', { onclick: () => { s.close(); newAttrs(a); } },
         h('span', R.ATTRS.map(([k, n]) => `${n.slice(0, 1)}${a[k]}`).join(' ') + `　共 ${R.ATTRS.reduce((t, [k]) => t + (k === 'LUCK' ? 0 : a[k]), 0)}`)))) });
     });
-    // 技能：加过点的排前面，− / + 每次 5 点，点数字能一点一点调；本职技能名字标色，点名字能改是不是本职；点数超了标红
+    // 技能：加过点的排前面，点数字用 −5 −1 +1 +5 调；本职技能名字标色，点名字能改是不是本职；点数超了标红
     const pts = h('div.as-int-pts'), skillBox = h('div.as-int-skills'), restBox = h('div.as-int-skills.is-rest');
     const restB = h('button.as-int-more', { onclick: () => { restBox.hidden = !restBox.hidden; restB.textContent = restBox.hidden ? '其余技能 ▾' : '收起 ▴'; } }, '其余技能 ▾');
     restBox.hidden = true;
     function paintSkills() {
       const base = R.baseSkills(c.attrs), up = c.skillUp || 0;
-      const count = () => { const u = R.usage(c.attrs, c.skills, R.jobsOf(c)); pts.textContent = `本职 ${u.job}/${u.jobAll} · 兴趣 ${u.hobby}/${u.hobbyAll}${up ? `+${up}` : ''}`; pts.classList.toggle('is-over', u.hobby > u.hobbyAll + up); };
+      // 两份点还剩多少（兴趣点含打完几局长的）；点不够了就加不上去
+      const left = (sk = c.skills) => { const u = R.usage(c.attrs, sk, R.jobsOf(c)); return [u.jobAll - u.job, u.hobbyAll + up - u.hobby]; };
+      const count = () => { const [j, o] = left(); pts.textContent = `本职还剩 ${j} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', o < 0); };
+      // 每项最高：团公告定了就照公告（本职 skillMax、其他 hobbyMax，只管这局新车的卡），不然 90；信用评级照职业
+      const r = m && c.at >= m.at ? m.rules : null, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
-      // − / + 一次 5 点；要具体到某一点（61、62）就点数字，−5 −1 +1 +5 慢慢调
-      const row = k => { const v = h('b', { role: 'button', tabindex: 0, onclick: () => stepSheet(k, () => c.skills[k], n => bump(n - c.skills[k]), () => pts.textContent) }, c.skills[k]);
-        const bump = d => { const n = c.skills[k] + d; c.skills[k] = k === CR ? R.crFit(n, c.job) : Math.max(base[k], Math.min(R.MAX_SKILL, n)); if (k === CR && c.skills[k] !== n) toast(`${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}`); v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
+      // 点数字：和属性一样弹 −5 −1 +1 +5，不用打字
+      const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], n => bump(n - c.skills[k]),
+          () => [pts.textContent, k === CR ? `${c.job || '这个职业'}的信用评级在 ${R.crOf(c.job).join('～')}` : c.skills[k] >= hiOf(k) && `最高 ${hiOf(k)}`].filter(Boolean).join(' · ')) }, c.skills[k]);
+        const bump = d => { let n = k === CR ? R.crFit(c.skills[k] + d, c.job) : Math.max(base[k], Math.min(hiOf(k), c.skills[k] + d));
+          while (n > c.skills[k] && left({ ...c.skills, [k]: n })[1] < 0) n--;   // 点不够：退到刚好够的地方
+          c.skills[k] = n; v.textContent = c.skills[k]; count(); saveLater(); if (k === CR) paintWealth(); };
         const el = h('div.as-int-skill' + (R.jobsOf(c).includes(k) ? '.is-job' : ''), h('span', { role: 'button', tabindex: 0, onclick: () => {
-          const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), h('button', { 'aria-label': '减', onclick: () => bump(-5) }, '−'), v, h('button', { 'aria-label': '加', onclick: () => bump(5) }, '+')); return el; };
+          const L = R.jobsOf(c); c.jobSkills = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; el.classList.toggle('is-job'); count(); saveLater(); } }, k), h('small', String(base[k])), v); return el; };
       const keys = Object.keys(base).sort((a, b) => (c.skills[b] - base[b]) - (c.skills[a] - base[a]) || c.skills[b] - c.skills[a]);
       skillBox.replaceChildren(...keys.filter(k => c.skills[k] > base[k]).map(row)); restBox.replaceChildren(...keys.filter(k => c.skills[k] <= base[k]).map(row));
     }
