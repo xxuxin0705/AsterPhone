@@ -535,7 +535,7 @@ function cardPage(back, resume) {
     const wealthEl = h('p.as-int-derived'), money = (m && m.rules.money) || { unit: '美元', rate: 1 };
     const paintWealth = () => { const [lv, cash, own] = R.wealth(c.skills[CR] || 0); wealthEl.textContent = `${lv} · 现金 ${R.moneyText(cash, money)} · 资产 ${own ? R.moneyText(own, money) + (own >= 1e8 ? '以上' : '') : '没有'}`; };
     paintWealth();
-    const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, onInput: v => { c.bg[k] = v; saveLater(); } }));
+    const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, placeholder: '暂无', onInput: v => { c.bg[k] = v; saveLater(); } }));
     // 特殊能力：一条一条列出来，能删
     const abBox = h('div.as-int-abs');
     const paintAbs = () => abBox.replaceChildren(...(c.abilities || []).length ? c.abilities.map((x, i) => h('div.as-int-ab', h('b', x.name),
