@@ -17,8 +17,8 @@ const GRADES = ['大成功', '极难成功', '困难成功', '普通成功', '�
 let D = null, Dkey = '';
 export async function load() {
   if (D && Dkey === win.key) return D; Dkey = win.key; D = (await kvGet('int:' + win.key).catch(() => null)) || { games: [] };
-  // 旧卡：技能改过名、补上后来加的技能、超过 90 的压回 90；没打完的局里的技能也改名
-  for (const c of D.cards || []) { c.skills = R.fixSkills(c.attrs, R.renamed(c.skills)); if (c.tier) c.tier = R.tierOf(c.tier) || c.tier;
+  // 旧卡：技能改过名、补上后来加的技能、超过 90 的压回 90、武器伤害换成档位；没打完的局里的技能也改名
+  for (const c of D.cards || []) { c.skills = R.fixSkills(c.attrs, R.renamed(c.skills)); c.items = (c.items || []).map(toItem).filter(Boolean); if (c.tier) c.tier = R.tierOf(c.tier) || c.tier;
     // 旧卡的背景（身份、关系、关键经历、目标、秘密）：关系挪到调查员同伴，其余并进背景故事
     if (c.bg && !('story' in c.bg)) { const b = c.bg; c.bg = { rel: b.rel || '', story: [b.who, b.past, b.goal && '目标：' + b.goal, b.secret && '秘密：' + b.secret].filter(Boolean).join(' ') }; } }
   if (D.meet) D.meet.rules = toRules(D.meet.rules);
@@ -223,7 +223,7 @@ export const meetRules = m => { const t = m.mode !== 'random' && R.tierOf(m.rule
 const toPower = x => x && x.name ? { name: String(x.name), kind: x.kind in R.POWERS ? x.kind : 'other', dmg: String(x.dmg || ''), cost: Math.max(0, Math.min(20, Math.round(+x.cost) || 0)), desc: String(x.desc || '') } : null;
 export const powerText = x => `${x.name}（${R.POWERS[x.kind]}${x.dmg ? ' ' + x.dmg : ''}${x.cost ? `，耗 ${x.cost} 魔法` : ''}${x.desc ? '：' + x.desc : ''}）`;
 const powers = p => (p.abilities || []).length ? `；特殊能力：${p.abilities.map(powerText).join('、')}；魔法 ${p.mp ?? R.derived(p.attrs).mp}${p.mpMax ? '/' + p.mpMax : ''}` : '';
-export const toItem = x => typeof x === 'string' ? (x.trim() && { name: x.trim() }) : x && x.name ? { name: String(x.name), ...(x.dmg ? { dmg: String(x.dmg), skill: String(x.skill || '斗殴') } : {}) } : null;
+export const toItem = x => typeof x === 'string' ? (x.trim() && { name: x.trim() }) : x && x.name ? { name: String(x.name), ...(x.dmg ? { dmg: R.fitDmg(String(x.dmg)), skill: String(x.skill || '斗殴') } : {}) } : null;
 const cardText = c => `${c.name}（${c.age} 岁，${c.sex}，${c.job}，住在${c.home || '—'}）：${attrsText(c.attrs)}；技能：${topSkills(c.skills)}；背景：${BG.filter(([k]) => c.bg[k]).map(([k, n]) => `${n}：${c.bg[k]}`).join('；') || '—'}；消费水平 ${c.living || '—'}，现金 ${c.cash || '—'}，资产 ${c.assets || '—'}${bag(c)}${powers(c)}`;
 const fromCard = c => { const d = R.derived(c.attrs); return { id: c.owner, card: c.id, name: c.name, job: c.job, attrs: c.attrs, skills: { ...c.skills }, hp: d.hp, hpMax: d.hp, san: d.san, sanMax: d.san, bg: c.bg, items: (c.items || []).map(x => ({ ...x })), abilities: (c.abilities || []).map(x => ({ ...x })), mp: d.mp, mpMax: d.mp }; };
 
@@ -278,7 +278,8 @@ export async function play(g, input) {
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
-  for (const h of out.hurt || []) { const p = who(g, h.who); if (p && Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp))); }
+  for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));
+    if (+h.san > 0) p.san = Math.min(p.sanMax, p.san + Math.min(3, Math.round(+h.san))); }   // 精神分析治好回 1～3 理智（规则书 1D3）
   for (const p of [g.pc, ...g.party]) if (p.mad && --p.mad.left <= 0) p.mad = null;
   if (out.actDone && !last) { g.act++; g.roundIn = 0; g.place = A[g.act].place; for (const p of [g.pc, ...g.party]) if (p.mpMax) p.mp = Math.min(p.mpMax, p.mp + Math.ceil(p.mpMax / 2)); }   // 每过一幕回一半魔法（作者定的）
   g.req = out.request && out.request.type ? out.request : { type: 'free' };

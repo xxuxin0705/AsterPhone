@@ -37,6 +37,11 @@ export const SKILLS = { 侦查: 25, 聆听: 20, 图书馆使用: 20, 话术: 10,
   机械维修: 10, 电气维修: 10, 电子学: 10, 计算机使用: 10, 操作重机: 10, 锁匠: 10, 妙手: 10, 攀爬: 20, 跳跃: 20, 游泳: 20, 投掷: 20, 汽车驾驶: 20, 驾驶: 10, 领航: 10, 生存: 10, 追踪: 10,
   斗殴: 25, 手枪: 20, 步枪: 25, 历史: 10, 考古学: 10, 人类学: 10, 估价: 10, 会计: 10, 法律: 10, 科学: 10, 博物学: 10, 技艺: 10, 语言: 10, 乔装: 10, 信用评级: 0 };
 export const MAX_SKILL = 90;
+// 武器伤害只有这几档（作者定的）：名字随便写，伤害照档位挑，最重到步枪；AI 写了别的就换成最接近的一档
+export const DMG = [['1D3', '很轻', '拳脚'], ['1D4', '轻', '小刀'], ['1D6', '中', '棍棒'], ['1D8', '重', '砍刀、长剑'], ['1D10', '很重', '手枪'], ['2D6', '最重', '步枪']];
+const avg = d => { const [n, m] = d.toUpperCase().split('D').map(x => parseInt(x) || 1); return n * (m + 1) / 2; };
+export const fitDmg = d => DMG.map(x => x[0]).reduce((a, b) => Math.abs(avg(b) - avg(d)) < Math.abs(avg(a) - avg(d)) ? b : a);
+export const dmgRange = d => { const [n, m] = d.split('D').map(Number); return `${n}～${n * m}`; };
 // 改过名的技能（旧卡里还是旧名字）：旧的「驾驶」是开车，现在的「驾驶」是开飞机、开船
 const RENAMED = [['开锁', '锁匠'], ['导航', '领航'], ['驾驶', '汽车驾驶'], ['艺术', '技艺'], ['外语', '语言']];
 export const renamed = sk => { const o = { ...sk }; for (const [a, b] of RENAMED) if (a in o && !(b in o)) { o[b] = o[a]; delete o[a]; } return o; };

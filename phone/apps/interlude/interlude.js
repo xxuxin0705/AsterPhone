@@ -540,6 +540,16 @@ function cardPage(back, resume) {
       h('small', [R.POWERS[x.kind], x.dmg, x.cost && `耗 ${x.cost} 魔法`].filter(Boolean).join(' · ')), x.desc ? h('p', x.desc) : null,
       h('button', { 'aria-label': '删除', onclick: () => { c.abilities.splice(i, 1); saveLater(); paintAbs(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
     paintAbs();
+    // 武器：名字随便写，伤害照档位挑、技能点选（不准带枪的局里没有枪）；其他随身物品一行一样
+    const ws = (c.items || []).filter(x => x.dmg), wBox = h('div.as-int-abs');
+    const others = textarea({ value: (c.items || []).filter(x => !x.dmg).map(x => x.name).join('\n'), rows: 3, placeholder: '暂无', onInput: () => saveItems() });
+    const saveItems = () => set('items', [...ws.filter(w => w.name), ...others.value.split('\n').map(G.toItem).filter(Boolean)]);
+    const pickW = async (b, w, title, list, k, text) => { const v = await actionSheet(title, list.map(([value, label]) => ({ value, label, active: value === w[k] }))); if (v) { w[k] = v; b.textContent = text(v); saveItems(); } };
+    const paintW = () => wBox.replaceChildren(...ws.length ? ws.map(w => h('div.as-int-wpn', input({ value: w.name, placeholder: '名字', onInput: v => { w.name = v.trim(); saveItems(); } }),
+      h('button', { onclick: e => pickW(e.currentTarget, w, '伤害', R.DMG.map(([d, n, eg]) => [d, `${n} · ${R.dmgRange(d)} 点（${eg}）`]), 'dmg', R.dmgRange) }, R.dmgRange(w.dmg)),
+      h('button', { onclick: e => pickW(e.currentTarget, w, '用哪个技能', ['斗殴', '手枪', '步枪', '投掷'].filter(k => !m || m.rules.guns || !/枪/.test(k)).map(k => [k, k]), 'skill', v => v) }, w.skill),
+      h('button', { 'aria-label': '删除', onclick: () => { ws.splice(ws.indexOf(w), 1); saveItems(); paintW(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '暂无')]);
+    paintW();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
@@ -550,8 +560,8 @@ function cardPage(back, resume) {
       h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,
       field('都有些什么', textarea({ value: c.assets || '', rows: 2, placeholder: '暂无', onInput: v => set('assets', v) })),
       h('h3', '随身'),
-      field(withInfo('随身物品', '一行一样。武器写成「名字 · 伤害 · 用的技能」，比如：手枪 · 1D10 · 手枪'), textarea({ value: (c.items || []).map(x => [x.name, x.dmg, x.dmg && x.skill].filter(Boolean).join(' · ')).join('\n'), rows: 4, placeholder: '暂无',
-        onInput: v => set('items', v.split('\n').map(l => { const [name, dmg, skill] = l.split(/\s*·\s*/).map(t => t.trim()); return G.toItem({ name, dmg: /^\d*[dD]\d+/.test(dmg || '') ? dmg : '', skill }); }).filter(Boolean)) })));
+      field(withInfo('武器', '名字随便写，伤害照档位挑，最重到步枪那档。'), wBox), h('div.as-int-row', btn('加一件武器', 'secondary', () => { ws.push({ name: '', dmg: '1D6', skill: '斗殴' }); paintW(); wBox.lastChild.firstChild.focus(); })),
+      field('其他随身物品', others));
     paintAttrs(); paintSkills();
     sheetEl.scrollTop = 0;
   }
