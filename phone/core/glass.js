@@ -1,7 +1,7 @@
 // 液态玻璃（照作者给的 whereyanlands《液态玻璃》技术指南）：CSS 只管形状，玻璃感由 WebGL 算——
 // 1. 背景源：把宿主页面的背景（图 cover 铺满 + 上面那层渐变）画到一张全屏画布上，所有玻璃共用这一张；
 // 2. 每块玻璃按自己在屏幕上的位置，从背景源里切出身后那一块；
-// 3. shader：圆角遮罩、从中心到边缘连续的折射（越靠边越往里扭，红光偏多一点）、低频双轴扰动、左上强右下弱的边缘高光；
+// 3. shader：圆角遮罩、从中心到边缘连续的折射（越靠边越往里扭；三种颜色一起偏，不分开，分开边上会出彩虹，作者不要）、低频双轴扰动、左上强右下弱的边缘高光；
 // 4. 尺寸、位置变了再画一次（背景是静的，不用一直刷）。WebGL 用不了就退回 CSS 毛玻璃（.is-css）。
 // 参数照指南的基准：refract 26、tint 0、blur 0、edge 25、shine 13、wobble 15。
 const VS = 'attribute vec2 p; varying vec2 v; void main(){ v = p * .5 + .5; v.y = 1. - v.y; gl_Position = vec4(p, 0., 1.); }';
@@ -15,7 +15,7 @@ void main() {
   if (d > 0.) discard;
   float e = clamp(-d / 25., 0., 1.), k = (1. - e) * (1. - e);
   vec2 off = -normalize(c + 1e-4) * k * 26. + vec2(sin(px.y * .05), cos(px.x * .04)) * 1.5 * (1. - .6 * e);
-  vec3 col = vec3(at(px + off * 1.15).r, at(px + off).g, at(px + off * .85).b);
+  vec3 col = at(px + off);
   col = col * 1.06 + .13 * k * .35;
   float ang = atan(c.y, c.x), hair = exp(-pow((d + .55) / .62, 2.));
   float glint = hair * (exp(-pow((ang + 2.38) / .6, 2.)) * .66 + exp(-pow((ang - .76) / .62, 2.)) * .48);
