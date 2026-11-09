@@ -84,6 +84,9 @@
 .as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea { padding: 5px 8px; background: rgba(255,248,230,.35); border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; color: #2f2619; font-family: inherit; font-size: 14px; box-shadow: none; }
 .as-int-sheet-paper .as-textarea { min-height: 0; font-size: 13.5px; }
 .as-int-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+.as-int-sheet-paper .as-segmented { padding: 2px; border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; background: rgba(255,248,230,.35); box-shadow: none; }
+.as-int-sheet-paper .as-segmented button { padding: 6px 4px; border-radius: 3px; color: #2f2619; font-family: inherit; font-size: 14px; }
+.as-int-sheet-paper .as-segmented button.is-active { background: #2f2619; color: #f1ece2; box-shadow: none; }
 .as-int-job { height: 30px; padding: 0 10px; border: 0; border-bottom: 1px solid rgba(27,42,82,.25); border-radius: 4px; background: rgba(255,248,230,.35); color: #2f2619; font: inherit; text-align: left; cursor: pointer; }
 .as-int-attrs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .as-int-attr { display: grid; grid-template-columns: 1fr auto; align-items: baseline; padding: 4px 8px; border: 1px solid rgba(27,42,82,.18); border-radius: 6px; background: rgba(255,248,230,.3); color: #2f2619; font-family: inherit; cursor: pointer; text-align: left; }
@@ -111,7 +114,9 @@
 .as-phone[data-mode="night"] .as-int-card__scroll { background-image: url(../../assets/interlude/sheet-night.webp); }
 .as-phone[data-mode="night"] :is(.as-int-sheet-paper, .as-int-card__head, .as-int-card__head .as-input, .as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea, .as-int-job, .as-int-attr, .as-int-skill button) { color: #ece4d2; }
 .as-phone[data-mode="night"] :is(.as-int-sheet-paper h3, .as-int-sheet-paper .as-field__label, .as-int-attr small, .as-int-more, .as-int-skill.is-job > span) { color: #d6b77f; }
-.as-phone[data-mode="night"] :is(.as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea, .as-int-job, .as-int-attr) { background: rgba(0,0,0,.3); border-color: rgba(236,228,210,.16); }
+.as-phone[data-mode="night"] :is(.as-int-sheet-paper .as-input, .as-int-sheet-paper .as-textarea, .as-int-sheet-paper .as-segmented, .as-int-job, .as-int-attr) { background: rgba(0,0,0,.3); border-color: rgba(236,228,210,.16); }
+.as-phone[data-mode="night"] .as-int-sheet-paper .as-segmented button { color: #ece4d2; }
+.as-phone[data-mode="night"] .as-int-sheet-paper .as-segmented button.is-active { background: #ece4d2; color: #2f2619; }
 .as-phone[data-mode="night"] :is(.as-int-sheet-paper h3, .as-int-skill, .as-int-skill button) { border-color: rgba(236,228,210,.22); }
 .as-phone[data-mode="night"] :is(.as-int-hint, .as-int-pts.is-over) { color: #f08a7e; }
 .as-int-card__bar { flex: none; display: flex; gap: 8px; }

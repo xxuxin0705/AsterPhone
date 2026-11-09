@@ -42,6 +42,8 @@ async function ask(cat, vars, maxTokens, g) {
   finally { job = null; }
 }
 const placesText = () => Object.entries(R.PLACES).map(([k, v]) => `${k} = ${v}`).join('；');
+/** 性别只分男女（作者定的，卡上是两个选项）：AI 写「女性」「男生」之类也认 */
+export const sexOf = s => /女/.test(s) ? '女' : /男/.test(s) ? '男' : '';
 const attrsText = a => R.ATTRS.map(([k, n]) => `${n} ${a[k]}`).join('、');
 const topSkills = s => Object.entries(s).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k} ${v}`).join('、');
 // 随身物品 { name, dmg, skill }：武器才有伤害和用的技能
@@ -96,7 +98,7 @@ const skillsText = () => Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).j
 function toCard(o, x, rolled, r) {
   const tier = rolled ? undefined : R.tierOf(x.tier) || R.TIERS[0][0], a = rolled || R.fixAttrs(x.attrs, R.budgetOf(tier, r && r.base), r), base = R.baseSkills(a);
   const given = (Array.isArray(x.jobSkills) ? x.jobSkills : []).map(String).filter(k => k in base).slice(0, 8), jobs = given.length ? given : R.jobsOf({ job: x.job });
-  return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: String(x.sex || ''), job: String(x.job || ''), home: String(x.home || ''),
+  return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: sexOf(x.sex), job: String(x.job || ''), home: String(x.home || ''),
     bg: Object.fromEntries(BG.map(([k]) => [k, String((x.bg || {})[k] || '')])), living: String(x.living || ''), cash: String(x.cash || ''), assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, base: r && r.base, attrs: a, skills: R.fixSkills(a, x.skills, r && r.skillMax, r && r.hobbyMax, jobs), jobSkills: jobs,
     abilities: (Array.isArray(x.abilities) ? x.abilities : []).map(toPower).filter(Boolean).slice(0, 3) };
 }
@@ -123,7 +125,7 @@ export async function makeCards(owners, all = owners, s = {}) {
     story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(), mode: (MODE_TEXT[s.mode] || '') + noteText(s.note),
     scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车，不用再写 hint 和 rules）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
     roster: (others.length ? `同桌的还有：${others.join('、')}（关系也要写到他们）\n` : '') + owners.map(o => rosterLine(o, rolled[o])).join('\n'),
-  }, 1200 + 700 * owners.length);
+  }, Math.min(8000, 1500 + 1800 * owners.length));   // 一张卡（12 格背景、资产、技能）要 1500～2000；8000 是不少模型一次能回的上限
   const list = Array.isArray(out.cards) ? out.cards : [];
   if (!list.length) throw new Error('AI 回的格式不对');
   if (!m && !s.meet) D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), rules: toRules(out.rules) };
@@ -154,7 +156,7 @@ export async function meet(s) {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
     roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}${fresh.me ? '；这局车新卡' : old('me')}`, ...s.party.map(o => rosterLine(o, rolled[o]) + old(o) + `；${speakLine(g, o)}`)].join('\n'),
     mode: (MODE_TEXT[s.mode] || '') + noteText(s.note), jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
-  }, 3000 + 900 * s.party.length);
+  }, Math.min(8000, 4000 + 1500 * s.party.length));
   const r = out.rules, all = Array.isArray(out.cards) ? out.cards : [], list = all.filter(c => !c.old);
   if (!Array.isArray(out.lines) || !r || list.length < news.length) throw new Error('AI 回的格式不对');
   const talk = L => (Array.isArray(L) ? L : []).filter(l => l && (l.say || l.act)), rules = toRules(r);

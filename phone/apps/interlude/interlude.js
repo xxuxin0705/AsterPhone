@@ -315,6 +315,7 @@ const postEl = m => h('div.as-int-post', img('seal'), h('b', '团公告'), h('di
 const voiceBtn = fn => { const vol = icon('volume', 18, 1.8), stop = icon('pause', 18, 1.8), b = h('button.as-int-box__voice', { 'aria-label': '念这一句', onclick: e => { e.stopPropagation(); fn(); } }, vol);
   b.set = st => { b.st = st; b.replaceChildren(st === 'load' ? h('span.as-spin') : st === 'on' ? stop : vol); b.classList.toggle('is-on', st === 'on'); }; return b; };
 const paper = () => Promise.all(['scroll', 'scroll-night'].map(n => { const i = new Image(); i.src = BASE + n + '.webp'; return i.decode().catch(() => {}); }));
+const SEXES = [['男', '男'], ['女', '女']];   // 能点就不打字
 const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：你自己写「你」
 // 属性填得太低时的提醒（自己填卡时实时显示）
 const LOW = { STR: '搬东西、打架都吃亏', CON: '血少、容易病倒', SIZ: '血少、一推就倒', DEX: '跑得慢、躲不开', APP: '第一印象差，社交难', INT: '难想通线索，兴趣点也少', POW: '理智低、容易发疯', EDU: '本职点少' };
@@ -521,7 +522,7 @@ function cardPage(back, resume) {
     paintAbs();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
-      h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), line('性别', 'sex'), line('住地', 'home')),
+      h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
       h('h3', '技能'), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
