@@ -46,9 +46,9 @@ export function usage(a, sk, jobs = []) {
   for (const [k, v] of Object.entries(sk)) { const n = Math.max(0, v - (b[k] ?? 0)); if (jobs.includes(k)) j += n; else o += n; }
   return { job: Math.min(j, job), hobby: o + Math.max(0, j - job), jobAll: job, hobbyAll: hobby };
 }
-/** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告：本职技能 max、其他 hobbyMax），没给的用基础值 */
+/** AI 分好的技能：只认表里有的，最高 90（团公告定了技能上限就照公告：本职技能 max、其他 hobbyMax；母语一开始就等于教育，不管上限），没给的用基础值 */
 export function fixSkills(a, given = {}, max = MAX_SKILL, hobbyMax = max, jobs = null) {
-  const out = baseSkills(a), cap = k => !jobs || jobs.includes(k) ? max : hobbyMax;
+  const out = baseSkills(a), cap = k => k === '母语' ? MAX_SKILL : !jobs || jobs.includes(k) ? max : hobbyMax;
   for (const [k, v] of Object.entries(given)) if (k in out && Number.isFinite(+v)) out[k] = Math.max(out[k], Math.min(cap(k), Math.round(+v)));
   return out;
 }

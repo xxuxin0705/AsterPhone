@@ -517,8 +517,8 @@ function cardPage(back, resume) {
       // 两份点还剩多少（兴趣点含打完几局长的）；点不够了就加不上去
       const left = (sk = c.skills) => { const u = R.usage(c.attrs, sk, R.jobsOf(c)); return [u.jobAll - u.job, u.hobbyAll + up - u.hobby]; };
       const count = () => { const [j, o] = left(); pts.textContent = `本职还剩 ${j} 点 · 兴趣${o < 0 ? `超了 ${-o}` : `还剩 ${o}`} 点`; pts.classList.toggle('is-over', o < 0); };
-      // 每项最高：这局新车的卡照团公告（本职 skillMax、其他 hobbyMax），没有团公告照常见的本职 80、兴趣 60；跑过局长过的卡到 90；信用评级照职业
-      const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
+      // 每项最高：这局新车的卡照团公告（本职 skillMax、其他 hobbyMax），没有团公告照常见的本职 80、兴趣 60；母语和跑过局长过的卡到 90；信用评级照职业
+      const r = c.skillUp ? null : m && c.at >= m.at ? m.rules : { skillMax: 80, hobbyMax: 60 }, hiOf = k => k === CR ? R.crOf(c.job)[1] : !r || k === '母语' ? R.MAX_SKILL : R.jobsOf(c).includes(k) ? r.skillMax : r.hobbyMax;
       count();
       // 点数字：和属性一样弹 −5 −1 +1 +5，不用打字
       const row = k => { const v = h('button', { onclick: () => stepSheet(k, () => c.skills[k], fit, bump,

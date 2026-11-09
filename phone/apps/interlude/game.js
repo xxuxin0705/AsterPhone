@@ -207,7 +207,7 @@ export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一
   const [clo, chi] = R.crOf(c.job), cr = c.skills.信用评级 || 0; if (fresh && (cr < clo || cr > chi)) bad.push(`信用评级要在 ${clo}～${chi}（${c.job}）`);
   const out = fresh && c.tier ? R.ATTRS.filter(([k]) => k !== 'LUCK' && (c.attrs[k] < r.attrMin || c.attrs[k] > r.attrMax)) : [];
   if (out.length) bad.push(`属性要在 ${r.attrMin}～${r.attrMax}：${out.map(([k, n]) => n + c.attrs[k]).join('、')}`);
-  const base = R.baseSkills(c.attrs), hi = fresh && !c.skillUp ? Object.entries(c.skills).filter(([k, v]) => v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
+  const base = R.baseSkills(c.attrs), hi = fresh && !c.skillUp ? Object.entries(c.skills).filter(([k, v]) => k !== '母语' && v > (base[k] ?? 0) && v > (jobs.includes(k) ? r.skillMax : r.hobbyMax)) : [];
   if (hi.length) bad.push(`技能超了上限（本职 ${r.skillMax}${r.hobbyMax < r.skillMax ? `、其他 ${r.hobbyMax}` : ''}）：${hi.map(([k, v]) => k + ' ' + v).join('、')}`);
   const w = (c.items || []).filter(x => x.dmg), n = (c.abilities || []).length, things = [...(c.items || []), ...(c.abilities || [])].map(x => x.name).join('、') + (c.assets || '');
   if (r.weapons != null && w.length > r.weapons) bad.push(`武器带了 ${w.length} 件，最多 ${r.weapons} 件`);
