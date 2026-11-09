@@ -133,6 +133,18 @@ async function withRetry(kind, app, fn) {
     catch (e) { if (!isRetryErr(e.message) || t >= tries - 1) throw e; log('warn', app, `第 ${t + 1} 次失败，再试一次：${e.message}`); await sleep(800 * (t + 1)); }
   }
 }
+const MORE = '\n\n【你上一次回到下面这里就断了（字数到了上限）。从断的地方接着往下写：不要重复前面写过的，不要加任何解释，直接接上最后一个字】\n';
+const bare = t => t.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
+/** 自动补写（作者要的）：done(写出来的) 说还没写完，就把写出来的给它，让它从断的地方接着写，最多 most 次；接上时去掉它重复的那几个字 */
+export async function generateMore(opts, done, most) {
+  let out = await generate(opts);
+  for (let n = 0; n < most && !done(out); n++) {
+    const part = bare(out), more = bare(await generate({ ...opts, prompt: opts.prompt + MORE + part }));
+    let k = Math.min(200, more.length); while (k && !part.endsWith(more.slice(0, k))) k--;
+    out = part + more.slice(k);
+  }
+  return out;
+}
 /**
  * 生成文字。返回字符串。
  * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用选好的副 API。

@@ -1,7 +1,7 @@
 // 幕间 · 一局的数据和流程：车卡一次 API（几个人一起），开局一次 API 生成骨架，之后每回合一次；骰子由手机掷（rules.js），AI 只收结果。
 // 整局不进正文、不进记忆。局存在 kv 的 int:窗口 里；正在等 AI 的那一步放在模块里，退出页面再进来还是「取消」。
 import { state, win, contact, kvGet, kvSet, chatForContact } from '../../core/store.js';
-import { generate, resolveConn } from '../../core/api.js';
+import { generateMore, resolveConn } from '../../core/api.js';
 import { compose, myName, myPersona } from '../../core/promptstore.js';
 import { storyText, worldText } from '../../core/context.js';
 import { memoryFor } from '../../core/memory.js';
@@ -43,17 +43,12 @@ function open(t) {
   for (const ch of s.slice(i)) { if (e) e = false; else if (ch === '\\') e = q; else if (ch === '"') q = !q; else if (!q) d += '{['.includes(ch) ? 1 : '}]'.includes(ch) ? -1 : 0; }
   return d > 0 || q;
 }
-/** 接上：AI 接着写时常把最后几个字再写一遍，重叠的去掉 */
-const glue = (a, b) => { b = strip(b); for (let k = Math.min(200, b.length); k > 0; k--) if (a.endsWith(b.slice(0, k))) return a + b.slice(k); return a + b; };
-const MORE = '\n\n【你上一次回到下面这里就断了（字数到了上限）。从断的地方接着往下写：不要重复前面写过的，不要加任何解释，直接接上最后一个字】\n';
 async function ask(cat, vars, maxTokens, g) {
   const ac = new AbortController(), conn = resolveConn('text', 'interlude'), prompt = compose(cat, vars); job = { g, ac };
   try {
-    // 回到一半断了：把写出来的给它，让它接着写（作者要的；设置里能关、能定最多补几次）
-    const A = state.apps.interlude, most = A.more === false ? 0 : A.moreMax || 2;
-    let out = await generate({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt });
-    for (let n = 0; n < most && open(out); n++) out = glue(strip(out), await generate({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt: prompt + MORE + strip(out) }));
-    return parse(out);
+    // 回到一半断了（括号没合上）就自动补写：设置里开了才补（默认关），最多补几次也在设置里定
+    const A = state.apps.interlude;
+    return parse(await generateMore({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt }, t => !open(t), A.fill ? A.fillMax || 3 : 0));
   } finally { job = null; }
 }
 const placesText = () => Object.entries(R.PLACES).map(([k, v]) => `${k} = ${v}`).join('；');

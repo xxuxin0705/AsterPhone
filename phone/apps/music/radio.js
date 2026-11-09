@@ -4,10 +4,10 @@
 // 声音都走一个 AudioContext：故事一段接一段、白噪音垫在底下，切到后台也能接着放下一段（新开 <audio> 在后台会被拦）。
 import { h, uid, clamp, pickFile, onLongPress, debounce } from '../../core/util.js';
 import { state, win, commit, contact, kvGet, kvSet, kvDel, kvKeys, chatForContact, getMsgs } from '../../core/store.js';
-import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem, busy } from '../../core/ui.js';
+import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem, busy, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
-import { generate, resolveConn, synthesize } from '../../core/api.js';
+import { generate, generateMore, resolveConn, synthesize } from '../../core/api.js';
 import { compose, myName } from '../../core/promptstore.js';
 import { speakAs, connFor, voiceOf, readAloud } from '../../core/voice.js';
 import { storyText, worldText } from '../../core/context.js';
@@ -64,7 +64,8 @@ const segsOf = text => clean(text).split('\n').map(l => l.trim()).filter(Boolean
 const hint = c => hintFor(kindOf(connFor(c.id)));   // 每段怎么标语气：照这个角色现在用的语音接口
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
 // 连接中途断了时，有的接口会把一句「响应读取中断…请检查网络连接…」当成正文接在半截回复后面（作者那本的感想就混进了这句）：当失败，不存
-const ask = (c, prompt, maxTokens, stop) => generate({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt })
+// done：写完了没有（故事要写到「感想」、翻译要每段都有）；没写完、电台设置里开了自动补写，就接着写
+const ask = (c, prompt, maxTokens, stop, done = () => true) => generateMore({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt }, done, S().fill ? S().fillMax || 3 : 0)
   .then(t => { if (/响应读取中断|请检查网络连接/.test(t)) { log('warn', '电台', '回复里混进了接口的断线提示，没存：' + t.slice(-120)); throw new Error('连接中途断了，回来的不完整，再试一次'); } return clean(t); });
 
 /** 让角色讲一个：故事 + 中文翻译 + 感想，一次 API */
@@ -77,7 +78,7 @@ async function compose1(c, what, recall, stop) {
     about = [`【最近的剧情】\n${story || '（暂无）'}`, msgs.length && `【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : real(c)}：${m.text}`).join('\n')}`,
       await worldText(scan).catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
   }
-  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), 8000, stop);
+  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), 8000, stop, t => /^\s*感想[:：]/m.test(t));
   const title = ((raw.match(/^\s*标题[:：]\s*(.+)$/m) || [])[1] || '').replace(/^[《「『【]|[》」』】]$/g, '').trim();
   const [head, rest] = raw.split(/^\s*故事[:：]\s*/m), [story, after = ''] = (rest ?? head.replace(/^\s*标题[:：].*$/m, '')).split(/^\s*感想[:：]\s*/m);
   const segs = segsOf(story);
@@ -87,7 +88,7 @@ async function compose1(c, what, recall, stop) {
 /** 书店的老故事、导入的文字：翻成 lang（原文就是 lang 的话只配中文翻译） */
 async function trans(c, ps, from, lang, stop) {
   const onlyZh = same(from, lang), raw = await ask(c, compose('radioTrans', { char: real(c), lang: lname(onlyZh ? 'zh-CN' : lang),
-    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : hint(c), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop);
+    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : hint(c), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop, t => segsOf(t).length >= ps.length);
   const out = segsOf(raw);
   if (!out.length) throw new Error('AI 回了空的');
   if (onlyZh) return ps.map((t, i) => ({ t, tr: (out[i] || {}).t || '' }));
@@ -448,10 +449,14 @@ function settings(c = cur()) {
       if (l) { D.lang[c.id] = l; save(); langV.textContent = lname(l); }
     } }),
     item({ title: '声音', right: voiceV, chevron: true, onClick: async () => (await import('../settings/voices.js')).openPerson(c.id, () => { voiceV.textContent = voiceLabel(c); }) })]);
+  // 最多补写几次：和幕间设置里那行一样，1～10
+  const fillN = h('output', (S().fillMax || 3) + ' 次'), fillR = h('div.as-settings-slider-row', { hidden: !S().fill }, h('span', '最多补写'),
+    slider({ min: 1, max: 10, step: 1, value: S().fillMax || 3, onInput: v => { S().fillMax = v; fillN.textContent = v + ' 次'; commit('music'); } }), fillN);
   sheet({ title: '电台设置', content: h('div.as-rd-set', who,
     group('什么时候合成', [segmented(TTS, S().tts, v => set('tts', v))]),
     group('', [toggleItem({ title: '故事讲完接着念感想' }, S().say, v => set('say', v))]),
     group('随便讲的长短', [segmented([['short', '短'], ['mid', '中'], ['long', '长']], S().len, v => set('len', v))]),
+    group('', [toggleItem({ title: withInfo('写到一半断了自动补写', 'AI 写到一半被字数上限截断时，把写出来的给它，让它接着写完。每补一次多找一次 AI。') }, !!S().fill, v => { set('fill', v); fillR.hidden = !v; }), fillR]),
     group('字幕气泡', [color('气泡颜色', () => B().bg, v => B().bg = v, saveBub), color('字的颜色', () => B().ink, v => B().ink = v, saveBub),
       font(() => B().font, v => B().font = v, saveBub), toggleItem({ title: '描边' }, !!B().line, v => { B().line = v; saveBub(); })])) });
 }
