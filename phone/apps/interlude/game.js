@@ -347,7 +347,7 @@ function apply(g, out, lines) {
     if (x.drop) { const k = find(x.drop); if (k >= 0) L.splice(k, 1); }
     if (x.use) { const k = find(x.use); if (k >= 0 && L[k].n && !--L[k].n) L.splice(k, 1); }   // 有次数的用一次少一次，用完就没了；没写次数的一直能用
     const n = toItem(typeof x.add === 'string' ? { name: x.add.trim(), n: x.n } : x.add); if (n) L.push(n); }
-  if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), wrap: true, at: Date.now() }; g.req = { type: 'free' }; }
+  if (out.end && out.end.text) { g.done = { kind: endOf(out.end.kind), name: str(out.end.name), text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), wrap: true, at: Date.now() }; g.req = { type: 'free' }; }
 }
 const nextAct = g => { g.act++; g.roundIn = 0; g.place = g.sk.acts[g.act].place; for (const p of [g.pc, ...g.party]) if (p.mpMax) p.mp = Math.min(p.mpMax, p.mp + Math.ceil(p.mpMax / 2)); };   // 每过一幕回一半魔法（作者定的）
 const setReq = (g, q) => { g.req = q && q.type ? q : { type: 'free' }; if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; } };
@@ -358,10 +358,13 @@ const RUN = `【剧本模式】这局不是每回合现编：你现在就把整�
 - 每段：lines 演到要掷骰的地方（KP 叙述 + 上桌角色说的话或做的事，每段一两句，不超过 6 段，写法同上）；request 写这次检定（check / san / opposed / fight，格式同上）；out 写六种结果各自接下来的戏：大成功、极难成功、困难成功、普通成功、失败、大失败，每种 lines 写 1～4 段（掷骰的人怎样、同伴什么反应），有人受伤写 hurt，捡到、用掉东西写 items，关系变了写 rel。理智检定、对抗、打斗只写「普通成功」和「失败」（打斗的普通成功是打赢了，失败是逃了或打输了）。
 - 不管成功失败，戏都往下一段走：失败是代价更大、拿到的更少（受伤、掉理智、晚一步、被人发现），关键线索换条更难的路还在；大失败要当场出事。
 - 好几个人一起掷（who 写了好几个）：有人成功就用成功那档，写成对掷成功的那个人说，用 {谁} 代替他的名字；都失败才用失败那档。
-- 最后一段的每种结果都写 end：{"kind":"good / bad","text":"结局","lost":["下落不明的调查员名字"]}，成功的往好结局走、失败的往坏结局走；中间真把人弄没了也可以提前写 end。
+- 最后一段的每种结果都写 end：{"kind":"he / be / te / oe","name":"结局的名字","text":"结局","lost":["下落不明的调查员名字"]}，成功的往 he / te 走、失败的往 be / oe 走；中间真把人弄没了也可以提前写 end。kind 是哪种结局：he 圆满、be 悲伤、te 真结局（揭开了真相、走对了关键那条路）、oe 开放（没说死，留着悬念）；name 给这个结局起个好听的名字，贴着这局发生的事和结局的味道起，长短不限，不要平铺直叙。
 - 在上面的 JSON 里加上："segs":[{"act":1,"place":"","lines":[{"who":"KP","act":"","say":""}],"request":{"type":"check","who":["你"],"skill":"侦查","level":"普通","reason":""},"out":{"大成功":{"lines":[],"hurt":[],"items":[],"rel":[]},"极难成功":{"lines":[]},"困难成功":{"lines":[]},"普通成功":{"lines":[]},"失败":{"lines":[]},"大失败":{"lines":[]}}}]
 `;
 const ASIDE = '这局是剧本模式，后面的戏已经写好了：这回合只接住玩家这一下（回应、对话、小动作），不要推进到下一个检定、不要揭开后面的线索；request 写 free，不写 actDone 和 end';
+/** 结局四种（作者定的）：HE 圆满 / BE 悲伤 / TE 真结局 / OE 开放；good、bad 是以前的局 */
+export const ENDS = { he: 'HE', be: 'BE', te: 'TE', oe: 'OE', good: '好结局', bad: '坏结局', quit: '没打完' };
+const endOf = k => (k = str(k).toLowerCase()) in ENDS && k !== 'quit' ? k : 'be';
 const BEST = ['大成功', '极难成功', '困难成功', '普通成功', '成功', '赢了', '失败', '输了', '大失败'];
 const OUTS = { 大成功: ['大成功', '极难成功', '困难成功', '普通成功'], 极难成功: ['极难成功', '困难成功', '普通成功', '大成功'], 困难成功: ['困难成功', '普通成功', '极难成功'], 普通成功: ['普通成功', '困难成功', '极难成功'], 失败: ['失败', '大失败'], 大失败: ['大失败', '失败'] };
 /** 这次掷骰（rolls [[谁, 掷出的档]]）里最好的那个：剧本照它往下放 */
@@ -374,7 +377,7 @@ export function step(g, v, name) {
   apply(g, o, L);
   const nx = !g.done && g.sk.segs[++g.seg];
   if (nx) { const N = linesOf(g, nx); while (+nx.act - 1 > g.act && g.act < g.sk.acts.length - 1) nextAct(g); apply(g, nx, N); L.push(...N); setReq(g, nx.request); }
-  else if (!g.done) { const kd = BEST.indexOf(k) < 6 ? 'good' : 'bad'; apply(g, { end: { kind: kd, text: (g.sk.endings || {})[kd] || '——' } }, L); }
+  else if (!g.done) { const E = g.sk.endings || {}, kd = (BEST.indexOf(k) < 6 ? ['te', 'he', 'good'] : ['be', 'oe', 'bad']).find(x => E[x]) || (BEST.indexOf(k) < 6 ? 'he' : 'be'); apply(g, { end: { kind: kd, text: E[kd] || '——' } }, L); }
   g.round++; g.roundIn++; g.log.push(...L);
   return L;
 }
@@ -382,7 +385,7 @@ export function step(g, v, name) {
  *  后日谈的信、黑匣子（最后一句）。存在 g.review = { lines, ends: { 名字: { title, text } }, box, done 看完了没有 } */
 export async function review(g) {
   const ps = [g.pc, ...g.party], names = ps.map(p => p.name);
-  const out = await ask('intReview', { kp: kpText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, ending: `${g.done.kind === 'good' ? '好结局' : '坏结局'}：${g.done.text}`, secret: g.sk.secret,
+  const out = await ask('intReview', { kp: kpText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, ending: `${ENDS[g.done.kind]}${g.done.name ? `《${g.done.name}》` : ''}：${g.done.text}`, secret: g.sk.secret,
     acts: g.sk.acts.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}${(a.checks || []).length ? `（关键检定：${a.checks.map(c => `${c.when}掷${c.skill}`).join('；')}）` : ''}`).join('\n'),
     players: ps.map(p => `${p === g.pc ? '你' : realName(p.id)}（扮演 ${p.name}）${p === g.pc ? '' : '；' + speakLine(g, p.id)}`).join('\n'),
     pc: pcText(g), cast: castText(g), rels: relsText(g), log: g.log.map(l => `${l.who}：${lineText(l)}`).join('\n') }, g);
@@ -409,7 +412,7 @@ export async function grow(g) {
     const c = (D.cards || []).find(x => x.id === p.card); if (!c || p.hp <= 0) continue;
     const up = [];
     for (const k of Object.keys(p.ticks || {})) { const v = c.skills[k] ?? 0, r = R.d100().v; if (r > v || r > 95) { const n = Math.min(R.MAX_SKILL - v, R.d(10)); if (n <= 0) continue; c.skills[k] = v + n; c.skillUp = (c.skillUp || 0) + n; up.push(`${k} +${n}`); } }
-    const pts = Math.max(5, Math.min(25, Math.round(+(g.done.grow || {})[p.name]) || (g.done.kind === 'good' ? 15 : 10)));
+    const pts = Math.max(5, Math.min(25, Math.round(+(g.done.grow || {})[p.name]) || ({ he: 15, te: 15, good: 15, oe: 12 }[g.done.kind] || 10)));
     c.grown = (c.grown || 0) + pts;
     if (p === g.pc) c.pend = (c.pend || 0) + pts;
     else { const got = {}; for (let i = 0; i < pts; i++) { const ks = Object.keys(c.attrs).filter(x => x !== 'LUCK' && c.attrs[x] < 90), k = ks[R.d(ks.length) - 1]; if (!k) break; if (R.d100().v > c.attrs[k]) { c.attrs[k]++; got[k] = (got[k] || 0) + 1; } }

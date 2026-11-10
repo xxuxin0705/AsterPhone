@@ -694,7 +694,6 @@ function rollOverlay(host, t, u, caption, result, verdict) {
 function archivePage(sync, resume) {
   const p = page({ app: 'interlude', id: 'int-archive', title: '卷宗', large: true, back: true, cls: 'as-int-archive' });
   const ymd = t => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
-  const END = { good: '好结局', bad: '坏结局', quit: '没打完' };
   const names = ids => ['你', ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
   // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
   const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
@@ -705,7 +704,7 @@ function archivePage(sync, resume) {
     mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
   const list = G.all().filter(g => g.done && !G.wrapping(g)).slice().reverse();
   p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => del(h('button.as-int-file', { onclick: () => readPage(g) },
-    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, END[g.done.kind] || '')), g))) : empty('还没有打完的局'));
+    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, G.ENDS[g.done.kind] || '')), g))) : empty('还没有打完的局'));
   nav.push(p.el);
 }
 function readPage(g) {
@@ -728,14 +727,14 @@ function rosterPage() {
 }
 function lifePage(c) {
   const p = page({ app: 'interlude', id: 'int-life', title: c.name, large: true, back: true, cls: 'as-int-archive', right: navText('看卡', () => cardView([{ o: c.owner, c }], c.owner)) });
-  const f = G.fateOf(c), END = { good: '好结局', bad: '坏结局', quit: '没打完' };
+  const f = G.fateOf(c);
   // 一局：复盘会上放过的个人结局 + 后日谈的信
   const after = (g, n) => { const e = g.review && (g.review.seen || []).includes(n) && g.review.ends[n], t = (g.done.letters || {})[n];
     const s = sheet({ title: `《${g.title}》之后`, cls: 'as-int-cv', content: h('div.as-int-letter', e ? [h('b', `【${n} end：${e.title}】`), h('p', e.text)] : null,
       t ? [img('seal'), h('p', t)] : null, h('div.as-int-row', btn('看卷宗', 'secondary', () => { s.close(); readPage(g); }))) }); };
   p.body.append(h('div.as-int-life', stamp(c), h('p', G.FATES[f][1])), h('div.as-int-files',
     ...G.gamesOf(c).map(g => { const n = [g.pc, ...g.party].find(x => x.card === c.id).name, has = (g.done.letters || {})[n] || (g.review && (g.review.seen || []).includes(n));
-      return h('button.as-int-file', { onclick: () => has ? after(g, n) : readPage(g) }, h('b', `《${g.title}》`), h('small', `${new Date(g.at).toLocaleDateString('zh-CN')} · ${END[g.done.kind]}`), has ? h('span.is-going', '结局') : null); })),
+      return h('button.as-int-file', { onclick: () => has ? after(g, n) : readPage(g) }, h('b', `《${g.title}》`), h('small', `${new Date(g.at).toLocaleDateString('zh-CN')} · ${G.ENDS[g.done.kind]}`), has ? h('span.is-going', '结局') : null); })),
     G.gamesOf(c).length ? null : empty('还没打过局'));
   nav.push(p.el);
 }
@@ -961,7 +960,7 @@ function playPage(g) {
   }
   // 看完复盘会：活着的人过一遍成长（只算一次），你的属性点在这里分，也能回车卡页再分
   const ending = () => {
-    const card = h('div.as-int-end', h('b', g.done.kind === 'good' ? '——终' : '——完'), h('p', g.done.text));
+    const card = h('div.as-int-end', h('b', `${G.ENDS[g.done.kind]}${g.done.name ? ` ·《${g.done.name}》` : ''}`), h('p', g.done.text));
     if (reviewing) { reviewing = false; g.review.done = true; G.save(); }
     if (!g.review) { if (!G.running(g)) holdReview(card); return card; }
     if (!g.review.done) { card.append(h('div.as-int-row', btn('开复盘会', 'primary', playReview))); return card; }
