@@ -16,7 +16,7 @@ export const VAR_INFO = {
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
   recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字 / 这局的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
-  mood: '这局的气氛（正经 / 轻松 / 整活）', kp: '谁当 KP（中立的守秘人，或某个角色和 TA 的人设）', know: '大家知不知道自己在跑团（知道的话可以有场外话）', jobs: '常见职业', roster: '要车卡的人：名字、人设、掷好的属性、能加的技能点', cast: '上桌的角色：名字、人设、职业、血和理智', rels: '现在谁和谁认识、怎么看对方（调查员和重要 NPC）', pc: '你的调查员：职业、属性、技能、背景', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
+  mood: '这局的气氛（正经 / 轻松 / 整活）', kp: '谁当 KP（中立的守秘人，或某个角色和 TA 的人设）', know: '跑团的规矩：可以有场外话、谁和谁认识', jobs: '常见职业', roster: '要车卡的人：名字、人设、掷好的属性、能加的技能点', cast: '上桌的角色：名字、人设、职业、血和理智', rels: '现在谁和谁认识、怎么看对方（调查员和重要 NPC）', ending: '这局的结局', players: '上桌的玩家本名和他扮演的调查员', pc: '你的调查员：职业、属性、技能、背景', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
   secret: '这局的真相', acts: '各幕的目标和出口', actNo: '现在第几幕', goal: '本幕目标', exit: '本幕出口', left: '本幕还剩几回合', must: '回合用完时要求结束本幕 / 给结局的那句话（自动填）', log: '前几回合的叙述和你做的事', input: '你这回合做的事和骰子结果',
 };
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
@@ -46,7 +46,8 @@ export const PROMPT_CATS = [
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places'] },
-    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] }] },
+    { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] },
+    { id: 'intReview', name: '复盘会', vars: ['user', 'kp', 'mood', 'title', 'ending', 'secret', 'acts', 'pc', 'cast', 'players', 'rels', 'log'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -539,6 +540,35 @@ ${TURN}
 - 每幕可能打起来的敌人（不会打就空着），数值要让上面这几个调查员（看他们的血、斗殴、闪避、随身武器）打得过但会受伤：普通人类敌人血 9～13、攻击 35～55、斗殴 35～55（被近战打时拿来反击）、闪避 20～35，伤害徒手 1D3、刀 1D4+1、棍棒 1D6+1、枪 1D10；体格：普通人 0，壮汉 1，大型怪物 2～4（决定能不能被按住、撞倒）；护甲：皮厚、披甲的怪 1～3，人一般 0；一轮打几下：大多 1，触手、爪子多的怪物 2～3；敌人几只都行，人多就多派、怪强就少派，看总的威胁；真打不过的怪物要写明，并留一条逃跑或智取的路。
 - 只输出 JSON，不要别的文字、不要代码块：
 {"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口","foes":[{"name":"敌人","wpn":"用什么打","hp":11,"atk":45,"brawl":45,"dodge":25,"dex":50,"build":0,"armor":0,"n":1,"dmg":"1D6"}],"checks":[{"when":"什么时候掷（在哪、做什么）","skill":"技能名","大成功":"","极难成功":"","困难成功":"","普通成功":"","失败":"","大失败":""}]}],"secret":"真相","endings":{"good":"","bad":""},"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"check"},"rel":[],"gone":[]}` },
+  intReview: { name: '复盘会', cats: ['intReview'], on: true, main: true,
+    text: `{{kp}}这一局《{{title}}》刚刚落幕，大家回到桌边开「复盘会」：这是场外，大家是坐在桌边的玩家本人，边聊边看结局。气氛：{{mood}}
+
+【结局】{{ending}}
+【真相】（以前只有 KP 知道，现在可以揭开了）{{secret}}
+【各幕】
+{{acts}}
+【上桌的玩家】
+{{players}}
+【调查员最后的样子】
+{{pc}}
+{{cast}}
+【关系】
+{{rels}}
+【这局发生了什么】
+{{log}}
+
+写这场复盘会，lines 总共 20～40 句，每句一两句话：
+1. 大家先吐槽、感慨这个结局：印象最深的地方、谁是 MVP、谁最拉胯、要是当时怎样就好了。KP 照自己的性格主持、接话。
+2. KP 揭底：真相是什么，本来还有哪些路、哪些线索你们没走到、错过了什么（照上面的真相和各幕说，可以得意，也可以遗憾）。
+3. 聊着聊着，KP 给大家放每个调查员的个人结局：在 lines 里单独放一句 {"who":"KP","end":"调查员卡上的名字"}，那里会放出这个人的结局，放完大家接着聊（吐槽、心疼、起哄、追问）。每个调查员（{{user}} 的也是）都要放一次，什么时候放、谁先谁后跟着聊天走。
+- who 写说话的人：KP 写「KP」，其他人写上桌玩家的本名，{{user}} 写「你」。旁白（act）写到别人用本名，写到 {{user}} 一律写「你」；不替 {{user}} 说话。act 是旁白，用中文；say 是说出来的话，用这个人平时的语言和语气（上面每个人后面写了）；不是中文的写 zh 翻译。
+
+ends 写每个调查员的个人结局：title 结局的名字，几个字，可以带问号（「还算幸福？」「迟到的春天」）；text 是戏里的一小段，第三人称，写这件事以后他怎么样了，100～200 字，照他这局的经历、最后的血和理智、关系来写（死了的写他最后的样子，疯了的写他看见的世界）。
+letters 是后日谈：每个调查员事后写的一封短信，他自己的口吻、第一人称，三五句（死了的写他生前最后留下的话）。
+box 是黑匣子：只有 KP 知道的隐藏画面，戏里的一小段（100 字左右），透一点没揭开的真相，或者埋个钩子（比如幕后的人正在看着这一切）。
+
+只输出 JSON，不要别的文字、不要代码块：
+{"lines":[{"who":"KP","act":"","say":"","zh":"","face":"","pose":""},{"who":"KP","end":"调查员卡上的名字"}],"ends":{"调查员卡上的名字":{"title":"","text":""}},"letters":{"调查员卡上的名字":""},"box":""}` },
   intRound: { name: '一回合', cats: ['intRound'], on: true, main: true,
     text: `{{kp}}叙述并扮演所有 NPC 和上桌的角色（除了 {{user}}）。气氛：{{mood}}
 {{know}}
@@ -576,7 +606,7 @@ ${TURN}
 {{input}}
 
 写这一回合：KP 的叙述 + 每个上桌角色这回合说的话或做的事，每段一两句，总共不超过 8 段。每段分开写：
-${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）；有人过了精神分析检定、给别人做了心理治疗，被治的人在 hurt 里写 san 回几点（1～3）。有人捡到、用了一次、丢了东西写 items（有次数的东西用一次写一次 use）。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15},"bg":{"调查员名字":{"scars":"","phobia":"","tomes":"","encounter":"","people":"","treasure":""}},"letters":{"调查员名字":""},"lost":[]}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）；bg 写这局在每个还活着的调查员背景上新留下的，一格一句，没有就不写：scars 伤口和疤痕、phobia 恐惧症和狂躁症（这局发过疯、吓出毛病的）、tomes 拿到的神话典籍法术和魔法物品、encounter 第三类接触（亲眼见到的神话生物）、people 新的重要之人、treasure 新的宝贵之物；letters 是后日谈：每个调查员（{{user}} 的也写）事后写的一封短信，用他自己的口吻、第一人称，三五句，写这件事过去以后他怎么样了（死了的写他生前最后留下的话）；lost 写下落不明、再也找不到的调查员名字，没有就空着。
+${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）；有人过了精神分析检定、给别人做了心理治疗，被治的人在 hurt 里写 san 回几点（1～3）。有人捡到、用了一次、丢了东西写 items（有次数的东西用一次写一次 use）。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15},"bg":{"调查员名字":{"scars":"","phobia":"","tomes":"","encounter":"","people":"","treasure":""}},"lost":[]}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）；bg 写这局在每个还活着的调查员背景上新留下的，一格一句，没有就不写：scars 伤口和疤痕、phobia 恐惧症和狂躁症（这局发过疯、吓出毛病的）、tomes 拿到的神话典籍法术和魔法物品、encounter 第三类接触（亲眼见到的神话生物）、people 新的重要之人、treasure 新的宝贵之物；lost 写下落不明、再也找不到的调查员名字，没有就空着。
 只输出 JSON，不要别的文字、不要代码块：
 {"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","n":能用几次（用得完的才写）,"use":"用了一次的东西","drop":"丢了的东西"}],"rel":[],"gone":[],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,

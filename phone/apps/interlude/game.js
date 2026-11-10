@@ -28,6 +28,7 @@ export const save = () => kvSet('int:' + Dkey, D);
 export const current = () => D.games.filter(g => !g.done).sort((a, b) => (b.seen || b.at) - (a.seen || a.at))[0] || null;   // 好几局没打完时：最近玩过的那局
 export async function dropGame(g) { D.games = D.games.filter(x => x !== g); await save(); }
 export const all = () => (D ? D.games : []);
+export const wrapping = g => !!(g.done && g.done.wrap && !(g.review && g.review.done));   // 落幕了、复盘会还没看完（旧局没有复盘会）
 export let job = null;   // { g, ac }：正在等 AI 的那一步
 export const running = g => job && (!g || job.g === g);
 export function cancel() { if (job) job.ac.abort(); }
@@ -73,13 +74,12 @@ export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m
 const youText = g => `写到 ${myName()}（玩家本人）的旁白一律用第二人称「你」（比如「你被他蹭得有点痒」），不写名字；只有别人在台词里叫到 TA 时才叫名字。${g.speak
   ? '可以抢话：照 TA 的人设和刚才的情形，把 TA 大概会做的事、会说的话也演出来（台词的 who 写「你」），别替 TA 做改变走向的大决定。' : '不要替 TA 说话、做决定、写 TA 的动作，TA 说什么、做什么由 TA 自己来。'}\n`;
 const kpText = g => youText(g) + (() => { const c = g.kp !== 'sys' && contact(g.kp);
-  return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n${g.know ? '场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n' : ''}`
+  return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n`
     : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; })();
 // 认识谁：照【关系】（开局时是各自卡上写的认识谁，戏里认识了、关系变了 AI 会报）；分头行动时不知道对方那边的事
 const REL = '调查员之间的关系照【关系】：写到了的互相认识，没写到的互不认识，要在戏里先认识一下；分头行动时，不在一起的人不知道对方那边发生了什么，汇合后要在戏里交换情报。';
-const knowText = g => g.know
-  ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：' + REL + '（场外可以吐槽「就当我们叽里呱啦交换完了」，戏里还是要走一遍）'
-  : '所有人都当真，这就是他们的经历，不出戏，不要场外话。' + REL;
+// 大家都知道在跑团（作者定的：没有「当真」，认真玩也是玩）
+const knowText = () => '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：' + REL + '（场外可以吐槽「就当我们叽里呱啦交换完了」，戏里还是要走一遍）';
 /** 一句台词给人看 / 给 KP 看的样子 */
 export const lineText = l => l.text ? plain(l.text) : `${l.ooc ? '（场外）' : ''}${plain(l.act)}${l.say ? `「${plain(l.say)}」` : ''}`;
 
@@ -175,11 +175,11 @@ export const meetNow = () => D.meet || null;
 export function savedPick() {
   const m = D.meet; if (!m) return null; if (m.pick) return m.pick;
   const [kp, scenario, ask, mood, mode, use, note, meet, ...party] = m.key.split('|'), s = { kp, scenario, ask, mood, mode, use, note, meet: meet === 'true', party };
-  return meetKey(s) === m.key ? { ...s, ...(s.meet || mode !== 'self' ? { know: true } : {}) } : null;
+  return meetKey(s) === m.key ? s : null;
 }
 export async function meet(s) {
   const fresh = Object.fromEntries(['me', ...s.party].map(o => [o, !lastCard(o) || s.use === 'new' || (s.use === 'mix' && Math.random() < .5)])), news = s.party.filter(o => fresh[o]);
-  const g = { kp: s.kp, know: true, lang: s.lang, speak: s.speak }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
+  const g = { kp: s.kp, lang: s.lang, speak: s.speak }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
   const old = o => fresh[o] ? '' : `；用旧卡：${cardText(lastCard(o))}`;
   const out = await ask('intMeet', {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
@@ -243,14 +243,14 @@ const fromCard = c => { const d = R.derived(c.attrs); return { id: c.owner, card
 
 const scText = s => { const sc = R.SCENARIOS.find(x => x.id === s.scenario);
   return sc ? `《${sc.title}》\n${sc.blurb}\n各幕：${sc.acts.map((a, i) => `${i + 1}. ${a.title}：${a.goal}（${a.place}）→ ${a.exit}`).join('；')}\n真相：${sc.secret}\n好结局：${sc.endings.good}\n坏结局：${sc.endings.bad}\n（骨架照这个写，可以润色）` : `随机生成一个本${s.ask ? `，要求：${s.ask}` : ''}`; };
-/** 开局。setup = { mood, know 知不知道在跑团, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[], meet 这桌的团公告（或车卡会）, note 车卡前补充的话 } */
+/** 开局。setup = { mood, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[], meet 这桌的团公告（或车卡会）, note 车卡前补充的话 } */
 export async function start(setup) {
   const sc = R.SCENARIOS.find(s => s.id === setup.scenario), party = setup.party.map(c => ({ ...c, ...((setup.meet || {}).adjust || {})[c.owner] }));   // 车卡会上为了合规矩改的，只管这一局
-  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
+  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
     act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard), rel: relsFrom([setup.me, ...party]), npcs: [] };
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
-    kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
+    kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
     pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ${cardText(c)}；${speakLine(g, c.owner)}`).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
     scenario: scText(setup), places: placesText(), rels: relsText(g),
     meet: setup.meet ? `【团公告】开局前 KP 发过团公告${setup.meet.lines ? '，大家还一起开了车卡会' : ''}：\n${noticeText(setup.meet)}\n（这局要和公告对得上）\n` : '',
@@ -277,7 +277,7 @@ export function splitSay(l) {
   const rest = l[k].replace(re, '').replace(/^[，。、：:\s]+/, '').replace(/[：:，\s]+$/, '').trim();
   l.say = q.join(' '); if (k === 'say') l.act = [l.act, rest].filter(Boolean).join(' '); else l[k] = rest;
 }
-export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n)) || null;
+export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n || (contact(m.id) || {}).name === n)) || null;
 /* ---------- 关系图：g.rel [{ a, b, ab a 眼里的 b, ba, r 哪回合变的 }]（名字是卡上的名字和 NPC 的名字），g.npcs [{ name, seen 最近哪回合出场, gone 死了 / 走了 }]
    开局时照各自卡上的认识谁（一边写了就算认识）；之后 AI 每回合报变化，只留现在的。重要 NPC 最多 6 个，满了拿下最久没出场的 ---------- */
 const NPC_MAX = 6;
@@ -308,11 +308,11 @@ function applyRel(g, out, lines) {
 /** 一回合：input 是你做的事（已经带上骰子结果）。回来的 lines 记进 log，request 存到 g.req */
 const str = v => String(v || '').trim();
 // AI 写的一回合的台词（开局时开场白后面接着演的那回合也一样）
-const linesOf = (g, out) => { const L = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc && g.know ? { ooc: true } : {}) })); L.forEach(splitSay); return L; };
+const linesOf = (g, out) => { const L = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc ? { ooc: true } : {}) })); L.forEach(splitSay); return L; };
 export async function play(g, input) {
   const A = g.sk.acts, i = g.act, last = i >= A.length - 1, over = g.roundIn >= CAP - 1;
   const out = await ask('intRound', {
-    kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
+    kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
     actNo: i + 1, act: A[i].title, goal: A[i].goal, exit: A[i].exit, left: Math.max(0, CAP - g.roundIn),
     checks: (A[i].checks || []).map(c => `- ${c.when}（${c.skill}）：${GRADES.map(k => `${k}：${c[k] || '—'}`).join('；')}`).join('\n') || '（这幕没有，照上面的分寸）',
     foes: (A[i].foes || []).map(f => `- ${JSON.stringify(f)}`).join('\n') || '（这幕没定，真要打起来照上面的分寸现定）',
@@ -339,9 +339,28 @@ export async function play(g, input) {
     if (x.drop) { const k = find(x.drop); if (k >= 0) L.splice(k, 1); }
     if (x.use) { const k = find(x.use); if (k >= 0 && L[k].n && !--L[k].n) L.splice(k, 1); }   // 有次数的用一次少一次，用完就没了；没写次数的一直能用
     const n = toItem(typeof x.add === 'string' ? { name: x.add.trim(), n: x.n } : x.add); if (n) L.push(n); }
-  if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, letters: out.end.letters || {}, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), at: Date.now() }; g.req = { type: 'free' }; }
+  if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), wrap: true, at: Date.now() }; g.req = { type: 'free' }; }
   await save();
   return lines;
+}
+/** 复盘会（作者定的：每局落幕后都开，所有模式都有）：一次 API 写完——大家回到桌边聊结局、KP 揭底、聊着聊着放每个人的个人结局（lines 里 { end: 卡上的名字 }）、
+ *  后日谈的信、黑匣子（最后一句）。存在 g.review = { lines, ends: { 名字: { title, text } }, box, done 看完了没有 } */
+export async function review(g) {
+  const ps = [g.pc, ...g.party], names = ps.map(p => p.name);
+  const out = await ask('intReview', { kp: kpText(g), mood: R.MOOD_TEXT[g.mood], title: g.title, ending: `${g.done.kind === 'good' ? '好结局' : '坏结局'}：${g.done.text}`, secret: g.sk.secret,
+    acts: g.sk.acts.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}${(a.checks || []).length ? `（关键检定：${a.checks.map(c => `${c.when}掷${c.skill}`).join('；')}）` : ''}`).join('\n'),
+    players: ps.map(p => `${p === g.pc ? '你' : realName(p.id)}（扮演 ${p.name}）${p === g.pc ? '' : '；' + speakLine(g, p.id)}`).join('\n'),
+    pc: pcText(g), cast: castText(g), rels: relsText(g), log: g.log.map(l => `${l.who}：${lineText(l)}`).join('\n') }, g);
+  const ends = {};
+  for (const [k, v] of Object.entries(out.ends || {})) { const n = names.find(x => x === k) || (k === '你' && g.pc.name); if (n && v && v.text) ends[n] = { title: str(v.title), text: str(v.text) }; }
+  const L = (Array.isArray(out.lines) ? out.lines : []).map(l => l && l.end ? (n => ends[n] && { who: 'KP', end: n })(str(l.end) === '你' ? g.pc.name : str(l.end))
+    : l && (l.act || l.say) && { who: str(l.who) || 'KP', act: str(l.act), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose) }).filter(Boolean);
+  if (!L.length) throw new Error('AI 回的格式不对');
+  const played = L.filter(l => l.end).map(l => l.end).filter((n, i, a) => a.indexOf(n) === i);
+  const lines = L.filter((l, i) => !l.end || L.findIndex(x => x.end === l.end) === i).concat(Object.keys(ends).filter(n => !played.includes(n)).map(n => ({ who: 'KP', end: n })));   // 没放到的补在最后
+  if (str(out.box)) lines.push({ who: 'KP', box: true, act: str(out.box) });
+  g.review = { lines, ends, box: str(out.box) }; g.done.letters = out.letters || {};
+  await save(); return g.review;
 }
 /** 一局打完（不算放弃）：活着的人照规则书过技能成长——这局用成功过的技能各掷一次 1D100，大于技能值（或大于 95）就加 1D10，最高 90；
  *  再给成长点：KP 在结局时按这局表现给每人 5～25 点（作者定的；没给就好结局 15、坏结局 10）。属性越高越难长：每点要掷 1D100 大于现在的值才加 1，没过这点就白用了，单项不超过 90。
