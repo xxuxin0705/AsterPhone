@@ -20,6 +20,7 @@ import { stopSpeak } from '../../core/api.js';
 import { plain } from '../../core/act.js';
 import * as P from '../../core/portrait.js';
 import * as M from '../../core/music.js';
+import { burn } from '../../core/burn.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -701,7 +702,7 @@ function archivePage(sync, resume) {
   // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
   const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
   // 长按一局：删掉（没打完的也能删）
-  const del = (el, g) => { onLongPress(el, async () => { if (await dialog({ title: `删除《${g.title}》？`, text: '删了就找不回来了。', confirm: '删除', danger: true })) { await G.dropGame(g); el.remove(); sync(); } }); return el; };
+  const del = (el, g) => { onLongPress(el, async e => { if (await dialog({ title: `删除《${g.title}》？`, text: '删了就找不回来了。', confirm: '删除', danger: true })) { await G.dropGame(g); await burn(el, e.clientX, e.clientY); el.remove(); sync(); } }); return el; };   // 从按的地方烧掉
   const mt = G.savedPick() ? G.meetNow() : null;
   const ing = [...G.all().filter(g => !g.done).sort((a, b) => (b.seen || b.at) - (a.seen || a.at)).map(g => del(going(`《${g.title}》`, `${ymd(g.at)} · ${names(g.party.map(m => m.id))}`, () => playPage(g)), g)),
     mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
