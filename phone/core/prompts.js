@@ -576,7 +576,7 @@ ${TURN}
 {{input}}
 
 写这一回合：KP 的叙述 + 每个上桌角色这回合说的话或做的事，每段一两句，总共不超过 8 段。每段分开写：
-${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）；有人过了精神分析检定、给别人做了心理治疗，被治的人在 hurt 里写 san 回几点（1～3）。有人捡到、用了一次、丢了东西写 items（有次数的东西用一次写一次 use）。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15},"bg":{"调查员名字":{"scars":"","phobia":"","tomes":"","encounter":"","people":"","treasure":""}}}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）；bg 写这局在每个还活着的调查员背景上新留下的，一格一句，没有就不写：scars 伤口和疤痕、phobia 恐惧症和狂躁症（这局发过疯、吓出毛病的）、tomes 拿到的神话典籍法术和魔法物品、encounter 第三类接触（亲眼见到的神话生物）、people 新的重要之人、treasure 新的宝贵之物。
+${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）；有人过了精神分析检定、给别人做了心理治疗，被治的人在 hurt 里写 san 回几点（1～3）。有人捡到、用了一次、丢了东西写 items（有次数的东西用一次写一次 use）。本幕目标达成就 actDone 写 true。故事结束（好或坏）才写 end：{"kind":"good / bad","text":"结局","grow":{"调查员名字":15},"bg":{"调查员名字":{"scars":"","phobia":"","tomes":"","encounter":"","people":"","treasure":""}},"letters":{"调查员名字":""},"lost":[]}，grow 给每个还活着的调查员 5～25 点成长，按这局的表现给（出力多、救了人、关键推理给得多；划水、拖后腿给得少）；bg 写这局在每个还活着的调查员背景上新留下的，一格一句，没有就不写：scars 伤口和疤痕、phobia 恐惧症和狂躁症（这局发过疯、吓出毛病的）、tomes 拿到的神话典籍法术和魔法物品、encounter 第三类接触（亲眼见到的神话生物）、people 新的重要之人、treasure 新的宝贵之物；letters 是后日谈：每个调查员（{{user}} 的也写）事后写的一封短信，用他自己的口吻、第一人称，三五句，写这件事过去以后他怎么样了（死了的写他生前最后留下的话）；lost 写下落不明、再也找不到的调查员名字，没有就空着。
 只输出 JSON，不要别的文字、不要代码块：
 {"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","n":能用几次（用得完的才写）,"use":"用了一次的东西","drop":"丢了的东西"}],"rel":[],"gone":[],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,

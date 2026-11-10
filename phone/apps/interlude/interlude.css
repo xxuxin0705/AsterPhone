@@ -370,3 +370,15 @@
 .as-int-slip.is-gone { filter: grayscale(1); opacity: .5; }
 .as-int-board__said { display: flex; flex-direction: column; gap: 4px; margin: 0; font: 13px/1.6 var(--font-ui); }
 
+/* 调查员名录：按人分组，卡上盖状态章；点开是这张卡打过的局和后日谈的信 */
+.as-int-roster { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 18px; }
+.as-int-roster__who { display: flex; align-items: center; gap: 8px; font: 600 14px/1.4 var(--font-ui); opacity: .9; }
+.as-int-fate { padding: 2px 8px; border: 1.5px solid; border-radius: 4px; font: 600 12px/1.4 "Noto Serif SC", serif; transform: rotate(-6deg); }
+.as-int-fate.is-alive { color: #a8742a; } .as-int-fate.is-dead { color: #2b2622; } .as-int-fate.is-mad { color: #5b3f78; } .as-int-fate.is-lost { color: #6f747b; }
+.as-int-life { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 24px 22px; }
+.as-int-life .as-int-fate { padding: 4px 16px; font-size: 18px; background: #ece4d2; }
+.as-int-life p { margin: 0; font: italic 14px/1.7 "Noto Serif SC", serif; opacity: .8; text-align: center; }
+.as-int-letter { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 4px 6px 8px; }
+.as-int-letter img { width: 54px; }
+.as-int-letter p { margin: 0; font-size: 15px; line-height: 1.9; white-space: pre-wrap; }
+.as-int-letter .as-int-row { align-self: stretch; }

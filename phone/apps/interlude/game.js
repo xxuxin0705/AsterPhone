@@ -88,7 +88,14 @@ export const lineText = l => l.text ? plain(l.text) : `${l.ooc ? '（场外）' 
 // 背景：照调查员卡背面的格子（作者给的默认卡）。车卡时就写好，每打完一局 KP 把这局留下的（伤疤、恐惧症、神话典籍、第三类接触…）续上
 export const BG = [['look', '形象描述'], ['trait', '特质'], ['belief', '思想与信念'], ['people', '重要之人'], ['place', '意义非凡之地'], ['treasure', '宝贵之物'], ['story', '背景故事'],
   ['scars', '伤口和疤痕'], ['phobia', '恐惧症和狂躁症'], ['tomes', '神话典籍、法术和魔法物品'], ['encounter', '第三类接触']];
-export const cardsOf = owner => (D.cards || []).filter(c => c.owner === owner);
+/* 调查员名录：卡打过的局、现在的状态（照最后一局打完时：下落不明 > 血 0 长眠 > 理智 0 窥见者，作者定的），不另外存。
+   长眠、窥见者、终焉之地的卡不能再上桌，只在名录里看 */
+export const FATES = { alive: ['尚在此岸', '我们终将踏破迷雾再次重逢。'], dead: ['长眠', '睡吧，这一次不会再有噩梦来敲门。'], mad: ['窥见者', '蚂蚁仰起头，天空正在低头看它。'], lost: ['终焉之地', '我们没有找到他，也许是他找到了什么。'] };
+export const gamesOf = c => D.games.filter(g => g.done && [g.pc, ...g.party].some(p => p.card === c.id)).sort((a, b) => a.at - b.at);
+export const fateOf = c => { const g = gamesOf(c).filter(g => g.done.kind !== 'quit').at(-1), p = g && [g.pc, ...g.party].find(p => p.card === c.id);
+  return !p ? 'alive' : (g.done.lost || []).includes(p.name) ? 'lost' : p.hp <= 0 ? 'dead' : p.san <= 0 ? 'mad' : 'alive'; };
+export const allCards = () => D.cards || [];
+export const cardsOf = owner => allCards().filter(c => c.owner === owner && fateOf(c) === 'alive');
 export const lastCard = owner => cardsOf(owner).find(c => c.id === (D.last || {})[owner]) || cardsOf(owner).slice(-1)[0] || null;
 export function useCard(c) { (D.last || (D.last = {}))[c.owner] = c.id; return save(); }
 export async function dropCard(c) { D.cards = D.cards.filter(x => x !== c); if ((D.last || {})[c.owner] === c.id) delete D.last[c.owner]; await save(); }
@@ -332,7 +339,7 @@ export async function play(g, input) {
     if (x.drop) { const k = find(x.drop); if (k >= 0) L.splice(k, 1); }
     if (x.use) { const k = find(x.use); if (k >= 0 && L[k].n && !--L[k].n) L.splice(k, 1); }   // 有次数的用一次少一次，用完就没了；没写次数的一直能用
     const n = toItem(typeof x.add === 'string' ? { name: x.add.trim(), n: x.n } : x.add); if (n) L.push(n); }
-  if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, at: Date.now() }; g.req = { type: 'free' }; }
+  if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, letters: out.end.letters || {}, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), at: Date.now() }; g.req = { type: 'free' }; }
   await save();
   return lines;
 }

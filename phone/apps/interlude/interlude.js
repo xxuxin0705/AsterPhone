@@ -42,7 +42,7 @@ const failed = (e, what) => { if (e.message === '已中止') toast('已取消');
 // 图上的位置（原图 1024×1536 的像素）：[左, 上, 右, 下]；椅子多两个数是头像坐的位置。第一把（远端正对着你的主位）是 KP 的
 const IW = 1024, IH = 1536;
 const SPOTS = [['files', [110, 900, 450, 1185], '卷宗', '所有的局'], ['cards', [545, 925, 840, 1095], '调查员卡', '车卡'], ['tray', [410, 755, 688, 905], '骰子盘', '掷骰子'],
-  ['lamp', [605, 440, 790, 715], '台灯', '开关'], ['map', [240, 640, 485, 780], '旧地图', 'DND'], ['letter', [528, 1125, 805, 1285], '火漆信', '剧本杀']];
+  ['lamp', [605, 440, 790, 715], '台灯', '开关'], ['map', [240, 640, 485, 780], '旧地图', 'DND'], ['letter', [528, 1125, 805, 1285], '火漆信', '名录']];
 const CHAIRS = [[430, 380, 605, 565, 517, 515], [45, 480, 230, 830, 150, 700], [805, 500, 1015, 900, 885, 715], [0, 650, 150, 1230, 75, 965], [890, 670, 1024, 1260, 960, 965]];
 const pct = (v, all) => v / all * 100 + '%';
 const keepSeats = () => { state.apps.interlude.seat = { kp: pick.kp, party: pick.party }; commit('apps'); };
@@ -123,7 +123,7 @@ export function open() {
       cards: ['调查员卡', '你和上桌的人各一张', [['看卡 · 车卡', () => { unzoom(); cardPage(syncBar); }]]],
       tray: ['骰子盘', '1D100', [['掷一下', async () => { const r = R.d100(); await rollOverlay(p.el, r.t, r.u, '1D100', '掷出 ' + r.v); }]]],
       map: ['旧地图 · DND', '还没开放', []],
-      letter: ['火漆信 · 剧本杀', '还没开放', []],
+      letter: ['火漆信 · 调查员名录', `${G.allCards().length} 张卡`, [['翻开', () => { unzoom(); rosterPage(); }]]],
     }[k];
     label.replaceChildren(h('b', L[0]), L[1] ? h('small', L[1]) : null, h('div', ...L[2].map(([t, fn]) => btn(t, 'primary', fn)), btn('退回', 'secondary', unzoom)));
     label.classList.add('is-open');
@@ -716,6 +716,27 @@ function readPage(g) {
   p.body.append(h('div.as-int-read', g.log.map(l => h('div.as-int-read__l' + (l.me ? '.is-me' : '') + (l.ooc ? '.is-ooc' : ''),
     h('b', l.me || l.who === '你' || l.who === myName() || l.who === g.pc.name ? '你' : l.who), l.text || l.act ? h('p.is-act', plain(l.text || l.act)) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', plain(l.zh)) : null)),
     g.done && g.done.text ? h('div.as-int-read__end', g.done.text) : null));
+  nav.push(p.el);
+}
+
+/* ---------- 调查员名录（桌上的火漆信）：按人列出所有的卡，盖着状态章；点开一张看 TA 打过的局，每局读那封后日谈的信 ---------- */
+const stamp = c => { const f = G.fateOf(c); return h('span.as-int-fate.is-' + f, G.FATES[f][0]); };
+function rosterPage() {
+  const p = page({ app: 'interlude', id: 'int-roster', title: '调查员名录', large: true, back: true, cls: 'as-int-archive' });
+  const owners = [...new Set(G.allCards().map(c => c.owner))].filter(o => o === 'me' || contact(o));
+  p.body.append(...owners.length ? owners.map(o => h('div.as-int-roster', h('div.as-int-roster__who', ownerFace(o, 32), h('b', shownName(o))),
+    ...G.allCards().filter(c => c.owner === o).map(c => h('button.as-int-file', { onclick: () => lifePage(c) }, h('b', c.name), h('small', [c.job, `打过 ${G.gamesOf(c).length} 局`].filter(Boolean).join(' · ')), stamp(c)))))
+    : [empty('还没有车过卡')]);
+  nav.push(p.el);
+}
+function lifePage(c) {
+  const p = page({ app: 'interlude', id: 'int-life', title: c.name, large: true, back: true, cls: 'as-int-archive', right: navText('看卡', () => cardView([{ o: c.owner, c }], c.owner)) });
+  const f = G.fateOf(c), END = { good: '好结局', bad: '坏结局', quit: '没打完' };
+  const letter = (g, t) => { const s = sheet({ title: `《${g.title}》之后`, cls: 'as-int-cv', content: h('div.as-int-letter', img('seal'), h('p', t), h('div.as-int-row', btn('看卷宗', 'secondary', () => { s.close(); readPage(g); }))) }); };
+  p.body.append(h('div.as-int-life', stamp(c), h('p', G.FATES[f][1])), h('div.as-int-files',
+    ...G.gamesOf(c).map(g => { const t = (g.done.letters || {})[[g.pc, ...g.party].find(x => x.card === c.id).name];
+      return h('button.as-int-file', { onclick: () => t ? letter(g, t) : readPage(g) }, h('b', `《${g.title}》`), h('small', `${new Date(g.at).toLocaleDateString('zh-CN')} · ${END[g.done.kind]}`), t ? h('span.is-going', '有信') : null); })),
+    G.gamesOf(c).length ? null : empty('还没打过局'));
   nav.push(p.el);
 }
 
