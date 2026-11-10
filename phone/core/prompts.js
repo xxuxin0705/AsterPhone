@@ -16,6 +16,7 @@ export const VAR_INFO = {
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从念念铃挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
   recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和念念铃里 TA 记得的事', title: '故事的名字 / 这局的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
+  run: '剧本模式时：让 KP 开局就把整局一段段写好（每段一个检定、六种结果）的说明；自由模式是空的',
   mood: '这局的气氛（正经 / 轻松 / 整活）', kp: '谁当 KP（中立的守秘人，或某个角色和 TA 的人设）', know: '跑团的规矩：可以有场外话、谁和谁认识', jobs: '常见职业', roster: '要车卡的人：名字、人设、掷好的属性、能加的技能点', cast: '上桌的角色：名字、人设、职业、血和理智', rels: '现在谁和谁认识、怎么看对方（调查员和重要 NPC）', ending: '这局的结局', players: '上桌的玩家本名和他扮演的调查员', pc: '你的调查员：职业、属性、技能、背景', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
   secret: '这局的真相', acts: '各幕的目标和出口', actNo: '现在第几幕', goal: '本幕目标', exit: '本幕出口', left: '本幕还剩几回合', must: '回合用完时要求结束本幕 / 给结局的那句话（自动填）', log: '前几回合的叙述和你做的事', input: '你这回合做的事和骰子结果',
 };
@@ -45,7 +46,7 @@ export const PROMPT_CATS = [
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
-  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places'] },
+  { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] },
     { id: 'intReview', name: '复盘会', vars: ['user', 'kp', 'mood', 'title', 'ending', 'secret', 'acts', 'pc', 'cast', 'players', 'rels', 'log'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
@@ -538,7 +539,7 @@ hint 写团公告的背景。rules 照真实跑团的团公告定：base 购点�
 ${TURN}
 - 每幕写 1～3 个关键检定（这幕里最可能要掷的、跟线索或危险有关的）：什么时候掷、掷什么技能，六种结果各会怎样。关键线索失败了也不能永远拿不到，只能换一条更慢、代价更大的路；大失败要当场出事（受伤、掉理智、惊动敌人…）。
 - 每幕可能打起来的敌人（不会打就空着），数值要让上面这几个调查员（看他们的血、斗殴、闪避、随身武器）打得过但会受伤：普通人类敌人血 9～13、攻击 35～55、斗殴 35～55（被近战打时拿来反击）、闪避 20～35，伤害徒手 1D3、刀 1D4+1、棍棒 1D6+1、枪 1D10；体格：普通人 0，壮汉 1，大型怪物 2～4（决定能不能被按住、撞倒）；护甲：皮厚、披甲的怪 1～3，人一般 0；一轮打几下：大多 1，触手、爪子多的怪物 2～3；敌人几只都行，人多就多派、怪强就少派，看总的威胁；真打不过的怪物要写明，并留一条逃跑或智取的路。
-- 只输出 JSON，不要别的文字、不要代码块：
+{{run}}- 只输出 JSON，不要别的文字、不要代码块：
 {"title":"这局的名字","intro":"开场白","acts":[{"title":"幕名","goal":"目标","place":"地点代号","exit":"出口","foes":[{"name":"敌人","wpn":"用什么打","hp":11,"atk":45,"brawl":45,"dodge":25,"dex":50,"build":0,"armor":0,"n":1,"dmg":"1D6"}],"checks":[{"when":"什么时候掷（在哪、做什么）","skill":"技能名","大成功":"","极难成功":"","困难成功":"","普通成功":"","失败":"","大失败":""}]}],"secret":"真相","endings":{"good":"","bad":""},"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","bgm":"","amb":"","request":{"type":"check"},"rel":[],"gone":[]}` },
   intReview: { name: '复盘会', cats: ['intReview'], on: true, main: true,
     text: `{{kp}}这一局《{{title}}》刚刚落幕，大家回到桌边开「复盘会」：这是场外，大家是坐在桌边的玩家本人，边聊边看结局。气氛：{{mood}}

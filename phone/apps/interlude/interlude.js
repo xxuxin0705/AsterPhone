@@ -27,11 +27,11 @@ const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', 
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
 let seated = false;   // 上次坐了谁（主位、椅子）存着，退出、刷新回来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: true, use: 'new', note: '', speak: false };
+const pick = { scenario: 'random', ask: '', mood: 'serious', run: 'script', kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: true, use: 'new', note: '', speak: false };
 const MAX_SEATS = 8;
 const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
 // 这一桌的设置：车卡会 / 团公告照它认（换了人、本、车卡方式就作废）；pick 跟着存进去，退出、刷新后回来能接上
-const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, mode: pick.mode, use: pick.use, note: pick.note,
+const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, run: pick.run, mode: pick.mode, use: pick.use, note: pick.note,
   meet: !!pick.meet, speak: pick.speak, lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
 let restored = false;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
@@ -284,6 +284,7 @@ function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页�
   paintMeet();
   const noteF = field('车卡补充', textarea({ value: pick.note, rows: 2, placeholder: '想怎么车卡', onInput: v => { pick.note = v.trim(); } }));
   const mood = segmented(R.MOODS, pick.mood, v => { pick.mood = v; });
+  const run = segmented([['script', '剧本'], ['free', '自由']], pick.run, v => { pick.run = v; });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));
   const kpRow = item({ title: 'KP', value: kpName(), chevron: true, onClick: () => chooseKp(() => { kpRow.querySelector('.as-list-item__value').textContent = kpName(); paintLang(); }) });
   // 没在椅子那里选人，这里也能选谁上桌
@@ -298,7 +299,7 @@ function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页�
       if (v) { pick.lang[id] = v; row.querySelector('.as-list-item__value').textContent = langName(v); }
     } }); return row; }), '旁白都用中文；台词不是中文的，下面跟一行中文翻译'));
   paintLang();
-  const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood),
+  const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood), field(withInfo('跑法', '剧本：开局时 KP 就把整局写好，掷完骰直接放，你打字时才找 AI。自由：每回合都找 AI 现编。'), run),
     group('', [...chooseKp ? [kpRow, partyRow] : [],
       item({ title: withInfo('抢话', '开着：车卡会和跑团里，AI 会把你大概会做的事、会说的话也演出来。关着：只写别人，你的话自己说。'), right: switchEl(pick.speak, v => { pick.speak = v; }, '抢话') })]),
     ...chooseKp ? [modeBox, noteF] : [], langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
@@ -429,7 +430,7 @@ function cardPage(back, resume) {
     const old = b.textContent; b.replaceChildren(h('span.as-spin')); toast('KP 在写这一局…', { label: '取消', fn: G.cancel, wait: true });
     try {
       await Promise.all(owners.map(o => G.useCard(cur[o])));
-      const g = await G.start({ mood: pick.mood, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
+      const g = await G.start({ mood: pick.mood, run: pick.run, kp: pick.kp, voice: pick.voice || voiceDefault(), lang: langs(), scenario: pick.scenario, ask: pick.ask, me: cur.me, party: pick.party.map(o => cur[o]), meet: m, note: pick.note, speak: pick.speak });
       setupOk = false; toast(`《${g.title}》写好了`); back();
       const at = host.isConnected ? host : p.el;
       if (at.isConnected) { await castRoll(at, g); if (at !== p.el) nav.pop(); nav.pop(); }
@@ -792,7 +793,7 @@ function playPage(g) {
   // 看卡：局里的卡（现在的血、理智、东西）和关系图
   const cards = o => cardView([g.pc, ...g.party].map(x => ({ o: x.id, c: { ...G.cardById(x.card), ...x } })), o, g.rel, g.npcs, g.round);
   hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, btn('卡', 'secondary', () => cards('me')), push);
-  const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMp.hidden = !(g.pc.abilities || []).length; hudMp.textContent = `✦ ${g.pc.mp}/${g.pc.mpMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; push.hidden = !!g.done; };
+  const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMp.hidden = !(g.pc.abilities || []).length; hudMp.textContent = `✦ ${g.pc.mp}/${g.pc.mpMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; push.hidden = !!g.done || g.run === 'script'; };
   // 人物牌 + 对话框：上面一小行淡淡的旁白（中文），中间是台词，台词不是中文的下面跟一行中文翻译
   const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', { onclick: () => { const m = mine(lastWho) ? g.pc : G.who(g, lastWho); if (m) cards(m.id); } }, face, nameT);
   const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
@@ -857,6 +858,8 @@ function playPage(g) {
   // 上一句：这次打开以来说过的都能往回翻，翻回去再点对话框接着往下
   function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); backB.hidden = seen.length < 2; more.hidden = false; act.hidden = true; }
   const show = lines => { queue = lines.slice(); if (mode === 'all') lines.forEach(ahead); act.hidden = true; next(); };
+  // 剧本模式：掷完直接放写好的那段，不找 AI
+  const onward = ([w, v]) => { g.req = { type: 'free' }; const lines = G.step(g, v, w); G.save(); scene(g.place); paintHud(); show(lines); };
   // 这回合要你做什么
   function prompt() {
     act.hidden = false; act.replaceChildren();
@@ -865,7 +868,7 @@ function playPage(g) {
     if (g.fight) act.append(fightBox());
     // 检定：你自己点了才掷；只有心理学是 KP 的暗骰（作者定的）：手机替 KP 暗着掷，结果只交给 KP，你只听 KP 讲你看出了什么
     const ws = [].concat(q.who || '你');
-    if (q.type === 'check' && q.hidden && q.skill === '心理学') { pending = [pending, ...ws.map(w => '（暗骰）' + G.resolve(g, { ...q, who: w }).text)].filter(Boolean).join('；'); g.req = { type: 'free' }; toast('KP 暗暗掷了一次骰'); send(''); return; }
+    if (q.type === 'check' && q.hidden && q.skill === '心理学') { if (g.run === 'script') { toast('KP 暗暗掷了一次骰'); onward(G.best(ws.map(w => [w, G.resolve(g, { ...q, who: w }).v]))); return; } pending = [pending, ...ws.map(w => '（暗骰）' + G.resolve(g, { ...q, who: w }).text)].filter(Boolean).join('；'); g.req = { type: 'free' }; toast('KP 暗暗掷了一次骰'); send(''); return; }
     // 同一个场景要掷的人一起：画面上掷你（没你就是第一个人），其他人手机跟着掷
     if (q.type === 'check' || q.type === 'san' || q.type === 'opposed') {
       const mine = ws.some(w => w === '你' || w === g.pc.name), rest = ws.filter(w => w !== '你' && w !== g.pc.name && G.who(g, w));
@@ -873,14 +876,16 @@ function playPage(g) {
       const label = q.type === 'san' ? `理智检定（${q.loss || '0/1D4'}）` : q.type === 'opposed' ? `${q.skill} 对抗（对方 ${q.vs}）` : `${q.skill} · ${q.level || '普通'}${+q.bonus > 0 ? ' · 奖励骰' : +q.bonus < 0 ? ' · 惩罚骰' : ''}`;
       act.append(h('div.as-int-ask', q.reason ? h('small', q.reason) : null, h('b', label), btn(`${name}掷骰`, 'primary', async () => {
         const r = G.resolve(g, { ...q, who: lead }), more = rest.map(w => [w, G.resolve(g, { ...q, who: w })]), text = [r.text, ...more.map(x => x[1].text)].join('；');
-        if (lead === '你' && G.canPush(q, r)) g.req = { type: 'push', req: { ...q, who: lead }, text, label };   // 失败了先问要不要孤注一掷（先存着，退出再进来还是这一步）
+        const rolls = [[lead, r.v], ...more.map(([w, x]) => [w, x.v])];
+        if (lead === '你' && G.canPush(q, r)) g.req = { type: 'push', req: { ...q, who: lead }, text, label, rest: rolls.slice(1) };   // 失败了先问要不要孤注一掷（先存着，退出再进来还是这一步）
         await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, label, r.text, r.v);
         if (more.length) toast(more.map(([w, x]) => `${w} ${x.v}`).join(' · '));
         if (g.req.type === 'push') { prompt(); return; }
+        if (g.run === 'script') { onward(G.best(rolls)); return; }
         pending = text; g.req = { type: 'free' }; send('');   // 掷完直接交给 KP，接着讲每个人成功 / 失败之后怎样
       })));
-      return;
+      if (g.run !== 'script') return;   // 剧本：也能不掷先打字，找 AI 接住这一下
     }
     // 孤注一掷：换个做法再掷一次，难度不变，再失败算大失败
     if (q.type === 'push') {
@@ -888,10 +893,12 @@ function playPage(g) {
         const how = ((await dialog({ title: '孤注一掷', text: '再失败就算大失败', input: { placeholder: '换个做法' } })) || '').trim(); if (!how) return;
         const r = G.push(g, q.req, how); await G.save(); paintHud();
         await rollOverlay(p.el, r.r.t, r.r.u, q.label + ' · 孤注一掷', r.text, r.v);
+        if (g.run === 'script') { onward(G.best([['你', r.v], ...q.rest || []])); return; }
         pending = q.text + '；' + r.text; g.req = { type: 'free' }; send('');
-      }), btn('就此罢手', 'primary', () => { pending = q.text; g.req = { type: 'free' }; send(''); }))));
+      }), btn('就此罢手', 'primary', () => { if (g.run === 'script') { onward(G.best([['你', '失败'], ...q.rest || []])); return; } pending = q.text; g.req = { type: 'free' }; send(''); }))));
       return;
     }
+    if (g.run === 'script' && q.type === 'free' && !g.fight) act.append(h('div.as-int-row', btn('继续', 'primary', () => onward(['你', '普通成功']))));   // 剧本这段没写检定
     if (q.type === 'choose' && Array.isArray(q.options)) act.append(h('div.as-int-opts', q.options.slice(0, 4).map(o => btn(String(o), 'secondary', () => send(String(o))))));
     const ta = textarea({ rows: 1, placeholder: pending ? '再说点什么（可不填）' : '你做什么、说什么' });
     const dice = h('button.as-int-dicebtn', { 'aria-label': '主动掷骰', onclick: async () => {

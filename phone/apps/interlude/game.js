@@ -246,25 +246,23 @@ const scText = s => { const sc = R.SCENARIOS.find(x => x.id === s.scenario);
 /** 开局。setup = { mood, kp 'sys' | 联系人 id, lang { 谁: 语言 }, voice 语音怎么合成, scenario 内置本 id | 'random', ask 自己写的要求, me 你的卡, party 上桌角色的卡[], meet 这桌的团公告（或车卡会）, note 车卡前补充的话 } */
 export async function start(setup) {
   const sc = R.SCENARIOS.find(s => s.id === setup.scenario), party = setup.party.map(c => ({ ...c, ...((setup.meet || {}).adjust || {})[c.owner] }));   // 车卡会上为了合规矩改的，只管这一局
-  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
+  const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, run: setup.run === 'free' ? 'free' : 'script', kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
     act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard), rel: relsFrom([setup.me, ...party]), npcs: [] };
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
     kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
     pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ${cardText(c)}；${speakLine(g, c.owner)}`).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
-    scenario: scText(setup), places: placesText(), rels: relsText(g),
+    scenario: scText(setup), places: placesText(), rels: relsText(g), run: g.run === 'script' ? RUN : '',
     meet: setup.meet ? `【团公告】开局前 KP 发过团公告${setup.meet.lines ? '，大家还一起开了车卡会' : ''}：\n${noticeText(setup.meet)}\n（这局要和公告对得上）\n` : '',
   }, g);
-  if (!Array.isArray(out.acts) || !out.acts.length) throw new Error('AI 回的格式不对');
+  const segs = Array.isArray(out.segs) ? out.segs.filter(x => x && x.request && x.out) : [];
+  if (!Array.isArray(out.acts) || !out.acts.length || g.run === 'script' && !segs.length) throw new Error('AI 回的格式不对');
   g.title = String(out.title || (sc ? sc.title : '无题')).trim(); g.intro = String(out.intro || '').trim();
-  g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '', checks: Array.isArray(a.checks) ? a.checks.slice(0, 3) : [], foes: Array.isArray(a.foes) ? a.foes.slice(0, 6) : [] })), secret: out.secret || '', endings: out.endings || {} };
-  g.place = g.sk.acts[0].place;
+  g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '', checks: Array.isArray(a.checks) ? a.checks.slice(0, 3) : [], foes: Array.isArray(a.foes) ? a.foes.slice(0, 6) : [] })), secret: out.secret || '', endings: out.endings || {}, segs };
+  g.place = g.sk.acts[0].place; g.seg = 0;
   // 开场白后面接着演第一回合，演到第一次要掷骰（和骨架一起写，开局只找一次 AI）；没写就只有开场白，进去点「推进」
-  const open = linesOf(g, out); g.log.push({ r: 0, who: 'KP', act: g.intro }, ...open); if (open.length) g.round = g.roundIn = 1;
-  applyRel(g, out, open);
-  if (out.place && out.place in R.PLACES) g.place = out.place; if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
-  g.req = out.request && out.request.type ? out.request : { type: 'free' };
-  if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
+  const o = segs[0] || out, open = linesOf(g, o); g.log.push({ r: 0, who: 'KP', act: g.intro }, ...open); if (open.length) g.round = g.roundIn = 1;
+  apply(g, o, open); setReq(g, o.request);
   D.games.push(g); if (setup.meet) delete D.meet; await save();
   return g;
 }
@@ -310,38 +308,75 @@ const str = v => String(v || '').trim();
 // AI 写的一回合的台词（开局时开场白后面接着演的那回合也一样）
 const linesOf = (g, out) => { const L = (out.lines || []).filter(l => l && (l.act || l.say || l.text)).map(l => ({ r: g.round + 1, who: str(l.who) || 'KP', act: str(l.act || (!l.say && l.text)), say: str(l.say), zh: str(l.zh), face: str(l.face), pose: str(l.pose), ...(l.ooc ? { ooc: true } : {}) })); L.forEach(splitSay); return L; };
 export async function play(g, input) {
-  const A = g.sk.acts, i = g.act, last = i >= A.length - 1, over = g.roundIn >= CAP - 1;
+  const A = g.sk.acts, i = g.act, last = i >= A.length - 1, over = g.roundIn >= CAP - 1, sc = g.run === 'script', fought = g.fight;
   const out = await ask('intRound', {
     kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], title: g.title, secret: g.sk.secret, acts: A.map((a, k) => `${k + 1}. ${a.title}：${a.goal} → ${a.exit}`).join('\n'),
     actNo: i + 1, act: A[i].title, goal: A[i].goal, exit: A[i].exit, left: Math.max(0, CAP - g.roundIn),
     checks: (A[i].checks || []).map(c => `- ${c.when}（${c.skill}）：${GRADES.map(k => `${k}：${c[k] || '—'}`).join('；')}`).join('\n') || '（这幕没有，照上面的分寸）',
     foes: (A[i].foes || []).map(f => `- ${JSON.stringify(f)}`).join('\n') || '（这幕没定，真要打起来照上面的分寸现定）',
     fight: g.fight ? `\n【正在战斗】第 ${g.fight.round} 轮打完了；敌人：${g.fight.foes.map(f => `${f.name} 血 ${f.hp}/${f.hpMax}`).join('、')}。战斗由手机一轮轮替所有人掷，玩家中途说话时才把这几轮的结果交给你：照结果把这几轮讲成一段（不要改伤害和血），再接玩家说的；战斗还会接着由手机打，不用再提 fight；敌人投降、逃走或者剧情要停下时写 fightEnd: true。\n` : '',
-    must: over ? (last ? '。这是最后一回合：必须在这回合收尾，给出结局（end）' : '。这是本幕最后一回合：必须在这回合达成出口，actDone 写 true') : '',
+    must: sc ? `。${ASIDE}${g.req.reason ? `（大家眼下要做的：${g.req.reason}）` : ''}` : over ? (last ? '。这是最后一回合：必须在这回合收尾，给出结局（end）' : '。这是本幕最后一回合：必须在这回合达成出口，actDone 写 true') : '',
     pc: pcText(g), cast: castText(g), rels: relsText(g), places: Object.keys(R.PLACES).join(' / '),
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
   }, g);
   const lines = linesOf(g, out);
   if (!lines.length) throw new Error('AI 回的格式不对');
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
+  if (sc) { const keep = g.req; delete out.end; apply(g, out, lines);
+    if (fought && out.fightEnd) { g.fight = null; g.fought = '普通成功'; }   // 打到一半对方投降、逃了
+    if (g.fought) { lines.push(...step(g, g.fought, '你')); delete g.fought; } else g.req = keep;
+    await save(); return lines; }
+  apply(g, out, lines);
+  if (out.actDone && !last) nextAct(g);
+  g.req = out.request && out.request.type ? out.request : { type: 'free' };
+  if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
+  if (out.fightEnd || g.fight && !g.fight.foes.some(f => f.hp > 0)) g.fight = null;
+  await save();
+  return lines;
+}
+/** 一回合（或剧本里的一段）对局面的影响：关系、换地方、受伤、东西、结局 */
+function apply(g, out, lines) {
   applyRel(g, out, lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));
     if (+h.san > 0) p.san = Math.min(p.sanMax, p.san + Math.min(3, Math.round(+h.san))); }   // 精神分析治好回 1～3 理智（规则书 1D3）
   for (const p of [g.pc, ...g.party]) if (p.mad && --p.mad.left <= 0) p.mad = null;
-  if (out.actDone && !last) { g.act++; g.roundIn = 0; g.place = A[g.act].place; for (const p of [g.pc, ...g.party]) if (p.mpMax) p.mp = Math.min(p.mpMax, p.mp + Math.ceil(p.mpMax / 2)); }   // 每过一幕回一半魔法（作者定的）
-  g.req = out.request && out.request.type ? out.request : { type: 'free' };
-  if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
-  if (out.fightEnd || g.fight && !g.fight.foes.some(f => f.hp > 0)) g.fight = null;
   for (const x of Array.isArray(out.items) ? out.items : []) { const p = who(g, x.who) || g.pc, L = p.items || (p.items = []);
     const find = s => L.findIndex(y => y.name.includes(String(s)) || String(s).includes(y.name));
     if (x.drop) { const k = find(x.drop); if (k >= 0) L.splice(k, 1); }
     if (x.use) { const k = find(x.use); if (k >= 0 && L[k].n && !--L[k].n) L.splice(k, 1); }   // 有次数的用一次少一次，用完就没了；没写次数的一直能用
     const n = toItem(typeof x.add === 'string' ? { name: x.add.trim(), n: x.n } : x.add); if (n) L.push(n); }
   if (out.end && out.end.text) { g.done = { kind: out.end.kind === 'good' ? 'good' : 'bad', text: String(out.end.text), grow: out.end.grow, bg: out.end.bg, lost: (Array.isArray(out.end.lost) ? out.end.lost : []).map(nm => nm === '你' ? g.pc.name : str(nm)), wrap: true, at: Date.now() }; g.req = { type: 'free' }; }
-  await save();
-  return lines;
+}
+const nextAct = g => { g.act++; g.roundIn = 0; g.place = g.sk.acts[g.act].place; for (const p of [g.pc, ...g.party]) if (p.mpMax) p.mp = Math.min(p.mpMax, p.mp + Math.ceil(p.mpMax / 2)); };   // 每过一幕回一半魔法（作者定的）
+const setReq = (g, q) => { g.req = q && q.type ? q : { type: 'free' }; if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; } };
+/* ---------- 剧本模式（作者定的）：开局那次就把整局一段段写好，每段演到要掷骰，六种结果各接一段；掷完手机直接放写好的，不找 AI。
+   失败也往下走；一起掷的有人成功就用成功那档（{谁} 换成掷成功的人）；自己打字才找一次 AI，接住你这一下再回到剧本 ---------- */
+const RUN = `【剧本模式】这局不是每回合现编：你现在就把整局的戏一段一段写好（segs），玩家掷骰后手机直接照结果放你写好的那段。
+- segs 按顺序，整局 6～10 段，每幕 1～3 段；act 写这段在第几幕（从 1 起）；place 换地方才写（地点代号）。开场白之后的第一段就是 segs[0]，最外层的 lines、request 和 acts 里的 checks 都不用写。
+- 每段：lines 演到要掷骰的地方（KP 叙述 + 上桌角色说的话或做的事，每段一两句，不超过 6 段，写法同上）；request 写这次检定（check / san / opposed / fight，格式同上）；out 写六种结果各自接下来的戏：大成功、极难成功、困难成功、普通成功、失败、大失败，每种 lines 写 1～4 段（掷骰的人怎样、同伴什么反应），有人受伤写 hurt，捡到、用掉东西写 items，关系变了写 rel。理智检定、对抗、打斗只写「普通成功」和「失败」（打斗的普通成功是打赢了，失败是逃了或打输了）。
+- 不管成功失败，戏都往下一段走：失败是代价更大、拿到的更少（受伤、掉理智、晚一步、被人发现），关键线索换条更难的路还在；大失败要当场出事。
+- 好几个人一起掷（who 写了好几个）：有人成功就用成功那档，写成对掷成功的那个人说，用 {谁} 代替他的名字；都失败才用失败那档。
+- 最后一段的每种结果都写 end：{"kind":"good / bad","text":"结局","lost":["下落不明的调查员名字"]}，成功的往好结局走、失败的往坏结局走；中间真把人弄没了也可以提前写 end。
+- 在上面的 JSON 里加上："segs":[{"act":1,"place":"","lines":[{"who":"KP","act":"","say":""}],"request":{"type":"check","who":["你"],"skill":"侦查","level":"普通","reason":""},"out":{"大成功":{"lines":[],"hurt":[],"items":[],"rel":[]},"极难成功":{"lines":[]},"困难成功":{"lines":[]},"普通成功":{"lines":[]},"失败":{"lines":[]},"大失败":{"lines":[]}}}]
+`;
+const ASIDE = '这局是剧本模式，后面的戏已经写好了：这回合只接住玩家这一下（回应、对话、小动作），不要推进到下一个检定、不要揭开后面的线索；request 写 free，不写 actDone 和 end';
+const BEST = ['大成功', '极难成功', '困难成功', '普通成功', '成功', '赢了', '失败', '输了', '大失败'];
+const OUTS = { 大成功: ['大成功', '极难成功', '困难成功', '普通成功'], 极难成功: ['极难成功', '困难成功', '普通成功', '大成功'], 困难成功: ['困难成功', '普通成功', '极难成功'], 普通成功: ['普通成功', '困难成功', '极难成功'], 失败: ['失败', '大失败'], 大失败: ['大失败', '失败'] };
+/** 这次掷骰（rolls [[谁, 掷出的档]]）里最好的那个：剧本照它往下放 */
+export const best = rolls => rolls.reduce((a, b) => BEST.indexOf(b[1]) < BEST.indexOf(a[1]) ? b : a);
+/** 剧本往下走一段：放这一段 v 那档写好的，再接下一段演到要掷骰；没有下一段又没写结局就照骨架的好 / 坏结局收尾 */
+export function step(g, v, name) {
+  const s = g.sk.segs[g.seg], k = { 成功: '普通成功', 赢了: '普通成功', 输了: '失败' }[v] || v, o = (OUTS[k] || OUTS.失败).map(x => s.out[x]).find(Boolean) || {};
+  const sub = t => str(t).replaceAll('{谁}', name || '你');
+  const L = linesOf(g, { lines: (o.lines || []).map(l => l && { ...l, act: sub(l.act), say: sub(l.say), zh: sub(l.zh) }) });
+  apply(g, o, L);
+  const nx = !g.done && g.sk.segs[++g.seg];
+  if (nx) { const N = linesOf(g, nx); while (+nx.act - 1 > g.act && g.act < g.sk.acts.length - 1) nextAct(g); apply(g, nx, N); L.push(...N); setReq(g, nx.request); }
+  else if (!g.done) { const kd = BEST.indexOf(k) < 6 ? 'good' : 'bad'; apply(g, { end: { kind: kd, text: (g.sk.endings || {})[kd] || '——' } }, L); }
+  g.round++; g.roundIn++; g.log.push(...L);
+  return L;
 }
 /** 复盘会（作者定的：每局落幕后都开，所有模式都有）：一次 API 写完——大家回到桌边聊结局、KP 揭底、聊着聊着放每个人的个人结局（lines 里 { end: 卡上的名字 }）、
  *  后日谈的信、黑匣子（最后一句）。存在 g.review = { lines, ends: { 名字: { title, text } }, box, done 看完了没有 } */
@@ -530,6 +565,6 @@ export function fightRound(g, act) {
   for (const p of [me, ...g.party]) delete p.wpn;
   if (!up(me) || fled) for (const f of F.foes) f.held = false;
   const over = !F.foes.some(up) ? '敌人都倒下了，战斗结束' : fled ? '你逃出了战斗' : !up(me) ? '你倒下了' : '';
-  if (over) g.fight = null;
+  if (over) { g.fight = null; if (g.run === 'script') g.fought = F.foes.some(up) ? '失败' : '普通成功'; }   // 剧本：打完照输赢往下放
   return { lines: over ? [...out, over] : out, ev: over ? [...ev, null] : ev, text: `【战斗第 ${F.round} 轮】${out.join('；')}。${over || '还在打'}`, over, mine, cap };
 }
