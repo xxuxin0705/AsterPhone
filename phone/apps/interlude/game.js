@@ -22,7 +22,7 @@ export async function load() {
     // 旧卡的背景（身份、关系、关键经历、目标、秘密）：关系挪到调查员同伴，其余并进背景故事
     if (c.bg && !('story' in c.bg)) { const b = c.bg; c.bg = { rel: b.rel || '', story: [b.who, b.past, b.goal && '目标：' + b.goal, b.secret && '秘密：' + b.secret].filter(Boolean).join(' ') }; } }
   if (D.meet) D.meet.rules = toRules(D.meet.rules);
-  for (const g of D.games.filter(g => !g.done)) for (const p of [g.pc, ...g.party]) p.skills = R.renamed(p.skills);
+  for (const g of D.games.filter(g => !g.done)) { for (const p of [g.pc, ...g.party]) p.skills = R.renamed(p.skills); g.rel = g.rel || []; g.npcs = g.npcs || []; }   // 关系图是后来加的
   return D; }
 export const save = () => kvSet('int:' + Dkey, D);
 export const current = () => D.games.filter(g => !g.done).sort((a, b) => (b.seen || b.at) - (a.seen || a.at))[0] || null;   // 好几局没打完时：最近玩过的那局
@@ -44,12 +44,12 @@ function open(t) {
   for (const ch of s.slice(i)) { if (e) e = false; else if (ch === '\\') e = q; else if (ch === '"') q = !q; else if (!q) d += '{['.includes(ch) ? 1 : '}]'.includes(ch) ? -1 : 0; }
   return d > 0 || q;
 }
-async function ask(cat, vars, maxTokens, g) {
+async function ask(cat, vars, g) {
   const ac = new AbortController(), conn = resolveConn('text', 'interlude'), prompt = compose(cat, vars); job = { g, ac };
   try {
     // 回到一半断了（括号没合上）就自动补写：设置里开了才补（默认关），最多补几次也在设置里定
     const A = state.apps.interlude;
-    return parse(await generateMore({ conn, app: '幕间', maxTokens, stop: ac.signal, prompt }, t => !open(t), A.fill ? A.fillMax || 3 : 0));
+    return parse(await generateMore({ conn, app: '幕间', stop: ac.signal, prompt }, t => !open(t), A.fill ? A.fillMax || 3 : 0));
   } finally { job = null; }
 }
 const placesText = () => Object.entries(R.PLACES).map(([k, v]) => `${k} = ${v}`).join('；');
@@ -60,8 +60,7 @@ const topSkills = s => Object.entries(s).sort((a, b) => b[1] - a[1]).slice(0, 10
 // 随身物品 { name, dmg, skill }：武器才有伤害和用的技能
 export const itemText = x => x.name + (x.dmg ? `（伤害 ${x.dmg}，用${x.skill || '斗殴'}）` : x.n ? `（还能用 ${x.n} 次）` : '');
 const bag = p => (p.items || []).length ? `；随身：${p.items.map(itemText).join('、')}` : '；身上没带东西';
-const relOf = p => `；调查员同伴：${(p.bg && p.bg.rel) || '没写'}`;
-export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}${relOf(g.pc)}`;
+export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}`;
 export const isZh = l => !l || /^zh/.test(l);
 /** 这个人说什么语言：开局设置里改过的 → 聊天设置里让 TA 说的 → 中文 */
 export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; const cfg = (chatForContact(id, false) || { cfg: {} }).cfg; return (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
@@ -69,15 +68,15 @@ export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; c
 const toneOf = id => hintFor(kindOf(connFor(id))).replace(/每段/g, '台词').replace(/>> 开头的翻译行不写标签。/, 'zh 翻译不写标签。');
 // 旧存档没有 lang（开局时还没有「说什么语言」）：按开局时会给的默认语言
 const speakLine = (g, id) => { const l = g.lang ? g.lang[id] : langOf(id); return `说话用${langName(isZh(l) ? 'zh-CN' : l)}；台词语气：${toneOf(id)}`; };
-export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}${relOf(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
+export const castText = g => g.party.map(m => `${m.name}（${m.job}）：血 ${m.hp}/${m.hpMax}，理智 ${m.san}/${m.sanMax}${m.mad ? `，临时疯狂·${m.mad.name}` : ''}；技能：${topSkills(m.skills)}${bag(m)}${powers(m)}；人设：${(personaOf(contact(m.id)) || '').slice(0, 300) || '（没有更多资料）'}；${speakLine(g, m.id)}`).join('\n') || '（没有别人，只有 KP 和你）';
 // 玩家本人：旁白用第二人称「你」，只有别人在台词里叫到才叫名字（作者定的，提升代入感）；AI 替不替你说话、行动照开局设置
 const youText = g => `写到 ${myName()}（玩家本人）的旁白一律用第二人称「你」（比如「你被他蹭得有点痒」），不写名字；只有别人在台词里叫到 TA 时才叫名字。${g.speak
   ? '可以抢话：照 TA 的人设和刚才的情形，把 TA 大概会做的事、会说的话也演出来（台词的 who 写「你」），别替 TA 做改变走向的大决定。' : '不要替 TA 说话、做决定、写 TA 的动作，TA 说什么、做什么由 TA 自己来。'}\n`;
 const kpText = g => youText(g) + (() => { const c = g.kp !== 'sys' && contact(g.kp);
   return c ? `你是 ${nameOf(c)}，这一局由你来当《克苏鲁的呼唤》的守秘人（KP）：用你自己的性格和口吻主持（叙述还是用中文旁白），你知道真相，但不当玩家。你的人设：${(personaOf(c) || '').slice(0, 400) || '（没有更多资料）'}；你自己说话时${speakLine(g, c.id)}\n${g.know ? '场外有人跟你搭话、开玩笑、套近乎时，照你的性格接：可以顺着说两句，也可以端起 KP 的架子拒绝（比如「我是 KP，现在别跟我套近乎」），再把大家拉回戏里。\n' : ''}`
     : `你是这局《克苏鲁的呼唤》的守秘人（KP），中立、不下场，KP 说话时${speakLine(g, 'sys')}\n`; })();
-// 认识谁：照各自卡上的「调查员同伴」（作者定的）；分头行动时不知道对方那边的事
-const REL = '调查员之间的关系照各自卡上的「调查员同伴」：写到了的互相认识，没写到的开局时互不认识，要在戏里先认识一下；分头行动时，不在一起的人不知道对方那边发生了什么，汇合后要在戏里交换情报。';
+// 认识谁：照【关系】（开局时是各自卡上写的认识谁，戏里认识了、关系变了 AI 会报）；分头行动时不知道对方那边的事
+const REL = '调查员之间的关系照【关系】：写到了的互相认识，没写到的互不认识，要在戏里先认识一下；分头行动时，不在一起的人不知道对方那边发生了什么，汇合后要在戏里交换情报。';
 const knowText = g => g.know
   ? '大家都知道这是在跑团：角色们是坐在桌边、扮演调查员的玩家。可以偶尔（不是每回合）插一两句场外话（ooc: true）：吐槽流程、开玩笑、闲聊；KP 也可以出来维持秩序。但戏里要守规矩：' + REL + '（场外可以吐槽「就当我们叽里呱啦交换完了」，戏里还是要走一遍）'
   : '所有人都当真，这就是他们的经历，不出戏，不要场外话。' + REL;
@@ -85,10 +84,10 @@ const knowText = g => g.know
 export const lineText = l => l.text ? plain(l.text) : `${l.ooc ? '（场外）' : ''}${plain(l.act)}${l.say ? `「${plain(l.say)}」` : ''}`;
 
 /* ---------- 调查员卡：跟着人存（一个人可以有好几张），下次上桌默认用上次那张 ----------
-   卡 { id, owner: 'me' | 联系人 id, name, age, sex, job, home, bg: { 背景的格子，见 BG }, living 消费水平, cash 现金, assets 资产, items, attrs, skills, jobSkills 本职技能, at } */
+   卡 { id, owner: 'me' | 联系人 id, name, age, sex, job, home, bg: { 背景的格子，见 BG }, rels: [{ o 认识的同桌（'me' | 联系人 id）, text 这张卡眼里的 TA }], living 消费水平, cash 现金, assets 资产, items, attrs, skills, jobSkills 本职技能, at } */
 // 背景：照调查员卡背面的格子（作者给的默认卡）。车卡时就写好，每打完一局 KP 把这局留下的（伤疤、恐惧症、神话典籍、第三类接触…）续上
 export const BG = [['look', '形象描述'], ['trait', '特质'], ['belief', '思想与信念'], ['people', '重要之人'], ['place', '意义非凡之地'], ['treasure', '宝贵之物'], ['story', '背景故事'],
-  ['rel', '调查员同伴'], ['scars', '伤口和疤痕'], ['phobia', '恐惧症和狂躁症'], ['tomes', '神话典籍、法术和魔法物品'], ['encounter', '第三类接触']];
+  ['scars', '伤口和疤痕'], ['phobia', '恐惧症和狂躁症'], ['tomes', '神话典籍、法术和魔法物品'], ['encounter', '第三类接触']];
 export const cardsOf = owner => (D.cards || []).filter(c => c.owner === owner);
 export const lastCard = owner => cardsOf(owner).find(c => c.id === (D.last || {})[owner]) || cardsOf(owner).slice(-1)[0] || null;
 export function useCard(c) { (D.last || (D.last = {}))[c.owner] = c.id; return save(); }
@@ -106,15 +105,19 @@ const MODE_TEXT = {
   random: '【车卡方式：随机】（这条比下面的要求优先）属性手机已经照规则书掷好（写在每个人后面），照抄，不用分点，tier 写「普通人」；职业、身份、背景随机定一个和本人无关的新角色，名字也是新的，要和掷出来的属性配得上（力量低就别当打手）；关系写成戏里的关系（可以互不认识）。',
 };
 const rollFor = (owners, mode) => Object.fromEntries(owners.map(o => [o, mode === 'random' ? R.rollAttrs() : null]));
-const rosterLine = (o, rolled) => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : ''}：人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}${rolled ? `；掷好的属性：${attrsText(rolled)}` : ''}`;
+export const realName = o => o === 'me' ? myName() : contact(o).name || ownerName(o);
+const rosterLine = (o, rolled) => `${ownerName(o)}${o === 'me' ? '（玩家本人）' : realName(o) !== ownerName(o) ? `（本名 ${realName(o)}）` : ''}：人设：${(ownerPersona(o) || '').slice(0, 500) || '（没有更多资料）'}${rolled ? `；掷好的属性：${attrsText(rolled)}` : ''}`;
 const skillsText = () => Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).join('、') + '、闪避（敏捷÷2）、母语（教育）';
 // AI 写的一张卡 → 存的卡；rolled：随机车卡时掷好的属性（不算档位）；r：团公告的规矩（购点 base 记在卡上）
-function toCard(o, x, rolled, r) {
+// 认识谁：AI 写的名字认回是谁（名单上的名字、本名、卡上的名字都认）
+const isOwner = (o, w) => !!w && ([ownerName(o), realName(o), (lastCard(o) || {}).name].includes(w) || o === 'me' && w === '你');
+const relsOf = (L, o, all) => (Array.isArray(L) ? L : []).map(y => ({ o: all.find(p => p !== o && isOwner(p, str(y.who))), text: str(y.text) })).filter((y, i, a) => y.o && y.text && a.findIndex(z => z.o === y.o) === i);
+function toCard(o, x, rolled, r, all = []) {
   const tier = rolled ? undefined : R.tierOf(x.tier) || R.TIERS[0][0], a = rolled || R.fixAttrs(x.attrs, R.budgetOf(tier, r && r.base), r), base = R.baseSkills(a);
   const given = (Array.isArray(x.jobSkills) ? x.jobSkills : []).map(String).filter(k => k in base).slice(0, 8), jobs = given.length ? given : R.jobsOf({ job: x.job });
   const sk = R.fixSkills(a, x.skills, r && r.skillMax, r && r.hobbyMax, jobs); sk.信用评级 = R.crFit(sk.信用评级, x.job);
   return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: sexOf(x.sex), job: String(x.job || ''), home: String(x.home || ''),
-    bg: Object.fromEntries(BG.map(([k]) => [k, String((x.bg || {})[k] || '')])), living: String(x.living || ''), cash: String(x.cash || ''), assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, base: r && r.base, attrs: a, skills: sk, jobSkills: jobs,
+    bg: Object.fromEntries(BG.map(([k]) => [k, String((x.bg || {})[k] || '')])), rels: relsOf(x.rels, o, all), living: String(x.living || ''), cash: String(x.cash || ''), assets: String(x.assets || ''), items: (Array.isArray(x.items) ? x.items : []).map(toItem).filter(Boolean), tier, base: r && r.base, attrs: a, skills: sk, jobSkills: jobs,
     abilities: (Array.isArray(x.abilities) ? x.abilities : []).map(toPower).filter(Boolean).slice(0, 3) };
 }
 /** 团公告的规矩（真实跑团车卡前 KP 发的）：base 购点（普通人的属性总点数，能力者、最强者另外多给）、attrMin / attrMax 每项属性上下限、
@@ -141,15 +144,15 @@ export async function makeCards(owners, all = owners, s = {}) {
     story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(), mode: (MODE_TEXT[s.mode] || '') + noteText(s.note),
     scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车；JSON 里不要再写 hint 和 rules，只写 cards）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
     roster: (others.length ? `同桌的还有：${others.join('、')}（他们的卡已经车好了，不要写他们的卡；只在背景里写到和他们的关系）\n下面这 ${owners.length} 个人要车卡，cards 里正好 ${owners.length} 张：\n` : '') + owners.map(o => rosterLine(o, rolled[o])).join('\n'),
-  }, Math.min(8000, 1500 + 1800 * owners.length));   // 一张卡（12 格背景、资产、技能）要 1500～2000；8000 是不少模型一次能回的上限
+  });
   const list = Array.isArray(out.cards) ? out.cards : [];
   if (!list.length) throw new Error('AI 回的格式不对');
   if (!m && !s.meet) D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), rules: toRules(out.rules) };
   const r = (meeting(s) || {}).rules;
   // 认卡：who 照名字认（写成「你」、名字多了少了几个字也认）；AI 多写了别人的卡、又认不出是谁的，就不乱拿别人的那张
-  const whose = (o, c) => { const n = ownerName(o), w = String(c.who || ''); return !!w && (w === n || n.includes(w) || w.includes(n) || o === 'me' && w === '你'); };
+  const whose = (o, c) => { const w = String(c.who || ''); return !!w && ([ownerName(o), realName(o)].some(n => w === n || n.includes(w) || w.includes(n)) || o === 'me' && w === '你'); };
   return keep(owners.map((o, i) => { const x = list.find(c => whose(o, c)) || list.length === owners.length && list[i];
-    if (!x) throw new Error(`AI 没写${ownerName(o)}的卡`); return toCard(o, x, rolled[o], r); }));
+    if (!x) throw new Error(`AI 没写${ownerName(o)}的卡`); return toCard(o, x, rolled[o], r, all); }));
 }
 
 /** 车卡会（知道在跑团时可选）：一次 API 写完整场——KP 先发团公告、其他人交卡被打回再改、定下规矩、其他人过审的卡、
@@ -175,12 +178,12 @@ export async function meet(s) {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
     roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}${fresh.me ? '；这局车新卡' : old('me')}`, ...s.party.map(o => rosterLine(o, rolled[o]) + old(o) + `；${speakLine(g, o)}`)].join('\n'),
     mode: (MODE_TEXT[s.mode] || '') + noteText(s.note), jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
-  }, Math.min(8000, 4000 + 1500 * s.party.length));
+  });
   const r = out.rules, all = Array.isArray(out.cards) ? out.cards : [], list = all.filter(c => !c.old);
   if (!Array.isArray(out.lines) || !r || list.length < news.length) throw new Error('AI 回的格式不对');
   const talk = L => (Array.isArray(L) ? L : []).filter(l => l && (l.say || l.act)), rules = toRules(r);
-  const cards = await keep(news.map((o, i) => toCard(o, list.find(c => c.who === ownerName(o)) || list[i] || {}, rolled[o], rules))), adjust = {};
-  for (const o of s.party.filter(o => !fresh[o])) { const x = all.find(c => c.old && c.who === ownerName(o)); if (!x) continue;
+  const cards = await keep(news.map((o, i) => toCard(o, list.find(c => [ownerName(o), realName(o)].includes(c.who)) || list[i] || {}, rolled[o], rules, ['me', ...s.party]))), adjust = {};
+  for (const o of s.party.filter(o => !fresh[o])) { const x = all.find(c => c.old && [ownerName(o), realName(o)].includes(c.who)); if (!x) continue;
     adjust[o] = { ...(Array.isArray(x.items) ? { items: x.items.map(toItem).filter(Boolean) } : {}), ...(Array.isArray(x.abilities) ? { abilities: x.abilities.map(toPower).filter(Boolean) } : {}) }; }
   D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {},
     cards: Object.fromEntries(cards.map(c => [c.owner, c.id])), fresh: fresh.me, adjust, rules };
@@ -189,7 +192,7 @@ export async function meet(s) {
 /** 自己填的空白卡（作者要的，不找 AI）：档位照团公告（没有就普通人），属性先都放 40，技能是基础值，剩下的自己填 */
 export async function blankCard(owner, s) {
   const r = (meeting(s) || {}).rules, a = { ...Object.fromEntries(R.ATTRS.map(([k]) => [k, 40])), LUCK: R.roll(3, 6) * 5 };
-  return (await keep([{ id: uid('ic'), owner, at: Date.now(), name: ownerName(owner), age: 20, sex: '', job: '', home: '', bg: Object.fromEntries(BG.map(([k]) => [k, ''])), living: '', cash: '', assets: '',
+  return (await keep([{ id: uid('ic'), owner, at: Date.now(), name: ownerName(owner), age: 20, sex: '', job: '', home: '', bg: Object.fromEntries(BG.map(([k]) => [k, ''])), rels: [], living: '', cash: '', assets: '',
     items: [], tier: (r && R.tierOf(r.tiers[ownerName(owner)])) || R.TIERS[0][0], base: r && r.base, attrs: a, skills: R.baseSkills(a), jobSkills: [], abilities: [] }]))[0];
 }
 /** 卡大概什么水平（只在手机里算，作者要的）：战斗 / 调查 / 社交 / 生存各 1～5 星，总评 S～D，偏哪一面；有团公告就看推荐技能点了几个 */
@@ -237,20 +240,21 @@ const scText = s => { const sc = R.SCENARIOS.find(x => x.id === s.scenario);
 export async function start(setup) {
   const sc = R.SCENARIOS.find(s => s.id === setup.scenario), party = setup.party.map(c => ({ ...c, ...((setup.meet || {}).adjust || {})[c.owner] }));   // 车卡会上为了合规矩改的，只管这一局
   const g = { id: uid('ig'), at: Date.now(), mood: setup.mood, know: !!setup.know, kp: setup.kp || 'sys', lang: setup.lang || {}, voice: setup.voice || 'tap', speak: !!setup.speak, crit: state.apps.interlude.crit,
-    act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard) };
+    act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard), rel: relsFrom([setup.me, ...party]), npcs: [] };
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
     kp: kpText(g), know: knowText(g), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
     pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ${cardText(c)}；${speakLine(g, c.owner)}`).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
-    scenario: scText(setup), places: placesText(),
+    scenario: scText(setup), places: placesText(), rels: relsText(g),
     meet: setup.meet ? `【团公告】开局前 KP 发过团公告${setup.meet.lines ? '，大家还一起开了车卡会' : ''}：\n${noticeText(setup.meet)}\n（这局要和公告对得上）\n` : '',
-  }, 8000, g);
+  }, g);
   if (!Array.isArray(out.acts) || !out.acts.length) throw new Error('AI 回的格式不对');
   g.title = String(out.title || (sc ? sc.title : '无题')).trim(); g.intro = String(out.intro || '').trim();
   g.sk = { acts: out.acts.slice(0, 5).map(a => ({ title: a.title || '', goal: a.goal || '', place: R.placeOf(a.place), exit: a.exit || '', checks: Array.isArray(a.checks) ? a.checks.slice(0, 3) : [], foes: Array.isArray(a.foes) ? a.foes.slice(0, 6) : [] })), secret: out.secret || '', endings: out.endings || {} };
   g.place = g.sk.acts[0].place;
   // 开场白后面接着演第一回合，演到第一次要掷骰（和骨架一起写，开局只找一次 AI）；没写就只有开场白，进去点「推进」
   const open = linesOf(g, out); g.log.push({ r: 0, who: 'KP', act: g.intro }, ...open); if (open.length) g.round = g.roundIn = 1;
+  applyRel(g, out, open);
   if (out.place && out.place in R.PLACES) g.place = out.place; if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   g.req = out.request && out.request.type ? out.request : { type: 'free' };
   if (g.req.type === 'fight') { joinFight(g, g.req.foes); g.req = { type: 'free' }; }
@@ -267,6 +271,33 @@ export function splitSay(l) {
   l.say = q.join(' '); if (k === 'say') l.act = [l.act, rest].filter(Boolean).join(' '); else l[k] = rest;
 }
 export const who = (g, n) => (n === '你' || n === g.pc.name ? g.pc : g.party.find(m => m.name === n || nameOf(contact(m.id)) === n)) || null;
+/* ---------- 关系图：g.rel [{ a, b, ab a 眼里的 b, ba, r 哪回合变的 }]（名字是卡上的名字和 NPC 的名字），g.npcs [{ name, seen 最近哪回合出场, gone 死了 / 走了 }]
+   开局时照各自卡上的认识谁（一边写了就算认识）；之后 AI 每回合报变化，只留现在的。重要 NPC 最多 6 个，满了拿下最久没出场的 ---------- */
+const NPC_MAX = 6;
+export const relsFrom = cards => { const L = [];
+  for (const c of cards) for (const x of c.rels || []) { const d = cards.find(y => y.owner === x.o); if (!d) continue;
+    const y = L.find(y => y.a === d.name && y.b === c.name); if (y) y.ba = x.text || '认识'; else L.push({ a: c.name, b: d.name, ab: x.text || '认识', ba: '' }); }
+  return L; };
+const relsText = g => [...g.rel.map(y => `${y.a} 和 ${y.b}：${y.a} 眼里的 ${y.b} 是「${y.ab || '没说'}」，${y.b} 眼里的 ${y.a} 是「${y.ba || '没说'}」`),
+  ...g.npcs.filter(p => p.gone).map(p => `${p.name}：已经不在了`),
+  ...[g.pc, ...g.party].filter(p => p.bg && p.bg.rel && !g.rel.some(y => y.a === p.name || y.b === p.name)).map(p => `${p.name} 卡上写的同伴：${p.bg.rel}`)].join('\n') || '（大家互不认识）';   // 旧卡写的是一段话
+function applyRel(g, out, lines) {
+  const L = g.rel, N = g.npcs, pcs = [g.pc, ...g.party].map(p => p.name), nm = n => (n = str(n)) === '你' ? g.pc.name : n;
+  const npc = n => pcs.includes(n) ? null : N.find(x => x.name === n) || N[N.push({ name: n }) - 1];
+  for (const x of Array.isArray(out.rel) ? out.rel : []) {
+    let a = nm(x.a), b = nm(x.b), ab = str(x.ab), ba = str(x.ba); if (!a || !b || a === b) continue;
+    let y = L.find(y => y.a === a && y.b === b || y.a === b && y.b === a);
+    if (y && y.a !== a) [a, b, ab, ba] = [b, a, ba, ab];
+    if (!ab && !ba) { if (y) L.splice(L.indexOf(y), 1); continue; }
+    for (const n of [a, b]) { const p = npc(n); if (p) p.seen = g.round; }
+    if (!y) L.push(y = { a, b, ab: '', ba: '' });
+    Object.assign(y, { ab: ab || y.ab, ba: ba || y.ba, r: g.round });
+  }
+  for (const n of Array.isArray(out.gone) ? out.gone : []) { const p = N.find(x => x.name === str(n)); if (p) p.gone = true; }
+  for (const l of lines) { const p = N.find(x => x.name === l.who); if (p) p.seen = g.round; }
+  while (N.length > NPC_MAX) { const p = N.reduce((x, y) => y.seen < x.seen ? y : x); N.splice(N.indexOf(p), 1);
+    for (let i = L.length; i--;) if (L[i].a === p.name || L[i].b === p.name) L.splice(i, 1); }
+}
 /** 一回合：input 是你做的事（已经带上骰子结果）。回来的 lines 记进 log，request 存到 g.req */
 const str = v => String(v || '').trim();
 // AI 写的一回合的台词（开局时开场白后面接着演的那回合也一样）
@@ -280,12 +311,13 @@ export async function play(g, input) {
     foes: (A[i].foes || []).map(f => `- ${JSON.stringify(f)}`).join('\n') || '（这幕没定，真要打起来照上面的分寸现定）',
     fight: g.fight ? `\n【正在战斗】第 ${g.fight.round} 轮打完了；敌人：${g.fight.foes.map(f => `${f.name} 血 ${f.hp}/${f.hpMax}`).join('、')}。战斗由手机一轮轮替所有人掷，玩家中途说话时才把这几轮的结果交给你：照结果把这几轮讲成一段（不要改伤害和血），再接玩家说的；战斗还会接着由手机打，不用再提 fight；敌人投降、逃走或者剧情要停下时写 fightEnd: true。\n` : '',
     must: over ? (last ? '。这是最后一回合：必须在这回合收尾，给出结局（end）' : '。这是本幕最后一回合：必须在这回合达成出口，actDone 写 true') : '',
-    pc: pcText(g), cast: castText(g), places: Object.keys(R.PLACES).join(' / '),
+    pc: pcText(g), cast: castText(g), rels: relsText(g), places: Object.keys(R.PLACES).join(' / '),
     log: g.log.slice(-16).map(l => `${l.who}：${lineText(l)}`).join('\n') || '（刚开始）', input,
-  }, 2400, g);
+  }, g);
   const lines = linesOf(g, out);
   if (!lines.length) throw new Error('AI 回的格式不对');
   g.round++; g.roundIn++; g.log.push({ r: g.round, who: myName(), text: input, me: true }, ...lines);
+  applyRel(g, out, lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));

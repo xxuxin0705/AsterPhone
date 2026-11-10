@@ -691,7 +691,7 @@ export async function charPick(c, onStep, stop) {
   const { storyText } = await import('./context.js');
   // 已有的歌单写成一行一个（不写成和要它回的一样的格式，不然 AI 会把已有的整个抄一遍）
   const existing = charLists(c).map(l => `「${l.name}」已有 ${l.songs.length} 首：${l.songs.slice(-15).map(label).join('；')}`).join('\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', maxTokens: 6000, stop,
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）',
       existing: (existing || '（还没有歌单）') + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）') }) });   // AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
   // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）；「备选：」开头的是这个歌单的备选

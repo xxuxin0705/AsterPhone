@@ -121,7 +121,7 @@ export async function openComments(s, me) {
     const again = d.ai;
     if (!(await dialog({ title: again ? '重新写一批？' : '让 AI 写乐评？', text: again ? '会再用一次 API，写好后换掉 AI 写的这些（你写的、角色歌单里的感想留着）。' : (why ? why + '\n' : '') + '会用一次 API：联系人每人一条，剧情里的人各一条，再加一些路人。', confirm: again ? '重新写' : '生成' }))) return;
     await run('w', 'AI 正在写乐评…', async stop => {
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', maxTokens: 6000, stop,
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', stop,
         prompt: compose('songTalk', { song: s.name, artist: s.artist, lyrics: P.lyricsNow().slice(0, 12).map(x => x.text).join('\n') || '（没有歌词）', contacts: people(), story: storyText(8) || '（暂无）' }) });
       const j = json(raw);
       if (!j || !Array.isArray(j.comments)) throw new Error('AI 回的不是乐评：' + String(raw).slice(0, 60));
@@ -137,7 +137,7 @@ export async function openComments(s, me) {
     const threads = F.map(x => [`#${floors.indexOf(x) + 1} ${whoName(x)}：${x.text}${x.fresh ? '（新）' : ''}`,
       ...x.replies.map(r => `  ${whoName(r)}${r.to ? ' 回复 ' + r.to : ''}：${r.text}${r.fresh ? '（新）' : ''}`)].join('\n')).join('\n\n');
     await run('a', '大家正在看…', async stop => {
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', maxTokens: 3000, stop,
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '乐评', stop,
         prompt: compose('songReply', { song: s.name, artist: s.artist, contacts: people(), threads, must: must.length ? must.join('、') : '被回复到的人' }) });
       const j = json(raw);
       if (!j || !Array.isArray(j.replies)) throw new Error('AI 回的不对：' + String(raw).slice(0, 60));

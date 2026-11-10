@@ -264,7 +264,7 @@ export async function startJob(label, list, done = 0) {
     while (job.done < job.list.length) {
       await kvSet('memjob:' + key, { label, list, done: job.done });
       const raw = await generate({ conn: resolveConn('text', 'memory'), app: '念念铃',
-        prompt: compose('memSort', { source: list[job.done], existing: known() }), temperature: .3, maxTokens: 4000, stop: job.ac.signal });
+        prompt: compose('memSort', { source: list[job.done], existing: known() }), temperature: .3, stop: job.ac.signal });
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       job.added += merge(parse(raw), label); await save();
       job.done++; tell('step', job);

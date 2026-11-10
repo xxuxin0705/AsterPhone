@@ -65,7 +65,7 @@ const hint = c => hintFor(kindOf(connFor(c.id)));   // 每段怎么标语气：�
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
 // 连接中途断了时，有的接口会把一句「响应读取中断…请检查网络连接…」当成正文接在半截回复后面（作者那本的感想就混进了这句）：当失败，不存
 // done：写完了没有（故事要写到「感想」、翻译要每段都有）；没写完、电台设置里开了自动补写，就接着写
-const ask = (c, prompt, maxTokens, stop, done = () => true) => generateMore({ conn: resolveConn('text', 'chat'), system: '', app: '电台', maxTokens, stop, prompt }, done, S().fill ? S().fillMax || 3 : 0)
+const ask = (c, prompt, stop, done = () => true) => generateMore({ conn: resolveConn('text', 'chat'), system: '', app: '电台', stop, prompt }, done, S().fill ? S().fillMax || 3 : 0)
   .then(t => { if (/响应读取中断|请检查网络连接/.test(t)) { log('warn', '电台', '回复里混进了接口的断线提示，没存：' + t.slice(-120)); throw new Error('连接中途断了，回来的不完整，再试一次'); } return clean(t); });
 
 /** 让角色讲一个：故事 + 中文翻译 + 感想，一次 API */
@@ -78,7 +78,7 @@ async function compose1(c, what, recall, stop) {
     about = [`【最近的剧情】\n${story || '（暂无）'}`, msgs.length && `【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : real(c)}：${m.text}`).join('\n')}`,
       await worldText(scan).catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
   }
-  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), 8000, stop, t => /^\s*感想[:：]/m.test(t));
+  const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), stop, t => /^\s*感想[:：]/m.test(t));
   const title = ((raw.match(/^\s*标题[:：]\s*(.+)$/m) || [])[1] || '').replace(/^[《「『【]|[》」』】]$/g, '').trim();
   const [head, rest] = raw.split(/^\s*故事[:：]\s*/m), [story, after = ''] = (rest ?? head.replace(/^\s*标题[:：].*$/m, '')).split(/^\s*感想[:：]\s*/m);
   const segs = segsOf(story);
@@ -88,7 +88,7 @@ async function compose1(c, what, recall, stop) {
 /** 书店的老故事、导入的文字：翻成 lang（原文就是 lang 的话只配中文翻译） */
 async function trans(c, ps, from, lang, stop) {
   const onlyZh = same(from, lang), raw = await ask(c, compose('radioTrans', { char: real(c), lang: lname(onlyZh ? 'zh-CN' : lang),
-    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : hint(c), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), 8000, stop, t => segsOf(t).length >= ps.length);
+    zh: onlyZh || isZh(lang) || isZh(from) ? '' : zhLine(lang), act: onlyZh ? '' : hint(c), tale: ps.map((p, i) => `[${i + 1}] ${p}`).join('\n') }), stop, t => segsOf(t).length >= ps.length);
   const out = segsOf(raw);
   if (!out.length) throw new Error('AI 回了空的');
   if (onlyZh) return ps.map((t, i) => ({ t, tr: (out[i] || {}).t || '' }));
@@ -110,7 +110,7 @@ async function thoughts(b, stop) {
   const c = contact(b.who);
   if (!c) throw new Error('这个角色已经不在联系人里了');
   const out = segsOf(await ask(c, compose('radioAfter', { char: real(c), persona: personaOf(c) || '（没有更多资料）', title: b.title,
-    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang), act: hint(c) }), 2400, stop));
+    tale: b.segs.map(s => s.t).join('\n').slice(0, 8000), lang: lname(b.lang), zh: zhLine(b.lang), act: hint(c) }), stop));
   if (!out.length) throw new Error('AI 回了空的');
   b.after = out; await save();
 }

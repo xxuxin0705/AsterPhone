@@ -57,14 +57,14 @@ export function recentStory(n = 6, maxEach = 240) {
 export function stripTags(s) { return String(s || '').replace(/<(astertime|asterphone)[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]+>/g, '').trim(); }
 
 /** 用酒馆当前连接生成一段文字 */
-export async function generateTavern({ system, prompt, maxTokens = 600 }) {
+export async function generateTavern({ system, prompt }) {
   const c = ctx();
   if (!c || typeof c.generateRaw !== 'function') throw new Error('没有连上酒馆，用不了「酒馆当前连接」');
   const fn = c.generateRaw;
   const objectStyle = /^\s*(async\s*)?(function\s*\w*\s*)?\(\s*\{/.test(fn.toString());
   let out;
-  if (objectStyle) out = await fn({ prompt, systemPrompt: system, responseLength: maxTokens, quietToLoud: false });
-  else out = await fn(prompt, '', false, false, system, maxTokens);
+  if (objectStyle) out = await fn({ prompt, systemPrompt: system, quietToLoud: false });   // 不写长度：照酒馆预设
+  else out = await fn(prompt, '', false, false, system);
   if (typeof out !== 'string') throw new Error('酒馆没有返回文字');
   return out;
 }
@@ -130,12 +130,12 @@ export function tavernProfiles() {
 /** 酒馆现在用的是哪个 API（没有连接配置时用来显示） */
 export function tavernMainApi() { const c = ctx(); return (c && (c.mainApi || (c.onlineStatus !== 'no_connection' && c.onlineStatus))) || ''; }
 /** 用某个连接配置生成，不会切换酒馆自己正在用的连接 */
-export async function generateWithProfile(profile, { system, prompt, maxTokens = 600 }) {
+export async function generateWithProfile(profile, { system, prompt }) {
   const c = ctx(), svc = c && c.ConnectionManagerRequestService;
   if (!svc || typeof svc.sendRequest !== 'function') throw new Error('这个酒馆版本还不能按连接配置生成，更新一下酒馆，或者先插「酒馆当前连接」');
   const tc = profile.mode === 'tc' || profile.api === 'textgenerationwebui';
   const input = tc ? [system, prompt].filter(Boolean).join('\n\n')
     : [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean);
-  const r = await svc.sendRequest(profile.id, input, maxTokens, { stream: false, extractData: true, includePreset: true, includeInstruct: true });
+  const r = await svc.sendRequest(profile.id, input, undefined, { stream: false, extractData: true, includePreset: true, includeInstruct: true });   // 不传长度：不限
   return typeof r === 'string' ? r : (r && (r.content ?? r.text ?? '')) || '';
 }

@@ -26,7 +26,7 @@ const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', 
 const serif = s => h('span.as-int-serif', s);
 // 桌上选好的东西：退出再进来还在
 let seated = false;   // 上次坐了谁（主位、椅子）存着，退出、刷新回来还在
-const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: false, use: 'new', note: '', speak: false };
+const pick = { scenario: 'random', ask: '', mood: 'serious', know: null, kp: 'sys', lang: {}, voice: null, party: [], mode: 'self', meet: true, use: 'new', note: '', speak: false };
 const MAX_SEATS = 8;
 const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
 // 这一桌的设置：车卡会 / 团公告照它认（换了人、本、车卡方式就作废）；pick 跟着存进去，退出、刷新后回来能接上
@@ -323,6 +323,63 @@ const shownName = o => o === 'me' ? '你' : ownerName(o);   // 给人看的：�
 // 属性填得太低时的提醒（自己填卡时实时显示）
 const LOW = { STR: '搬东西、打架都吃亏', CON: '血少、容易病倒', SIZ: '血少、一推就倒', DEX: '跑得慢、躲不开', APP: '第一印象差，社交难', INT: '难想通线索，兴趣点也少', POW: '理智低、容易发疯', EDU: '本职点少' };
 const ownerFace = (o, size) => o === 'me' ? avatar(myAvatar(), myName(), size, size > 60 ? 'square' : 'round') : avatar(contact(o).avatar, nameOf(contact(o)), size, size > 60 ? 'square' : 'round');
+
+/* ---------- 成卡：三页（卡面 / 背景 / 关系），上面一排头像换人；车完自动弹出，车卡页、车卡会、游戏里随时点开 ----------
+   ps [{ o 'me' | 联系人 id, c 卡（局里的带着现在的血、理智、东西） }]；rel、npcs 关系图（局里的，或者照卡上的认识谁）；now 这回合变的标「新」 */
+// 照相馆画过立绘的用立绘，没有用头像
+const shot = (o, size) => { const p = P.loaded(o); return p ? h('img', { src: p.base, alt: '' }) : avatar(o === 'me' ? myAvatar() : contact(o).avatar, o === 'me' ? myName() : nameOf(contact(o)), size, 'square'); };
+const radar = a => { const n = R.ATTRS.length, pt = (r, i) => { const t = -Math.PI / 2 + i * 2 * Math.PI / n; return [50 + r * Math.cos(t), 50 + r * Math.sin(t)].map(v => v.toFixed(1)); };
+  const ring = f => R.ATTRS.map(([k], i) => pt(38 * f(k), i).join(',')).join(' ');
+  return h('div.as-int-radar', { html: `<svg viewBox="-14 -4 128 108">${[.25, .5, .75, 1].map(f => `<polygon class="is-grid" points="${ring(() => f)}"/>`).join('')}`
+    + R.ATTRS.map((_, i) => `<line x1="50" y1="50" x2="${pt(38, i)[0]}" y2="${pt(38, i)[1]}"/>`).join('') + `<polygon class="is-val" points="${ring(k => Math.min(99, a[k]) / 100)}"/>`
+    + R.ATTRS.map(([k, nm], i) => { const [x, y] = pt(47, i); return `<text x="${x}" y="${y}">${nm} ${a[k]}</text>`; }).join('') + '</svg>' }); };
+async function cardView(ps, start, rel = [], npcs = [], now = -1) {
+  await P.preload(ps.map(x => x.o));
+  let at = Math.max(0, ps.findIndex(x => x.o === start)), on = null;
+  const one = h('div.as-int-cv__page'), two = h('div.as-int-cv__page'), three = h('div.as-int-cv__page'), pages = h('div.as-int-cv__pages', one, two, three);
+  const tabs = h('div.as-int-cv__nav', ['卡面', '背景', '关系'].map((t, i) => h('button', { onclick: () => pages.scrollTo({ left: i * pages.clientWidth, behavior: 'smooth' }) }, t)));
+  const mark = () => { const i = Math.round(pages.scrollLeft / pages.clientWidth); [...tabs.children].forEach((b, k) => b.classList.toggle('is-on', k === i)); };
+  pages.addEventListener('scroll', mark, { passive: true });
+  const who = h('div.as-int-tabs', ps.map((x, i) => h('button', { onclick: () => { at = i; paint(); } }, ownerFace(x.o, 40), h('small', x.c.name))));
+  const list = L => L.length ? h('ul.as-int-cv__list', L.map(t => h('li', t))) : h('p.as-int-cv__none', '暂无');
+  // 关系图：调查员是钉在纸上的拍立得，NPC 是一张写着名字的小纸条；线上写关系，点人只亮跟 TA 有关的线，点线下面写两边各自怎么看
+  const nodes = [...ps.map(x => ({ name: x.c.name, o: x.o })), ...npcs.map(p => ({ name: p.name, gone: p.gone }))], node = n => nodes.find(x => x.name === n);
+  nodes.forEach((n, i) => { const t = -Math.PI / 2 + i * 2 * Math.PI / nodes.length; Object.assign(n, nodes.length === 1 ? { x: 50, y: 50 } : { x: 50 + 34 * Math.cos(t), y: 50 + 33 * Math.sin(t) }); });   // 围成一圈
+  const L = rel.filter(y => node(y.a) && node(y.b)), said = h('p.as-int-board__said');
+  const lines = h('div', { html: `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${L.map(y => `<line x1="${node(y.a).x}" y1="${node(y.a).y}" x2="${node(y.b).x}" y2="${node(y.b).y}"/>`).join('')}</svg>` }).firstChild;
+  const tags = L.map(y => h('button.as-int-board__tag', { style: { left: (node(y.a).x + node(y.b).x) / 2 + '%', top: (node(y.a).y + node(y.b).y) / 2 + '%' },
+    onclick: () => { said.replaceChildren(h('span', `${y.a} 眼里的 ${y.b}：${y.ab || '没说'}`), h('span', `${y.b} 眼里的 ${y.a}：${y.ba || '没说'}`)); } }, y.r === now ? h('i', '新') : null, y.ab || y.ba));
+  const els = nodes.map((n, i) => h('button.as-int-board__n', { style: { left: n.x + '%', top: n.y + '%' }, onclick: () => focus(n.name) },
+    n.o ? h('div.as-int-pol', { style: { '--r': (i % 2 ? 3 : -3) + 'deg' } }, h('i.as-int-pin'), shot(n.o, 56), h('b', n.name), h('small', G.realName(n.o)))
+      : h('div.as-int-slip' + (n.gone ? '.is-gone' : ''), h('i.as-int-pin'), n.name)));
+  three.append(h('div.as-int-board', lines, ...els, ...tags), said, L.length ? null : h('p.as-int-cv__none', '大家互不认识'));
+  function focus(n) {
+    on = on === n ? null : n; said.replaceChildren();
+    L.forEach((y, i) => { const off = on && y.a !== on && y.b !== on; lines.children[i].classList.toggle('is-dim', !!off); tags[i].classList.toggle('is-dim', !!off); });
+    nodes.forEach((x, i) => els[i].classList.toggle('is-dim', !!on && x.name !== on && !L.some(y => (y.a === on && y.b === x.name) || (y.b === on && y.a === x.name))));
+  }
+  function paint() {
+    const { o, c } = ps[at], d = R.derived(c.attrs), base = R.baseSkills(c.attrs);
+    [...who.children].forEach((b, k) => b.classList.toggle('is-on', k === at));
+    one.replaceChildren(
+      h('div.as-int-cv__top', h('div.as-int-pol.is-big', h('i.as-int-pin'), shot(o, 110)), h('div',
+        h('b.as-int-cv__name', c.name), h('small', `（${G.realName(o)}）`), h('p', [c.job, c.age && `${c.age} 岁`, c.sex, c.home].filter(Boolean).join(' · ')),
+        h('div.as-int-cv__stats', [['血', c.hp ?? d.hp, c.hpMax], ['理智', c.san ?? d.san, c.sanMax], (c.abilities || []).length && ['魔法', c.mp ?? d.mp, c.mpMax]].filter(Boolean)
+          .map(([k, v, m]) => h('span', h('small', k), `${v}${m ? '/' + m : ''}`))))),
+      radar(c.attrs),
+      h('h3', '技能'), h('div.as-int-cv__skills', Object.keys(base).filter(k => c.skills[k] > base[k]).sort((x, y) => c.skills[y] - c.skills[x]).map(k => h('span', k, h('b', c.skills[k])))),
+      h('h3', '随身'), list((c.items || []).map(G.itemText)),
+      (c.abilities || []).length ? [h('h3', '特殊能力'), list(c.abilities.map(G.powerText))] : null);
+    two.replaceChildren(h('h3', '背景故事'), h('p.as-int-cv__story', c.bg.story || '暂无'),
+      h('div.as-int-cv__info', G.BG.filter(([k]) => k !== 'story').map(([k, n]) => h('div', h('b', n), h('p', c.bg[k] || '暂无')))));
+    one.scrollTop = two.scrollTop = 0; if (on !== c.name) focus(c.name);
+  }
+  paint();
+  const body = h('div', who, tabs, pages);
+  await Promise.all([...body.querySelectorAll('img')].map(i => i.decode().catch(() => {})));   // 图解码好再弹，不闪
+  sheet({ title: '调查员', cls: 'as-int-cv', content: body });
+  mark();
+}
 function cardPage(back, resume) {
   const owners = ['me', ...pick.party], cur = Object.fromEntries(owners.map(o => [o, G.lastCard(o)]));
   const ms = table(), meetOn = ms.meet;
@@ -344,7 +401,7 @@ function cardPage(back, resume) {
   async function make(list) {
     if (G.running()) { G.cancel(); return; }
     makeB.replaceChildren(h('span.as-spin')); toast(`KP 在给 ${list.length} 个人车卡…`, { label: '取消', fn: G.cancel, wait: true });
-    try { (await G.makeCards(list, owners, ms)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); if (!m && (m = G.meeting(ms))) notice(); }   // 第一次车卡时 KP 一起写了团公告：先给你看
+    try { (await G.makeCards(list, owners, ms)).forEach(c => { cur[c.owner] = c; }); toast('车好了，可以一张张改'); if (!m && (m = G.meeting(ms))) notice(() => showCards(list[0])); else showCards(list[0]); }   // 第一次车卡时 KP 一起写了团公告：先给你看
     catch (e) { failed(e, '没车成'); }
     paintTabs(); paint(); paintBar();
   }
@@ -355,6 +412,7 @@ function cardPage(back, resume) {
   }
   async function blank(o) { cur[o] = await G.blankCard(o, ms); paintTabs(); paint(); paintBar(); }
   // 预览：照团公告（没有就照一般规矩）大概能不能过，再给个评级；都在手机里算
+  const showCards = o => cardView(owners.filter(x => cur[x]).map(x => ({ o: x, c: cur[x] })), o, G.relsFrom(owners.map(x => cur[x]).filter(Boolean)));
   const preview = c => { const bad = G.checkCard(c, m), r = G.rate(c, m);
     sheet({ title: '预览', content: h('div.as-int-notice', h('b', bad.length ? '大概率过不了' : '大概率能过'), ...bad.map(t => h('small', t)),
       h('b', `评级 ${r.grade} · ${r.role}`), h('div.as-int-stars', Object.entries(r.stars).map(([k, n]) => h('span', `${k} ${'★'.repeat(n)}${'☆'.repeat(5 - n)}`))), r.rec ? h('small', r.rec) : null) }); };
@@ -384,8 +442,8 @@ function cardPage(back, resume) {
   }
   // 团公告（不开车卡会时）：背景 + 规矩
   // 卡片页点开团公告：就是墙上那张纸取下来，摆在正中间，点哪都收起
-  const notice = () => paper().then(() => {
-    const mask = h('div.as-dialog-mask', { onclick: () => { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 200); } }, postEl(m));
+  const notice = after => paper().then(() => {   // after：关上以后（车好了先看团公告，再弹成卡）
+    const mask = h('div.as-dialog-mask', { onclick: () => { mask.classList.remove('is-open'); setTimeout(() => mask.remove(), 200); after && after(); } }, postEl(m));
     mask.firstChild.classList.add('is-big'); document.querySelector('.as-phone').append(mask); requestAnimationFrame(() => mask.classList.add('is-open'));
   });
   // 车卡会：一次 API 写完整场，其他人的卡也在会上车好
@@ -402,9 +460,10 @@ function cardPage(back, resume) {
     const q = page({ app: 'interlude', id: 'int-meet', title: '车卡会', large: true, back: true, cls: 'as-int-play.as-int-meet' });
     q.el.prepend(h('div.as-int-bg', img('desk-day'), img('desk-night', '.is-night'))); q.el.style.backgroundPosition = 'center top';
     const kpc = pick.kp !== 'sys' && contact(pick.kp), vmode = pick.voice || voiceDefault();
-    const idOf = n => n === 'KP' ? (kpc ? kpc.id : 'kp') : n === myName() || n === '你' ? 'me' : kpc && n === nameOf(kpc) ? kpc.id : owners.find(o => o !== 'me' && (ownerName(o) === n || (cur[o] || {}).name === n)) || 'kp';
+    const idOf = n => n === 'KP' ? (kpc ? kpc.id : 'kp') : n === myName() || n === '你' ? 'me' : kpc && n === nameOf(kpc) ? kpc.id : owners.find(o => o !== 'me' && (ownerName(o) === n || contact(o).name === n || (cur[o] || {}).name === n)) || 'kp';
     const faceOf = id => id === 'kp' ? img('kp') : P.figure(id) || ownerFace(id, 110);
     const cardOf = o => ({ ...cur[o], ...(m.adjust || {})[o] });
+    const showAll = o => cardView(owners.map(x => ({ o: x, c: cardOf(x) })).filter(x => x.c.name), o, G.relsFrom(owners.map(cardOf)));
     const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), shelf = h('div.as-int-meet__card');
     const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
     const voiceB = voiceBtn(() => voice());
@@ -412,8 +471,9 @@ function cardPage(back, resume) {
     const box = h('div.as-int-box', { onclick: () => next() }, actT, sayT, zhT, voiceB, backB, more), act = h('div.as-int-act');
     // 团公告钉在墙上（舞台上面空着的那块）：字多就在纸里滑，点一下取下来展开（有多少字展开多少），再点挂回去
     const paperOk = paper(), pin = postEl(m); pin.hidden = true; pin.onclick = () => pin.classList.toggle('is-big');
-    q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', face, nameT), box, act));
-    let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0;
+    shelf.onclick = () => shelf.dataset.o && showAll(shelf.dataset.o);
+    q.body.append(pin, h('div.as-int-stage', shelf, h('div.as-int-who', { onclick: () => owners.includes(lastId) && cardOf(lastId).name && showAll(lastId) }, face, nameT), box, act));
+    let now = null, vac = null, lastId = '', queue = [], seen = [], passed = false, tries = 0, shown = false;
     const hush = () => { if (vac) { vac.abort(); vac = null; stopSpeak(); voiceB.set(); } };
     async function voice() {
       if (!now || !now.say) return;
@@ -453,7 +513,9 @@ function cardPage(back, resume) {
     const log = () => sheet({ title: '回顾', content: h('div.as-int-log', seen.map(l => h('div', h('b', l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : idOf(l.who) === 'me' ? '你' : l.who),
       l.act ? h('small', plain(l.act)) : null, l.say ? h('p', plain(l.say)) : null, l.zh ? h('small', plain(l.zh)) : null))) });
     const rules = h('div.as-int-end.is-bare', bad, h('div.as-int-row', btn('回顾', 'secondary', log), editB, give));
-    const end = () => { act.hidden = false; paperOk.then(() => { pin.hidden = passed; }); act.replaceChildren(passed ? h('div.as-int-end.is-bare', h('div.as-int-row', btn('回顾', 'secondary', log), btn('开局', 'primary', e => begin(e.currentTarget, q.el)))) : rules); };
+    const end = () => { act.hidden = false; paperOk.then(() => { pin.hidden = passed; });
+      act.replaceChildren(passed ? h('div.as-int-end.is-bare', h('div.as-int-row', btn('回顾', 'secondary', log), btn('看卡', 'secondary', () => showAll('me')), btn('开局', 'primary', e => begin(e.currentTarget, q.el)))) : rules);
+      if (passed && !shown) { shown = true; showAll('me'); } };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
     if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
@@ -539,6 +601,14 @@ function cardPage(back, resume) {
     const paintWealth = () => { const [lv, cash, own] = R.wealth(c.skills[CR] || 0); wealthEl.textContent = `${lv} · 现金 ${R.moneyText(cash, money)} · 资产 ${own ? R.moneyText(own, money) + (own >= 1e8 ? '以上' : '') : '没有'}`; };
     paintWealth();
     const bg = (label, k) => field(label, textarea({ value: c.bg[k] || '', rows: 2, placeholder: '暂无', onInput: v => { c.bg[k] = v; saveLater(); } }));
+    // 关系：一行一个认识的同桌，人从同桌里点选，后面写这张卡眼里的 TA
+    const relBox = h('div.as-int-abs'), rels = c.rels || (c.rels = []);
+    const pickRel = async x => { const v = await actionSheet('认识谁', owners.filter(o => o !== c.owner && (o === x.o || !rels.some(y => y.o === o))).map(o => ({ value: o, label: shownName(o), active: o === x.o }))); if (v) { x.o = v; if (rels.includes(x)) { saveLater(); paintRel(); } } return v; };
+    const addB = btn('加一个认识的人', 'secondary', async () => { const x = { o: '', text: '' }; if (!(await pickRel(x))) return; rels.push(x); saveLater(); paintRel(); relBox.lastChild.children[1].focus(); });
+    const paintRel = () => { addB.hidden = !owners.some(o => o !== c.owner && !rels.some(y => y.o === o)); relBox.replaceChildren(...rels.length ? rels.map(x => h('div.as-int-wpn.is-rel', h('button', { onclick: () => pickRel(x) }, shownName(x.o)),
+      input({ value: x.text, placeholder: '关系', onInput: v => { x.text = v.trim(); saveLater(); } }),
+      h('button', { 'aria-label': '删除', onclick: () => { rels.splice(rels.indexOf(x), 1); saveLater(); paintRel(); } }, icon('close', 14, 2)))) : [h('p.as-int-sheet-empty', '和大家都是陌生人')]); };
+    paintRel();
     // 特殊能力：一条一条列出来，能删
     const abBox = h('div.as-int-abs');
     const paintAbs = () => abBox.replaceChildren(...(c.abilities || []).length ? c.abilities.map((x, i) => h('div.as-int-ab', h('b', x.name),
@@ -564,8 +634,10 @@ function cardPage(back, resume) {
     sheetEl.replaceChildren(
       h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
-      h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只加在本职技能上，兴趣点只加在其他技能上。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c))),
+      h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只加在本职技能上，兴趣点只加在其他技能上。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c)), btn('成卡', 'secondary', () => showCards(sel))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
+      h('h3', withInfo('关系', '写了谁就是一开局就认识 TA，一边写了就算互相认识；没写的人开局时是陌生人，要在戏里认识。')), relBox,
+      h('div.as-int-row', addB),
       h('h3', '特殊能力'), abBox,
       h('h3', withInfo('资产', '跟着「信用评级」这项技能算：0 身无分文，1～9 穷，10～49 普通，50～89 有钱，90～98 很有钱，99 超级富豪。钱照故事发生的地方换成当地的钱，是个大概。')), wealthEl,
       field('都有些什么', textarea({ value: c.assets || '', rows: 2, placeholder: '暂无', onInput: v => set('assets', v) })),
@@ -696,10 +768,12 @@ function playPage(g) {
   // 顶上的状态：第几幕、第几回合、血、理智
   const hud = h('div.as-int-hud'), hudAct = h('span'), hudHp = h('span'), hudSan = h('span'), hudMp = h('span'), hudMad = h('span.is-mad');
   const push = btn('推进', 'secondary', () => send('（推进剧情）'));
-  hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, push);
+  // 看卡：局里的卡（现在的血、理智、东西）和关系图
+  const cards = o => cardView([g.pc, ...g.party].map(x => ({ o: x.id, c: { ...G.cardById(x.card), ...x } })), o, g.rel, g.npcs, g.round);
+  hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, btn('卡', 'secondary', () => cards('me')), push);
   const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMp.hidden = !(g.pc.abilities || []).length; hudMp.textContent = `✦ ${g.pc.mp}/${g.pc.mpMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; };
   // 人物牌 + 对话框：上面一小行淡淡的旁白（中文），中间是台词，台词不是中文的下面跟一行中文翻译
-  const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', face, nameT);
+  const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', { onclick: () => { const m = mine(lastWho) ? g.pc : G.who(g, lastWho); if (m) cards(m.id); } }, face, nameT);
   const actT = h('p.as-int-box__act'), sayT = h('p.as-int-box__say'), zhT = h('small.as-int-box__zh'), more = h('span.as-int-box__more', '▸');
   // 喇叭：只念台词（旁白不念）
   const voiceB = voiceBtn(() => voice(cur));
@@ -737,10 +811,11 @@ function playPage(g) {
   let lastWho = '';
   P.preload(['me', kpc && kpc.id, ...g.party.map(m => m.id)].filter(Boolean)).then(() => { if (lastWho && face.firstChild && !face.firstChild.pt) face.replaceChildren(faceOf(lastWho)); });
   const nameOfLine = n => n === 'KP' && kpc ? `${nameOf(kpc)} · KP` : mine(n) ? '你' : n;
+  const plate = n => { const m = !mine(n) && n !== 'KP' && G.who(g, n); return m && m.name === n ? [n, h('small', `（${G.realName(m.id)}）`)] : [nameOfLine(n)]; };
   const bubble = l => { const el = h('div.as-int-ooc__b', h('i', '场外'), h('b', nameOfLine(l.who) + '：'), `（${l.act ? plain(l.act) + ' ' : ''}${plain(l.say || l.text || '')}${l.zh ? ` / ${plain(l.zh)}` : ''}）`);
     ooc.append(el); while (ooc.children.length > 3) ooc.firstChild.remove(); setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }, 7000); };
   const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) ? l : null;
-    const nm = nameOfLine(l.who); if (nameT.textContent !== nm) { nameT.textContent = nm; lastWho = l.who; face.replaceChildren(faceOf(l.who)); }
+    if (lastWho !== l.who) { lastWho = l.who; nameT.replaceChildren(...plate(l.who)); face.replaceChildren(faceOf(l.who)); }
     face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
     actT.textContent = plain(l.text || l.act); sayT.textContent = plain(l.zh || l.say); zhT.textContent = l.zh ? plain(l.say) : '';
     actT.hidden = !actT.textContent; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !(cur && l.say);

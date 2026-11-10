@@ -164,7 +164,8 @@ export async function generate(opts) {
   }
   throw last;
 }
-async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, maxTokens = 700, app = '聊天', stop, onPart }) {
+// 不限字数（作者定的）：思考也算在上限里，回到一半被截断就白花了。OpenAI 格式、Gemini 不传上限，Claude 必须填就给 64000（官方建议的大小），走酒馆的照酒馆预设
+async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -187,15 +188,15 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     };
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
-      else out = await orAbort(generateTavern({ system, prompt, maxTokens }), signal);
+      else out = await orAbort(generateTavern({ system, prompt }), signal);
     } else if (conn.type === 'tavern-profile') {
       const pf = tavernProfiles().list.find(x => x.id === conn.profileId);
       if (!pf) throw new Error(`酒馆里找不到「${conn.name}」这个连接配置了`);
-      out = await orAbort(generateWithProfile(pf, { system, prompt, maxTokens }), signal);
+      out = await orAbort(generateWithProfile(pf, { system, prompt }), signal);
     } else if (OAI(conn.type)) {
       out = await withKey(async key => {
-        const body = { model: conn.model, temperature: temp, max_tokens: maxTokens, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
-        if (think) { body.reasoning_effort = P.thinking; delete body.temperature; body.max_completion_tokens = maxTokens + think; delete body.max_tokens; }
+        const body = { model: conn.model, temperature: temp, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
+        if (think) { body.reasoning_effort = P.thinking; delete body.temperature; }
         const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
         return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part);
@@ -206,7 +207,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         const cache = conn.adv && conn.adv.cache, mark = { cache_control: { type: 'ephemeral' } };
         const sys = !system ? undefined : cache ? [{ type: 'text', text: system, ...mark }] : system;
         const content = cache && keep > 0 && keep < prompt.length ? [{ type: 'text', text: prompt.slice(0, keep), ...mark }, { type: 'text', text: prompt.slice(keep) }] : prompt;
-        const body = { model: conn.model, max_tokens: maxTokens + think, system: sys, stream, messages: [{ role: 'user', content }] };
+        const body = { model: conn.model, max_tokens: 64000, system: sys, stream, messages: [{ role: 'user', content }] };
         if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
         const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
           method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
@@ -215,7 +216,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
       });
     } else if (conn.type === 'gemini') {
       out = await withKey(async key => {
-        const gc = { temperature: temp, maxOutputTokens: maxTokens + think };
+        const gc = { temperature: temp };
         if (think) gc.thinkingConfig = { thinkingBudget: think };
         const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
         const res = await xf(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
@@ -308,7 +309,7 @@ KNOWN_MODELS['minimax-intl'] = KNOWN_MODELS['minimax-cn'];
 /** 测试连接：发一句很短的话 */
 export async function testConn(conn) {
   // 测的就是这一个接口：不重试、不改插别的
-  const out = await generateOnce({ conn, system: '', prompt: '只回复两个字：在的', maxTokens: 24, app: '设置' });
+  const out = await generateOnce({ conn, system: '', prompt: '只回复两个字：在的', app: '设置' });
   if (!out) throw new Error('连上了，但没有返回内容');
   return out;
 }

@@ -74,7 +74,7 @@ export function openAiLoad(after) {
     Object.assign(prog, { t0: Date.now(), np: 0, ng: 0, fix: o.fixCount ? o.count : 0 }); paintBar();
     const tick = setInterval(paintBar, 1000);
     try {
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, maxTokens: 2400, app: 'AI 智能加载', stop: loading.signal,
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, app: 'AI 智能加载', stop: loading.signal,
         onPart: t => { const [a, b = ''] = t.split('"groups"'); prog.np = (a.match(/"name"\s*:/g) || []).length; prog.ng = (b.match(/"name"\s*:/g) || []).length; paintBar(); } });
       const data = pickJSON(raw);
       if (!keep) { state.contacts.splice(0); commit('contacts'); }
@@ -188,7 +188,7 @@ export async function openLoreAdd(after) {
   const ac = loreJob = new AbortController();
   toast('AI 正在拆人…', { label: '取消', fn: () => ac.abort(), wait: true });
   try {
-    const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', maxTokens: 2400, app: '世界书拆人', stop: ac.signal,
+    const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '世界书拆人', stop: ac.signal,
       prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
     const data = pickJSON(raw); toast(`拆出 ${(data.people || []).length} 个人`);
     openPreview(data, { after, lore: { world, entries: chosen } });

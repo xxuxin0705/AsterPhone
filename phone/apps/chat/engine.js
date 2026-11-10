@@ -45,7 +45,7 @@ async function bounce(chat, m) {
 export async function sendVerify(chat, text) {
   const c = contact(chat.contactId);
   await addSystem(chat, `你发送了朋友验证：${text}`);
-  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', app: '好友验证', maxTokens: 20,
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', app: '好友验证',
     prompt: compose('verify', { char: c.name || nameOf(c), persona: charPersona(c), story: storyNow(), text }) });
   if (/不通过|拒绝/.test(raw) || !/通过/.test(raw)) { await addSystem(chat, `「${nameOf(c)}」暂时没有通过你的朋友验证`); return false; }
   c.cut = ''; commit('contacts');
@@ -261,7 +261,7 @@ export async function requestReply(chat, opts = {}) {
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote() + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
-    const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, maxTokens: 900, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
+    const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
     const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
@@ -332,7 +332,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
       time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
     const rc = replyCfg(chat);
-    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, maxTokens: 1200, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
+    const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
@@ -380,7 +380,7 @@ export async function callReply(chat, lines, mode, stop) {
   const { prompt } = await buildReplyPrompt(chat, msgs);
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
   const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
-  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, maxTokens: 400, app: '通话', stop });
+  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, app: '通话', stop });
   return parseReply(raw, c).lines.filter(l => !/^\[/.test(l)).slice(0, 3);
 }
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
@@ -508,7 +508,7 @@ export async function deliverFromStory(c, text, groupName = '') {
 /* ---------- 动态 ---------- */
 export async function genMoment(c, stop) {
   const conn = resolveConn('text', 'chat');
-  const raw = await generate({ conn, system: '', app: '动态', maxTokens: 400, stop,
+  const raw = await generate({ conn, system: '', app: '动态', stop,
     prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: (await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c])).world, time: time.forPrompt() }) });
   let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
   text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
@@ -526,7 +526,7 @@ export async function genComments(mo, stop) {
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
     mo.likes.length ? `已点赞：${mo.likes.map(who).join('、')}` : ''].filter(Boolean).join('\n');
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', maxTokens: 600, stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
   let added = 0;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {
