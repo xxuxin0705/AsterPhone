@@ -804,7 +804,9 @@ function playPage(g) {
   const push = btn('推进', 'secondary', () => send('（推进剧情）'));
   // 看卡：局里的卡（现在的血、理智、东西）和关系图
   const cards = o => cardView([g.pc, ...g.party].map(x => ({ o: x.id, c: { ...G.cardById(x.card), ...x } })), o, g.rel, g.npcs, g.round);
-  hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, btn('卡', 'secondary', () => cards('me')), push);
+  // 第一次到一个地方：顶上这一行换成地名，几秒后换回来（放在这一行，不挡立绘，作者定的）
+  const where = h('div.as-int-where');
+  hud.append(hudAct, hudHp, hudSan, hudMp, hudMad, where, btn('卡', 'secondary', () => cards('me')), push);
   const paintHud = () => { hudAct.textContent = `第 ${g.act + 1}/${g.sk.acts.length} 幕 · 第 ${g.round} 回合`; hudHp.textContent = `♥ ${g.pc.hp}/${g.pc.hpMax}`; hudSan.textContent = `◈ ${g.pc.san}/${g.pc.sanMax}`; hudMp.hidden = !(g.pc.abilities || []).length; hudMp.textContent = `✦ ${g.pc.mp}/${g.pc.mpMax}`; hudMad.textContent = g.pc.mad ? g.pc.mad.name : ''; push.hidden = !!g.done || g.run === 'script'; };
   // 人物牌 + 对话框：上面一小行淡淡的旁白（中文），中间是台词，台词不是中文的下面跟一行中文翻译
   const face = h('div.as-int-who__face'), nameT = h('span.as-int-who__name'), who = h('div.as-int-who', { onclick: () => { const m = mine(lastWho) ? g.pc : G.who(g, lastWho); if (m) cards(m.id); } }, face);
@@ -813,7 +815,6 @@ function playPage(g) {
   const voiceB = voiceBtn(() => voice(cur));
   const backB = h('button.as-int-box__back', { 'aria-label': '上一句', hidden: true, onclick: e => { e.stopPropagation(); back(); } }, '◂');
   const box = h('div.as-int-box', { onclick: () => next() }, nameT, actT, sayT, zhT, voiceB, backB, more);
-  const where = h('div.as-int-where');   // 第一次到一个地方：对话框左上方浮出地名，几秒后淡掉
   // 场外的话：不进对话框，在上面飘一条灰色小气泡
   const ooc = h('div.as-int-ooc');
   let cur = null, vac = null;
@@ -837,7 +838,7 @@ function playPage(g) {
   const made = new Map(), pre = new AbortController(); let chain = Promise.resolve();
   const ahead = l => { if (!l || l.ooc || made.has(l)) return; G.splitSay(l); if (!l.say) return;
     made.set(l, chain = chain.then(() => pre.signal.aborted ? null : speakAs(vid(l.who), l.say, { silent: true, acted: true, cache: key(l), stop: pre.signal })).catch(e => log('warn', '幕间', '提前合成没成：' + e.message))); };
-  const act = h('div.as-int-act'), shelf = h('div.as-int-meet__card'), stage = h('div.as-int-stage', ooc, shelf, who, where, box, act);
+  const act = h('div.as-int-act'), shelf = h('div.as-int-meet__card'), stage = h('div.as-int-stage', ooc, shelf, who, box, act);
   p.body.append(hud, stage);
   let queue = [], seen = [], pending = '';   // 还没念到的台词；掷完骰子等着一起发给 KP 的结果
   // 照相馆做过立绘的人（包括你）站着出来（会眨眼、说话时动嘴），没做的用头像
@@ -852,7 +853,7 @@ function playPage(g) {
   const say = l => { hush(); G.splitSay(l); cur = g.log.includes(l) || (g.review && g.review.lines.includes(l)) ? l : null;
     if (lastWho !== l.who) { lastWho = l.who; nameT.replaceChildren(...plate(l.who)); face.replaceChildren(faceOf(l.who)); }
     face.firstChild.pt?.face(l.face); face.firstChild.pt?.pose(l.pose);
-    if (l.where) { const a = g.sk.acts[g.act]; where.replaceChildren(h('div', h('b', l.where.filter(Boolean).join(' · ')), h('small', `《${g.title}》 · 第 ${g.act + 1} 幕 ${a.title}`))); clearTimeout(where._t); where._t = setTimeout(() => where.replaceChildren(), 5200); }
+    if (l.where) { const a = g.sk.acts[g.act]; where.replaceChildren(h('b', l.where.filter(Boolean).join(' · ')), h('small', `《${g.title}》 · 第 ${g.act + 1} 幕 ${a.title}`)); hud.classList.add('is-where'); clearTimeout(where._t); where._t = setTimeout(() => hud.classList.remove('is-where'), 5000); }
     // 复盘会里放个人结局、黑匣子：上面摆一张标题卡（带名录的状态章），对话框里是那段小剧场
     const e = l.end && g.review.ends[l.end], k = l.end || (l.box ? '黑匣子' : '');
     if (shelf.dataset.k !== k) { shelf.dataset.k = k; const c = e && G.cardById(([g.pc, ...g.party].find(x => x.name === l.end) || {}).card);
