@@ -130,6 +130,9 @@ export const MOOD_TEXT = { serious: '正经的克苏鲁：压抑、恐惧、慢�
 export const PLACES = { hall: '老宅客厅（壁炉、蒙布的家具、落地钟）', corridor: '旅馆长走廊', cellar: '地下室（石墙、木箱）', 'street-night': '雨夜街道', woods: '雾中林间小路', pier: '海边木码头（灯塔）', room: '旅馆房间',
   chapel: '荒废小教堂', hospital: '老医院病房走廊', study: '书房 / 图书室', train: '夜行火车车厢', cabin: '雪夜山中小屋', 'street-day': '白天的繁华大街（电车）', bar: '小酒吧', ship: '游轮甲板', park: '游乐园（旋转木马）', apartment: '公寓客厅', cafe: '咖啡馆靠窗的桌子' };
 export const placeOf = k => (k in PLACES ? k : 'hall');
+/** 白噪音（电台那套）：KP 写代号；没写就照场景放，室内安静的地方不放 */
+export const AMBS = [['rain', '雨'], ['fire', '篝火'], ['wave', '海浪'], ['wind', '风'], ['bug', '虫鸣']];
+export const AMB_AT = { 'street-night': 'rain', pier: 'wave', ship: 'wave', hall: 'fire', cabin: 'wind', woods: 'bug', chapel: 'wind' };
 
 /** 内置的本（都是自己写的）：骨架给定，人物卡和开场白仍由 AI 按这一局的人来写 */
 export const SCENARIOS = [

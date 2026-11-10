@@ -21,6 +21,7 @@ import { plain } from '../../core/act.js';
 import * as P from '../../core/portrait.js';
 import * as M from '../../core/music.js';
 import { burn } from '../../core/burn.js';
+import { noiseNode } from '../../core/noise.js';
 
 const BASE = 'assets/interlude/';
 const img = (k, cls = '') => h('img' + cls, { src: BASE + k + '.webp', alt: '', draggable: false });
@@ -35,7 +36,8 @@ const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, 
   meet: !!pick.meet, speak: pick.speak, lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
 let restored = false;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
-let inflight = null;   // 正在等的那一回合（退出页面再进来还能接上）
+let inflight = null;
+let ac = null;   // 白噪音用的（和电台一样是程序算出来的）   // 正在等的那一回合（退出页面再进来还能接上）
 const failed = (e, what) => { if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', what + '：' + e.message, e); toast(what + '：' + e.message); } };
 
 /* ---------- 书桌 ---------- */
@@ -757,16 +759,27 @@ const sceneSrc = k => k === 'desk' ? BASE + (document.querySelector('.as-phone')
 function playPage(g) {
   g.seen = Date.now(); G.save();   // 继续的是最近玩过的那局
   // 背景音乐、白噪音：KP 按场景给关键词，去音乐 App 的音源里搜来循环放；两个开关各管各的，角色说话时调小
-  const S = state.apps.interlude, beds = { bgm: new Audio(), amb: new Audio() }, VOL = { bgm: .45, amb: .35 };
+  const S = state.apps.interlude, beds = { bgm: new Audio() }, VOL = { bgm: .45, amb: .35 };
+  // 白噪音：KP 写的那种，没写就照场景；和电台用同一套声音
+  let amb = null, left = false;
+  const ambOf = () => g.amb === 'none' ? '' : (R.AMBS.find(([k, n]) => g.amb === k || (g.amb || '').includes(n)) || [])[0] || R.AMB_AT[R.placeOf(g.place)] || '';
+  function ambient() {
+    const k = S.ambOff || left ? '' : ambOf(); if ((amb && amb.k) === k) return;
+    if (amb) { amb.stop.forEach(x => x.stop()); amb.g.disconnect(); }
+    if (!k) { amb = null; return; }
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume();
+    amb = { k, ...noiseNode(ac, k, ac.destination, VOL.amb) };
+  }
+  const ambBtn = () => { const b = navBtn('rain', '白噪音', () => { S.ambOff = !S.ambOff; commit('apps'); b.classList.toggle('is-off', S.ambOff); ambient(); if (!S.ambOff && !amb) toast('这里没有白噪音'); }); b.classList.toggle('is-off', !!S.ambOff); return b; };
   // 开着却没在放（手机不让自己出声，只认手指点的那一下）：点一下就放，不是关掉
   const bedBtn = (k, ic, label) => { const b = navBtn(ic, label, () => { if (!S[k + 'Off'] && beds[k].src && beds[k].paused) { beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); return; } S[k + 'Off'] = !S[k + 'Off']; commit('apps'); b.classList.toggle('is-off', !!S[k + 'Off']); if (S[k + 'Off']) beds[k].pause(); else if (beds[k].src) beds[k].play().catch(e => toast(`${label}放不出来：${e.message}`)); else bed(k, true); }); b.classList.toggle('is-off', !!S[k + 'Off']); return b; };
-  const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), bedBtn('amb', 'rain', '白噪音')] });
+  const p = page({ app: 'interlude', id: 'int-play', title: g.title, large: true, back: true, cls: 'as-int-play', right: [bedBtn('bgm', 'music', '背景音乐'), ambBtn()] });
   Object.assign(p.nav.querySelector('.as-navbar__title'), { role: 'button', onclick: () => castRoll(p.el, g) });   // 点标题重看片头
   // 这个地址能不能放：等它能开始放（或者出错、10 秒没动静）
   const can = (a, url) => new Promise(ok => { const done = v => { clearTimeout(t); a.oncanplay = a.onerror = null; ok(v); }, t = setTimeout(() => done(false), 10000); a.oncanplay = () => done(true); a.onerror = () => done(false); a.src = url; a.load(); });
   // KP 还没给关键词：先按场景搜（「雨夜街道 氛围 纯音乐」）。loud：点了开关才来找的，找的过程和结果都提示
   async function bed(k, loud) {
-    const a = beds[k], what = k === 'bgm' ? '背景音乐' : '白噪音', w = g[k] || `${R.PLACES[R.placeOf(g.place)].split('（')[0]} ${k === 'bgm' ? '氛围 纯音乐' : '白噪音'}`;
+    const a = beds[k], what = '背景音乐', w = g[k] || `${R.PLACES[R.placeOf(g.place)].split('（')[0]} 氛围 纯音乐`;
     if (w === a._w) { if (loud) toast(`还在找${what}…`); return; }
     a._w = w; a.pause(); if (loud) toast(`正在找${what}…`, true);
     let r = null;
@@ -776,8 +789,8 @@ function playPage(g) {
     Object.assign(a, { loop: true, volume: VOL[k] });
     if (!S[k + 'Off'] && p.el.isConnected) a.play().then(() => { if (loud) toast(`在放：${r.name}`); }, e => { log('warn', '幕间', `${what}《${r.name}》放不出来：${e.message}`); if (loud) toast(`${what}放不出来`); });
   }
-  const bedAll = () => { bed('bgm'); bed('amb'); };
-  const duck = e => { for (const k in beds) beds[k].volume = VOL[k] * (e.detail === 'start' ? .3 : 1); };
+  const bedAll = () => { bed('bgm'); ambient(); };
+  const duck = e => { const d = e.detail === 'start' ? .3 : 1; beds.bgm.volume = VOL.bgm * d; if (amb) amb.g.gain.value = VOL.amb * d; };
   const host = window.parent || window; host.addEventListener('asterphone-voice', duck);
   if (M.playing()) M.toggle();   // 音乐 App 正在放歌：进来先停
   const bg = h('div.as-int-bg', h('img', { src: sceneSrc(g.place), alt: '' })); p.el.prepend(bg);
@@ -858,7 +871,7 @@ function playPage(g) {
   function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); backB.hidden = seen.length < 2; more.hidden = false; act.hidden = true; }
   const show = lines => { queue = lines.slice(); if (mode === 'all') lines.forEach(ahead); act.hidden = true; next(); };
   // 剧本模式：掷完直接放写好的那段，不找 AI
-  const onward = ([w, v]) => { g.req = { type: 'free' }; const lines = G.step(g, v, w); G.save(); scene(g.place); paintHud(); show(lines); };
+  const onward = ([w, v]) => { g.req = { type: 'free' }; const lines = G.step(g, v, w); G.save(); scene(g.place); paintHud(); show(lines); bedAll(); };
   // 这回合要你做什么
   function prompt() {
     act.hidden = false; act.replaceChildren();
@@ -973,7 +986,7 @@ function playPage(g) {
   };
   paintHud();
   gls = glass(box, p.el, sceneSrc(g.place), SHADE);
-  p.el._onLeave = () => { hush(); pre.abort(); gls.dispose(); for (const k in beds) beds[k].pause(); host.removeEventListener('asterphone-voice', duck); };
+  p.el._onLeave = () => { hush(); pre.abort(); gls.dispose(); beds.bgm.pause(); left = true; ambient(); host.removeEventListener('asterphone-voice', duck); };
   if (G.running(g)) {   // 上次退出时 KP 还在想：接着等那一次
     act.hidden = false; act.append(h('div.as-int-wait', h('span.as-spin'), '　KP 在想…', btn('取消', 'secondary', G.cancel))); say({ who: 'KP', act: '…' });
     inflight.then(lines => { if (G.wrapping(g)) return prompt(); scene(g.place); paintHud(); show(lines); bedAll(); }, () => prompt());
