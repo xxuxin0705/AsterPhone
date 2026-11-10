@@ -176,6 +176,15 @@
 .as-int-who__face img[src$="kp.webp"] { object-fit: contain; background: #0d1119; }
 .as-int-who__none { width: 110px; height: 110px; display: grid; place-items: center; background: #3b4863; color: #f1ece2; border-radius: 8px; border: 2px solid #ece4d2; font: 500 40px/1 var(--font-cn); }
 .as-int-who__name { padding: 3px 12px; background: #ece4d2; color: #2f2619; font: 500 13px/1.4 var(--font-cn); letter-spacing: .08em; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+/* 跑团里说话人的名字：不要纸条，对话框里左上一行彩色小字（作者照游戏字幕定的） */
+.as-int-box > .as-int-who__name { display: block; margin: -12px 0 2px; padding: 0; background: none; box-shadow: none; color: #f2b347; font: 600 12px/1.5 var(--font-cn); letter-spacing: .12em; }
+.as-int-box > .as-int-who__name small { color: rgba(255,255,255,.7); font-weight: 400; letter-spacing: .04em; }
+/* 地名：左边一道竖线，大字地名 · 时间，下面一行小字是局名和第几幕 */
+.as-int-where { position: relative; height: 0; z-index: 3; pointer-events: none; }
+.as-int-where > div { position: absolute; left: 10px; bottom: 12px; padding-left: 12px; border-left: 3px solid #f2b347; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.7); animation: as-int-where 5.2s ease both; }
+.as-int-where b { display: block; font: 600 20px/1.3 var(--font-cn); letter-spacing: .14em; }
+.as-int-where small { display: block; margin-top: 2px; font-size: 11px; letter-spacing: .06em; opacity: .75; }
+@keyframes as-int-where { 0% { opacity: 0; transform: translateX(-12px); } 10%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 .as-int-box { position: relative; min-height: 96px; padding: 24px 44px 18px 30px; border-radius: 22px; overflow: hidden; color: #fff; font: 400 15px/1.7 var(--font-cn); text-shadow: 0 1px 4px rgba(0,0,0,.55);
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 10px 30px rgba(0,0,0,.35); cursor: pointer; }
 .as-int-box .as-glass-cv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }

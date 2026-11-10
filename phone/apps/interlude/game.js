@@ -262,7 +262,7 @@ export async function start(setup) {
   g.place = g.sk.acts[0].place; g.seg = 0;
   // 开场白后面接着演第一回合，演到第一次要掷骰（和骨架一起写，开局只找一次 AI）；没写就只有开场白，进去点「推进」
   const o = segs[0] || out, open = linesOf(g, o); g.log.push({ r: 0, who: 'KP', act: g.intro }, ...open); if (open.length) g.round = g.roundIn = 1;
-  apply(g, o, open); setReq(g, o.request);
+  apply(g, { ...o, where: o.where || out.where, time: o.time || out.time }, open); setReq(g, o.request);
   D.games.push(g); if (setup.meet) delete D.meet; await save();
   return g;
 }
@@ -338,6 +338,9 @@ export async function play(g, input) {
 function apply(g, out, lines) {
   applyRel(g, out, lines);
   if (out.place && out.place in R.PLACES) g.place = out.place;
+  // 第一次到一个地方：这批的第一句带上地名（KP 起的；没起就用场景名），同一个地方再来就不弹
+  const w = str(out.where) || (g.place !== g.wp ? R.PLACES[R.placeOf(g.place)].split('（')[0] : ''), W = g.wheres || (g.wheres = []);
+  if (w) { g.wp = g.place; if (!W.includes(w) && lines[0]) { W.push(w); lines[0].where = [w, str(out.time)]; } }
   if (out.bgm) g.bgm = str(out.bgm); if (out.amb) g.amb = str(out.amb);
   for (const h of out.hurt || []) { const p = who(g, h.who); if (!p) continue; if (Number.isFinite(+h.hp)) p.hp = Math.max(0, Math.min(p.hpMax, p.hp + Math.round(+h.hp)));
     if (+h.san > 0) p.san = Math.min(p.sanMax, p.san + Math.min(3, Math.round(+h.san))); }   // 精神分析治好回 1～3 理智（规则书 1D3）
@@ -359,7 +362,7 @@ const RUN = `【剧本模式】这局不是每回合现编：你现在就把整�
 - 不管成功失败，戏都往下一段走：失败是代价更大、拿到的更少（受伤、掉理智、晚一步、被人发现），关键线索换条更难的路还在；大失败要当场出事。
 - 好几个人一起掷（who 写了好几个）：有人成功就用成功那档，写成对掷成功的那个人说，用 {谁} 代替他的名字；都失败才用失败那档。
 - 最后一段的每种结果都写 end：{"kind":"he / be / te / oe","name":"结局的名字","text":"结局","lost":["下落不明的调查员名字"]}，成功的往 he / te 走、失败的往 be / oe 走；中间真把人弄没了也可以提前写 end。kind 是哪种结局：he 圆满、be 悲伤、te 真结局（揭开了真相、走对了关键那条路）、oe 开放（没说死，留着悬念）；name 给这个结局起个好听的名字，贴着这局发生的事和结局的味道起，长短不限，不要平铺直叙。
-- 在上面的 JSON 里加上："segs":[{"act":1,"place":"","lines":[{"who":"KP","act":"","say":""}],"request":{"type":"check","who":["你"],"skill":"侦查","level":"普通","reason":""},"out":{"大成功":{"lines":[],"hurt":[],"items":[],"rel":[]},"极难成功":{"lines":[]},"困难成功":{"lines":[]},"普通成功":{"lines":[]},"失败":{"lines":[]},"大失败":{"lines":[]}}}]
+- 在上面的 JSON 里加上："segs":[{"act":1,"place":"","where":"","time":"","lines":[{"who":"KP","act":"","say":""}],"request":{"type":"check","who":["你"],"skill":"侦查","level":"普通","reason":""},"out":{"大成功":{"lines":[],"hurt":[],"items":[],"rel":[]},"极难成功":{"lines":[]},"困难成功":{"lines":[]},"普通成功":{"lines":[]},"失败":{"lines":[]},"大失败":{"lines":[]}}}]
 `;
 const ASIDE = '这局是剧本模式，后面的戏已经写好了：这回合只接住玩家这一下（回应、对话、小动作），不要推进到下一个检定、不要揭开后面的线索；request 写 free，不写 actDone 和 end';
 /** 结局四种（作者定的）：HE 圆满 / BE 悲伤 / TE 真结局 / OE 开放；good、bad 是以前的局 */
