@@ -1017,7 +1017,8 @@ export function openPlayer() {
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
     ['edge', 'glow'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
     S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
-    S.clock ? p.el.style.setProperty('--clk', S.clock) : p.el.style.removeProperty('--clk');
+    // 表盘：'' 跟着唱到的字，'@dim' 跟着没唱的字（改歌词颜色时一起变），#rrggbb 自己挑的
+    S.clock ? p.el.style.setProperty('--clk', S.clock === '@dim' ? 'var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper)))' : S.clock) : p.el.style.removeProperty('--clk');
     // 字体装好了再换，不会先闪一下别的字
     const want = S.font || '';
     return useFont(document, want).then(f => { if (want !== (S.font || '')) return; f ? p.el.style.setProperty('--ly-font', `${f}, var(--font-ui)`) : p.el.style.removeProperty('--ly-font'); R.font(f); }); };
@@ -1096,10 +1097,15 @@ export function openPlayer() {
       // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字 | 描边」：前两个各一个色盘，切换只是换显示哪个（不重画色盘）；
       // 「描边」里是不加 / 描边 / 发光（整句一份），选了描边或发光才出描边颜色的色盘；最下面字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
       const pv = h('div.as-mu-lypv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
-      const pvPaint = () => ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
+      const pvPaint = () => { ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : ''))); follows.forEach(f => { f.style.background = f.dataset.k === 'dim' ? S.dim || '#ffffff' : S.color || '#7cc4ff'; }); };   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
       const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
-      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('clock', S.color || '#7cc4ff')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
+      // 表盘那页：色块最前面两个带小链条的，是跟着唱到的字 / 没唱的字走（作者定的 A）；点后面的色块、转色盘就是自己挑，跟随断开
+      const follows = [['color', '跟唱到的字'], ['dim', '跟没唱的字']].map(([k, label]) => h('button.as-wheel__swatch.as-mu-follow', { type: 'button', dataset: { k }, 'aria-label': label, onclick: () => { S.clock = k === 'dim' ? '@dim' : ''; markF(); change(); } }, icon('link', 11, 2.4)));
+      const markF = () => follows.forEach(f => f.classList.toggle('is-on', (S.clock || '') === (f.dataset.k === 'dim' ? '@dim' : '')));
+      const ckWheel = colorWheel(/^#/.test(S.clock || '') ? S.clock : S.color || '#7cc4ff', c => { S.clock = c; markF(); change(); });
+      ckWheel.firstChild.prepend(...follows); markF();
+      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), ckWheel], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
       const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, edgeWheel); edgeWheel.hidden = !S.shade;
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
