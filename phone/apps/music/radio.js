@@ -66,7 +66,7 @@ const hint = c => hintFor(kindOf(connFor(c.id)));   // 每段怎么标语气：�
 const zhLine = lang => isZh(lang) ? '' : '每段下面另起一行，用 >> 开头写这一段的中文翻译。';
 // 连接中途断了时，有的接口会把一句「响应读取中断…请检查网络连接…」当成正文接在半截回复后面（作者那本的感想就混进了这句）：当失败，不存
 // done：写完了没有（故事要写到「感想」、翻译要每段都有）；没写完、电台设置里开了自动补写，就接着写
-const ask = (c, prompt, stop, done = () => true) => generateMore({ conn: resolveConn('text', 'chat'), system: '', app: '电台', stop, prompt }, done, S().fill ? S().fillMax || 3 : 0)
+const ask = (c, prompt, stop, done = () => true) => generateMore({ conn: resolveConn('text', 'chat'), system: '', app: '电台', stop, prompt, resume: S().fill ? S().fillMax || 3 : 0 }, done, S().fill ? S().fillMax || 3 : 0)
   .then(t => { if (/响应读取中断|请检查网络连接/.test(t)) { log('warn', '电台', '回复里混进了接口的断线提示，没存：' + t.slice(-120)); throw new Error('连接中途断了，回来的不完整，再试一次'); } return clean(t); });
 
 /** 让角色讲一个：故事 + 中文翻译 + 感想，一次 API */

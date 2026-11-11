@@ -50,7 +50,7 @@ async function ask(cat, vars, g) {
   try {
     // 回到一半断了（括号没合上）就自动补写：设置里开了才补（默认关），最多补几次也在设置里定
     const A = state.apps.interlude;
-    return parse(await generateMore({ conn, app: '幕间', stop: ac.signal, prompt }, t => !open(t), A.fill ? A.fillMax || 3 : 0));
+    return parse(await generateMore({ conn, app: '幕间', stop: ac.signal, prompt, resume: A.fill ? A.fillMax || 3 : 0 }, t => !open(t), A.fill ? A.fillMax || 3 : 0));
   } finally { job = null; }
 }
 const placesText = () => Object.entries(R.PLACES).map(([k, v]) => `${k} = ${v}`).join('；');

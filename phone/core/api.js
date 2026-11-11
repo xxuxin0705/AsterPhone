@@ -144,15 +144,24 @@ export async function generateMore(opts, done, most) {
   }
   return out;
 }
+let hum = null, humN = 0;
+function awake() {
+  try {
+    if (!humN++) { const C = window.AudioContext || window.webkitAudioContext, ac = new C(), o = ac.createOscillator(), g = ac.createGain(); g.gain.value = .0001; o.connect(g).connect(ac.destination); o.start(); hum = ac; }
+    if (hum.state === 'suspended') hum.resume().catch(() => {});
+  } catch (e) { /* 没有 WebAudio 就算了 */ }
+  return () => { if (!--humN && hum) { hum.close().catch(() => {}); hum = null; } };
+}
 // 接上：补写的开头常会重复前面最后几个字，去掉重复的再拼
 const join = (part, more) => { let k = Math.min(200, more.length); while (k && !part.endsWith(more.slice(0, k))) k--; return part + more.slice(k); };
-/** 写到一半线断了（最常见：手机切到后台，系统把网络掐了）：收到的不扔，等手机回到前台，让 AI 从断的地方接着写，最多接 3 次（作者要的） */
+/** 写到一半线断了（最常见：手机切到后台，系统把网络掐了）：收到的不扔，等手机回到前台，让 AI 从断的地方接着写。
+ *  只有那个 App 的设置里开了「写到一半断了自动补写」才接（opts.resume = 最多几次；作者定的，默认不接） */
 async function resumable(opts) {
   let part = '';
   for (let n = 0; ; n++) {
     try { const more = await generateOnce(part ? { ...opts, prompt: opts.prompt + MORE(part), onPart: opts.onPart && (t => opts.onPart(part + t)) } : opts); return part ? join(part, bare(more)) : more; }
     catch (e) {
-      if (!e.part || n >= 3) throw e;
+      if (!e.part || n >= (opts.resume || 0)) throw e;
       part = join(part, bare(e.part)); log('warn', opts.app || '聊天', `写到一半断了（${e.message}），已经收到 ${part.length} 字，接着写`);
       if (document.hidden) await new Promise(ok => document.addEventListener('visibilitychange', function f() { if (!document.hidden) { document.removeEventListener('visibilitychange', f); ok(); } }));
       if (opts.stop && opts.stop.aborted) throw new Error('已中止');
@@ -189,7 +198,8 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
   const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
   let got = '';   // 流式收到的（线断了时带在报错上，接着写用）
   const signal = call.signal, part = t => { got = t; call.part(t); onPart && onPart(t); };
-  // 等 AI 的时候占着一把锁：有的浏览器不会冻住占着锁的页面（切到后台时多撑一会儿；撑不住的由上面的接着写兜底）
+  // 等 AI 的时候尽量不让系统把后台的页面停掉（作者要的保活，尽力而为）：占一把锁 + 放一段听不见的声音（浏览器一般不停正在出声的页面；用 WebAudio，不抢别的 App 的声音）
+  const sleep = awake();
   let free; const held = new Promise(ok => { free = ok; }); navigator.locks && navigator.locks.request('as-ai', { mode: 'shared' }, () => held).catch(() => {});
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });   // 页面上的「取消」：和日志里点中止一样
   try {
@@ -249,7 +259,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     if (e && e.raw) call.part(e.raw);
     call.fail(msg);
     throw Object.assign(new Error(msg), { logId: call.id, part: msg !== '已中止' && !e.raw ? got : '' });   // 报错里的「查看日志」直接跳到这一条
-  } finally { free(); }
+  } finally { free(); sleep(); }
 }
 
 /** OpenAI 格式的几家：官方、DeepSeek、第三方中转 */

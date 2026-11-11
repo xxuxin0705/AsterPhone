@@ -686,14 +686,38 @@ export async function heartPick() {
 const parts = t => { const [song, name, thought, intro] = String(t).split(/[|｜]/).map(x => x.trim()); return { song, name: bare(name) || '喜欢的音乐', thought: thought || '', intro: intro || '' }; };
 // 歌单名前后被【】「」《》[] 包着的去掉（AI 有时会自己加）
 const bare = n => { const x = String(n || '').trim().replace(/^[【「『《\[]([^【】「」『』《》\[\]]+)[】」』》\]]$/, '$1').trim(); return x.startsWith('喜欢的音乐') ? '喜欢的音乐' : x; };
-export async function charPick(c, onStep, stop) {
+// 已有的歌单写成一行一个（不写成和要它回的一样的格式，不然 AI 会把已有的整个抄一遍）；AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
+const existingOf = c => (charLists(c).map(l => `「${l.name}」已有 ${l.songs.length} 首：${l.songs.slice(-15).map(label).join('；')}`).join('\n') || '（还没有歌单）')
+  + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）');
+/** 好几个人一次找 AI 挑完（作者要的：批量就是一次请求）。回来的按「角色：名字」分开，再一个人一个人去搜歌；onStep(谁, 第几个人, 搜了几首, 一共几首) */
+export async function charPickMany(cs, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  // 已有的歌单写成一行一个（不写成和要它回的一样的格式，不然 AI 会把已有的整个抄一遍）
-  const existing = charLists(c).map(l => `「${l.name}」已有 ${l.songs.length} 首：${l.songs.slice(-15).map(label).join('；')}`).join('\n');
+  const nm = c => c.name || nameOf(c);
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop,
-    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）',
-      existing: (existing || '（还没有歌单）') + (charLists(c).some(l => l.name === '喜欢的音乐') ? '' : '\n（还没有「喜欢的音乐」：这次一定要开，第一个写它）') }) });   // AI 常把「喜欢的音乐」忘了，没有的时候单独再提醒一遍
+    prompt: compose('charSongs', { char: `下面这 ${cs.length} 个人（每个人分别写）`, persona: cs.map(c => `【${nm(c)}】\n${personaOf(c) || '（没有更多资料）'}`).join('\n\n'), story: storyText(6) || '（暂无）',
+      existing: cs.map(c => `【${nm(c)}】\n${existingOf(c)}`).join('\n\n') })
+      + `\n\n这次是 ${cs.length} 个人一起写：每个人先单独一行写「角色：名字」（名字照【】里的），下面照上面的格式写 TA 的歌单，感想用 TA 的口吻；${cs.length} 个人都要写到。` });
+  const parts = {}; let who = null;
+  for (const t of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n')) {
+    const m = t.trim().match(/^角色[:：]\s*(.+)$/);
+    if (m) { const n = m[1].replace(/[【】]/g, '').trim(); who = cs.find(c => nm(c) === n) || cs.find(c => n.includes(nm(c)) || nm(c).includes(n)) || null; continue; }
+    if (who) parts[who.id] = (parts[who.id] || '') + t + '\n';
+  }
+  const out = [];
+  for (const [i, c] of cs.entries()) {
+    if (stop && stop.aborted) break;
+    if (!parts[c.id]) { out.push({ c, err: 'AI 没写 TA 的' }); continue; }
+    try { out.push({ c, ...await charPick(c, (n, all, sp) => onStep && onStep(c, i, n, all, sp), stop, parts[c.id]) }); }
+    catch (e) { out.push({ c, err: e.message }); }
+  }
+  return out;
+}
+export async function charPick(c, onStep, stop, raw) {   // raw：一起挑时已经写好的这个人那段
+  const { personaOf, nameOf } = await import('../apps/chat/engine.js');
+  const { storyText } = await import('./context.js');
+  raw = raw ?? await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop,
+    prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existingOf(c) }) });
   // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）；「备选：」开头的是这个歌单的备选
   let cur = { name: '喜欢的音乐', intro: '' }; const todo = [];
   for (const t of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(x => x.trim())) {

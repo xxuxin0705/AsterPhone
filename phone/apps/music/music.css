@@ -63,7 +63,7 @@
 .as-mu-sq__cover { overflow: hidden; }
 .as-mu-sq__cover { position: relative; }
 /* 角色卡：右上角红色小音符 = 随剧情加歌开着；选人时左上角勾选圈 */
-.as-mu-badge { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--mu-red); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.as-mu-badge { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; color: #fff; opacity: .9; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }   /* 只是一个白色小音符，不要红圆点（作者嫌丑） */
 .as-mu-badge[hidden] { display: none; }
 .is-picking .as-mu-sq__cover::before { content: ''; position: absolute; z-index: 1; top: 6px; left: 6px; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; border: 1.6px solid #fff; background: rgba(0,0,0,.18); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .is-picking .is-picked .as-mu-sq__cover::before { border-color: var(--mu-red); background: var(--mu-red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; }
@@ -344,10 +344,6 @@
 .as-fx__cur span.is-lit { color: var(--ly, #7cc4ff); text-shadow: var(--sh), 0 0 14px var(--ly, #7cc4ff); }
 .as-fx__cur.is-tr span.is-lit { text-shadow: var(--sh), 0 0 8px var(--ly, #7cc4ff); }
 .as-mp:not(.is-shade-edge):not(.is-shade-glow) .as-fx__cur span.is-lit { text-shadow: none; }
-.as-fx__dust { position: absolute; inset: 0; overflow: hidden; }
-.as-fx__dust i { position: absolute; font: 600 1em/1 var(--font-ui); font-style: normal; color: rgba(var(--mp-ink),.12); filter: blur(2px); animation: as-dust 14s ease-in-out infinite alternate; }
-@keyframes as-dust { to { transform: translate(18px, -26px) scale(1.15); opacity: .45; } }
-.as-page.is-behind .as-fx__dust i { animation-play-state: paused; }
 /* 一起听的悄悄话 */
 .as-mu-pair__on { visibility: hidden; color: var(--mu-red); }
 .as-mu-pair.is-on .as-mu-pair__on { visibility: visible; }
@@ -447,6 +443,7 @@
 .is-picking .as-mu-li .as-mu-more { display: none; }
 .as-mu-pickbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 10px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--mu-card); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
 .as-mu-pickbar button { flex: 1; border: 0; border-radius: 20px; padding: 11px 0; background: var(--mu-fill); color: var(--mu-ink); font: 500 14px/1 var(--font-ui); cursor: pointer; white-space: nowrap; }
+.as-mu-pickbar:has(button:nth-child(5)) { gap: 6px; padding-left: 10px; padding-right: 10px; } .as-mu-pickbar:has(button:nth-child(5)) button { font-size: 13px; }   /* 角色歌单那排有五个按钮 */
 .as-mu-pickbar .is-main { flex: 1.6; background: var(--mu-red); color: #fff; }
 /* 缘分报告：深蓝卡片 */
 .as-page.as-rp { background: #222a3a; color: #fff; }
