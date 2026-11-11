@@ -172,6 +172,7 @@ const meetKey = s => [s.kp, s.scenario, s.ask, s.mood, s.mode, s.use, s.note, !!
 export const meeting = s => D.meet && D.meet.key === meetKey(s) ? D.meet : null;
 /** 开团公告 / 车卡会时的开局设置（退出、刷新后回来接上）；v0.8.242 以前开的没存，从它的钥匙里拆出来（拆出来对不上就不认） */
 export const meetNow = () => D.meet || null;
+export async function dropMeet() { delete D.meet; await save(); }
 export function savedPick() {
   const m = D.meet; if (!m) return null; if (m.pick) return m.pick;
   const [kp, scenario, ask, mood, mode, use, note, meet, ...party] = m.key.split('|'), s = { kp, scenario, ask, mood, mode, use, note, meet: meet === 'true', party };

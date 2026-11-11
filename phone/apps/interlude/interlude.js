@@ -698,15 +698,22 @@ function archivePage(sync, resume) {
   const ymd = t => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
   const names = ids => ['你', ...ids.map(id => nameOf(contact(id)))].filter(Boolean).join('、');
   // 进行中的放最上面：还没打完的局（点了接着玩）；还没开局的车卡会 / 团公告（点了把开局设置接上，回到车卡，开着车卡会就回到会上）
-  const going = (title, sub, fn) => h('button.as-int-file', { onclick: () => { nav.pop(); fn(); } }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
-  // 长按一局：删掉（没打完的也能删）
-  const del = (el, g) => { onLongPress(el, async e => { if (await dialog({ title: `删除《${g.title}》？`, text: '删了就找不回来了。', confirm: '删除', danger: true })) { await G.dropGame(g); await burn(el, e.clientX, e.clientY); el.remove(); sync(); } }); return el; };   // 从按的地方烧掉
-  const mt = G.savedPick() ? G.meetNow() : null;
-  const ing = [...G.all().filter(g => !g.done || G.wrapping(g)).sort((a, b) => (b.seen || b.at) - (a.seen || a.at)).map(g => del(going(`《${g.title}》`, `${ymd(g.at)} · ${names(g.party.map(m => m.id))}`, () => playPage(g)), g)),
-    mt && going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); })].filter(Boolean);
-  const list = G.all().filter(g => g.done && !G.wrapping(g)).slice().reverse();
-  p.body.append(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => del(h('button.as-int-file', { onclick: () => readPage(g) },
-    h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, G.ENDS[g.done.kind] || '')), g))) : empty('还没有打完的局'));
+  // 点了从卷宗进去，返回时回到卷宗
+  const going = (title, sub, fn) => h('button.as-int-file', { onclick: fn }, h('b', title), h('small', sub), h('span.is-going', '进行中'));
+  // 长按：删掉（没打完的局、还没开局的车卡会也能删），从按的地方烧掉
+  const del = (el, title, drop) => { onLongPress(el, async e => { if (await dialog({ title: `删除${title}？`, text: '删了就找不回来了。', confirm: '删除', danger: true })) { await drop(); await burn(el, e.clientX, e.clientY); paint(); sync(); } }); return el; };
+  const sig = () => JSON.stringify([G.all().map(g => [g.id, !!g.done, G.wrapping(g)]), !!G.meetNow()]);
+  let was = '';
+  function paint() {
+    was = sig();
+    const mt = G.savedPick() ? G.meetNow() : null;
+    const ing = [...G.all().filter(g => !g.done || G.wrapping(g)).sort((a, b) => (b.seen || b.at) - (a.seen || a.at)).map(g => del(going(`《${g.title}》`, `${ymd(g.at)} · ${names(g.party.map(m => m.id))}`, () => playPage(g)), `《${g.title}》`, () => G.dropGame(g))),
+      mt && del(going(mt.lines ? '车卡会' : '车卡', `${ymd(mt.at)} · ${names(G.savedPick().party)}`, () => { resume(); cardPage(sync, true); }), mt.lines ? '这次车卡会' : '这次车卡', G.dropMeet)].filter(Boolean);
+    const list = G.all().filter(g => g.done && !G.wrapping(g)).slice().reverse();
+    p.body.replaceChildren(ing.length || list.length ? h('div.as-int-files', ...ing, ...list.map(g => del(h('button.as-int-file', { onclick: () => readPage(g) },
+      h('b', `《${g.title}》`), h('small', `${ymd(g.at)} · ${['你', ...g.party.map(m => nameOf(contact(m.id)) || m.name)].join('、')}`), h('span.is-' + g.done.kind, G.ENDS[g.done.kind] || '')), `《${g.title}》`, () => G.dropGame(g)))) : empty('还没有打完的局'));
+  }
+  paint(); p.el._onShow = () => { if (sig() !== was) paint(); };   // 回来时局有变（打完了、删了）才重排
   nav.push(p.el);
 }
 function readPage(g) {
@@ -966,13 +973,14 @@ function playPage(g) {
     }
   }
   // 落幕 → 复盘会（每局都开，作者定的）：找一次 AI 写好，大家回到书桌边聊边看每个人的结局，最后是黑匣子；看完才是成长和回桌
+  const backTo = () => nav.depth() > 2 ? '回到卷宗' : '回到桌上';   // 从卷宗点进来的回卷宗
   let reviewing = false;
   const playReview = () => { reviewing = true; scene('desk'); show(g.review.lines); };
   async function holdReview(card) {
     const row = h('div.as-int-wait', h('span.as-spin'), '　大家回到桌边…', btn('取消', 'secondary', G.cancel)); card.append(row);
     try { await (inflight = G.review(g)); row.replaceWith(h('div.as-int-row', btn('开复盘会', 'primary', playReview))); }
     catch (e) { if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', '复盘会没开成：' + e.message, e); toast('复盘会没开成：' + e.message); }
-      row.replaceWith(h('div.as-int-row', btn('开复盘会', 'primary', () => { card.lastChild.remove(); holdReview(card); }), btn('回到桌上', 'secondary', () => nav.pop()))); }
+      row.replaceWith(h('div.as-int-row', btn('开复盘会', 'primary', () => { card.lastChild.remove(); holdReview(card); }), btn(backTo(), 'secondary', () => nav.pop()))); }
   }
   // 看完复盘会：活着的人过一遍成长（只算一次），你的属性点在这里分，也能回车卡页再分
   const ending = () => {
@@ -984,7 +992,7 @@ function playPage(g) {
     const paint = list => box.replaceChildren(...(list || []).map(x => h('p', `${x.name}：${x.up.length ? x.up.join('、') : '技能没长'}${x.pts ? ` · 成长点 +${x.pts}` : ''}`)),
       ...(list || []).filter(x => x.me && (G.cardById(x.card) || {}).pend).map(x => btn(`分 ${G.cardById(x.card).pend} 成长点`, 'secondary', () => spendSheet(G.cardById(x.card), () => paint(g.grown)))));
     G.grow(g).then(() => paint(g.grown));
-    card.append(box, h('div.as-int-row', btn('再看复盘会', 'secondary', playReview), btn('回到桌上', 'primary', () => nav.pop())));
+    card.append(box, h('div.as-int-row', btn('再看复盘会', 'secondary', playReview), btn(backTo(), 'primary', () => nav.pop())));
     return card;
   };
   paintHud();
