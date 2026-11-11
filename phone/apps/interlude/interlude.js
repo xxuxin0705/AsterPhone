@@ -526,7 +526,7 @@ function cardPage(back, resume) {
   function paint() {
     const c = cur[sel];
     photo.replaceChildren(ownerFace(sel, 96));
-    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('div.as-int-row', btn('自己填一张', 'secondary', () => blank(sel)))); return; }
+    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('button.as-int-sheet-new', { onclick: () => blank(sel) }, '自己填一张')); return; }
     const set = (k, v) => { c[k] = v; saveLater(); };
     const line = (label, key, opts = {}) => field(label, input({ value: String(c[key] ?? ''), type: opts.type || 'text', onInput: v => set(key, opts.type ? +v : v) }));
     const jobB = h('button.as-int-job', { onclick: async () => {

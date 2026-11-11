@@ -99,8 +99,9 @@
 .as-int-derived { margin: 8px 0; font-size: 13px; }
 .as-int-hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: #8a3a1c; }
 .as-int-stars { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
-.as-int-sheet-empty + .as-int-row { justify-content: center; margin-top: -90px; }
-.as-int-sheet-empty + .as-int-row .as-btn { flex: none; padding: 0 22px; }
+/* 没卡：「自己填一张」就是字下面一行蓝字，和上面同字号同字体（作者定的，不要按钮） */
+.as-int-sheet-new { display: block; margin: -130px auto 0; padding: 4px 10px; border: 0; background: none; color: #3a6ea5; font: inherit; cursor: pointer; }
+.as-phone[data-mode="night"] .as-int-sheet-new { color: #8db4e2; }
 .as-int-row { display: flex; gap: 8px; }
 .as-int-row .as-btn { flex: 1; }
 .as-int-pts { font-size: 13px; margin-bottom: 6px; }
