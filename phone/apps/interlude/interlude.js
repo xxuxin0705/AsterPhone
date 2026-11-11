@@ -156,7 +156,7 @@ export function open() {
 
 /* ---------- 开屏（照重返未来 1999 的拍法，作者定的：一个特写镜头 → 黑场 → 主图甩进来 → 花体标题）：
  * 特写是一小段真的视频（作者用可灵从 GPT 的图生成的），主图、标题也是 GPT 画的。现在只有「雪夜列车」一套：
- * 包厢窗边的茶杯和台灯，对面一列车呼啸而过 → 像进了隧道一样全黑，黑里亮起一点车头灯 → 雪原上冲出隧道的列车 → Interlude · 幕间 + 开屏语。
+ * 包厢窗边的茶杯和台灯，对面一列车呼啸而过 → 像进了隧道一样全黑 → 一片横着的拖影扫过来，落定成雪原上冲出隧道的列车 → Interlude · 幕间 + 开屏语。
  * 视频放不出来（酒馆那边不给放、网慢）就跳过特写，直接从黑场开始 ---------- */
 // 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
 export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
@@ -166,17 +166,17 @@ async function splash(host) {
   const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
   const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
   const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const clip = h('video.as-int-sp__clip', { src: BASE + 'open-train.mp4', playsInline: true, preload: 'auto' }), art = img('open-train', '.as-int-sp__art');
-  const el = h('div.as-int-splash', clip, art, h('i.as-int-sp__lamp'), img('title', '.as-int-sp__title'), h('p.as-int-sp__line', line),
+  const clip = h('video.as-int-sp__clip', { src: BASE + 'open-train.mp4', playsInline: true, preload: 'auto' }), art = img('open-train', '.as-int-sp__art'), pan = img('open-train-pan', '.as-int-sp__pan');
+  const el = h('div.as-int-splash', clip, art, pan, img('title', '.as-int-sp__title'), h('p.as-int-sp__line', line),
     h('button.as-int-splash__skip', { onclick: e => { e.stopPropagation(); done(); } }, '跳过'));
   host.append(el);
   let dead = false; const timers = [];
   function done() { if (dead) return; dead = true; timers.forEach(clearTimeout); clip.pause(); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
   const at = (ms, fn) => timers.push(setTimeout(fn, ms));
   new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`).load().then(x => document.fonts.add(x)).catch(() => {});
-  // 黑场 → 车头灯亮起 → 主图甩进来、标题盖上（都是 CSS 里按 is-dark / is-open 排好的），之后点一下或等几秒进书桌
-  const reveal = () => { if (dead) return; clip.pause(); el.classList.add('is-dark'); at(520, () => { el.classList.add('is-open'); el.onclick = done; }); at(5200, done); };
-  await art.decode().catch(() => {});
+  // 黑场（什么都没有，像进了隧道）→ 主图甩进来、标题盖上（都是 CSS 里按 is-dark / is-open 排好的），之后点一下或等几秒进书桌
+  const reveal = () => { if (dead) return; clip.pause(); el.classList.add('is-dark'); at(380, () => { el.classList.add('is-open'); el.onclick = done; }); at(5200, done); };
+  await Promise.all([art.decode(), pan.decode()].map(x => x.catch(() => {})));
   if (dead) return;
   // 带声音放；不让响（没点过屏幕）就静音放；两秒还没放起来就不等了
   const wait = setTimeout(reveal, 2000);
