@@ -495,7 +495,7 @@ function cardPage(back, resume) {
       if (vac === ac) { vac = null; voiceB.set(); }
     }
     // 亮卡那几句带着 o：卡片一直摆在上面，换人才换
-    const say = l => { hush(); now = l; const id = idOf(l.who);
+    const say = (l, quiet) => { hush(); now = l; const id = idOf(l.who);
       if (id !== lastId) { lastId = id; face.replaceChildren(faceOf(id)); }
       nameT.textContent = l.who === 'KP' && kpc ? `${nameOf(kpc)} · KP` : id === 'me' ? '你' : l.who;
       if ((shelf.dataset.o || '') !== (l.o || '')) { shelf.dataset.o = l.o || ''; const c = l.o && cardOf(l.o);
@@ -504,7 +504,7 @@ function cardPage(back, resume) {
       // 台词不是中文的：中文当大字，原文小字放下面（作者读中文；念的还是原文）
       actT.textContent = plain(l.act); sayT.textContent = plain(l.zh || l.say); zhT.textContent = l.zh ? plain(l.say) : '';
       actT.hidden = !l.act; sayT.hidden = !l.say; zhT.hidden = !l.zh; voiceB.hidden = !l.say; backB.hidden = seen.length < 2; more.hidden = !queue.length;
-      if (l.say && vmode !== 'tap') voice(); };
+      if (l.say && vmode !== 'tap' && !quiet) voice(); };   // quiet：再进来停在最后一句时不自己念（作者定的，念过一次就够了）
     function next() { if (!queue.length) return; seen.push(queue.shift()); say(seen.at(-1)); if (!queue.length) end(); }
     function back() { if (seen.length < 2) return; queue.unshift(seen.pop()); say(seen.at(-1)); act.hidden = true; }
     const play = lines => { queue.push(...lines); act.hidden = true; next(); };
@@ -529,7 +529,7 @@ function cardPage(back, resume) {
       if (passed && !shown) { shown = true; showAll('me'); } };
     const gls = glass(box, q.el, BASE + (document.querySelector('.as-phone')?.dataset.mode === 'night' ? 'desk-night' : 'desk-day') + '.webp', ['rgba(10,14,24,.2)', 'rgba(10,14,24,.65)']);
     q.el._onLeave = () => { hush(); gls.dispose(); };
-    if (again) { seen = m.lines.slice(); say(seen.at(-1)); end(); } else play(m.lines);
+    if (again) { seen = m.lines.slice(); say(seen.at(-1), true); end(); } else play(m.lines);
     nav.push(q.el);
     if (submit && cur.me) give.click();
   }
