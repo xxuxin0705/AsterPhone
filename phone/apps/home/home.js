@@ -23,7 +23,7 @@ export function initHome() {
   wTime = h('div.as-home-widget__time'); wDate = h('div.as-home-widget__date'); wSub = h('div.as-home-widget__sub');
   wMsg = h('div.as-home-widget__msg', { role: 'button', tabindex: 0, hidden: true });
   const widget = h('div.as-home-widget', wTime, wDate, wSub, wMsg);
-  const appBtn = a => h('button.as-home-app', { dataset: { asApp: a.id }, 'aria-label': a.name, onclick: e => shell.openApp(a.id, { from: e.currentTarget.querySelector('.as-home-app__icon') }) },
+  const appBtn = a => h('button.as-home-app', { dataset: { asApp: a.id }, 'aria-label': a.name, onpointerdown: () => shell.preload(a.id), onclick: e => shell.openApp(a.id, { from: e.currentTarget.querySelector('.as-home-app__icon') }) },
     h('span.as-home-app__icon', a.img ? h('img', { src: a.img, alt: '' }) : icon(a.icon, 28, 1.7)), h('span.as-home-app__name', a.name));
   homeEl.append(widget, h('div.as-home-grid', APPS.map(appBtn)));
   setInterval(renderWidget, 1000);

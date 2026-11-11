@@ -32,7 +32,7 @@ const pick = { scenario: 'random', ask: '', mood: 'serious', run: 'script', fill
 const MAX_SEATS = 8;
 const langs = () => Object.fromEntries([pick.kp, ...pick.party].filter(id => id !== 'sys').map(id => [id, pick.lang[id] || G.langOf(id)]));
 // 这一桌的设置：车卡会 / 团公告照它认（换了人、本、车卡方式就作废）；pick 跟着存进去，退出、刷新后回来能接上
-const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, run: pick.run, fill: pick.fill, mode: pick.fill === 'ai' ? pick.mode : 'self', use: pick.use, note: pick.note,
+const table = () => ({ kp: pick.kp, party: pick.party, scenario: pick.scenario, ask: pick.ask, mood: pick.mood, run: pick.run, fill: pick.fill, mode: pick.fill === 'ai' ? pick.mode : 'self', use: pick.use, note: pick.fill === 'ai' ? pick.note : '',
   meet: !!pick.meet, speak: pick.speak, lang: langs(), pick: JSON.parse(JSON.stringify(pick)) });
 let restored = false;
 const kpOk = () => pick.kp === 'sys' || !!contact(pick.kp);
@@ -281,11 +281,11 @@ function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页�
   const askF = field('要求', ask); askF.hidden = pick.scenario !== 'random';
   // 车卡会、车卡方式：开车卡会先定大家统一用新卡、旧卡还是随机；用旧卡就不用选车卡方式
   const useF = field('用新卡还是旧卡', segmented(G.USES, pick.use, v => { pick.use = v; paintMeet(); })), modeF = field('车卡方式', segmented(G.MODES, pick.mode, v => { pick.mode = v; }));
-  const paintMeet = () => { useF.hidden = !pick.meet; modeF.hidden = pick.fill !== 'ai' || pick.meet && pick.use === 'old'; };
+  const paintMeet = () => { useF.hidden = !pick.meet; modeF.hidden = pick.fill !== 'ai' || pick.meet && pick.use === 'old'; noteF.hidden = pick.fill !== 'ai'; };   // 车卡方式、车卡补充是说给 AI 听的
   const fillF = field('车卡', segmented([['self', '自己车'], ['ai', 'AI 车']], pick.fill, v => { pick.fill = v; paintMeet(); }));
   const modeBox = h('div', fillF, group('', [item({ title: withInfo('车卡会', '开局前大家边车卡边聊，KP 定下规矩；你的卡自己交给 KP 审。'), right: switchEl(pick.meet, v => { pick.meet = v; paintMeet(); }, '车卡会') })]), useF, modeF);
-  paintMeet();
   const noteF = field('车卡补充', textarea({ value: pick.note, rows: 2, placeholder: '想怎么车卡', onInput: v => { pick.note = v.trim(); } }));
+  paintMeet();
   const mood = segmented(R.MOODS, pick.mood, v => { pick.mood = v; });
   const run = segmented([['script', '剧本'], ['free', '自由']], pick.run, v => { pick.run = v; });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));

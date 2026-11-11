@@ -32,11 +32,11 @@ export function openApp(el, rect, app) {
     const tx = rect.left - pr.left, ty = rect.top - pr.top;
     el.style.transformOrigin = '0 0';
     el.style.transform = `translate(${tx}px, ${ty}px) scale(${sx}, ${sy})`;
-    el.style.borderRadius = '40px'; el.style.opacity = '0';
+    el.style.borderRadius = '40px'; el.style.opacity = '.01';   // 不是 0：让浏览器先把这页画好
     el.getBoundingClientRect();
-    el.classList.add('is-zooming');
-    requestAnimationFrame(() => { el.style.transform = ''; el.style.borderRadius = ''; el.style.opacity = ''; });
-    setTimeout(() => el.classList.remove('is-zooming'), 480);
+    // 等这页第一次画完（两帧）再开始放大：页面重的 App（音乐、聊天）第一帧要画很久，不等的话动画的时间全耗在里面，看起来就是卡一下直接出现
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('is-zooming'); el.style.transform = ''; el.style.borderRadius = ''; el.style.opacity = '';
+      setTimeout(() => el.classList.remove('is-zooming'), 480); }));
   } else {
     el.classList.add('is-fading'); requestAnimationFrame(() => el.classList.remove('is-fading'));
   }

@@ -215,6 +215,12 @@
   -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); }
 .as-mp__lrc::-webkit-scrollbar { display: none; }
 .as-mp.is-lrc .as-mp__lrc { opacity: 1; visibility: visible; }
+/* 手滑歌词时中间那条线：时间 —— ▶ */
+.as-mp__seek { position: absolute; left: 6px; right: 6px; height: 0; display: flex; align-items: center; gap: 8px; color: rgba(var(--mp-ink),.7); font: 500 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; pointer-events: none; }
+.as-mp__seek[hidden] { display: none; }
+.as-mp__seek i { flex: 1; height: 1px; background: rgba(var(--mp-ink),.14); }
+.as-mp__seek button { pointer-events: auto; width: 36px; height: 36px; margin: -18px 0; display: grid; place-items: center; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.as-mp__lrc p.is-aim { color: rgba(var(--mp-ink),.85); }
 .as-mp__lrc::before, .as-mp__lrc::after { content: ''; display: block; height: 45%; }
 .as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--ly-font, var(--font-ui)); color: rgba(var(--mp-ink),.42); transition: color 200ms; }
 .as-mp__lrc small { display: block; margin-top: 4px; font-size: 14px; }

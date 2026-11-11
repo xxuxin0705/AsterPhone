@@ -6,6 +6,7 @@ import { state, commit, contact, kvGet, kvSet, kvDel } from '../../core/store.js
 import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
+import { shell } from '../../core/shell.js';
 import { log } from '../../core/log.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
@@ -126,17 +127,33 @@ function openAllChars() {
   let picked = null;
   const cards = () => grid.querySelectorAll('.as-mu-sq');
   const mark = () => cards().forEach(el => el.classList.toggle('is-picked', picked.has(el.dataset.id)));
+  // 勾上的人一个接一个让 AI 挑歌（一人找一次 AI）；挑着的时候这个按钮是「取消挑歌」，退出再进来也是
+  const aiB = h('button', { onclick: async () => {
+    if (batch) { batch.abort(); return; }
+    const who = charList().filter(c => picked.has(c.id) && !picking[c.id]); if (!who.length) { toast('先勾上要挑歌的人'); return; }
+    const ac = batch = new AbortController(), wait = { label: '取消', fn: () => ac.abort(), wait: true }; pick(false);
+    let got = 0, bad = 0;
+    for (const [i, c] of who.entries()) {
+      if (ac.signal.aborted) break;
+      const at = `${nameOf(c)}（${i + 1} / ${who.length}）`; picking[c.id] = ac; toast(`${at}正在挑歌…`, wait);
+      try { got += (await P.charPick(c, (n, all) => toast(`${at}找歌 ${n} / ${all}`, wait), ac.signal)).got.length; }
+      catch (err) { if (!ac.signal.aborted) { bad++; log('error', '角色歌单', `${nameOf(c)}：${err.message}`, err); } }
+      delete picking[c.id]; const v = charViews[c.id]; if (v) { v.ai.textContent = 'AI 挑歌'; v.paint(); }
+      const el = [...document.querySelectorAll('.as-mu-grid .as-mu-sq')].find(x => x.dataset.id === c.id), n = P.charSongs(c).length; if (el && n) el.lastChild.textContent = `${P.charLists(c).length} 个歌单 · ${n} 首`;
+    }
+    batch = null; toast(ac.signal.aborted ? '已取消' : `加了 ${got} 首` + (bad ? `，${bad} 人没挑成` : ''), bad ? { label: '查看日志', fn: () => shell.openApp('log') } : undefined);
+  } });
   const bar = h('div.as-mu-pickbar',
     h('button', { onclick: () => { picked = new Set(picked.size < state.contacts.length ? state.contacts.map(c => c.id) : []); mark(); } }, '全选'),
     h('button.is-main', { onclick: () => {
       const ids = [...picked];
       M().storySongs = ids.length > 0; M().storyWho = ids.length === state.contacts.length ? null : ids; commit('music'); commit('inject');
       toast(ids.length ? `${ids.length} 人会随剧情加歌` : '关掉了随剧情加歌'); pick(false); paintBar();
-    } }, '随剧情加歌'),
+    } }, '随剧情加歌'), aiB,
     h('button', { onclick: () => pick(false) }, '取消'));
   function pick(on) {
     picked = on ? new Set(state.contacts.filter(storyOn).map(c => c.id)) : null;
-    grid.classList.toggle('is-picking', on); if (on) { mark(); p.el.append(bar); } else bar.remove();
+    grid.classList.toggle('is-picking', on); if (on) { mark(); aiB.textContent = batch ? '取消挑歌' : 'AI 挑歌'; p.el.append(bar); } else bar.remove();
   }
   grid.addEventListener('click', e => { const el = picked && e.target.closest('.as-mu-sq'); if (!el) return; e.stopPropagation(); picked.has(el.dataset.id) ? picked.delete(el.dataset.id) : picked.add(el.dataset.id); mark(); }, true);
   p.body.append(h('div.as-mu-story', label, h('span.as-mu-story__r', freq, h('button.as-mu-chip', { onclick: () => pick(!picked) }, '选择'))), grid);
@@ -215,6 +232,7 @@ function multiPick(host, box, all, del) {
   };
 }
 // 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
+let batch = null;   // 一批人挨个挑歌时的那个「取消」
 const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
 function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
@@ -889,6 +907,20 @@ export function openPlayer() {
   const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, fx, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
+  // 手滑歌词：中间出一条线，左边是滑到的那句的时间，点右边的 ▶ 从那句开始放；三秒不动就收起来、歌词滚回正在唱的
+  let aim = -1, seekT = 0;
+  const seekAt = h('span'), seekEl = h('div.as-mp__seek', { hidden: true, onclick: e => e.stopPropagation() }, seekAt, h('i'),
+    h('button', { 'aria-label': '从这句开始放', onclick: () => { const x = P.lyricsNow()[aim]; if (x) P.seek(x.t); touched = 0; unseek(); } }, icon('play', 16, 2.4)));
+  main.append(seekEl);
+  const unseek = () => { clearTimeout(seekT); seekEl.hidden = true; lines[aim]?.classList.remove('is-aim'); aim = -1; li = -2; if (!P.playing()) tick(); };
+  lrc.addEventListener('scroll', () => {
+    if (Date.now() - touched > 3000 || lrc.classList.contains('is-choir') || !P.lyricsNow().length) return;
+    touched = Date.now(); clearTimeout(seekT); seekT = setTimeout(unseek, 3000);
+    const mid = lrc.scrollTop + lrc.clientHeight / 2; let k = 0, best = 1e9;
+    lines.forEach((el, i) => { const d = Math.abs(el.offsetTop + el.offsetHeight / 2 - mid); if (d < best) { best = d; k = i; } });
+    seekEl.style.top = lrc.offsetTop + lrc.clientHeight / 2 + 'px'; seekEl.hidden = false;
+    if (k !== aim) { lines[aim]?.classList.remove('is-aim'); aim = k; lines[k].classList.add('is-aim'); seekAt.textContent = fmt(P.lyricsNow()[k].t); }
+  }, { passive: true });
   // 点歌手名：去歌手页（几位合唱就先选一位；「RESCENE (리센느)」这种括号里的别名不带上，不然搜不到）
   const artistName = h('span', { role: 'button', onclick: async e => {
     e.stopPropagation();

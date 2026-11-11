@@ -4,6 +4,7 @@ export const shell = {
   wallpaper: null,      // Wallpaper 实例
   visible: true,        // 手机此刻是否打开着（装在酒馆里时，收起来就是 false）
   openApp: (id, opts) => {},
+  preload: id => {},    // 手指一按下图标就先读这个 App 的代码，抬手时少等一会儿
   close: () => {},
   applyLook: () => {},  // 外观、状态栏、字号改了之后刷新
   setNight: (night, originEl) => {},

@@ -95,7 +95,7 @@ let pauseT = 0;
 function onStackChange(depth) {
   phone.classList.toggle('has-app', depth > 0);
   clearTimeout(pauseT);
-  if (depth > 0) pauseT = setTimeout(() => { if (nav.depth() > 0 && !isLocked()) wallpaper.pause(); }, 520);
+  if (depth > 0) { if (!isLocked()) wallpaper.pause(); }   // App 一打开就停动态壁纸：放大的那半秒它还在画的话会抢着用，动画就卡
   else { if (shell.visible) wallpaper.resume(); setCurrent(isLocked() ? 'lock' : 'home'); shell.activeChat = null; }
 }
 
@@ -213,7 +213,7 @@ async function boot() {
   applySkins();
   wallpaper = new Wallpaper({ gl: $('#gl'), fx: $('#fx'), host: phone, base: 'assets/wallpapers/' });
   Object.assign(shell, {
-    phone, wallpaper, openApp, close: closePhone, applyLook, ding, setNight: (n, el) => setNight(n, el), notify,
+    phone, wallpaper, openApp, preload: id => { APP_LOADERS[id] && APP_LOADERS[id]().catch(() => {}); }, close: closePhone, applyLook, ding, setNight: (n, el) => setNight(n, el), notify,
     lockNow: () => onVisible(false), showWall, refreshBadges: () => { renderNotices(); renderBadges(); sendUnread(); }, sendToParent: postToParent,
     wantNight, activeChat: null, inDnd,
   });
