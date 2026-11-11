@@ -346,13 +346,13 @@
 .as-ck__glow { position: absolute; inset: -6%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, currentColor 30%, transparent), color-mix(in srgb, currentColor 10%, transparent) 70%, transparent); }
 .as-ck__wheel { position: absolute; left: var(--cx); top: 50%; width: 0; height: 0; }
 .as-ck__l { position: absolute; left: 0; top: 0; margin: 0; width: 196px; transform-origin: 0 0; transform: rotate(var(--a, 90deg)) translate(var(--R), -50%); text-align: left; transition: transform 700ms var(--as-ease-standard), opacity 400ms;
-  font: 500 13px/1.35 var(--ly-font, var(--font-ui)); color: rgba(var(--mp-ink),.42); text-shadow: var(--sh, 0 1px 4px rgba(0,0,0,.35)); }
+  font: 500 13px/1.35 var(--ly-font, var(--font-ui)); color: rgba(var(--mp-ink),.42); }
 .as-ck__l small { display: block; margin-top: 2px; font-size: 10.5px; opacity: .8; }
 .as-ck__l:not(.is-cur) > *, .as-ck__l:not(.is-cur) small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }   /* 没唱到的只占一行，长的打省略号 */
 .as-ck__l:not(.is-cur) > span { display: block; }
 .as-ck__l.is-far { opacity: 0; }
 .as-ck__l.is-cur { font-size: 17px; font-weight: 600; }
-.as-ck__l.is-cur > span, .as-ck__l.is-cur small { background: linear-gradient(90deg, var(--ly, rgb(var(--mp-ink))) var(--p, 0%), color-mix(in srgb, rgb(var(--mp-ink)) 62%, transparent) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.as-ck__l.is-cur > span, .as-ck__l.is-cur small { background: linear-gradient(90deg, var(--ly, rgb(var(--mp-ink))) var(--p, 0%), var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper))) var(--p, 0%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .as-ck__l.is-cur small { color: var(--ly, rgb(var(--mp-ink))); background: none; -webkit-background-clip: border-box; opacity: .85; }
 .as-fx__cur { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 7px; font: 600 28px/1.35 var(--ly-font, var(--font-ui)); }   /* 字之间留够空，歪了也不粘在一起 */
 .as-fx__cur.is-tr { margin-top: 22px; gap: 4px 3px; font: 400 16px/1.4 var(--ly-font, var(--font-ui)); }
@@ -385,16 +385,16 @@
 .as-mp.has-bg .as-ch.is-cur span { text-shadow: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
 /* 描边（歌词设置里选，普通歌词、碎语都管；下雨天在 rain.js 里画）：描边 = 字边上一圈实线，浅字描深的、深字描白的（自己选了描边颜色就用它）；发光 = 跟字同色的淡光；不加 = 都没有。
  * 实线是八个方向各挪 0.6px 的硬影子拼出来的（要细：中文笔画密，边粗一点字就糊成一团）；渐变填色的那句 text-shadow 会盖住填色，只能用 drop-shadow，所以另备一份 --ds（四个方向，filter 贵）。描边时字距稍松一点，不挤 */
-.as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --sh: 0 0 transparent; --ds: none; --ls: 0; }   /* 默认不加 */
+.as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --sh: 0 0 transparent; --ds: none; --ls: 0; --ew: .6px; --ed: calc(var(--ew) * .75); }   /* 默认不加；--ew 描边粗细（歌词设置里拉） */
 .as-mp.is-day { --halo: rgba(255,255,255,.9); }
 .as-mp.is-shade-edge { --ls: .03em;
-  --sh: .6px 0 0 var(--ec), -.6px 0 0 var(--ec), 0 .6px 0 var(--ec), 0 -.6px 0 var(--ec), .45px .45px 0 var(--ec), -.45px .45px 0 var(--ec), .45px -.45px 0 var(--ec), -.45px -.45px 0 var(--ec);
-  --ds: drop-shadow(.7px 0 0 var(--ec)) drop-shadow(-.7px 0 0 var(--ec)) drop-shadow(0 .7px 0 var(--ec)) drop-shadow(0 -.7px 0 var(--ec)); }
+  --sh: var(--ew) 0 0 var(--ec), calc(-1 * var(--ew)) 0 0 var(--ec), 0 var(--ew) 0 var(--ec), 0 calc(-1 * var(--ew)) 0 var(--ec), var(--ed) var(--ed) 0 var(--ec), calc(-1 * var(--ed)) var(--ed) 0 var(--ec), var(--ed) calc(-1 * var(--ed)) 0 var(--ec), calc(-1 * var(--ed)) calc(-1 * var(--ed)) 0 var(--ec);
+  --ds: drop-shadow(var(--ew) 0 0 var(--ec)) drop-shadow(calc(-1 * var(--ew)) 0 0 var(--ec)) drop-shadow(0 var(--ew) 0 var(--ec)) drop-shadow(0 calc(-1 * var(--ew)) 0 var(--ec)); }
 .as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); }
-.as-mp__lrc p.is-cur, .as-fx__cur { letter-spacing: var(--ls); }
+.as-mp__lrc p.is-cur, .as-fx__cur, .as-ck__l.is-cur { letter-spacing: var(--ls); }
 /* 整句一份；没在唱的那几行不描边 */
 .as-fx__cur span { text-shadow: var(--sh); }
-.as-mp__lrc p.is-cur span { filter: var(--ds); }
+.as-mp__lrc p.is-cur span, .as-ck__l.is-cur > * { filter: var(--ds); }
 .as-mp.has-bg:not(.is-light) :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg:not(.is-light) .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */
 .as-cm .as-page__body { padding: 0 0 120px; background: var(--mu-card); }
@@ -705,3 +705,16 @@
 .as-mu-follow { display: grid; place-items: center; color: #fff; filter: drop-shadow(0 0 1px rgba(0,0,0,.6)); }
 .as-mu-follow.is-on { outline: 2px solid var(--as-color-accent); outline-offset: 2px; }
 .as-mu-follow + .as-mu-follow { margin-right: 4px; }   /* 和后面的普通色块隔开一点 */
+/* 按钮颜色：预览条垫着背景放真的按钮；「自动」、吸管、背景里的颜色一排；吸管取色时盖在播放页上的一层 + 手指上方的放大圆 */
+.as-mu-btnpv { position: relative; overflow: hidden; display: flex; justify-content: space-around; align-items: center; margin: 0 4px 6px; padding: 20px 10px; border-radius: 16px; background: #2b3138; }
+.as-mu-btnpv i { position: absolute; inset: -20px; background: center / cover; }
+.as-mu-btnpv svg { position: relative; }
+.as-mu-btnpv svg:nth-of-type(n+2):nth-of-type(-n+4) { fill: currentColor; }
+.as-mu-bgsw { display: flex; align-items: center; gap: 10px; margin: 0 2px; }
+.as-mu-bgsw .as-wheel__swatch { width: 26px; height: 26px; }
+.as-mu-bgsw .is-on { outline: 2px solid var(--as-color-accent); outline-offset: 2px; }
+.as-mu-auto { height: 26px; padding: 0 12px; border: 0; border-radius: 13px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 13px/1 var(--font-ui); cursor: pointer; }
+.as-mu-drop { flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: var(--as-color-surface-2); color: var(--as-color-text); display: grid; place-items: center; cursor: pointer; }
+.as-mu-dropper { position: absolute; inset: 0; z-index: 30; touch-action: none; cursor: crosshair; }
+.as-mu-lens { display: none; position: absolute; width: 46px; height: 46px; margin: -86px 0 0 -23px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.45); pointer-events: none; }
+.as-mu-dropper.is-on .as-mu-lens { display: block; }

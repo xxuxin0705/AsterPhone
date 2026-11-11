@@ -25,6 +25,7 @@ export function clockFx(el) {
   el.className = 'as-mp__fx is-clock';
   el.replaceChildren(dial, wheel);
   let rows = [], lastL = null, cur = -1, dirty = false;
+  new ResizeObserver(() => dirty && lay()).observe(el);   // 停着的时候打开播放页，没有下一帧来补排，看得见了就排
   return {
     kind: 'clock',
     line(L, i) {

@@ -348,7 +348,7 @@ function searchIn(title, body, host, add) {
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }, { value: 'btn', label: '播放页按钮颜色', icon: 'palette' }]); if (v === 'btn') btnColor(); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const en = () => (M().lang || clockCfg().lang) === 'en';   // 关注、粉丝、听歌时长：应用管理里选了就照它，没选跟着锁屏时间的语言
   const paintHeard = () => { hearEl.textContent = heard(en()); };
@@ -484,12 +484,6 @@ async function qqLogin(after) {
 async function openDaily() {
   try { const L = await waiting('正在读每日推荐…', () => P.neDaily()); if (!L) return; toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
   catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
-}
-/* ---------- 播放页按钮（播放、上一首、分享这些）的颜色：自动 = 背景亮就用黑的、暗就用白的；也能自己挑（作者要的，放在主页「更多」里） ---------- */
-function btnColor() {
-  const wheel = colorWheel(M().btn || '#ffffff', c => { M().btn = c; commit('music'); });
-  wheel.hidden = !M().btn;
-  sheet({ title: '播放页按钮颜色', content: h('div.as-mu-color', segmented([['auto', '自动'], ['own', '自己挑']], M().btn ? 'own' : 'auto', v => { M().btn = v === 'own' ? M().btn || '#ffffff' : ''; wheel.hidden = v !== 'own'; commit('music'); }), wheel) });
 }
 /* ---------- 歌词悬浮窗的设置（显示在哪、字体、颜色、大小、固定） ---------- */
 async function openFloat() {
@@ -1026,6 +1020,7 @@ export function openPlayer() {
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
     ['edge', 'glow'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
     S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
+    S.ew ? p.el.style.setProperty('--ew', S.ew + 'px') : p.el.style.removeProperty('--ew'); R.ew(S.ew);
     // 表盘：'' 跟着唱到的字，'@dim' 跟着没唱的字（改歌词颜色时一起变），#rrggbb 自己挑的
     S.clock ? p.el.style.setProperty('--clk', S.clock === '@dim' ? 'var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper)))' : S.clock) : p.el.style.removeProperty('--clk');
     // 字体装好了再换，不会先闪一下别的字
@@ -1092,13 +1087,63 @@ export function openPlayer() {
     const go = () => { if (!hidden()) tick(); if (P.playing() && !p.el.classList.contains('is-behind')) raf = requestAnimationFrame(go); };   // 手机收起 / 锁着时不动歌词，省得白忙
     go();
   }
+  // 背景图照屏幕上的样子画到一张小画布上（三分之一大小），给按钮取色用；别的网站的图读不了就是 null
+  const shot = () => new Promise(ok => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { try {
+      const r = bg.getBoundingClientRect(), W = Math.max(1, Math.round(r.width / 3)), H = Math.max(1, Math.round(r.height / 3)), k = Math.max(W / im.width, H / im.height), x = h('canvas', { width: W, height: H }).getContext('2d', { willReadFrequently: true });
+      x.filter = (getComputedStyle(bg).filter.match(/brightness\([^)]*\)/) || ['none'])[0];
+      x.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k);
+      ok({ x, r, d: x.getImageData(0, 0, W, H) });
+    } catch { ok(null); } };
+    im.onerror = () => ok(null); im.src = toneOf;
+  });
+  const hex = (d, i) => '#' + [0, 1, 2].map(k => d[i + k].toString(16).padStart(2, '0')).join('');
+  // 背景里最多的几种颜色（相近的算一种），取五个
+  const palette = ({ d: { data: d } }) => {
+    const m = new Map();
+    for (let i = 0; i < d.length; i += 16) { const key = d[i] >> 5 << 6 | d[i + 1] >> 5 << 3 | d[i + 2] >> 5, b = m.get(key) || [0, 0, 0, 0]; b[0] += d[i]; b[1] += d[i + 1]; b[2] += d[i + 2]; b[3]++; m.set(key, b); }
+    const out = [];
+    for (const b of [...m.values()].sort((a, c) => c[3] - a[3])) {
+      const c = b.slice(0, 3).map(v => Math.round(v / b[3]));
+      if (out.every(o => Math.hypot(o[0] - c[0], o[1] - c[1], o[2] - c[2]) > 60)) out.push(c);
+      if (out.length === 5) break;
+    }
+    return out.map(c => hex(c, 0));
+  };
+  // 按钮颜色（在样式里，挨着歌词设置）：上面一条预览垫着背景，放真的按钮；「自动」= 背景亮就黑、暗就白；吸管 + 背景里的五种颜色；下面色盘。
+  // 吸管：抽屉先收起来，手指在播放页上按住挪，放手取那一点背景的颜色，再把抽屉打开
+  async function btnSheet() {
+    const s = await shot();
+    const pv = h('div.as-mu-btnpv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), ...[mode()[2], 'prev', P.playing() ? 'pause' : 'play', 'next', 'list'].map(n => icon(n, 22, 1.8)));
+    const set = c => { M().btn = c; commit('music'); paintInk(); paint(); };
+    const auto = h('button.as-mu-auto', { type: 'button', onclick: () => set('') }, '自动');
+    const drop = h('button.as-mu-drop', { type: 'button', 'aria-label': '吸管', onclick: () => { if (!s) { toast('这张背景读不了颜色'); return; } sh.close(); dropper(s); } }, icon('drop', 16, 1.8));
+    const sws = s ? palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } })) : [];
+    const mk = () => colorWheel(M().btn || '#ffffff', set);
+    let wheel = mk();
+    const paint = () => { pv.style.color = M().btn || getComputedStyle(playBtn).color; auto.classList.toggle('is-on', !M().btn); sws.forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M().btn)); };
+    paint();
+    const sh = sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, h('div.as-mu-bgsw', auto, drop, ...sws), wheel) });
+  }
+  function dropper(s) {
+    const lens = h('i.as-mu-lens'), cover = h('div.as-mu-dropper', { dataset: { noSwipe: '' } }, lens), { r, d: { data, width: W, height: H } } = s;
+    const at = e => { const x = Math.min(W - 1, Math.max(0, Math.round((e.clientX - r.left) / 3))), y = Math.min(H - 1, Math.max(0, Math.round((e.clientY - r.top) / 3))), c = hex(data, (y * W + x) * 4), b = p.el.getBoundingClientRect();
+      lens.style.left = e.clientX - b.left + 'px'; lens.style.top = e.clientY - b.top + 'px'; lens.style.background = c; return c; };
+    cover.addEventListener('pointerdown', e => { cover.setPointerCapture(e.pointerId); cover.classList.add('is-on'); at(e); });
+    cover.addEventListener('pointermove', e => { if (cover.hasPointerCapture(e.pointerId)) at(e); });
+    cover.addEventListener('pointerup', e => { M().btn = at(e); commit('music'); paintInk(); cover.remove(); btnSheet(); });
+    p.el.append(cover);
+    toast('按住要取色的地方，松手就选好', { label: '取消', fn: () => { if (cover.isConnected) { cover.remove(); btnSheet(); } } });
+  }
   async function skin() {
-    const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' };
+    const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' }, btnC = { value: 'btn', label: '按钮颜色', icon: 'play' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
-    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
+    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, btnC, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
-        { value: 'cad', label: '碎语', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, color]);
+        { value: 'cad', label: '碎语', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, color, btnC]);
     if (!v) return;
+    if (v === 'btn') { btnSheet(); return; }
     if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
@@ -1115,11 +1160,12 @@ export function openPlayer() {
       const ckWheel = colorWheel(/^#/.test(S.clock || '') ? S.clock : S.color || '#7cc4ff', c => { S.clock = c; markF(); change(); });
       ckWheel.firstChild.prepend(...follows); markF();
       const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), ckWheel], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
-      const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, edgeWheel); edgeWheel.hidden = !S.shade;
+      const ewRow = h('div.as-settings-slider-row', h('span', '粗细'), slider({ min: .3, max: 1.6, step: .1, value: S.ew || .6, onInput: v => { S.ew = v; change(); } }));
+      const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; ewRow.hidden = k !== 'edge'; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, ewRow, edgeWheel); edgeWheel.hidden = !S.shade; ewRow.hidden = S.shade !== 'edge';
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
       const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边'], ...S.name === 'clock' ? [['clock', '表盘']] : []], 'color', k => { wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim', 'clock'][i]; }); edgeBox.hidden = k !== 'edge'; }), ...wheels, edgeBox, fontRow,
-        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = S.clock = ''; commit('music'); paintColor(); sh.close(); })) });
+        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = S.clock = ''; S.ew = 0; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
     if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }

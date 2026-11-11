@@ -13,7 +13,7 @@ export const hidden = () => { const p = document.querySelector('.as-phone'); ret
 
 export function rain(cv, page) {
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '', edge = '', face = FONT;   // shade：'' 不加 / 'edge' 描边 / 'glow' 发光；edge：自己选的描边颜色（'r,g,b'）；face：字体
+  let W = 0, H = 0, ground = 0, raf = 0, last = 0, night = true, drops = [], rips = [], bits = [], lines = new Map(), forL = null, tint = '', shade = '', edge = '', ew = .6, face = FONT;   // shade：'' 不加 / 'edge' 描边 / 'glow' 发光；edge：自己选的描边颜色（'r,g,b'）；ew：描边粗细；face：字体
   // tint：自己选的歌词颜色（'r,g,b'），字、字的光、水纹都换成它；没选就是白天 / 夜里各自的颜色
   const col = (n, d) => a => `rgba(${tint || (night ? n : d)},${a})`;
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
@@ -139,7 +139,7 @@ export function rain(cv, page) {
       const fade = pop < 0 ? 0 : Math.min(1, pop / (n * GAP + POP));
       // 翻译的字跟着对应的歌词字一起掉，落在倒影下面（不压着倒影）；换句时整句淡掉
       ctx.font = `400 ${TR}px ${face}`;
-      ctx.textAlign = 'center'; ctx.shadowColor = edge ? halo(.8) : glow(.8); ctx.shadowBlur = shade === 'glow' ? 6 : 0; ctx.lineWidth = 1.1; ctx.lineJoin = 'round';
+      ctx.textAlign = 'center'; ctx.shadowColor = edge ? halo(.8) : glow(.8); ctx.shadowBlur = shade === 'glow' ? 6 : 0; ctx.lineWidth = ew * 1.8; ctx.lineJoin = 'round';
       const al = (night ? .88 : .7) * (1 - fade);
       for (const c of lay.trc) {
         const q = (t - (c.at - FALL)) / FALL; if (q <= 0) continue;
@@ -166,7 +166,7 @@ export function rain(cv, page) {
     if (sq <= 0) return;
     ctx.save(); ctx.translate(cx, y); ctx.rotate(rot); ctx.scale(1 + (1 - sq) * .25, sq); ctx.textAlign = 'center';
     ctx.fillStyle = ink(a * sq); ctx.shadowBlur = 0;
-    if (shade === 'edge') { ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
+    if (shade === 'edge') { ctx.lineWidth = ew * 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = halo(a); ctx.strokeText(t, 0, 0); }   // 描边：字边上一圈实线
     else if (shade === 'glow') { ctx.shadowColor = edge ? halo(.8 * a) : glow(.7 * a); ctx.shadowBlur = 10; }
     ctx.fillText(t, 0, 0);
     ctx.restore();
@@ -178,6 +178,7 @@ export function rain(cv, page) {
 
   return {
     shade(v) { shade = v || ''; },
+    ew(v) { ew = v || .6; },
     edge(hex) { edge = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
     font(f) { const v = f ? `${f}, ${FONT}` : FONT; if (v !== face) { face = v; lines.clear(); } },   // 换了字体才重新排
     color(hex) { tint = hex ? [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)).join(',') : ''; },
