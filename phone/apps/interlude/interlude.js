@@ -41,12 +41,13 @@ let ac = null;   // 白噪音用的（和电台一样是程序算出来的）   
 const failed = (e, what) => { if (e.message === '已中止') toast('已取消'); else { if (!e.logId) log('error', '幕间', what + '：' + e.message, e); toast(what + '：' + e.message); } };
 
 /* ---------- 书桌 ---------- */
-// 图上的位置（原图 1024×1536 的像素）：[左, 上, 右, 下]；椅子多两个数是头像坐的位置。第一把（远端正对着你的主位）是 KP 的
-const IW = 1024, IH = 1536;
+// 图上的位置（最早那张 1024×1536 的图的像素）：[左, 上, 右, 下]；椅子多两个数是头像坐的位置。第一把（远端正对着你的主位）是 KP 的
+// 现在的图是 GPT 往上下补画过的瘦长图（841×1870，手机上不用裁两边）：老图缩成 0.817 倍落在里面，往下挪了 OY。下面的数还是老图的，换算一下
+const IW = 1029, IH = 2289, OX = 2, OY = 463;
 const SPOTS = [['files', [110, 900, 450, 1185], '卷宗', '所有的局'], ['cards', [545, 925, 840, 1095], '调查员卡', '车卡'], ['tray', [410, 755, 688, 905], '骰子盘', '掷骰子'],
   ['lamp', [605, 440, 790, 715], '台灯', '开关'], ['map', [240, 640, 485, 780], '旧地图', 'DND'], ['letter', [528, 1125, 805, 1285], '火漆信', '名录']];
 const CHAIRS = [[430, 380, 605, 565, 517, 515], [45, 480, 230, 830, 150, 700], [805, 500, 1015, 900, 885, 715], [0, 650, 150, 1230, 75, 965], [890, 670, 1024, 1260, 960, 965]];
-const pct = (v, all) => v / all * 100 + '%';
+const pct = (v, all) => v / all * 100 + '%', pxl = x => pct(x + OX, IW), pyt = y => pct(y + OY, IH);
 const keepSeats = () => { state.apps.interlude.seat = { kp: pick.kp, party: pick.party }; commit('apps'); };
 
 export function open() {
@@ -69,15 +70,15 @@ export function open() {
   const mo = new MutationObserver(() => { if (!scene.isConnected) mo.disconnect(); else if (lamp === null) paintLamp(); });
   mo.observe(document.querySelector('.as-phone'), { attributes: true, attributeFilter: ['data-mode'] });
   // 标签：钉在东西上的小玻璃牌
-  const tag = (x, y, text, cls = '') => h('span.as-int-pin' + cls, { style: `left:${pct(x, IW)};top:${pct(y, IH)}` }, h('i'), h('b', text));
-  const hot = (box, key) => h('button.as-int-hot', { 'aria-label': key, dataset: { k: key }, style: `left:${pct(box[0], IW)};top:${pct(box[1], IH)};width:${pct(box[2] - box[0], IW)};height:${pct(box[3] - box[1], IH)}` });
+  const tag = (x, y, text, cls = '') => h('span.as-int-pin' + cls, { style: `left:${pxl(x)};top:${pyt(y)}` }, h('i'), h('b', text));
+  const hot = (box, key) => h('button.as-int-hot', { 'aria-label': key, dataset: { k: key }, style: `left:${pxl(box[0])};top:${pyt(box[1])};width:${pct(box[2] - box[0], IW)};height:${pct(box[3] - box[1], IH)}` });
   SPOTS.forEach(([k, b, name, sub]) => world.append(hot(b, k), tag((b[0] + b[2]) / 2, b[1] + 6, sub ? `${name} · ${sub}` : name)));
   CHAIRS.forEach((c, i) => world.append(hot(c, i ? 'chair' : 'kp')));
   world.append(tag(517, 390, '主位 · KP'));
   // 左边远处那把椅子也钉一个小牌（和主位一样一直在），不然不知道点椅子能叫人上桌；椅子靠边，牌子往里伸，不出屏幕
   world.append(tag(175, 500, '座位 · 选人上桌', '.is-l'));
   // 椅子上坐的人：主位是 KP（中立的就放剪影），其余四把坐玩家；超过四个人，最后一把叠着显示「+几」
-  const seats = CHAIRS.map(c => { const el = h('span.as-int-sit', { style: `left:${pct(c[4], IW)};top:${pct(c[5], IH)}` }); world.append(el); return el; });
+  const seats = CHAIRS.map(c => { const el = h('span.as-int-sit', { style: `left:${pxl(c[4])};top:${pyt(c[5])}` }); world.append(el); return el; });
   const paintSeats = () => {
     const kc = pick.kp !== 'sys' && contact(pick.kp);
     seats[0].replaceChildren(kc ? avatar(kc.avatar, nameOf(kc), 40) : h('span.as-int-sit__kp', img('kp')), h('small', kc ? nameOf(kc) : '中立 KP')); seats[0].hidden = false;
@@ -86,9 +87,9 @@ export function open() {
   };
   if (!seated) { seated = true; Object.assign(pick, state.apps.interlude.seat); }
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
-  const dice = h('div.as-int-traydice', { style: `left:${pct(470, IW)};top:${pct(770, IH)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
+  const dice = h('div.as-int-traydice', { style: `left:${pxl(470)};top:${pyt(770)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
-  // 一屏放下整张桌子（作者不要左右拖）：比铺满再小一点好让两边的椅子露出来；图贴着顶，空出的一小截落在底下「上桌」那条后面（贴底的话顶上会空一大块）；靠边那两把椅子上的头像往里挪到看得见的地方
+  // 一屏放下整张桌子（作者不要左右拖、不要裁两边）：宽度铺满；屏幕比图短就裁掉一点上下补画的部分（桌子留在中间），比图还瘦长才放大裁两边；靠边那两把椅子上的头像往里挪到看得见的地方
   let W = 0, H = 0, ww = 0, wh = 0, ox = 0, oy = 0, zoom = null;
   const apply = (anim = true) => {
     world.style.transition = anim ? '' : 'none';
@@ -98,9 +99,9 @@ export function open() {
     world.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
   };
   const fit = () => {
-    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH * .92); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = 0;
+    W = scene.clientWidth; H = scene.clientHeight; const k = Math.max(W / IW, H / IH); ww = IW * k; wh = IH * k; ox = (W - ww) / 2; oy = Math.min(0, Math.max(H - wh, H / 2 - wh * .54));
     Object.assign(world.style, { width: ww + 'px', height: wh + 'px', left: ox + 'px', top: oy + 'px' });
-    const cut = -ox / k + 40; seats.forEach((el, i) => { el.style.left = pct(Math.min(IW - cut, Math.max(cut, CHAIRS[i][4])), IW); });   // 靠边的往里挪
+    const cut = -ox / k + 40; seats.forEach((el, i) => { el.style.left = pct(Math.min(IW - cut, Math.max(cut, CHAIRS[i][4] + OX)), IW); });   // 靠边的往里挪
     apply(false);
   };
   new ResizeObserver(fit).observe(scene);
@@ -153,121 +154,59 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 开屏：羊皮卷展开 → 羽毛笔写下深蓝鎏金的楷书 → 火漆盖章 → 整张纸烧起来、灰随风散掉 ---------- */
+/* ---------- 开屏（克苏鲁这一套；以后 DND 另做一套，骨架一样：一根线 → 骰子 → 揭开插画）：
+ * 黑底上红线一段段串起六件证物，最后指向正中 → 两颗十面骰抛进来落定（真的掷一次）→ 放大镜滑过来，镜片里是全彩的插画（那扇门），镜片越放越大铺满 → 「幕间」和开屏语。
+ * 掷出 100（大失败）整张图发红、开屏语固定那句「门后面的东西」；掷出 01（大成功）门里的光变成金的 ---------- */
 // 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
 export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
 export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
   '龙在睡觉。别在这时候数你的金币。', '灯灭之后，请各位保持原来的表情。', '读到这里，还来得及合上。——算了，你已经坐下了。'];
-const loadImg = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+// 证物：[中心 x, 中心 y, 宽（都是占屏幕的比例）, 歪多少度, 高 ÷ 宽]，红线照这个顺序串；图钉在每张的顶上正中
+const CLUES = [[.27, .16, .4, -7, 355 / 420], [.75, .21, .4, 6, 380 / 415], [.12, .37, .23, -12, 420 / 264], [.84, .64, .33, 8, 364 / 352], [.25, .71, .38, -5, 360 / 405], [.63, .87, .4, 4, 318 / 420]];
+const LENS = [.3466, .3566, .3003, 617 / 640];   // 放大镜图里镜片的圆心（占图宽、高）、半径（占图宽）、图的高 ÷ 宽
 async function splash(host) {
   const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
   const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
-  const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const cv = h('canvas'), fx = h('canvas'), el = h('div.as-int-splash', img('splash-bg'), cv, fx, h('button.as-int-splash__skip', { onclick: () => done() }, '跳过'));
+  const t = Math.floor(Math.random() * 10), u = Math.floor(Math.random() * 10), fumble = !t && !u, crit = !t && u === 1;
+  const line = fumble ? SPLASH_LINES[2] : pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
+  const board = h('div.as-int-sp__board'), dice = h('div.as-int-sp__dice'), main = img('splash-main', '.as-int-sp__main'), lens = img('lens', '.as-int-sp__lens');
+  const el = h('div.as-int-splash' + (fumble ? '.is-fumble' : crit ? '.is-crit' : ''), board, dice, main, lens, h('div.as-int-sp__title', h('b', '幕间'), h('i', 'INTERLUDE')), h('p.as-int-sp__line', line),
+    h('button.as-int-splash__skip', { onclick: e => { e.stopPropagation(); done(); } }, '跳过'));
   host.append(el);
-  let dead = false, raf = 0;
-  function done() { if (dead) return; dead = true; cancelAnimationFrame(raf); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
+  let dead = false, raf = 0; const timers = [];
+  function done() { if (dead) return; dead = true; cancelAnimationFrame(raf); timers.forEach(clearTimeout); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
+  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
   const face = new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`);
-  const [paper, quill, seal] = await Promise.all([loadImg(BASE + 'scroll.webp'), loadImg(BASE + 'quill.webp'), loadImg(BASE + 'seal.webp'), face.load().then(x => document.fonts.add(x)).catch(() => {})]);
-  if (dead || !paper) { done(); return; }
-  const dpr = Math.min(2, devicePixelRatio || 1), W = el.clientWidth, H = el.clientHeight, pw = Math.min(W * .84, H * .6 * paper.width / paper.height), ph = pw * paper.height / paper.width;
-  const px = (W - pw) / 2, py = (H - ph) / 2;
-  for (const c of [cv, fx]) { c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px'; }
-  const x = cv.getContext('2d'), y = fx.getContext('2d'); x.scale(dpr, dpr); y.scale(dpr, dpr);
-  const FONT = '"AsterSplash", "Noto Serif SC", serif', size = pw * .092;
-  // 句子按纸的宽度折行，每行居中；落款靠右
-  x.font = `${size}px ${FONT}`;
-  const rows = []; let cur = '';
-  for (const ch of line) { if (x.measureText(cur + ch).width > pw * .74 && cur && !'。，、；：？！—」'.includes(ch)) { rows.push(cur); cur = ''; } cur += ch; }   // 标点不开头
-  if (cur) rows.push(cur);
-  const top = .5 - (rows.length - 1) * .08;
-  const lines = rows.map((t, i) => [t, size, top + i * .16, 0]);
-  const gold = (y0, y1) => { const g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, '#f6e3a1'); g.addColorStop(.5, '#c9973c'); g.addColorStop(1, '#8a6224'); return g; };
-  const xOf = (t, sz, right) => right ? px + pw * .86 - x.measureText(t).width : W / 2 - x.measureText(t).width / 2;   // 左边
-  // 深蓝的字、鎏金的边：先描一圈金，再把字填上
-  const text = (t, sz, ry, right) => { x.font = `${sz}px ${FONT}`; x.textAlign = 'left'; x.textBaseline = 'middle';
-    const cy = py + ph * ry, lx = xOf(t, sz, right); x.lineJoin = 'round'; x.lineWidth = Math.max(1.6, sz * .075); x.strokeStyle = gold(cy - sz / 2, cy + sz / 2); x.strokeText(t, lx, cy); x.fillStyle = '#16244a'; x.fillText(t, lx, cy); };
-  // 一步步：展开 0.8s → 每行按长短写 → 盖章 → 烧
-  const T0 = performance.now(), unroll = 800, perChar = 110, gap = 260;
-  const plan = []; let t = unroll + 200; for (const l of lines) { const d = Math.max(500, l[0].length * perChar); plan.push([t, d]); t += d + gap; }
-  const stampAt = t + 100, burnAt = stampAt + 1100, burnLen = 2200, end = burnAt + burnLen + 300;
-  let snap = null, noise = null, ash = [], stamped = false;
-  // 纸烧起来：先把写好字、盖好章的这张纸拍成一张图，再按「噪声 + 离左下角多远」算每个点什么时候烧到
-  const prep = () => {
-    const w = Math.round(W * dpr), hh = Math.round(H * dpr); snap = x.getImageData(0, 0, w, hh);
-    // 两层噪声（粗的定大轮廓、细的让火边碎一点）
-    const layer = c => { const gw = Math.ceil(w / c) + 2, gh = Math.ceil(hh / c) + 2, g = Float32Array.from({ length: gw * gh }, Math.random);
-      return (i, j) => { const gx = i / c, gy = j / c, x0 = gx | 0, y0 = gy | 0, a = gx - x0, b = gy - y0, sx = a * a * (3 - 2 * a), sy = b * b * (3 - 2 * b);
-        return g[y0 * gw + x0] * (1 - sx) * (1 - sy) + g[y0 * gw + x0 + 1] * sx * (1 - sy) + g[(y0 + 1) * gw + x0] * (1 - sx) * sy + g[(y0 + 1) * gw + x0 + 1] * sx * sy; }; };
-    const big = layer(40 * dpr), fine = layer(7 * dpr);
-    noise = new Float32Array(w * hh);
-    for (let j = 0; j < hh; j++) for (let i = 0; i < w; i++) {
-      const dist = Math.hypot(i / dpr - px, j / dpr - (py + ph)) / Math.hypot(pw, ph);
-      noise[j * w + i] = dist * .82 + big(i, j) * .13 + fine(i, j) * .05;
-    }
-  };
-  const burn = k => {
-    const w = snap.width, out = x.createImageData(w, snap.height), s = snap.data, o = out.data, T = k * 1.1;
-    for (let p = 0, i = 0; p < noise.length; p++, i += 4) {
-      const a = s[i + 3]; if (!a) continue;
-      const d = noise[p] - T;
-      if (d < -.012) continue;                                   // 烧没了
-      if (d < 0) { const e = 1 + d / .012; o[i] = 255; o[i + 1] = 110 + 120 * e; o[i + 2] = 20 + 40 * e; o[i + 3] = a * e; if (Math.random() < .002) ash.push(p); continue; }   // 火边
-      const c = d < .025 ? d / .025 : 1;                          // 火边往里窄窄一圈烤焦
-      o[i] = s[i] * c + 40 * (1 - c); o[i + 1] = s[i + 1] * c + 18 * (1 - c); o[i + 2] = s[i + 2] * c + 6 * (1 - c); o[i + 3] = a;
-    }
-    x.setTransform(1, 0, 0, 1, 0, 0); x.putImageData(out, 0, 0); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  };
-  const flakes = [];
+  await Promise.all([main.decode(), lens.decode(), face.load().then(x => document.fonts.add(x))].map(x => x.catch(() => {})));
+  if (dead) return;
+  // 插画铺满，门（原图 560, 610 那儿）落在屏幕正中偏上：骰子落在它前面，放大镜也停在那儿
+  const W = el.clientWidth, H = el.clientHeight, k = Math.max(W / 1024, H / 1536), cx = W / 2, cy = H * .43;
+  const ml = Math.min(0, Math.max(W - 1024 * k, cx - 560 * k)), mt = Math.min(0, Math.max(H - 1536 * k, cy - 610 * k));
+  Object.assign(main.style, { width: 1024 * k + 'px', height: 1536 * k + 'px', left: ml + 'px', top: mt + 'px', transformOrigin: `${cx - ml}px ${cy - mt}px` });
+  // 证物 + 红线（线从每张的图钉拉到下一张，中间垂一点）
+  const pins = CLUES.map(([x, y, w, r, hw], i) => {
+    const a = r * Math.PI / 180, up = w * W * hw * .44;
+    board.append(h('img', { src: `${BASE}clue${i}.webp`, alt: '', style: `left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;--r:${r}deg;animation-delay:${i * 150}ms` }));
+    return [x * W + Math.sin(a) * up, y * H - Math.cos(a) * up];
+  });
+  const d = [...pins, [cx, cy]].map((p, i, all) => i ? `Q${(all[i - 1][0] + p[0]) / 2} ${(all[i - 1][1] + p[1]) / 2 + 14} ${p[0]} ${p[1]}` : `M${p[0]} ${p[1]}`).join('');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = `<path d="${d}" pathLength="1"/>`; board.append(svg);
+  at(1100, () => throwDice(dice, t, u));
+  // 放大镜：从右下角滑到门那儿（镜片半径 R0），停一下，再放大到盖住整个屏幕。插画只在镜片的圆里看得见
+  const R0 = W * .27, lw = R0 / LENS[2], far = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy)) + 8;
+  Object.assign(lens.style, { width: lw + 'px', left: -LENS[0] * lw + 'px', top: -LENS[1] * lw * LENS[3] + 'px', transformOrigin: `${LENS[0] * 100}% ${LENS[1] * 100}%` });
+  const ease = v => v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2, T0 = performance.now() + 2800;
   const step = now => {
-    if (dead) return;
-    const ms = now - T0;
-    if (ms < burnAt) {
-      x.clearRect(0, 0, W, H);
-      const u = Math.min(1, ms / unroll), e = 1 - Math.pow(1 - u, 3);
-      x.save(); x.beginPath(); x.rect(px - 20, py, pw + 40, ph * e); x.clip();
-      x.drawImage(paper, px, py, pw, ph);
-      let pen = null;
-      lines.forEach((l, i) => {
-        const [t0, d] = plan[i]; if (ms < t0) return;
-        const k = Math.min(1, (ms - t0) / d);
-        x.font = `${l[1]}px ${FONT}`; const m = x.measureText(l[0]).width, left = xOf(l[0], l[1], l[3]) - 6, right = left + (m + 12) * k;
-        x.save(); x.beginPath(); x.rect(left, py + ph * l[2] - l[1], right - left, l[1] * 2); x.clip(); text(...l); x.restore();
-        if (k < 1) pen = [right, py + ph * l[2]];
-      });
-      if (ms > stampAt && seal) {
-        if (!stamped) { stamped = true; thud(); }
-        const k = Math.min(1, (ms - stampAt) / 180), sz = pw * .26 * (1 + (1 - k) * 1.4), sxp = px + pw * .24, syp = py + ph * .8;
-        x.globalAlpha = k; x.save(); x.translate(sxp, syp); x.rotate(-.2); x.drawImage(seal, -sz / 2, -sz / 2, sz, sz * seal.height / seal.width);
-        x.font = `${sz * .2}px ${FONT}`; x.fillStyle = '#f3dcc7'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('幕间', 0, 0); x.restore(); x.globalAlpha = 1;
-      }
-      x.restore();
-      y.clearRect(0, 0, W, H);
-      if (pen && quill) { const qh = pw * .34, qw = qh * quill.width / quill.height; y.save(); y.translate(pen[0], pen[1]); y.rotate(.5 + Math.sin(ms / 60) * .06); y.drawImage(quill, -qw * .15, -qh, qw, qh); y.restore(); }
-    } else {
-      if (!snap) { prep(); y.clearRect(0, 0, W, H); }
-      const k = Math.min(1, (ms - burnAt) / burnLen); ash.length = 0; burn(k);
-      // 火边落下的灰：往右上飘，越飘越淡
-      for (const pi of ash.slice(0, 18)) { const w = snap.width; flakes.push({ x: (pi % w) / dpr, y: (pi / w | 0) / dpr, vx: 20 + Math.random() * 50, vy: -20 - Math.random() * 40, life: 1, s: 1 + Math.random() * 2.5, hot: Math.random() < .3 }); }
-      y.clearRect(0, 0, W, H);
-      for (const f of flakes) { f.x += f.vx / 60; f.y += f.vy / 60; f.vy -= .3; f.vx += Math.sin(f.y / 30); f.life -= .012;
-        if (f.life > 0) { y.globalAlpha = f.life; y.fillStyle = f.hot ? '#ffb347' : '#3b332c'; y.fillRect(f.x, f.y, f.s, f.s * .7); } }
-      y.globalAlpha = 1;
-      if (ms > end) { done(); return; }
-    }
-    raf = requestAnimationFrame(step);
+    const ms = now - T0, a = ease(Math.min(1, Math.max(0, ms / 800))), b = Math.min(1, Math.max(0, (ms - 1050) / 750)), g = b * b * b;
+    const x = cx + (1 - a) * W * .75, y = cy + (1 - a) * H * .5 - Math.sin(a * Math.PI) * H * .08, R = R0 + (far - R0) * g;
+    main.style.clipPath = `circle(${R * 1.012}px at ${x - ml}px ${y - mt}px)`;
+    lens.style.transform = `translate(${x}px, ${y}px) rotate(${(1 - a) * 28}deg) scale(${R / R0})`; lens.style.opacity = 1 - g * 1.6;
+    if (b < 1) { raf = requestAnimationFrame(step); return; }
+    main.style.clipPath = 'none'; lens.remove(); board.remove(); dice.remove(); el.classList.add('is-open'); el.onclick = done;
   };
-  raf = requestAnimationFrame(step);
+  at(2800, () => { el.classList.add('is-lens'); raf = requestAnimationFrame(step); });
+  at(7600, done);
 }
-let actx = null;
-function thud() {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-    o.type = 'triangle'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t + .12);
-    g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .18); o.connect(g).connect(actx.destination); o.start(t); o.stop(t + .2);
-  } catch (e) { /* 不让响就算了 */ }
-}
-
 /* ---------- 开局设置：本、气氛、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */
 export const VOICE_MODES = [['tap', '点了才合成'], ['next', '提前合成下两句'], ['all', '全部合成']];
 const voiceDefault = () => ({ auto: 'next' }[state.apps.interlude.voice] || state.apps.interlude.voice || 'tap');
