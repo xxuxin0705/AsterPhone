@@ -12,6 +12,7 @@ import { myNick, myAvatar } from '../../core/promptstore.js';
 import { nameOf } from '../chat/engine.js';
 import { rain, isNight, hidden } from './rain.js';
 import { lyricFx } from './lyricfx.js';
+import { clockFx } from './clockfx.js';
 import { look, styleChoir, styleTop, font } from './tglook.js';
 import { useFont } from '../../core/floatlyric.js';
 import { burst } from './island.js';
@@ -994,17 +995,18 @@ export function openPlayer() {
     const [bgc, ink] = c ? [`rgb(${c})`, lum(c) > .55 ? '#222' : '#f4f4f4'] : isNight() ? ['#1c1c1e', '#f2f2f2'] : ['#fff', '#222'];
     tgEl.style.setProperty('--bub-bg', G.bg || bgc); tgEl.style.setProperty('--bub-ink', G.ink || ink);
   };
-  // 碎语：唱片那块换成散开的字
   let F = null;
   const paintSkin = () => {
-    ['rain', 'cad'].forEach(k => p.el.classList.toggle('is-' + k, S.name === k));
+    ['rain', 'cad', 'clock'].forEach(k => p.el.classList.toggle('is-' + k, S.name === k));
     S.name === 'rain' && !p.el.classList.contains('is-lrc') && !P.together() ? R.start() : R.stop();
-    if ((S.name === 'cad') !== !!F) { F = S.name === 'cad' ? lyricFx(fx) : null; if (F) { li = -2; tick(); } }
+    const want = { cad: lyricFx, clock: clockFx }[S.name];   // 唱片那块换成散开的字 / 表盘
+    if ((F && F.kind) !== (want && S.name)) { F = want ? want(fx) : null; if (F) { li = -2; tick(); } }
   };
   // 歌词颜色：没选过就是每个样式自己的颜色（碎语、群唱默认蓝，唱片是白字，下雨天白天夜里不一样）
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
     ['edge', 'glow'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
     S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
+    S.clock ? p.el.style.setProperty('--clk', S.clock) : p.el.style.removeProperty('--clk');
     // 字体装好了再换，不会先闪一下别的字
     const want = S.font || '';
     return useFont(document, want).then(f => { if (want !== (S.font || '')) return; f ? p.el.style.setProperty('--ly-font', `${f}, var(--font-ui)`) : p.el.style.removeProperty('--ly-font'); R.font(f); }); };
@@ -1062,6 +1064,7 @@ export function openPlayer() {
       if (el && Date.now() - touched > 3000) lrc.scrollTo({ top: el.offsetTop - lrc.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
     }
     if (L[i]) { const q = P.sung(L, i, t); lines[i].style.setProperty('--p', q * 100 + '%'); F && F.prog(q); }
+    F && F.time && F.time(t, d);
   }
   function loop() {
     cancelAnimationFrame(raf);
@@ -1069,11 +1072,11 @@ export function openPlayer() {
     go();
   }
   async function skin() {
-    const tc = P.together(), rec = !/^(rain|cad)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' };
+    const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
     const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
-        { value: 'cad', label: '碎语', active: S.name === 'cad' }, color]);
+        { value: 'cad', label: '碎语', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, color]);
     if (!v) return;
     if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
@@ -1085,12 +1088,12 @@ export function openPlayer() {
       const pvPaint = () => ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
       const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
-      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = true;
+      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('clock', '#e8879f')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
       const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, edgeWheel); edgeWheel.hidden = !S.shade;
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
-      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边']], 'color', k => { wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim'][i]; }); edgeBox.hidden = k !== 'edge'; }), ...wheels, edgeBox, fontRow,
-        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = ''; commit('music'); paintColor(); sh.close(); })) });
+      const sh = sheet({ title: '歌词设置', content: h('div.as-mu-color', pv, segmented([['color', '唱到的字'], ['dim', '没唱的字'], ['edge', '描边'], ...S.name === 'clock' ? [['clock', '表盘']] : []], 'color', k => { wheels.forEach((w, i) => { w.hidden = k !== ['color', 'dim', 'clock'][i]; }); edgeBox.hidden = k !== 'edge'; }), ...wheels, edgeBox, fontRow,
+        btn('恢复默认', 'secondary', () => { S.color = S.dim = S.shade = S.edge = S.font = S.clock = ''; commit('music'); paintColor(); sh.close(); })) });
       return;
     }
     if (tc) { if (S.tg !== v) { S.tg = v; commit('music'); paintSong(); } return; }
