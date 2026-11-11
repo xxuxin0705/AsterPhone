@@ -230,6 +230,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     return String(out || '').trim();
   } catch (e) {
     const msg = e && e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : (e && e.message) || String(e);
+    if (e && e.raw) call.part(e.raw);
     call.fail(msg);
     throw Object.assign(new Error(msg), { logId: call.id });   // 报错里的「查看日志」直接跳到这一条
   }
@@ -239,7 +240,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
 const OAI = t => t === 'openai' || t === 'deepseek' || t === 'openai-compat';
 /** 读回复：流式就一段段拼起来（data: {...}），服务器没按流式回就当普通 JSON 读 */
 async function readOut(res, pickDelta, pickWhole, onPart = () => {}) {
-  if (!res.body || /application\/json/.test(res.headers.get('content-type') || '')) return pickWhole(await res.json()) ?? '';
+  if (!res.body || /application\/json/.test(res.headers.get('content-type') || '')) { const j = await res.json(), o = pickWhole(j) ?? ''; if (!String(o).trim()) throw empty(JSON.stringify(j)); return o; }
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = '', out = '', raw = '';
   for (;;) {
@@ -252,8 +253,16 @@ async function readOut(res, pickDelta, pickWhole, onPart = () => {}) {
     }
     onPart(out);
   }
-  if (!out && /^\s*\{/.test(raw)) { try { return pickWhole(JSON.parse(raw)) ?? ''; } catch (e) { /* 不是 JSON */ } }
+  if (!out && /^\s*\{/.test(raw)) { try { out = pickWhole(JSON.parse(raw)) ?? ''; } catch (e) { /* 不是 JSON */ } }
+  if (!String(out).trim()) throw empty(raw);
   return out;
+}
+// 回了 200 却一个字没有（中转站把报错、拦截藏在回复里）：找出它说的原因，原样记进日志「收回来的」
+const WHY = { content_filter: '被安全审查拦了', SAFETY: '被安全审查拦了', PROHIBITED_CONTENT: '被安全审查拦了', BLOCKLIST: '被安全审查拦了', RECITATION: '被拦了', length: '字数到上限了', MAX_TOKENS: '字数到上限了', stop: '', STOP: '' };
+function empty(raw) {
+  let why = '';
+  for (const l of raw.split('\n')) { try { const j = JSON.parse(l.replace(/^\s*data:\s*/, '')), r = j.error?.message || j.choices?.[0]?.finish_reason || j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason; if (r) why = WHY[r] ?? r; } catch (e) { /* 不是 JSON 的行 */ } }
+  return Object.assign(new Error(`AI 回了空的${why ? '（' + why + '）' : ''}`), { raw });
 }
 
 /** 拉取模型列表 */

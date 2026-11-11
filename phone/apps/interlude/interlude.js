@@ -388,7 +388,7 @@ function cardPage(back, resume) {
   fresh();
   const meetB = navText(meetOn ? '车卡会' : '团公告', () => meetOn ? meetPage(true) : notice()); meetB.hidden = !m;
   const p = page({ app: 'interlude', id: 'int-card', title: '调查员', large: true, back: true, cls: 'as-int-card', right: meetB });
-  const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', shownName(o)))));
+  const tabs = h('div.as-int-tabs', owners.map(o => h('button', { dataset: { o }, onclick: () => { sel = o; paintTabs(); paint(); } }, ownerFace(o, 40), h('small', ownerName(o)))));
   const paintTabs = () => [...tabs.children].forEach(b => { b.classList.toggle('is-on', b.dataset.o === sel); b.classList.toggle('is-none', !cur[b.dataset.o]); });
   const photo = h('div.as-int-card__photo'), head = h('div.as-int-card__head'), sheetEl = h('div.as-int-sheet-paper'), scroller = h('div.as-int-card__scroll', photo, head, sheetEl);
   const saveLater = debounce(() => G.save(), 400);
@@ -410,7 +410,8 @@ function cardPage(back, resume) {
     const got = await pickMany('谁重车', owners.map(o => ({ key: o, name: ownerName(o), avatar: o === 'me' ? myAvatar() : contact(o).avatar })), { preselect: [sel] });
     if (got && got.length) make(got);
   }
-  async function blank(o) { cur[o] = await G.blankCard(o, ms); paintTabs(); paint(); paintBar(); }
+  const fillLabel = o => o === 'me' ? '自己填一张' : `帮${ownerName(o)}填一张`;
+  async function blank(o) { if (G.running()) { toast('AI 还在写，写完再填'); return; } cur[o] = await G.blankCard(o, ms); paintTabs(); paint(); paintBar(); }
   // 预览：照团公告（没有就照一般规矩）大概能不能过，再给个评级；都在手机里算
   const showCards = o => cardView(owners.filter(x => cur[x]).map(x => ({ o: x, c: cur[x] })), o, G.relsFrom(owners.map(x => cur[x]).filter(Boolean)));
   const preview = c => { const bad = G.checkCard(c, m), r = G.rate(c, m);
@@ -418,7 +419,7 @@ function cardPage(back, resume) {
       h('b', `评级 ${r.grade} · ${r.role}`), h('div.as-int-stars', Object.entries(r.stars).map(([k, n]) => h('span', `${k} ${'★'.repeat(n)}${'☆'.repeat(5 - n)}`))), r.rec ? h('small', r.rec) : null) }); };
   async function swapCard() {
     const mine = G.cardsOf(sel), c = cur[sel];
-    const v = await actionSheet(`${ownerName(sel)}的卡`, [...mine.map(x => ({ value: x.id, label: `${x.name} · ${x.job}`, active: x === c })), { value: 'new', label: 'AI 车一张' }, { value: 'blank', label: '自己填一张' }, c && { value: 'del', label: '删除这张', danger: true }].filter(Boolean));
+    const v = await actionSheet(`${ownerName(sel)}的卡`, [...mine.map(x => ({ value: x.id, label: `${x.name} · ${x.job}`, active: x === c })), { value: 'new', label: 'AI 车一张' }, { value: 'blank', label: fillLabel(sel) }, c && { value: 'del', label: '删除这张', danger: true }].filter(Boolean));
     if (v === 'new') { await make([sel]); return; }
     if (v === 'blank') { await blank(sel); return; }
     if (v === 'del') { if (!(await dialog({ title: '删除这张卡？', confirm: '删除', danger: true }))) return; await G.dropCard(c); cur[sel] = G.lastCard(sel); }
@@ -526,7 +527,7 @@ function cardPage(back, resume) {
   function paint() {
     const c = cur[sel];
     photo.replaceChildren(ownerFace(sel, 96));
-    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('button.as-int-sheet-new', { onclick: () => blank(sel) }, '自己填一张')); return; }
+    if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('button.as-int-sheet-new', { onclick: () => blank(sel) }, fillLabel(sel))); return; }
     const set = (k, v) => { c[k] = v; saveLater(); };
     const line = (label, key, opts = {}) => field(label, input({ value: String(c[key] ?? ''), type: opts.type || 'text', onInput: v => set(key, opts.type ? +v : v) }));
     const jobB = h('button.as-int-job', { onclick: async () => {
