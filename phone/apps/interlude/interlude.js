@@ -154,59 +154,37 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 开屏（克苏鲁这一套；以后 DND 另做一套，骨架一样：一根线 → 骰子 → 揭开插画）：
- * 黑底上红线一段段串起六件证物，最后指向正中 → 两颗十面骰抛进来落定（真的掷一次）→ 放大镜滑过来，镜片里是全彩的插画（那扇门），镜片越放越大铺满 → 「幕间」和开屏语。
- * 掷出 100（大失败）整张图发红、开屏语固定那句「门后面的东西」；掷出 01（大成功）门里的光变成金的 ---------- */
+/* ---------- 开屏（照重返未来 1999 的拍法，作者定的：一个特写镜头 → 黑场 → 主图甩进来 → 花体标题）：
+ * 特写是一小段真的视频（作者用可灵从 GPT 的图生成的），主图、标题也是 GPT 画的。现在只有「雪夜列车」一套：
+ * 包厢窗边的茶杯和台灯，对面一列车呼啸而过 → 像进了隧道一样全黑，黑里亮起一点车头灯 → 雪原上冲出隧道的列车 → Interlude · 幕间 + 开屏语。
+ * 视频放不出来（酒馆那边不给放、网慢）就跳过特写，直接从黑场开始 ---------- */
 // 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
 export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
 export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
   '龙在睡觉。别在这时候数你的金币。', '灯灭之后，请各位保持原来的表情。', '读到这里，还来得及合上。——算了，你已经坐下了。'];
-// 证物：[中心 x, 中心 y, 宽（都是占屏幕的比例）, 歪多少度, 高 ÷ 宽]，红线照这个顺序串；图钉在每张的顶上正中
-const CLUES = [[.27, .16, .4, -7, 355 / 420], [.75, .21, .4, 6, 380 / 415], [.12, .37, .23, -12, 420 / 264], [.84, .64, .33, 8, 364 / 352], [.25, .71, .38, -5, 360 / 405], [.63, .87, .4, 4, 318 / 420]];
-const LENS = [.3466, .3566, .3003, 617 / 640];   // 放大镜图里镜片的圆心（占图宽、高）、半径（占图宽）、图的高 ÷ 宽
 async function splash(host) {
   const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
   const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
-  const t = Math.floor(Math.random() * 10), u = Math.floor(Math.random() * 10), fumble = !t && !u, crit = !t && u === 1;
-  const line = fumble ? SPLASH_LINES[2] : pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const board = h('div.as-int-sp__board'), dice = h('div.as-int-sp__dice'), main = img('splash-main', '.as-int-sp__main'), lens = img('lens', '.as-int-sp__lens');
-  const el = h('div.as-int-splash' + (fumble ? '.is-fumble' : crit ? '.is-crit' : ''), board, dice, main, lens, h('div.as-int-sp__title', h('b', '幕间'), h('i', 'INTERLUDE')), h('p.as-int-sp__line', line),
+  const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
+  const clip = h('video.as-int-sp__clip', { src: BASE + 'open-train.mp4', playsInline: true, preload: 'auto' }), art = img('open-train', '.as-int-sp__art');
+  const el = h('div.as-int-splash', clip, art, h('i.as-int-sp__lamp'), img('title', '.as-int-sp__title'), h('p.as-int-sp__line', line),
     h('button.as-int-splash__skip', { onclick: e => { e.stopPropagation(); done(); } }, '跳过'));
   host.append(el);
-  let dead = false, raf = 0; const timers = [];
-  function done() { if (dead) return; dead = true; cancelAnimationFrame(raf); timers.forEach(clearTimeout); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
+  let dead = false; const timers = [];
+  function done() { if (dead) return; dead = true; timers.forEach(clearTimeout); clip.pause(); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
   const at = (ms, fn) => timers.push(setTimeout(fn, ms));
-  const face = new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`);
-  await Promise.all([main.decode(), lens.decode(), face.load().then(x => document.fonts.add(x))].map(x => x.catch(() => {})));
+  new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`).load().then(x => document.fonts.add(x)).catch(() => {});
+  // 黑场 → 车头灯亮起 → 主图甩进来、标题盖上（都是 CSS 里按 is-dark / is-open 排好的），之后点一下或等几秒进书桌
+  const reveal = () => { if (dead) return; clip.pause(); el.classList.add('is-dark'); at(520, () => { el.classList.add('is-open'); el.onclick = done; }); at(5200, done); };
+  await art.decode().catch(() => {});
   if (dead) return;
-  // 插画铺满，门（原图 560, 610 那儿）落在屏幕正中偏上：骰子落在它前面，放大镜也停在那儿
-  const W = el.clientWidth, H = el.clientHeight, k = Math.max(W / 1024, H / 1536), cx = W / 2, cy = H * .43;
-  const ml = Math.min(0, Math.max(W - 1024 * k, cx - 560 * k)), mt = Math.min(0, Math.max(H - 1536 * k, cy - 610 * k));
-  Object.assign(main.style, { width: 1024 * k + 'px', height: 1536 * k + 'px', left: ml + 'px', top: mt + 'px', transformOrigin: `${cx - ml}px ${cy - mt}px` });
-  // 证物 + 红线（线从每张的图钉拉到下一张，中间垂一点）
-  const pins = CLUES.map(([x, y, w, r, hw], i) => {
-    const a = r * Math.PI / 180, up = w * W * hw * .44;
-    board.append(h('img', { src: `${BASE}clue${i}.webp`, alt: '', style: `left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;--r:${r}deg;animation-delay:${i * 150}ms` }));
-    return [x * W + Math.sin(a) * up, y * H - Math.cos(a) * up];
-  });
-  const d = [...pins, [cx, cy]].map((p, i, all) => i ? `Q${(all[i - 1][0] + p[0]) / 2} ${(all[i - 1][1] + p[1]) / 2 + 14} ${p[0]} ${p[1]}` : `M${p[0]} ${p[1]}`).join('');
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = `<path d="${d}" pathLength="1"/>`; board.append(svg);
-  at(1100, () => throwDice(dice, t, u));
-  // 放大镜：从右下角滑到门那儿（镜片半径 R0），停一下，再放大到盖住整个屏幕。插画只在镜片的圆里看得见
-  const R0 = W * .27, lw = R0 / LENS[2], far = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy)) + 8;
-  Object.assign(lens.style, { width: lw + 'px', left: -LENS[0] * lw + 'px', top: -LENS[1] * lw * LENS[3] + 'px', transformOrigin: `${LENS[0] * 100}% ${LENS[1] * 100}%` });
-  const ease = v => v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2, T0 = performance.now() + 2800;
-  const step = now => {
-    const ms = now - T0, a = ease(Math.min(1, Math.max(0, ms / 800))), b = Math.min(1, Math.max(0, (ms - 1050) / 750)), g = b * b * b;
-    const x = cx + (1 - a) * W * .75, y = cy + (1 - a) * H * .5 - Math.sin(a * Math.PI) * H * .08, R = R0 + (far - R0) * g;
-    main.style.clipPath = `circle(${R * 1.012}px at ${x - ml}px ${y - mt}px)`;
-    lens.style.transform = `translate(${x}px, ${y}px) rotate(${(1 - a) * 28}deg) scale(${R / R0})`; lens.style.opacity = 1 - g * 1.6;
-    if (b < 1) { raf = requestAnimationFrame(step); return; }
-    main.style.clipPath = 'none'; lens.remove(); board.remove(); dice.remove(); el.classList.add('is-open'); el.onclick = done;
-  };
-  at(2800, () => { el.classList.add('is-lens'); raf = requestAnimationFrame(step); });
-  at(7600, done);
+  // 带声音放；不让响（没点过屏幕）就静音放；两秒还没放起来就不等了
+  const wait = setTimeout(reveal, 2000);
+  clip.onplaying = () => { clearTimeout(wait); clip.onplaying = null; el.classList.add('is-clip'); };
+  clip.onended = clip.onerror = reveal;
+  clip.play().catch(() => { clip.muted = true; return clip.play(); }).catch(() => {});
 }
+
 /* ---------- 开局设置：本、气氛、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */
 export const VOICE_MODES = [['tap', '点了才合成'], ['next', '提前合成下两句'], ['all', '全部合成']];
 const voiceDefault = () => ({ auto: 'next' }[state.apps.interlude.voice] || state.apps.interlude.voice || 'tap');
