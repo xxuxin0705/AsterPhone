@@ -1152,7 +1152,7 @@ export function openPlayer() {
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     if (v === 'color') {
       // 歌词设置。上面一条预览：垫着播放页的背景，正在唱的这句唱到一半；「唱到的字 | 没唱的字 | 描边」：前两个各一个色盘，切换只是换显示哪个（不重画色盘）；
-      // 「描边」里是不加 / 描边 / 发光（整句一份），选了描边或发光才出描边颜色的色盘；最下面字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（浅字配深、深字配白）
+      // 「描边」里是不加 / 描边 / 发光（整句一份），选了描边或发光才出描边颜色的色盘；最下面字体。没唱的字只管全部歌词里正在唱的那句；描边颜色没选过是自动的（暗背景白边、亮背景深边）
       const pv = h('div.as-mu-lypv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), h('span', (P.lyricsNow()[li] || {}).text || P.current()?.name || '歌词'));
       const pvPaint = () => { ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : ''))); follows.forEach(f => { f.style.background = f.dataset.k === 'dim' ? S.dim || '#ffffff' : S.color || '#7cc4ff'; }); };   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览

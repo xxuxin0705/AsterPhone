@@ -19,7 +19,7 @@ export function rain(cv, page) {
   const ink = col('244,248,255', '26,56,110'), rainC = a => `rgba(${night ? '215,230,255' : '40,75,140'},${a})`, ringC = col('110,170,255', '40,85,160'), spark = a => `rgba(${night ? '255,255,255' : '30,60,120'},${a})`;
   const glow = a => `rgba(${tint || '170,205,255'},${a})`;
   // 字底下垫一圈影子当描边：字是浅色就垫深的，字是深色就垫白的（按字的颜色算，不按白天夜里）
-  const halo = a => edge ? `rgba(${edge},${a * .9})` : (tint || (night ? '244,248,255' : '26,56,110')).split(',').reduce((s, v, i) => s + v * [.3, .59, .11][i], 0) > 128 ? `rgba(4,14,40,${a * .9})` : `rgba(255,255,255,${a * .8})`;
+  const halo = a => edge ? `rgba(${edge},${a * .9})` : night ? `rgba(255,255,255,${a * .8})` : `rgba(4,14,40,${a * .9})`;   // 自动：夜里（背景暗）白边，白天深边
   // z：远近（0 远 1 近）。远的短、慢、淡，落在靠近水平线的地方；近的长、快，落得靠下
   const drop = top => { const z = Math.random(); return { x: Math.random() * W, y: top ? -Math.random() * H * .4 : Math.random() * H * .9, z, l: 6 + z * 18, v: 380 + z * 560, end: ground + 4 + z * (H - ground - 4) }; };
 
