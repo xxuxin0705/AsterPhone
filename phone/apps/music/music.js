@@ -930,14 +930,14 @@ export function openPlayer() {
   const seekAt = h('span'), seekEl = h('div.as-mp__seek', { hidden: true, onclick: e => e.stopPropagation() }, seekAt, h('i'),
     h('button', { 'aria-label': '从这句开始放', onclick: () => { const x = P.lyricsNow()[aim]; if (x) P.seek(x.t); touched = 0; unseek(); } }, icon('play', 16, 2.4)));
   main.append(seekEl);
-  const unseek = () => { clearTimeout(seekT); seekEl.hidden = true; lines[aim]?.classList.remove('is-aim'); aim = -1; lines[li]?.classList.remove('is-cur'); li = -2; if (!P.playing()) tick(); };   // 原来唱的那句先变回去，再重新找现在唱到哪
+  const unseek = () => { clearTimeout(seekT); seekEl.hidden = true; aim = -1; lines[li]?.classList.remove('is-cur'); li = -2; if (!P.playing()) tick(); };   // 原来唱的那句先变回去，再重新找现在唱到哪
   lrc.addEventListener('scroll', () => {
     if (Date.now() - touched > 3000 || lrc.classList.contains('is-choir') || !P.lyricsNow().length) return;
     touched = Date.now(); clearTimeout(seekT); seekT = setTimeout(unseek, 3000);
     const mid = lrc.scrollTop + lrc.clientHeight / 2; let k = 0, best = 1e9;
     lines.forEach((el, i) => { const d = Math.abs(el.offsetTop + el.offsetHeight / 2 - mid); if (d < best) { best = d; k = i; } });
     seekEl.style.top = lrc.offsetTop + lrc.clientHeight / 2 + 'px'; seekEl.hidden = false;
-    if (k !== aim) { lines[aim]?.classList.remove('is-aim'); aim = k; lines[k].classList.add('is-aim'); seekAt.textContent = fmt(P.lyricsNow()[k].t); }
+    if (k !== aim) { aim = k; seekAt.textContent = fmt(P.lyricsNow()[k].t); }
   }, { passive: true });
   // 点歌手名：去歌手页（几位合唱就先选一位；「RESCENE (리센느)」这种括号里的别名不带上，不然搜不到）
   const artistName = h('span', { role: 'button', onclick: async e => {

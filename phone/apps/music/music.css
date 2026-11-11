@@ -222,7 +222,6 @@
 .as-mp__seek[hidden] { display: none; }
 .as-mp__seek i { flex: 1; height: 1px; background: rgba(var(--mp-ink),.14); }
 .as-mp__seek button { pointer-events: auto; width: 36px; height: 36px; margin: -18px 0; display: grid; place-items: center; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
-.as-mp__lrc p.is-aim { color: rgba(var(--mp-ink),.85); }
 .as-mp__lrc::before, .as-mp__lrc::after { content: ''; display: block; height: 45%; }
 .as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--ly-font, var(--font-ui)); color: var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper))); transition: color 200ms; }   /* 别的行跟正在唱那句没唱到的部分同一个颜色 */
 .as-mp__lrc small { display: block; margin-top: 4px; font-size: 14px; }
@@ -392,9 +391,10 @@
   --ds: drop-shadow(var(--ew) 0 0 var(--ec)) drop-shadow(calc(-1 * var(--ew)) 0 0 var(--ec)) drop-shadow(0 var(--ew) 0 var(--ec)) drop-shadow(0 calc(-1 * var(--ew)) 0 var(--ec)); }
 .as-mp.is-shade-glow { --sh: 0 0 8px var(--edge, rgba(var(--mp-ink),.55)); --ds: drop-shadow(var(--sh)); }
 .as-mp__lrc p.is-cur, .as-fx__cur, .as-ck__l.is-cur { letter-spacing: var(--ls); }
-/* 整句一份；没在唱的那几行不描边 */
+/* 正在唱的那句整句一份 */
 .as-fx__cur span { text-shadow: var(--sh); }
 .as-mp__lrc p.is-cur span, .as-ck__l.is-cur > * { filter: var(--ds); }
+.as-mp__lrc > p:not(.is-cur), .as-ck__l:not(.is-cur) { text-shadow: var(--sh); }   /* 别的行和没唱到的字一样描边（实色字，text-shadow 就行） */
 .as-mp.has-bg:not(.is-light) :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg:not(.is-light) .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */
 .as-cm .as-page__body { padding: 0 0 120px; background: var(--mu-card); }
