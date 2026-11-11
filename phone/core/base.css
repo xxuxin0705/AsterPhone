@@ -192,7 +192,9 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 
 /* ---------- 抽屉 / 选项 ---------- */
 .as-sheet-mask, .as-dialog-mask { position: absolute; inset: 0; z-index: 80; background: var(--as-color-mask); opacity: 0; transition: opacity 180ms; }
-.as-sheet-mask { z-index: 81; }    /* 和抽屉同一层，按先后叠：抽屉上再开抽屉时，点外面盖住的是下面那个，能关掉 */
+.as-sheet-mask { z-index: 81; }
+/* 遮罩、抽屉一直留在合成层上：安卓有的浏览器在淡入 / 滑上来的动画刚结束时重画一次底下的页面，会白一帧 */
+.as-sheet-mask, .as-sheet { will-change: opacity, transform; }    /* 和抽屉同一层，按先后叠：抽屉上再开抽屉时，点外面盖住的是下面那个，能关掉 */
 .as-dialog-mask { z-index: 85; }   /* 确认框要盖在抽屉（81）上面 */
 .as-sheet-mask.is-open, .as-dialog-mask.is-open { opacity: 1; }
 .as-sheet { position: absolute; z-index: 81; left: 8px; right: 8px; bottom: 8px; max-height: 82%; display: flex; flex-direction: column; padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 30px; background: color-mix(in srgb, var(--as-color-surface-solid) 96%, transparent); border: 1px solid var(--as-color-glass-line); color: var(--as-color-text); transform: translateY(110%); transition: transform 260ms var(--as-ease-standard); box-shadow: 0 -10px 40px rgba(0,20,40,.2); }

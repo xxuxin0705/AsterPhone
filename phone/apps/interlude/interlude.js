@@ -289,7 +289,7 @@ function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页�
   const run = segmented([['script', '剧本'], ['free', '自由']], pick.run, v => { pick.run = v; });
   const kpName = () => pick.kp === 'sys' ? '中立 KP（系统）' : nameOf(contact(pick.kp));
   const kpRow = item({ title: 'KP', value: kpName(), chevron: true, onClick: () => chooseKp(() => { kpRow.querySelector('.as-list-item__value').textContent = kpName(); paintLang(); }) });
-  // 没在椅子那里选人，这里也能选谁上桌
+  // 没在椅子那里选人，这里也能选谁上桌（放在最上面，作者定的）
   const partyName = () => pick.party.map(id => nameOf(contact(id))).join('、') || '只有你';
   const partyRow = item({ title: '谁上桌', value: partyName(), chevron: true, onClick: () => choose(() => { partyRow.querySelector('.as-list-item__value').textContent = partyName(); paintLang(); }) });
   // 每个人说什么语言：默认照聊天设置，在这里改只管这一局
@@ -301,8 +301,8 @@ function setupSheet(next, chooseKp, choose) {   // 没给 chooseKp：车卡页�
       if (v) { pick.lang[id] = v; row.querySelector('.as-list-item__value').textContent = langName(v); }
     } }); return row; }), '旁白都用中文；台词不是中文的，下面跟一行中文翻译'));
   paintLang();
-  const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [group('玩哪个本', rows), askF, field('气氛', mood), field(withInfo('跑法', '剧本：开局时 KP 就把整局写好，掷完骰直接放，你打字时才找 AI。自由：每回合都找 AI 现编。'), run),
-    group('', [...chooseKp ? [kpRow, partyRow] : [],
+  const s = sheet({ title: '开局', cls: 'as-int-sheet', content: [...chooseKp ? [group('', [partyRow, kpRow])] : [], group('玩哪个本', rows), askF, field('气氛', mood), field(withInfo('跑法', '剧本：开局时 KP 就把整局写好，掷完骰直接放，你打字时才找 AI。自由：每回合都找 AI 现编。'), run),
+    group('', [
       item({ title: withInfo('抢话', '开着：车卡会和跑团里，AI 会把你大概会做的事、会说的话也演出来。关着：只写别人，你的话自己说。'), right: switchEl(pick.speak, v => { pick.speak = v; }, '抢话') })]),
     ...chooseKp ? [modeBox, noteF] : [], langBox, field('语音', segmented(VOICE_MODES, pick.voice, v => { pick.voice = v; })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn(chooseKp ? '下一步：车卡' : '开局', 'primary', () => { s.close(); setupOk = true; next(); }))] });
