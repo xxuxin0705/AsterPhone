@@ -24,7 +24,7 @@ export function clockFx(el) {
   const dial = h('div.as-ck__dial', h('i.as-ck__glow'), outer, gear, hand), wheel = h('div.as-ck__wheel');
   el.className = 'as-mp__fx is-clock';
   el.replaceChildren(dial, wheel);
-  let rows = [], lastL = null, cur = -1;
+  let rows = [], lastL = null, cur = -1, dirty = false;
   return {
     kind: 'clock',
     line(L, i) {
@@ -34,20 +34,27 @@ export function clockFx(el) {
         wheel.replaceChildren(...rows); cur = -1;
       }
       rows[cur]?.classList.remove('is-cur');
-      cur = i; rows[i]?.classList.add('is-cur');
-      // 每句之间按真的高度排开（有翻译的、正在唱的那句占得多），不然有翻译时挤成一团：从唱到的这句往上、往下一句句累加角度
-      const c = Math.max(i, 0), R = parseFloat(getComputedStyle(el).getPropertyValue('--R')) || 150, deg = px => px / (R + 40) * 180 / Math.PI;
-      const hs = rows.map((r, k) => Math.abs(k - c) <= 5 ? r.offsetHeight : 0), at = [];
-      at[c] = 0;
-      for (let k = c + 1; k < rows.length; k++) at[k] = at[k - 1] + (k - c > 5 ? 30 : deg(hs[k - 1] / 2 + hs[k] / 2 + 14));
-      for (let k = c - 1; k >= 0; k--) at[k] = at[k + 1] - (c - k > 5 ? 30 : deg(hs[k + 1] / 2 + hs[k] / 2 + 14));
-      rows.forEach((r, k) => { r.style.setProperty('--a', Math.max(-170, Math.min(170, at[k])) + 'deg'); r.classList.toggle('is-far', Math.abs(k - c) > 4); });
+      cur = i; rows[i]?.classList.add('is-cur'); lay();
     },
-    prog(p) { rows[cur]?.style.setProperty('--p', p * 100 + '%'); },
+    prog(p) { if (dirty) lay(); rows[cur]?.style.setProperty('--p', p * 100 + '%'); },
     time(t, d) {
+      if (dirty) lay();
       outer.style.transform = `rotate(${d ? t / d * 360 : 0}deg)`;
       gear.style.transform = `rotate(${-t * 12}deg)`;
       hand.style.transform = `rotate(${t * 6}deg)`;   // 秒针：一秒走一格
     },
   };
+  // 排一圈。页面在后台、收起时量不出高度（都是 0，会挤成一团），记下来，看得见了再排
+  function lay() {
+      if (!rows.length) return;
+      if (!el.offsetHeight) { dirty = true; return; }
+      dirty = false;
+      // 每句之间按真的高度排开（有翻译的、正在唱的那句占得多），不然有翻译时挤成一团：从唱到的这句往上、往下一句句累加角度
+      const c = Math.max(cur, 0), R = parseFloat(getComputedStyle(el).getPropertyValue('--R')) || 150, deg = px => px / (R + 40) * 180 / Math.PI;
+      const hs = rows.map((r, k) => Math.abs(k - c) <= 5 ? r.offsetHeight : 0), at = [];
+      at[c] = 0;
+      for (let k = c + 1; k < rows.length; k++) at[k] = at[k - 1] + (k - c > 5 ? 30 : deg(hs[k - 1] / 2 + hs[k] / 2 + 14));
+      for (let k = c - 1; k >= 0; k--) at[k] = at[k + 1] - (c - k > 5 ? 30 : deg(hs[k + 1] / 2 + hs[k] / 2 + 14));
+      rows.forEach((r, k) => { r.style.setProperty('--a', Math.max(-170, Math.min(170, at[k])) + 'deg'); r.classList.toggle('is-far', Math.abs(k - c) > 4); });
+  }
 }

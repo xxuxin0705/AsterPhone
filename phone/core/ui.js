@@ -72,7 +72,9 @@ export function item({ icon: ic, color = 'blue', title, sub, value, chevron = fa
 export function switchEl(on, onChange, label) {
   const b = h('button.as-switch', { role: 'switch', 'aria-checked': String(!!on), 'aria-label': label || '开关' });
   b.classList.toggle('is-active', !!on);
-  b.addEventListener('click', e => { e.stopPropagation(); on = !on; b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on)); onChange && onChange(on); });
+  const show = v => { on = !!v; b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on)); };
+  b.addEventListener('click', e => { e.stopPropagation(); show(!on); onChange && onChange(on); });
+  b.set = show;   // 别处改了这个开关（比如悬浮窗上点了解锁）时，这里跟着拨过去，不触发 onChange
   return b;
 }
 export function toggleItem(opts, on, onChange) { return item({ ...opts, right: switchEl(on, onChange, typeof opts.title === 'string' ? opts.title : opts.title.textContent) }); }

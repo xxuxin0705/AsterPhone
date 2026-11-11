@@ -2,7 +2,7 @@
 // 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
-import { state, commit, contact, kvGet, kvSet, kvDel } from '../../core/store.js';
+import { state, commit, contact, kvGet, kvSet, kvDel, subscribe } from '../../core/store.js';
 import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -490,15 +490,26 @@ async function openFloat() {
   const F = await import('../../core/floatlyric.js'), c = F.cfg();
   const save = () => { commit('music'); F.applyFloat(); };
   const sizeOut = h('output', c.size + '');
-  const more = group('', [
-    font(() => c.font || '', v => { c.font = v; }, save),
-    h('div.as-field', h('span.as-field__label', '颜色'), colorWheel(c.color, v => { c.color = v; save(); })),
-    h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 12, max: 48, step: 1, value: c.size, onInput: v => { c.size = v; sizeOut.textContent = v; save(); } }), sizeOut),
-    toggleItem({ title: '锁定' }, c.lock, v => { c.lock = v; save(); }),
-  ]);
+  const fontRow = () => font(() => c.font || '', v => { c.font = v; }, save);
+  const wheel = () => colorWheel(c.color, v => { c.color = v; was.color = v; save(); });
+  const sizeIn = slider({ min: 12, max: 48, step: 1, value: c.size, onInput: v => { c.size = v; sizeOut.textContent = v; save(); } });
+  const lockRow = toggleItem({ title: '锁定' }, c.lock, v => { c.lock = v; save(); }), colorF = h('div.as-field', h('span.as-field__label', '颜色'), wheel());
+  let fontEl = fontRow();
+  const more = group('', [fontEl, colorF, h('div.as-settings-slider-row', h('span', '大小'), sizeIn, sizeOut), lockRow]);
+  // 悬浮窗上点了解锁、换了颜色字号字体：这页开着的话只改动到的那几样（作者要的联动）
+  const was = { ...c };
+  const off = subscribe(w => { if (w !== 'music' && w !== 'all') return; if (!p.el.isConnected) { off(); return; }
+    if (c.lock !== was.lock) lockRow.querySelector('.as-switch').set(c.lock);
+    if (c.size !== was.size) { sizeIn.value = c.size; sizeOut.textContent = c.size; }
+    if (c.color !== was.color) colorF.lastChild.replaceWith(wheel());
+    if (c.font !== was.font) { const n = fontRow(); fontEl.replaceWith(n); fontEl = n; }
+    if (c.where !== was.where) { whereF.firstChild.replaceWith(whereSeg()); more.style.display = c.where === 'off' ? 'none' : ''; }   // 悬浮窗上点了关闭
+    Object.assign(was, c); });
   more.style.display = c.where === 'off' ? 'none' : '';
   const p = page({ app: 'music', id: 'music-float', title: '歌词悬浮窗', back: true });
-  p.body.append(group('显示在', [h('div.as-field', segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; }))]), more);
+  const whereSeg = () => segmented([['off', '关'], ['phone', '小手机里'], ['tavern', '酒馆页面']], c.where, v => { c.where = was.where = v; save(); more.style.display = v === 'off' ? 'none' : ''; });
+  const whereF = h('div.as-field', whereSeg());
+  p.body.append(group('显示在', [whereF]), more);
   nav.push(p.el);
 }
 /* ---------- 自动存歌：听过的歌存在手机里，下次直接本地放；存几首、存了多少、清空 ---------- */
@@ -911,7 +922,7 @@ export function openPlayer() {
   const tgBubs = h('div.as-tg__bubs', ...tgBub);
   const tgEl = h('div.as-tg', h('div.as-tg__pair', { onclick: e => { e.stopPropagation(); openPairs(); } }, tgBubs, half('l', 0), half('r', 1)), tgTime);
   const fx = h('div.as-mp__fx');
-  const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); } }, stage, fx, tgEl, lrc);
+  const main = h('div.as-mp__main', { onclick: () => { if (P.together()) return; p.el.classList.toggle('is-lrc'); paintSkin(); tick(); } }, stage, fx, tgEl, lrc);
   const cv = h('canvas.as-mp__rain'), R = rain(cv, p.el);
   let touched = 0; lrc.addEventListener('pointerdown', () => { touched = Date.now(); });
   // 手滑歌词：中间出一条线，左边是滑到的那句的时间，点右边的 ▶ 从那句开始放；三秒不动就收起来、歌词滚回正在唱的

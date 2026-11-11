@@ -93,11 +93,13 @@ const close = () => { if (panel) { panel.remove(); panel = null; } el.style.outl
 const COLORS = ['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'];
 function open() {
   const doc = el.ownerDocument, c = cfg(), mk = (tag, css, text) => { const x = doc.createElement(tag); x.style.cssText = css; if (text != null) x.textContent = text; return x; };
-  const btn = (text, fn) => { const b = mk('button', 'border:0;border-radius:14px;padding:7px 12px;background:rgba(255,255,255,.14);color:#fff;font:500 13px/1 sans-serif;cursor:pointer', text); b.onclick = e => { e.stopPropagation(); fn(b); }; return b; };
+  const btn = (text, fn) => { const b = mk('button', 'flex:1;border:0;border-radius:14px;padding:7px 12px;background:rgba(255,255,255,.14);color:#fff;font:500 13px/1 sans-serif;cursor:pointer', text); b.onclick = e => { e.stopPropagation(); fn(b); }; return b; };
   const save = () => { commit('music'); applyFloat(); };
   panel = mk('div', 'position:fixed;z-index:2147483001;display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:rgba(28,28,32,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,.35);color:#fff;font:13px/1.2 sans-serif');
   panel.addEventListener('pointerdown', e => e.stopPropagation());
-  if (c.lock) panel.append(btn('解锁', () => { c.lock = false; close(); save(); }));
+  // 最下面一排：锁定 / 解锁 · 关闭悬浮窗（关了要回音乐 App 的「歌词悬浮窗」里再打开）
+  const off = btn('关闭悬浮窗', () => { c.where = 'off'; close(); save(); }), last = mk('div', 'display:flex;gap:8px');
+  if (c.lock) { last.append(btn('解锁', () => { c.lock = false; close(); save(); }), off); panel.append(last); }
   else {
     el.style.outline = '1.5px dashed rgba(255,255,255,.85)'; el.style.outlineOffset = '8px';
     const dots = mk('div', 'display:flex;gap:7px;flex-wrap:wrap;max-width:236px');
@@ -111,7 +113,8 @@ function open() {
     if (c.font && !FONTS.some(f => f[0] === c.font)) { const o = mk('option', 'color:#000', '字体库里的'); o.value = c.font; o.selected = true; font.append(o); }
     font.onchange = () => { c.font = font.value; save(); };
     const row = mk('div', 'display:flex;align-items:center;gap:8px'); row.append(mk('span', '', '大小'), btn('A−', step(-2)), n, btn('A+', step(2)), font);
-    panel.append(dots, row, btn('锁定', () => { c.lock = true; close(); save(); }));
+    last.append(btn('锁定', () => { c.lock = true; close(); save(); }), off);
+    panel.append(dots, row, last);
   }
   doc.body.append(panel); place();
 }
