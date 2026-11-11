@@ -224,7 +224,7 @@
 .as-mp__seek button { pointer-events: auto; width: 36px; height: 36px; margin: -18px 0; display: grid; place-items: center; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
 .as-mp__lrc p.is-aim { color: rgba(var(--mp-ink),.85); }
 .as-mp__lrc::before, .as-mp__lrc::after { content: ''; display: block; height: 45%; }
-.as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--ly-font, var(--font-ui)); color: rgba(var(--mp-ink),.42); transition: color 200ms; }
+.as-mp__lrc p { margin: 0; padding: 12px 0; text-align: center; font: 400 16px/1.5 var(--ly-font, var(--font-ui)); color: var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper))); transition: color 200ms; }   /* 别的行跟正在唱那句没唱到的部分同一个颜色 */
 .as-mp__lrc small { display: block; margin-top: 4px; font-size: 14px; }
 .as-mp__lrc p.is-cur { font-size: 17.5px; font-weight: 600; color: rgb(var(--mp-ink)); }
 /* 唱到哪亮到哪，翻译跟着一起亮；颜色没选过就是白字，没唱的字没选过是半透明白 */
@@ -386,7 +386,7 @@
 /* 描边（歌词设置里选，普通歌词、碎语都管；下雨天在 rain.js 里画）：描边 = 字边上一圈实线，浅字描深的、深字描白的（自己选了描边颜色就用它）；发光 = 跟字同色的淡光；不加 = 都没有。
  * 实线是八个方向各挪 0.6px 的硬影子拼出来的（要细：中文笔画密，边粗一点字就糊成一团）；渐变填色的那句 text-shadow 会盖住填色，只能用 drop-shadow，所以另备一份 --ds（四个方向，filter 贵）。描边时字距稍松一点，不挤 */
 .as-mp { --halo: rgba(4,14,40,.85); --ec: var(--edge, var(--halo)); --sh: 0 0 transparent; --ds: none; --ls: 0; --ew: .0375em; --ed: calc(var(--ew) * .75); }   /* 默认不加；--ew 描边粗细（歌词设置里拉），按字号算：小字（翻译）的边跟着细，不糊成一团 */
-.as-mp.is-day { --halo: rgba(255,255,255,.9); }
+.as-mp.is-day, .as-mp.is-light { --halo: rgba(255,255,255,.9); }
 .as-mp.is-shade-edge { --ls: .03em;
   --sh: var(--ew) 0 0 var(--ec), calc(-1 * var(--ew)) 0 0 var(--ec), 0 var(--ew) 0 var(--ec), 0 calc(-1 * var(--ew)) 0 var(--ec), var(--ed) var(--ed) 0 var(--ec), calc(-1 * var(--ed)) var(--ed) 0 var(--ec), var(--ed) calc(-1 * var(--ed)) 0 var(--ec), calc(-1 * var(--ed)) calc(-1 * var(--ed)) 0 var(--ec);
   --ds: drop-shadow(var(--ew) 0 0 var(--ec)) drop-shadow(calc(-1 * var(--ew)) 0 0 var(--ec)) drop-shadow(0 var(--ew) 0 var(--ec)) drop-shadow(0 calc(-1 * var(--ew)) 0 var(--ec)); }
