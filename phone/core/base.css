@@ -110,6 +110,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-stack__page > * { position: relative; z-index: 1; }
 .as-stack__page.is-entering { transform: translateX(100%); }
 .as-stack__page.is-leaving { transform: translateX(100%); }
+.as-stack__page.is-fade.is-leaving { transform: none; opacity: 0; transition: opacity 280ms ease; }   /* 原地淡掉（车卡会点「改我的卡」，作者定的） */
 .as-stack__page.is-behind { }   /* 下面那页原地不动，只有上面这页滑走 */
 .as-stack__page.is-fading { opacity: 0; }
 .as-stack__page.is-zooming { transition: transform 420ms var(--as-ease-standard), opacity 300ms ease, border-radius 420ms; overflow: hidden; }

@@ -124,8 +124,8 @@ const skillsText = () => Object.entries(R.SKILLS).map(([k, v]) => `${k} ${v}`).j
 // 认识谁：AI 写的名字认回是谁（名单上的名字、本名、卡上的名字都认）
 const isOwner = (o, w) => !!w && ([ownerName(o), realName(o), (lastCard(o) || {}).name].includes(w) || o === 'me' && w === '你');
 const relsOf = (L, o, all) => (Array.isArray(L) ? L : []).map(y => ({ o: all.find(p => p !== o && isOwner(p, str(y.who))), text: str(y.text) })).filter((y, i, a) => y.o && y.text && a.findIndex(z => z.o === y.o) === i);
-function toCard(o, x, rolled, r, all = []) {
-  const tier = rolled ? undefined : R.tierOf(x.tier) || R.TIERS[0][0], a = rolled || R.fixAttrs(x.attrs, R.budgetOf(tier, r && r.base), r), base = R.baseSkills(a);
+function toCard(o, x, rolled, r, all = [], free) {   // free：不限点数，属性总数不往下削
+  const tier = rolled ? undefined : R.tierOf(x.tier) || R.TIERS[0][0], a = rolled || R.fixAttrs(x.attrs, free ? Infinity : R.budgetOf(tier, r && r.base), r), base = R.baseSkills(a);
   const given = (Array.isArray(x.jobSkills) ? x.jobSkills : []).map(String).filter(k => k in base).slice(0, 8), jobs = given.length ? given : R.jobsOf({ job: x.job });
   const sk = R.fixSkills(a, x.skills, r && r.skillMax, r && r.hobbyMax, jobs); sk.信用评级 = R.crFit(sk.信用评级, x.job);
   return { id: uid('ic'), owner: o, at: Date.now(), name: String(x.name || ownerName(o)), age: +x.age || 25, sex: sexOf(x.sex), job: String(x.job || ''), home: String(x.home || ''),
@@ -149,6 +149,8 @@ async function keep(made) { (D.cards || (D.cards = [])).push(...made); made.forE
 // all：同桌的所有人（重车时只车其中几个，关系也要写到没重车的人）
 // s：这一桌的设置（本、车卡方式、车卡补充…，见 meet）。这桌已经有团公告（或开过车卡会）就照着车；没有就让 KP 先写一张团公告，和卡一起回来（不多找一次 AI）
 const noteText = note => note ? `\n【玩家车卡前补充的话（照着来）】${note}` : '';
+// 不限点数（开局设置里开的，默认关）：属性总数、本职 / 兴趣技能点不用凑数，照人设给
+const FREE_TEXT = '\n【这局不限点数】属性总数、本职点和兴趣点都不用管，照每个人的人设和本事给（其他规矩照旧）。';
 // 自己填到一半的卡：只列真填过的（空白卡默认的 20 岁、属性 40、基础技能不算）
 const partText = c => { const base = R.baseSkills(c.attrs), own = Object.entries(c.skills).filter(([k, v]) => v !== base[k]);
   return [`名字 ${c.name}`, c.age !== 20 && `${c.age} 岁`, c.sex, c.job && `职业 ${c.job}`, c.home && `住在${c.home}`, R.ATTRS.some(([k]) => k !== 'LUCK' && c.attrs[k] !== 40) && attrsText(c.attrs),
@@ -159,8 +161,8 @@ export async function makeCards(owners, all = owners, s = {}, part = {}) {
   const m = meeting(s), story = storyText(), memory = await memoryText(all, story), rolled = rollFor(owners, s.mode);
   const others = all.filter(o => !owners.includes(o)).map(o => { const c = lastCard(o); return ownerName(o) + (c ? `（这局扮演 ${c.name}，${c.job}）` : ''); });
   const out = await ask('intCards', {
-    story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(), mode: (MODE_TEXT[s.mode] || '') + noteText(s.note),
-    scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车；JSON 里不要再写 hint 和 rules，只写 cards）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
+    story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
+    mode: (MODE_TEXT[s.mode] || '') + noteText(s.note) + (s.free ? FREE_TEXT : ''), scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车；JSON 里不要再写 hint 和 rules，只写 cards）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
     roster: (others.length ? `同桌的还有：${others.join('、')}（他们的卡已经车好了，不要写他们的卡；只在背景里写到和他们的关系）\n下面这 ${owners.length} 个人要车卡，cards 里正好 ${owners.length} 张：\n` : '') + owners.map(o => rosterLine(o, rolled[o]) + (part[o] ? `；已经自己填了一部分（填了的照抄、不改，只补空着的）：${partText(part[o])}` : '')).join('\n'),
   });
   const list = Array.isArray(out.cards) ? out.cards : [];
@@ -170,7 +172,7 @@ export async function makeCards(owners, all = owners, s = {}, part = {}) {
   // 认卡：who 照名字认（写成「你」、名字多了少了几个字也认）；AI 多写了别人的卡、又认不出是谁的，就不乱拿别人的那张
   const whose = (o, c) => { const w = String(c.who || ''); return !!w && ([ownerName(o), realName(o)].some(n => w === n || n.includes(w) || w.includes(n)) || o === 'me' && w === '你'); };
   return keep(owners.map((o, i) => { const x = list.find(c => whose(o, c)) || list.length === owners.length && list[i];
-    if (!x) throw new Error(`AI 没写${ownerName(o)}的卡`); return toCard(o, x, rolled[o], r, all); }));
+    if (!x) throw new Error(`AI 没写${ownerName(o)}的卡`); return toCard(o, x, rolled[o], r, all, s.free); }));
 }
 
 /** 车卡会（知道在跑团时可选）：一次 API 写完整场——KP 先发团公告、其他人交卡被打回再改、定下规矩、其他人过审的卡、
@@ -197,12 +199,12 @@ export async function meet(s) {
   const out = await ask('intMeet', {
     kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
     roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}${fresh.me ? '；这局车新卡' : old('me')}`, ...s.party.map(o => rosterLine(o, rolled[o]) + (fresh[o] && self ? '；这局会后自己车新卡' : old(o)) + `；${speakLine(g, o)}`)].join('\n'),
-    mode: (self ? '' : MODE_TEXT[s.mode] || '') + noteText(s.note) + FILL_TEXT[self ? 'self' : 'ai'], jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
+    mode: (self ? '' : MODE_TEXT[s.mode] || '') + noteText(s.note) + FILL_TEXT[self ? 'self' : 'ai'] + (s.free ? FREE_TEXT : ''), jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
   });
   const r = out.rules, all = Array.isArray(out.cards) ? out.cards : [], list = all.filter(c => !c.old);
   if (!Array.isArray(out.lines) || !r || list.length < news.length) throw new Error('AI 回的格式不对');
   const talk = L => (Array.isArray(L) ? L : []).filter(l => l && (l.say || l.act)), rules = toRules(r);
-  const cards = await keep(news.map((o, i) => toCard(o, list.find(c => [ownerName(o), realName(o)].includes(c.who) || o === 'me' && c.who === '你') || list[i] || {}, rolled[o], rules, ['me', ...s.party]))), adjust = {};
+  const cards = await keep(news.map((o, i) => toCard(o, list.find(c => [ownerName(o), realName(o)].includes(c.who) || o === 'me' && c.who === '你') || list[i] || {}, rolled[o], rules, ['me', ...s.party], s.free))), adjust = {};
   for (const o of s.party.filter(o => !fresh[o])) { const x = all.find(c => c.old && [ownerName(o), realName(o)].includes(c.who)); if (!x) continue;
     adjust[o] = { ...(Array.isArray(x.items) ? { items: x.items.map(toItem).filter(Boolean) } : {}), ...(Array.isArray(x.abilities) ? { abilities: x.abilities.map(toPower).filter(Boolean) } : {}) }; }
   D.meet = { key: meetKey(s), at: Date.now(), mode: s.mode, pick: s.pick, hint: String(out.hint || ''), lines: talk(out.lines), pass: talk(out.pass), fail: talk(out.fail), reviews: out.reviews || {},
@@ -228,10 +230,10 @@ export function rate(c, m) {
  *  属性上下限、技能上限只管这次新车的卡（旧卡是以前车的），掷骰车的不管属性上下限（规则书：天命不受属性限制） */
 /** 这桌会后要车新卡的人（以前只记你一个，是 true / false） */
 export const newOnly = m => !m ? [] : Array.isArray(m.fresh) ? m.fresh : m.fresh ? ['me'] : [];
-export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一般的规矩看（自己填卡时预览用）
+export function checkCard(c, m, free) {   // m 是这桌的团公告；没有就照一般的规矩看（自己填卡时预览用）；free：不限点数，不审属性总数和技能点
   const r = m ? m.rules : toRules(), bad = [], tier = R.tierOf(r.tiers[ownerName(c.owner)]) || c.tier || R.TIERS[0][0], fresh = !m || c.at >= m.at;
   const all = R.budgetOf(tier, r.base) + (c.grown || 0), jobs = R.jobsOf(c), u = R.usage(c.attrs, c.skills, jobs);
-  if ((!m || m.mode !== 'random') && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
+  if (!free && (!m || m.mode !== 'random') && R.attrSum(c.attrs) > all) bad.push(`属性点 ${R.attrSum(c.attrs)}，${tier}${c.grown ? `加成长 ${c.grown} 点` : ''}最多 ${all}`);
   if (!fresh && newOnly(m).includes(c.owner)) bad.push('这局要用新卡');
   const [clo, chi] = R.crOf(c.job), cr = c.skills.信用评级 || 0; if (fresh && (cr < clo || cr > chi)) bad.push(`信用评级要在 ${clo}～${chi}（${c.job}）`);
   const out = fresh && c.tier ? R.ATTRS.filter(([k]) => k !== 'LUCK' && (c.attrs[k] < r.attrMin || c.attrs[k] > r.attrMax)) : [];
@@ -243,7 +245,7 @@ export function checkCard(c, m) {   // m 是这桌的团公告；没有就照一
   if (!r.guns && w.some(isGun)) bad.push(`不能带枪：${w.filter(isGun).map(x => x.name).join('、')}`);
   if (r.abilities != null && n > r.abilities) bad.push(`特殊能力 ${n} 个，最多 ${r.abilities} 个`);
   const ban = r.banned.filter(b => things.includes(b)); if (ban.length) bad.push(`不准带：${ban.join('、')}`);
-  if (u.job > u.jobAll || u.hobby > u.hobbyAll + (c.skillUp || 0)) bad.push(`技能点超了：本职 ${u.job}/${u.jobAll}，兴趣 ${u.hobby}/${u.hobbyAll}${c.skillUp ? ` + 成长 ${c.skillUp}` : ''}`);
+  if (!free && (u.job > u.jobAll || u.hobby > u.hobbyAll + (c.skillUp || 0))) bad.push(`技能点超了：本职 ${u.job}/${u.jobAll}，兴趣 ${u.hobby}/${u.hobbyAll}${c.skillUp ? ` + 成长 ${c.skillUp}` : ''}`);
   return bad;
 }
 export const meetRules = m => { const t = m.mode !== 'random' && R.tierOf(m.rules.tiers[myName()]);
