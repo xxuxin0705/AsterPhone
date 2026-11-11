@@ -12,7 +12,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.286';
+export const VERSION = '0.8.287';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -101,9 +101,9 @@ function openConnList() {
     body.append(h('div', { style: { marginBottom: '16px' } }, segmented([['text', '文字'], ['image', '生图'], ['tts', '语音'], ['embed', '其他']], connKind, v => { connKind = v; re(); })));
     if (!list.length) { body.appendChild(empty(`还没有${KIND_LABEL[connKind]}连接`, btn('新建连接', 'primary', () => add()))); return; }
     const isDef = c => state.connections.defaults[connKind === 'embed' ? auxKey(tagOf(c)) : connKind] === c.id;   // 「其他」每个标签各有一个默认
-    body.appendChild(group(connKind === 'text' ? '「酒馆当前连接」= 你在酒馆里正在用的 API' : '', list.map(c => {
+    body.appendChild(group('', list.map(c => {
       const el = item({ icon: h('span', (CHANNELS[connKind].find(x => x.v === c.type) || { label: '酒' }).label.slice(0, 1)), color: c.type === 'tavern' ? 'orange' : 'blue', cls: 'as-settings-conn-card',
-        title: c.name, sub: c.type === 'tavern' ? '跟着酒馆走，不用填密钥' : `${connKind === 'embed' ? tagOf(c) : (CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
+        title: c.name, sub: c.type === 'tavern' ? (c.pf ? [c.cur, c.model].filter(Boolean).join(' · ') : '跟着酒馆走') : c.type === 'tavern-profile' ? `酒馆配置 · ${c.model || c.api || ''}` : `${connKind === 'embed' ? tagOf(c) : (CHANNELS[connKind].find(x => x.v === c.type) || {}).label || c.type} · ${c.model || '未选模型'}`,
         right: isDef(c) ? h('span.as-check', { title: '默认' }, icon('check', 20, 2.4)) : null, chevron: true, onClick: () => import('./board.js').then(m => m.openDetail(c, connKind, false, hooks())) });
       return el;
     }), '打勾的是默认，App、聊天里还能单独换'));

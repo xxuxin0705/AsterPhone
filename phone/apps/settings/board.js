@@ -7,7 +7,8 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles } from '../../core/api.js';
+import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
+import { tavernProfiles } from '../../core/bridge.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
 import { openVoicePage, voiceInput, withInfo } from './voices.js';
@@ -119,7 +120,7 @@ export function openBoard({ list }) {
   }
   function paintTile(t) {
     const c = t.c;
-    const name = c.type === 'tavern' ? '酒馆当前连接' : c.name;
+    const name = c.type === 'tavern' ? '酒馆' : c.name;
     if (t.nameEl.textContent !== name) t.nameEl.textContent = name;
     const sub = subOf(c); if (t.subEl.textContent !== sub) t.subEl.textContent = sub;
     const kl = kindLabel(c, t.kind); if (t.kindEl.textContent !== kl) t.kindEl.textContent = kl;
@@ -723,8 +724,8 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
 /* ================= 接口详情 ================= */
 const isTv = c => c.type === 'tavern' || c.type === 'tavern-profile';
 const needSetup = (c, kind) => { if (!c || isTv(c)) return false; const ch = (CHANNELS[kind] || []).find(x => x.v === c.type) || {}; return !ch.noKey && !keysOf(c).length; };
-const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆 · 当前' : c.type === 'tavern-profile' ? '酒馆' : kind === 'embed' ? tagOf(c) : KIND_NAME[kind];
-const subOf = c => c.type === 'tavern' ? (c.cur ? `现在是「${c.cur}」` : c.curApi ? `现在是 ${c.curApi}` : '跟着酒馆走')
+const kindLabel = (c, kind) => c.type === 'tavern' ? '酒馆' : c.type === 'tavern-profile' ? '酒馆配置' : kind === 'embed' ? tagOf(c) : KIND_NAME[kind];
+const subOf = c => c.type === 'tavern' ? (c.pf ? [c.cur, c.model].filter(Boolean).join(' · ') : `跟着酒馆${c.cur || c.curApi ? ' · ' + (c.cur || c.curApi) : '走'}`)
   : c.type === 'tavern-profile' ? (c.gone ? '酒馆里没有了' : c.model || c.api || '')
   : (!keysOf(c).length && !((CHANNELS.image.find(x => x.v === c.type) || CHANNELS.tts.find(x => x.v === c.type) || {}).noKey) && c.type !== 'tavern' ? '还没填密钥' : c.model || '');
 
@@ -746,7 +747,17 @@ function togglePinData(id) {
   return i < 0;
 }
 /** 新建一个接口：先按这一类的第一个渠道填好，打开详情 */
-export function newConn(kind, hooks, tag) {
+export async function newConn(kind, hooks, tag) {
+  // 文字线：也能把酒馆里的某个配置单独拿出来当一个接口（要两根线各用一个配置时）
+  const pfs = kind === 'text' ? tavernProfiles().list : [];
+  if (pfs.length) {
+    const v = await actionSheet('添加接口', [{ value: 'api', label: '填地址和密钥' }, { value: 'tv', label: '酒馆里的某个配置' }]); if (!v) return;
+    if (v === 'tv') {
+      const id = await actionSheet('用酒馆里的哪个配置', pfs.map(pf => ({ value: pf.id, label: [pf.name || '未命名配置', pf.model].filter(Boolean).join(' · ') }))); if (!id) return;
+      if (C().text.some(c => c.type === 'tavern-profile' && c.profileId === id)) { toast('这个配置已经加过了'); return; }
+      C().text.push({ id: 'tvp_' + id, type: 'tavern-profile', profileId: id, ...profInfo(pfs.find(x => x.id === id)) }); commit('connections'); toast('加好了'); (hooks.refresh || (() => {}))(); return;
+    }
+  }
   // 拎着「其他」线的某一股插到「添加」上：先挑带这个标签的渠道，没有就用自定义，标签填好
   const ch = (tag && (CHANNELS[kind].find(x => x.tag === tag) || CHANNELS[kind].find(x => x.v === 'other-compat'))) || CHANNELS[kind].at(-1);   // 不带标签：默认第三方（OpenAI 兼容），它在每类的最后一个
   openDetail({ id: uid('conn'), name: '', type: ch.v, base: ch.base, key: '', keys: [], model: ch.model || '', ...(tag && ch.tag !== tag ? { tag } : {}) }, kind, true, hooks);
@@ -760,6 +771,12 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
   d.keys = d.keys || []; d.params = Object.assign({ temperature: .9, thinking: 'off' }, d.params); d.adv = Object.assign({ cache: false }, d.adv);
   d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, d.img); d.tts = Object.assign({ voice: '', speed: 1, volume: 1 }, d.tts);
   const tavern = isTv(d);
+  const delB = () => h('button.is-danger', { onclick: async () => {
+    if (!(await dialog({ title: `删掉「${orig.name}」？`, text: '插在它上面的线会被拔下来。', confirm: '删除', danger: true }))) return;
+    const list = C()[kind]; list.splice(list.indexOf(orig), 1);
+    for (const k of Object.keys(C().defaults)) if (C().defaults[k] === orig.id) C().defaults[k] = '';
+    commit('connections'); s.close(); refresh();
+  } }, '删除');
   let dirty = !!isNew;
   // 置顶 · 复制一份 · 删除 放在同一排
   const pinBtn = () => { const pinned = () => (C().pinned || []).includes(orig.id), b = h('button.as-pbd__pinbtn', { onclick: () => { const on = togglePin(orig.id); b.textContent = on ? '取消置顶' : '置顶'; toast(on ? '置顶了' : '取消置顶了'); } }, pinned() ? '取消置顶' : '置顶'); return b; };
@@ -774,7 +791,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
     faceEl.dataset.face = s || 'idle';
   };
   paintSt();
-  const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆当前连接' : d.name || (isNew ? '新接口' : ''));
+  const nameEl = h('b.as-pbd__name', d.type === 'tavern' ? '酒馆' : d.name || (isNew ? '新接口' : ''));
   const subEl = h('span.as-pbd__subline');
   const paintSub = () => { subEl.textContent = tavern ? `酒馆 · ${subOf(d) || '跟着酒馆走'}` : `${kind === 'embed' ? tagOf(d) : KIND_NAME[kind]} · ${d.model || '还没选模型'}`; };
   paintSub();
@@ -812,14 +829,20 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
   const groups = [];
   if (tavern) {
     const info = (k, v) => v ? h('div.as-pbd__row.is-inline', h('span.as-pbd__label', k), h('span.as-pbd__v', v)) : null;
-    groups.push(h('div.as-pbd__fold.is-open', h('div.as-pbd__fbody',
-      d.type === 'tavern'
-        ? [info('现在用的配置', d.cur || '（没用连接配置）'), info('模型', d.model), info('API', d.curApi),
-          h('p.as-pbd__hint', '酒馆此刻选中的连接是什么，这里就用什么；你在酒馆里一换，这里跟着变。温度这些也跟着酒馆的预设走。')]
-        : [info('API', d.api), info('模型', d.model), info('预设', d.preset), info('地址', d.url),
+    // 「酒馆」格子：挑用酒馆的哪个配置，点了就换（不用保存）
+    const tvBody = () => { const pf = tavernProfiles().list.find(x => x.id === orig.pf);
+      const pick = h('button.as-pbd__select', { onclick: async () => {
+        const v = await actionSheet('用酒馆的哪个配置', [{ value: '-', label: '跟着酒馆走', active: !orig.pf }, ...tavernProfiles().list.map(x => ({ value: x.id, label: [x.name || '未命名配置', x.model].filter(Boolean).join(' · '), active: x.id === orig.pf }))]);
+        if (!v || v === (orig.pf || '-')) return;
+        orig.pf = v === '-' ? '' : v; syncTavernProfiles(); commit('connections'); Object.assign(d, orig); paintSub(); tvBox.replaceChildren(...tvBody()); refresh();
+      } }, h('span', pf ? pf.name || '未命名配置' : '跟着酒馆走'), icon('chevron', 14, 2));
+      return [row('用哪个', pick), info('模型', d.model), info('API', d.curApi), ...pf ? [] : [info('酒馆现在用的', d.cur)]]; };
+    const tvBox = h('div.as-pbd__fbody');
+    if (d.type === 'tavern') tvBox.append(...tvBody());
+    groups.push(h('div.as-pbd__fold.is-open', d.type === 'tavern' ? tvBox : h('div.as-pbd__fbody', [info('API', d.api), info('模型', d.model), info('预设', d.preset), info('地址', d.url),
           h('p.as-pbd__hint', d.gone ? '酒馆里已经没有这个配置了。把插在它上面的线换到别的接口，它就会自己消失。' : '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。')]
     )));
-    if (setDefault) groups.push(h('div.as-pbd__danger', defBtn()));
+    if (setDefault || d.type === 'tavern-profile' && !isNew) groups.push(h('div.as-pbd__danger', setDefault ? defBtn() : null, d.type === 'tavern-profile' ? delB() : null));
   } else {
     groups.push(fold('连接', 'link', () => `${(CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type} · ${keysOf(d).length} 把密钥`, (b, re, rebuild) => {
       const nameIn = input({ value: d.name, placeholder: '随便起，方便自己认', onInput: v => { d.name = v; nameEl.textContent = v || '新接口'; touch(); } });
@@ -957,12 +980,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
     }));
     if (!isNew) groups.push(h('div.as-pbd__danger', setDefault ? defBtn() : pinBtn(),
       h('button', { onclick: () => { const cp = { ...JSON.parse(JSON.stringify(d)), id: uid('conn'), name: (d.name || orig.name) + ' 副本', ok: undefined }; C()[kind].push(cp); commit('connections'); s.close(); toast('复制好了'); } }, '复制一份'),
-      h('button.is-danger', { onclick: async () => {
-        if (!(await dialog({ title: `删掉「${orig.name}」？`, text: '插在它上面的线会被拔下来。', confirm: '删除', danger: true }))) return;
-        const list = C()[kind]; list.splice(list.indexOf(orig), 1);
-        for (const k of Object.keys(C().defaults)) if (C().defaults[k] === orig.id) C().defaults[k] = '';
-        commit('connections'); s.close(); refresh();
-      } }, '删除')));
+      delB()));
   }
   const save = h('button.as-pbd__save', { onclick: () => {
     if (tavern) { s.close(); return; }

@@ -59,7 +59,7 @@ export function stripTags(s) { return String(s || '').replace(/<(astertime|aster
 /** 用酒馆当前连接生成一段文字 */
 export async function generateTavern({ system, prompt }) {
   const c = ctx();
-  if (!c || typeof c.generateRaw !== 'function') throw new Error('没有连上酒馆，用不了「酒馆当前连接」');
+  if (!c || typeof c.generateRaw !== 'function') throw new Error('没有连上酒馆，用不了「酒馆」');
   const fn = c.generateRaw;
   const objectStyle = /^\s*(async\s*)?(function\s*\w*\s*)?\(\s*\{/.test(fn.toString());
   let out;
@@ -132,7 +132,7 @@ export function tavernMainApi() { const c = ctx(); return (c && (c.mainApi || (c
 /** 用某个连接配置生成，不会切换酒馆自己正在用的连接 */
 export async function generateWithProfile(profile, { system, prompt }) {
   const c = ctx(), svc = c && c.ConnectionManagerRequestService;
-  if (!svc || typeof svc.sendRequest !== 'function') throw new Error('这个酒馆版本还不能按连接配置生成，更新一下酒馆，或者先插「酒馆当前连接」');
+  if (!svc || typeof svc.sendRequest !== 'function') throw new Error('这个酒馆版本还不能按连接配置生成，更新一下酒馆，或者在「酒馆」里改成跟着酒馆走');
   const tc = profile.mode === 'tc' || profile.api === 'textgenerationwebui';
   const input = tc ? [system, prompt].filter(Boolean).join('\n\n')
     : [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean);

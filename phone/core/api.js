@@ -173,7 +173,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
   const keys = keysOf(conn);
   let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
-  const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆当前连接' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
+  const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
   const signal = call.signal, part = onPart ? t => { call.part(t); onPart(t); } : call.part;
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });   // 页面上的「取消」：和日志里点中止一样
   try {
@@ -188,7 +188,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     };
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
-      else out = await orAbort(generateTavern({ system, prompt }), signal);
+      else { const pf = conn.pf && tavernProfiles().list.find(x => x.id === conn.pf); out = await orAbort(pf ? generateWithProfile(pf, { system, prompt }) : generateTavern({ system, prompt }), signal); }
     } else if (conn.type === 'tavern-profile') {
       const pf = tavernProfiles().list.find(x => x.id === conn.profileId);
       if (!pf) throw new Error(`酒馆里找不到「${conn.name}」这个连接配置了`);
@@ -704,32 +704,35 @@ export function stopSpeak() {
   playing = null;
 }
 
+/** 酒馆的一个连接配置：格子上要显示的那些 */
+export const profInfo = pf => ({ name: pf.name || '未命名配置', model: pf.model || '', api: pf.api || '', preset: pf.preset || '', url: pf['api-url'] || '', mode: pf.mode || '', gone: false });
 /**
- * 把酒馆里的连接配置同步成一个个接口（类型 tavern-profile），这样它们也能插线、能排序。
- * 酒馆里删掉的配置：没线插着就去掉；有线插着先留着，标成「酒馆里没有了」。
- * 返回 true = 有变化
+ * 插线板上酒馆只有一个格子（type tavern），在里面挑用酒馆的哪个配置（pf，空 = 跟着酒馆走）；
+ * 要两根线各用一个配置的，自己「添加接口」加出来（type tavern-profile）。这里跟着酒馆更新它们：
+ * 酒馆里删掉的配置：没线插着就去掉；有线插着先留着，标成「酒馆里没有了」。返回 true = 有变化
  */
 export function syncTavernProfiles() {
-  const { list, selected } = tavernProfiles(), text = state.connections.text;
+  const { list, selected } = tavernProfiles(), C = state.connections, text = C.text;
+  const used = id => JSON.stringify([C.defaults, C.retry, C.schemes]).includes(id);
   let changed = false;
-  const seen = new Set();
-  for (const pf of list) {
-    const id = 'tvp_' + pf.id; seen.add(id);
-    let c = text.find(x => x.id === id);
-    const info = { name: pf.name || '未命名配置', model: pf.model || '', api: pf.api || '', preset: pf.preset || '', url: pf['api-url'] || '', mode: pf.mode || '', gone: false };
-    if (!c) { c = { id, type: 'tavern-profile', profileId: pf.id, fixed: true, ...info }; text.push(c); changed = true; }
-    else if (Object.keys(info).some(k => c[k] !== info[k])) { Object.assign(c, info); changed = true; }
+  // v0.8.287 以前每个配置都自动成了一个格子：没插线的收进「酒馆」里，插着线的留下当自己加的（作者定的）
+  if (!C.tvOne) {
+    C.tvOne = changed = true;
+    for (let i = text.length - 1; i >= 0; i--) if (text[i].type === 'tavern-profile' && !used(text[i].id)) text.splice(i, 1);
+    const tv = text.find(x => x.type === 'tavern'); if (tv && tv.name === '酒馆当前连接') tv.name = '酒馆';
   }
   for (let i = text.length - 1; i >= 0; i--) {
-    const c = text[i]; if (c.type !== 'tavern-profile' || seen.has(c.id)) continue;
+    const c = text[i]; if (c.type !== 'tavern-profile') continue;
+    const pf = list.find(x => x.id === c.profileId);
+    if (pf) { const info = profInfo(pf); if (Object.keys(info).some(k => c[k] !== info[k])) { Object.assign(c, info); changed = true; } continue; }
     if (!inTavern()) continue;                     // 不在酒馆里（单独预览）就别动
-    const used = Object.values(state.connections.defaults).includes(c.id);
-    if (used) { if (!c.gone) { c.gone = true; changed = true; } } else { text.splice(i, 1); changed = true; }
+    if (used(c.id)) { if (!c.gone) { c.gone = true; changed = true; } } else { text.splice(i, 1); changed = true; }
   }
-  // 「酒馆当前连接」顺便记下现在是哪个配置、什么模型，给人看
+  // 「酒馆」格子记下现在用的是哪个配置、什么模型，给人看；挑的那个配置在酒馆里删了就改回跟着酒馆走
   const tv = text.find(x => x.type === 'tavern');
   if (tv) {
-    const sel = list.find(x => x.id === selected);
+    if (tv.pf && inTavern() && !list.some(x => x.id === tv.pf)) { tv.pf = ''; changed = true; }
+    const sel = list.find(x => x.id === (tv.pf || selected));
     const cur = sel ? sel.name : '', model = sel ? sel.model || '' : '', api = sel ? '' : tavernMainApi();
     if (tv.cur !== cur || tv.model !== model || tv.curApi !== api) { tv.cur = cur; tv.model = model; tv.curApi = api; changed = true; }
   }
