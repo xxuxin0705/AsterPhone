@@ -694,7 +694,7 @@ export async function charPickMany(cs, onStep, stop) {
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
   const nm = c => c.name || nameOf(c);
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop,
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop, resume: M().fill ? M().fillMax || 3 : 0,
     prompt: compose('charSongs', { char: `下面这 ${cs.length} 个人（每个人分别写）`, persona: cs.map(c => `【${nm(c)}】\n${personaOf(c) || '（没有更多资料）'}`).join('\n\n'), story: storyText(6) || '（暂无）',
       existing: cs.map(c => `【${nm(c)}】\n${existingOf(c)}`).join('\n\n') })
       + `\n\n这次是 ${cs.length} 个人一起写：每个人先单独一行写「角色：名字」（名字照【】里的），下面照上面的格式写 TA 的歌单，感想用 TA 的口吻；${cs.length} 个人都要写到。` });
@@ -716,7 +716,7 @@ export async function charPickMany(cs, onStep, stop) {
 export async function charPick(c, onStep, stop, raw) {   // raw：一起挑时已经写好的这个人那段
   const { personaOf, nameOf } = await import('../apps/chat/engine.js');
   const { storyText } = await import('./context.js');
-  raw = raw ?? await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop,
+  raw = raw ?? await generate({ conn: resolveConn('text', 'chat'), system: '', app: '角色歌单', stop, resume: M().fill ? M().fillMax || 3 : 0,
     prompt: compose('charSongs', { char: c.name || nameOf(c), persona: personaOf(c) || '（没有更多资料）', story: storyText(6) || '（暂无）', existing: existingOf(c) }) });
   // 一行一首（不用 JSON：AI 在感想里写个引号 JSON 就坏了；回到一半断了，前面的歌也能用）；「备选：」开头的是这个歌单的备选
   let cur = { name: '喜欢的音乐', intro: '' }; const todo = [];

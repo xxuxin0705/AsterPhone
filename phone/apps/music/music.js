@@ -126,7 +126,7 @@ function openAllChars() {
   };
   let picked = null;
   const cards = () => grid.querySelectorAll('.as-mu-sq');
-  const mark = () => cards().forEach(el => el.classList.toggle('is-picked', picked.has(el.dataset.id)));
+  const mark = () => { cards().forEach(el => el.classList.toggle('is-picked', picked.has(el.dataset.id))); allB.textContent = picked.size === state.contacts.length ? '全不选' : '全选'; };
   // 勾上的人一次找 AI 一起挑（作者要的：批量就一次请求），回来再一个人一个人去搜歌；挑着的时候这个按钮是「取消挑歌」，退出再进来也是
   const aiB = h('button', { onclick: async () => {
     if (batch) { batch.abort(); return; }
@@ -144,8 +144,8 @@ function openAllChars() {
     const bad = r.filter(x => x.err); bad.forEach(x => log('warn', '角色歌单', `${nameOf(x.c)}没挑成：${x.err}`));
     if (ac.signal.aborted) toast('已取消'); else if (r.length) toast(`加了 ${r.reduce((a, x) => a + (x.got ? x.got.length : 0), 0)} 首` + (bad.length ? `，${bad.length} 人没挑成` : ''), bad.length ? { label: '查看日志', fn: () => shell.openApp('log') } : undefined);
   } });
-  const bar = h('div.as-mu-pickbar',
-    h('button', { onclick: () => { picked = new Set(picked.size < state.contacts.length ? state.contacts.map(c => c.id) : []); mark(); } }, '全选'),
+  const allB = h('button', { onclick: () => { picked = new Set(picked.size < state.contacts.length ? state.contacts.map(c => c.id) : []); mark(); } }, '全选');
+  const bar = h('div.as-mu-pickbar', allB,
     h('button.is-main', { onclick: () => {
       const ids = [...picked];
       M().storySongs = ids.length > 0; M().storyWho = ids.length === state.contacts.length ? null : ids; commit('music'); commit('inject');
@@ -349,7 +349,7 @@ function renderMe(ctx) {
   const box = h('div');
   ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
-  const en = () => clockCfg().lang === 'en';   // 关注、粉丝、听歌时长跟着锁屏时间的语言
+  const en = () => (M().lang || clockCfg().lang) === 'en';   // 关注、粉丝、听歌时长：应用管理里选了就照它，没选跟着锁屏时间的语言
   const paintHeard = () => { hearEl.textContent = heard(en()); };
   const paintAll = keep(box, () => JSON.stringify([en(), M().likedInfo, me(), follows().length, M().liked.length, firstPic(M().liked), M().lists.map(l => [l.id, l.name, (l.songs || []).length, l.pic]), Object.keys(M().plays).length, P.ne && [P.ne.me?.name, (neL || []).length, P.ne.qq?.name, (qqL || []).length]]), () => {
     const plays = M().liked.reduce((n, s) => n + ((M().plays[s.id] || {}).n || 0), 0);   // 只算喜欢的这些歌放了几次

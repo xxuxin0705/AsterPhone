@@ -1,5 +1,5 @@
 // 歌词悬浮窗：一句歌词（下面一行翻译）浮着，放在小手机里或者酒馆聊天页面上；
-// 没锁定时能拖着挪；点一下出一个框：拖右下角的点改大小，点右上角的锁锁住（锁住后点到它会穿过去点到下面，要回小手机里解锁）。
+// 没锁定时一根手指拖着挪、两根手指捏着改大小，点一下出小面板改颜色、大小、字体、锁定；锁定了点一下问要不要解锁。
 // 网页没法浮在别的 App 上面，所以没有「全局」。
 import { state, commit, kvGet } from './store.js';
 import * as P from './music.js';
@@ -22,7 +22,7 @@ export const FONTS = [
   ['Zhi Mang Xing', '志莽行书', '@fontsource/zhi-mang-xing@5.3.0/400.css'],
 ];
 export const cfg = () => state.music.float || (state.music.float = { where: 'off', color: '#ffffff', size: 18, font: '', lock: false, x: .5, y: .78 });
-let el = null, li = -2, grip = null, lockBtn = null;
+let el = null, li = -2;
 const host = () => ({ phone: document, tavern: parent.document })[cfg().where] || null;
 
 /** 字体装进悬浮窗所在的那一页：内置的挂一个 CSS；字体库里的从存着的文件装（酒馆页面那边没装过） */
@@ -43,48 +43,84 @@ export async function useFont(doc, f) {
 /** 按设置摆好（换位置、改颜色字体都走这里）；选「关」就拿掉 */
 export async function applyFloat() {
   const doc = host();
-  if (el && el.ownerDocument !== doc) { el.remove(); el = null; grip = null; }
+  if (el && el.ownerDocument !== doc) { el.remove(); panel && panel.remove(); el = panel = null; }
   if (!doc) return;
   if (!el) {
     el = doc.createElement('div');
-    el.style.cssText = 'position:fixed;z-index:2147483000;transform:translate(-50%,-50%);max-width:90vw;text-align:center;line-height:1.35;text-shadow:0 1px 4px rgba(0,0,0,.55);touch-action:none;user-select:none;cursor:grab';
-    el.append(doc.createElement('div'), doc.createElement('div'));
-    el.lastChild.style.cssText = 'font-size:.72em;opacity:.85;margin-top:2px';
-    // 编辑框：虚线框 + 右下角拖大小的点 + 右上角的锁（框和点不带字的颜色，白底黑边，什么背景都看得见）
-    const knob = (css, html) => { const k = doc.createElement('b'); k.style.cssText = 'position:absolute;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#fff;color:#222;box-shadow:0 1px 4px rgba(0,0,0,.4);font:14px/1 sans-serif;text-shadow:none;' + css; k.innerHTML = html; return k; };
-    grip = knob('right:-11px;bottom:-11px;cursor:nwse-resize', '');
-    lockBtn = knob('right:-11px;top:-11px;cursor:pointer', '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>');
-    grip.addEventListener('pointerdown', resize);
-    lockBtn.addEventListener('pointerdown', e => { e.stopPropagation(); cfg().lock = true; commit('music'); editing(false); applyFloat(); });
-    el.addEventListener('pointerdown', drag);
-    doc.addEventListener('pointerdown', e => { if (el && !el.contains(e.target)) editing(false); });
+    // width:max-content：挪到边上时不会被挤着换行（以前一挪大小就变）
+    el.style.cssText = 'position:fixed;z-index:2147483000;transform:translate(-50%,-50%);width:max-content;max-width:90vw;text-align:center;line-height:1.35;text-shadow:0 1px 4px rgba(0,0,0,.55);touch-action:none;user-select:none;cursor:grab';
+    line = doc.createElement('div'); tr = doc.createElement('div'); tr.style.cssText = 'font-size:.72em;opacity:.85;margin-top:2px';
+    el.append(line, tr);
+    el.addEventListener('pointerdown', down);
+    doc.addEventListener('pointerdown', e => { if (panel && !panel.contains(e.target) && !el.contains(e.target)) close(); });
     doc.body.append(el); li = -2; paint();
   }
   const c = cfg();
-  Object.assign(el.style, { left: c.x * 100 + '%', top: c.y * 100 + '%', color: c.color, fontSize: c.size + 'px', pointerEvents: c.lock ? 'none' : 'auto' });
-  if (c.lock) editing(false);
+  Object.assign(el.style, { left: c.x * 100 + '%', top: c.y * 100 + '%', color: c.color, fontSize: c.size + 'px', cursor: c.lock ? 'pointer' : 'grab' });
   el.style.fontFamily = c.font ? `${await useFont(doc, c.font)}, sans-serif` : '';
 }
-/** 编辑框开 / 关 */
-function editing(on) { if (!grip) return; if (on) el.append(grip, lockBtn); else { grip.remove(); lockBtn.remove(); } el.style.outline = on ? '1.5px dashed rgba(255,255,255,.85)' : ''; el.style.outlineOffset = '8px'; }
-/** 拖着挪；没挪动就算点了一下，开 / 关编辑框 */
-function drag(e) {
+/* ---------- 手势（作者定的）：一根手指拖着挪（锁定时不动）；两根手指捏着改大小；点一下：
+   没锁定 → 旁边出一个小面板（颜色、大小、字体、锁定）；锁定了 → 只问要不要解锁 ---------- */
+let line = null, tr = null, panel = null;
+const pts = new Map();
+let pinch = null, moved = false, start = null;
+function down(e) {
   e.preventDefault(); el.setPointerCapture(e.pointerId);
-  const w = el.ownerDocument.defaultView, x0 = e.clientX, y0 = e.clientY;
-  let moved = false;
-  el.onpointermove = ev => {
-    if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
-    moved = true;
-    const c = cfg(); c.x = Math.min(.95, Math.max(.05, ev.clientX / w.innerWidth)); c.y = Math.min(.97, Math.max(.03, ev.clientY / w.innerHeight)); el.style.left = c.x * 100 + '%'; el.style.top = c.y * 100 + '%';
-  };
-  el.onpointerup = () => { el.onpointermove = el.onpointerup = null; if (moved) commit('music'); else editing(!grip.isConnected); };
+  pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pts.size === 1) { moved = false; start = [e.clientX, e.clientY]; }
+  if (pts.size === 2 && !cfg().lock) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: cfg().size }; moved = true; }
+  el.onpointermove = move; el.onpointerup = el.onpointercancel = up;
 }
-/** 拖右下角的点：离中心越远字越大 */
-function resize(e) {
-  e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
-  const c = cfg(), r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, d0 = Math.hypot(e.clientX - cx, e.clientY - cy), s0 = c.size;
-  grip.onpointermove = ev => { c.size = Math.round(Math.min(48, Math.max(12, s0 * Math.hypot(ev.clientX - cx, ev.clientY - cy) / d0))); el.style.fontSize = c.size + 'px'; };
-  grip.onpointerup = () => { grip.onpointermove = grip.onpointerup = null; commit('music'); };
+function move(ev) {
+  if (!pts.has(ev.pointerId)) return;
+  pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+  const c = cfg();
+  if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; c.size = Math.round(Math.min(48, Math.max(12, pinch.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d))); el.style.fontSize = c.size + 'px'; place(); return; }
+  if (pinch || c.lock) return;
+  if (!moved && Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) < 6) return;
+  moved = true; close();
+  const w = el.ownerDocument.defaultView;
+  const hw = el.offsetWidth / 2 / w.innerWidth, hh = el.offsetHeight / 2 / w.innerHeight;   // 整句都留在屏幕里
+  c.x = Math.min(1 - hw, Math.max(hw, ev.clientX / w.innerWidth)); c.y = Math.min(1 - hh, Math.max(hh, ev.clientY / w.innerHeight)); el.style.left = c.x * 100 + '%'; el.style.top = c.y * 100 + '%';
+}
+function up(ev) {
+  pts.delete(ev.pointerId); if (pts.size) return;
+  el.onpointermove = el.onpointerup = el.onpointercancel = null;
+  if (moved) { pinch = null; commit('music'); return; }
+  panel ? close() : open();
+}
+const close = () => { if (panel) { panel.remove(); panel = null; } el.style.outline = ''; };
+const COLORS = ['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'];
+function open() {
+  const doc = el.ownerDocument, c = cfg(), mk = (tag, css, text) => { const x = doc.createElement(tag); x.style.cssText = css; if (text != null) x.textContent = text; return x; };
+  const btn = (text, fn) => { const b = mk('button', 'border:0;border-radius:14px;padding:7px 12px;background:rgba(255,255,255,.14);color:#fff;font:500 13px/1 sans-serif;cursor:pointer', text); b.onclick = e => { e.stopPropagation(); fn(b); }; return b; };
+  const save = () => { commit('music'); applyFloat(); };
+  panel = mk('div', 'position:fixed;z-index:2147483001;display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:rgba(28,28,32,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,.35);color:#fff;font:13px/1.2 sans-serif');
+  panel.addEventListener('pointerdown', e => e.stopPropagation());
+  if (c.lock) panel.append(btn('解锁', () => { c.lock = false; close(); save(); }));
+  else {
+    el.style.outline = '1.5px dashed rgba(255,255,255,.85)'; el.style.outlineOffset = '8px';
+    const dots = mk('div', 'display:flex;gap:7px;flex-wrap:wrap;max-width:236px');
+    const paintDots = () => [...dots.children].forEach(d => { d.style.boxShadow = d.dataset.c === c.color ? '0 0 0 2px #fff' : 'inset 0 0 0 1px rgba(255,255,255,.35)'; });
+    for (const col of COLORS) { const d = mk('button', `width:20px;height:20px;border:0;border-radius:50%;padding:0;cursor:pointer;background:${col}`); d.dataset.c = col; d.onclick = () => { c.color = col; paintDots(); save(); }; dots.append(d); }
+    paintDots();
+    const n = mk('span', 'min-width:2em;text-align:center', c.size);
+    const step = k => () => { c.size = Math.min(48, Math.max(12, c.size + k)); n.textContent = c.size; save(); place(); };
+    const font = mk('select', 'flex:1;min-width:0;border:0;border-radius:10px;padding:6px 8px;background:rgba(255,255,255,.14);color:#fff;font:13px sans-serif');
+    for (const [v, name] of FONTS) { const o = mk('option', 'color:#000', name); o.value = v; o.selected = v === (c.font || ''); font.append(o); }
+    if (c.font && !FONTS.some(f => f[0] === c.font)) { const o = mk('option', 'color:#000', '字体库里的'); o.value = c.font; o.selected = true; font.append(o); }
+    font.onchange = () => { c.font = font.value; save(); };
+    const row = mk('div', 'display:flex;align-items:center;gap:8px'); row.append(mk('span', '', '大小'), btn('A−', step(-2)), n, btn('A+', step(2)), font);
+    panel.append(dots, row, btn('锁定', () => { c.lock = true; close(); save(); }));
+  }
+  doc.body.append(panel); place();
+}
+/** 面板放在歌词下面（下面放不下就放上面），左右不出屏 */
+function place() {
+  if (!panel) return;
+  const w = el.ownerDocument.defaultView, r = el.getBoundingClientRect(), p = panel.getBoundingClientRect();
+  const top = r.bottom + 14 + p.height < w.innerHeight ? r.bottom + 14 : Math.max(8, r.top - 14 - p.height);
+  Object.assign(panel.style, { top: top + 'px', left: Math.min(w.innerWidth - p.width - 8, Math.max(8, r.left + r.width / 2 - p.width / 2)) + 'px' });
 }
 /** 换到下一句才改字（一秒好几次的进度更新里，大多数时候什么都不动） */
 function paint() {
@@ -94,8 +130,8 @@ function paint() {
   if (i === li && L.length) return;
   li = i;
   const x = L[i] || {};
-  el.firstChild.textContent = L.length ? x.text || '' : s ? `${s.name} - ${s.artist}` : '';
-  el.lastChild.textContent = x.tr || '';
+  line.textContent = L.length ? x.text || '' : s ? `${s.name} - ${s.artist}` : '';
+  tr.textContent = x.tr || '';
   el.hidden = !s;
 }
 P.onMusic(w => { if (w === 'lyrics' || w === 'song') li = -2; if (w === 'time' || w === 'lyrics' || w === 'song') paint(); });
