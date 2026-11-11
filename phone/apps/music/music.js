@@ -985,6 +985,8 @@ export function openPlayer() {
   const blurF = blurSvg.querySelector('feGaussianBlur'); p.el.append(blurSvg);
   // 以前只存一张（skin.bg 里直接是图）：挪进背景库
   if (S.bg) bgAdd(S.bg).then(id => { S.bgId = id; delete S.bg; commit('music'); paintBg(); });
+  // 模糊、亮度单独改：拖滑条时只换这两样，不重设背景图（自己的图是几 MB 的一长串，每动一下都重设会卡死）
+  const paintFx = cur => { blurF.setAttribute('stdDeviation', cur ? cur.blur : 0); bg.style.filter = cur ? `${cur.blur ? 'url(#as-mp-blur) ' : ''}brightness(${cur.bright})` : ''; };
   const paintBg = () => {
     const cur = bgs().find(b => b.id === S.bgId), mine = cur ? bgCache.get(cur.id) : S.bg;
     if (cur && mine === undefined) bgLoad(cur.id).then(paintBg);   // 第一次打开：图从存储里读出来再放
@@ -992,7 +994,7 @@ export function openPlayer() {
     const day = wet && !has && !isNight();
     bg.style.backgroundImage = bgUrl(src);
     // 模糊用 SVG 的（边上照原图延伸），CSS 的 blur 边上会透出来，只能把图放大盖住
-    blurF.setAttribute('stdDeviation', cur ? cur.blur : 0); bg.style.filter = cur ? `${cur.blur ? 'url(#as-mp-blur) ' : ''}brightness(${cur.bright})` : '';
+    paintFx(cur);
     bg.classList.toggle('is-custom', has || wet); bg.classList.toggle('is-scene', wet && !has);
     p.el.classList.toggle('has-bg', has); p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day); paintInk();
     if (!src) return;
@@ -1020,7 +1022,7 @@ export function openPlayer() {
   const paintColor = () => { S.color ? p.el.style.setProperty('--ly', S.color) : p.el.style.removeProperty('--ly'); S.dim ? p.el.style.setProperty('--ly-dim', S.dim) : p.el.style.removeProperty('--ly-dim'); R.color(S.color);
     ['edge', 'glow'].forEach(k => p.el.classList.toggle('is-shade-' + k, S.shade === k)); R.shade(S.shade);
     S.edge ? p.el.style.setProperty('--edge', S.edge) : p.el.style.removeProperty('--edge'); R.edge(S.edge);
-    S.ew ? p.el.style.setProperty('--ew', S.ew + 'px') : p.el.style.removeProperty('--ew'); R.ew(S.ew);
+    S.ew ? p.el.style.setProperty('--ew', S.ew / 16 + 'em') : p.el.style.removeProperty('--ew'); R.ew(S.ew);
     // 表盘：'' 跟着唱到的字，'@dim' 跟着没唱的字（改歌词颜色时一起变），#rrggbb 自己挑的
     S.clock ? p.el.style.setProperty('--clk', S.clock === '@dim' ? 'var(--ly-dim, color-mix(in srgb, rgb(var(--mp-ink)) 62%, var(--mp-paper)))' : S.clock) : p.el.style.removeProperty('--clk');
     // 字体装好了再换，不会先闪一下别的字
@@ -1113,18 +1115,19 @@ export function openPlayer() {
   };
   // 按钮颜色（在样式里，挨着歌词设置）：上面一条预览垫着背景，放真的按钮；「自动」= 背景亮就黑、暗就白；吸管 + 背景里的五种颜色；下面色盘。
   // 吸管：抽屉先收起来，手指在播放页上按住挪，放手取那一点背景的颜色，再把抽屉打开
-  async function btnSheet() {
-    const s = await shot();
+  function btnSheet() {
+    const shotP = shot();   // 读背景图要一会儿：抽屉先打开，读好了再把背景里的颜色放进去
     const pv = h('div.as-mu-btnpv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), ...[mode()[2], 'prev', P.playing() ? 'pause' : 'play', 'next', 'list'].map(n => icon(n, 22, 1.8)));
     const set = c => { M().btn = c; commit('music'); paintInk(); paint(); };
     const auto = h('button.as-mu-auto', { type: 'button', onclick: () => set('') }, '自动');
-    const drop = h('button.as-mu-drop', { type: 'button', 'aria-label': '吸管', onclick: () => { if (!s) { toast('这张背景读不了颜色'); return; } sh.close(); dropper(s); } }, icon('drop', 16, 1.8));
-    const sws = s ? palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } })) : [];
+    const drop = h('button.as-mu-drop', { type: 'button', 'aria-label': '吸管', onclick: () => shotP.then(s => { if (!s) { toast('这张背景读不了颜色'); return; } sh.close(); dropper(s); }) }, icon('drop', 16, 1.8));
+    const row = h('div.as-mu-bgsw', auto, drop);
     const mk = () => colorWheel(M().btn || '#ffffff', set);
     let wheel = mk();
-    const paint = () => { pv.style.color = M().btn || getComputedStyle(playBtn).color; auto.classList.toggle('is-on', !M().btn); sws.forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M().btn)); };
+    const paint = () => { pv.style.color = M().btn || getComputedStyle(playBtn).color; auto.classList.toggle('is-on', !M().btn); [...row.querySelectorAll('.as-wheel__swatch')].forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M().btn)); };
     paint();
-    const sh = sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, h('div.as-mu-bgsw', auto, drop, ...sws), wheel) });
+    const sh = sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, row, wheel) });
+    shotP.then(s => { if (s) { row.append(...palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } }))); paint(); } });
   }
   function dropper(s) {
     const lens = h('i.as-mu-lens'), cover = h('div.as-mu-dropper', { dataset: { noSwipe: '' } }, lens), { r, d: { data, width: W, height: H } } = s;
@@ -1193,7 +1196,7 @@ export function openPlayer() {
       const row = (label, k, def, o) => {
         const out = h('output', o.fmt(cur[k])), sl = slider({ ...o, value: cur[k], onInput: v => set(v) });
         const back = h('button.as-mp-bgs__undo', { 'aria-label': '恢复' + label, onclick: () => { set(def); sl.value = def; } }, icon('undo', 16, 2));
-        const set = v => { cur[k] = v; out.textContent = o.fmt(v); back.style.visibility = v === def ? 'hidden' : ''; paintBg(); commit('music'); };
+        const set = v => { cur[k] = v; out.textContent = o.fmt(v); back.style.visibility = v === def ? 'hidden' : ''; paintFx(cur); commit('music'); };
         back.style.visibility = cur[k] === def ? 'hidden' : '';   // 藏起来也占着位置，滑条不会忽长忽短
         return h('div.as-settings-slider-row', h('span', label), sl, out, back);
       };
