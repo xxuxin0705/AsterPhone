@@ -1088,7 +1088,7 @@ export function openPlayer() {
       const pvPaint = () => ['--ly', '--ly-dim', '--ds', '--ly-font'].forEach(k => pv.style.setProperty(k, getComputedStyle(p.el).getPropertyValue(k) || (k === '--ly' ? '#7cc4ff' : '')));   // 照着播放页现在的样子
       const change = () => { commit('music'); paintColor().then(pvPaint); };   // 字体装好了才换，换完再抄给预览
       const wheel = (k, def) => colorWheel(S[k] || def, c => { S[k] = c; change(); });
-      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('clock', '#e8879f')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
+      const wheels = [wheel('color', '#7cc4ff'), wheel('dim', '#ffffff'), wheel('clock', S.color || '#7cc4ff')], edgeWheel = wheel('edge', '#0e1a3a'); wheels[1].hidden = wheels[2].hidden = true;
       const shadeRow = segmented([['', '不加'], ['edge', '描边'], ['glow', '发光']], S.shade || '', k => { S.shade = k; edgeWheel.hidden = !k; change(); }), edgeBox = h('div', { hidden: true }, shadeRow, edgeWheel); edgeWheel.hidden = !S.shade;
       const fontRow = font(() => S.font || '', v => { S.font = v; }, change);
       pvPaint();
