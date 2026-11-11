@@ -129,21 +129,25 @@ export function colorWheel(hex, onChange, alpha) {
     alpha ? h('div.as-settings-slider-row', h('span', '透明度'), slider({ min: 0, max: 1, step: .01, value: 1 - al, onInput: v => { al = 1 - v; aOut.textContent = Math.round(v * 100) + '%'; onChange(out2()); } }), aOut) : null);
 }
 /** 吸管：开着的抽屉先藏起来，手指按住挪，手指上方的圈套住哪儿、圈就变成那儿的颜色，松手选中（#rrggbb 给 onPick），抽屉回来 */
-export function dropper(onPick) {
-  const hid = [...root.querySelectorAll('.as-sheet, .as-sheet-mask')]; hid.forEach(e => e.classList.add('is-peek')); root.classList.add('is-dropping');
-  const ring = h('i.as-drop__ring'), cover = h('div.as-drop', { 'data-no-swipe': '' }, ring);
+export function dropper(onPick, { doc = document, hide } = {}) {
+  // 悬浮歌词能放在酒馆页面上：那边没有小手机的样式，盖层、圈都用行内样式；没有提示条，松手就是选好
+  const ph = doc === document, top = ph ? root : doc.body;
+  hide = hide || [...root.querySelectorAll('.as-sheet, .as-sheet-mask')]; hide.forEach(e => { e.style.visibility = 'hidden'; });
+  if (ph) root.classList.add('is-dropping');
+  const ring = h('i', { style: 'display:none;position:absolute;box-sizing:border-box;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;border:8px solid transparent;box-shadow:0 0 0 1.5px #fff,inset 0 0 0 1.5px #fff,0 2px 10px rgba(0,0,0,.45);pointer-events:none' });
+  const cover = h('div.as-drop', { 'data-no-swipe': '', style: `position:${ph ? 'absolute' : 'fixed'};inset:0;z-index:${ph ? 88 : 2147483002};touch-action:none` }, ring);
   let n = 0, last = '';
   const at = e => {
-    const b = root.getBoundingClientRect(), k = b.width / root.offsetWidth, x = e.clientX, y = e.clientY - 64 * k, me = ++n;   // 圈在手指上面，不被手指挡住
+    const b = ph ? root.getBoundingClientRect() : { left: 0, top: 0, width: 1 }, k = ph ? b.width / root.offsetWidth : 1, x = e.clientX, y = e.clientY - 64 * k, me = ++n;   // 圈在手指上面，不被手指挡住
     ring.style.left = (x - b.left) / k + 'px'; ring.style.top = (y - b.top) / k + 'px';
-    return colorAt(x, y).then(c => { if (me === n && c) { last = c; ring.style.borderColor = c; } return c; });
+    return colorAt(doc, x, y).then(c => { if (me === n && c) { last = c; ring.style.borderColor = c; } return c; });
   };
-  const end = c => { cover.remove(); root.classList.remove('is-dropping'); hid.forEach(e => e.classList.remove('is-peek')); toastEl?.classList.remove('is-open'); if (c) onPick(c); };
-  cover.addEventListener('pointerdown', e => { cover.setPointerCapture(e.pointerId); cover.classList.add('is-on'); at(e); });
+  const end = c => { cover.remove(); root.classList.remove('is-dropping'); hide.forEach(e => { e.style.visibility = ''; }); if (ph) toastEl?.classList.remove('is-open'); if (c) onPick(c); };
+  cover.addEventListener('pointerdown', e => { e.stopPropagation(); cover.setPointerCapture(e.pointerId); ring.style.display = 'block'; at(e); });
   cover.addEventListener('pointermove', e => { if (cover.hasPointerCapture(e.pointerId)) at(e); });
   cover.addEventListener('pointerup', e => at(e).catch(() => '').then(c => end(c || last)));
-  root.append(cover);
-  toast('按住挪到要的颜色上，松手就选好', { label: '取消', fn: () => cover.isConnected && end(), wait: true });
+  top.append(cover);
+  if (ph) toast('按住挪到要的颜色上，松手就选好', { label: '取消', fn: () => cover.isConnected && end(), wait: true });
 }
 // 屏幕上这一点是什么颜色（网页没法直接截屏，只能一层层看）：线条图读线的颜色（手指粗，旁边几像素也算），字读字色（渐变填色的按左右算唱到没唱到），
 // 图片 / 画布 / 背景图读那个像素（按铺满算，带上亮度、模糊），都不是就读底色。别的网站的图读不了就跳过
@@ -153,7 +157,7 @@ const shots = new WeakMap();
 async function pixel(el, cs, x, y) {
   const src = el.currentSrc || (cs.backgroundImage.match(/url\("?(.+?)"?\)/) || [])[1], r = el.getBoundingClientRect(), key = src + cs.filter + r.width + r.height;
   let c = shots.get(el);
-  if (el instanceof HTMLCanvasElement) c = { x: el.getContext('2d'), w: el.width / r.width, hh: el.height / r.height };
+  if (el.tagName === 'CANVAS') c = { x: el.getContext('2d'), w: el.width / r.width, hh: el.height / r.height };
   else if (!c || c.key !== key) {
     const im = new Image(); im.crossOrigin = 'anonymous'; im.src = src;
     await im.decode();
@@ -168,7 +172,7 @@ async function pixel(el, cs, x, y) {
 function ink(el, cs, x, y) {
   for (const t of el.childNodes) {
     if (t.nodeType !== 3 || !t.textContent.trim()) continue;
-    const rg = document.createRange(); rg.selectNodeContents(t);
+    const rg = el.ownerDocument.createRange(); rg.selectNodeContents(t);
     if (![...rg.getClientRects()].some(q => x >= q.left && x <= q.right && y >= q.top && y <= q.bottom)) continue;
     const c = hex(cs.color); if (c) return c;
     const stops = [...cs.backgroundImage.matchAll(/(rgba?\([^)]*\))\s*([\d.]+)%/g)], r = el.getBoundingClientRect(), f = (x - r.left) / r.width * 100;
@@ -176,13 +180,14 @@ function ink(el, cs, x, y) {
   }
   return '';
 }
-async function colorAt(x, y) {
+async function colorAt(doc, x, y) {
+  const css = el => el.ownerDocument.defaultView.getComputedStyle(el), top = doc === document ? root : doc.body;
   for (const [dx, dy] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]])
-    for (const el of document.elementsFromPoint(x + dx, y + dy)) if (el instanceof SVGGeometryElement && seen(el)) { const cs = getComputedStyle(el), c = hex(cs.stroke !== 'none' ? cs.stroke : cs.fill); if (c) return c; }
-  for (const el of document.elementsFromPoint(x, y)) {
-    if (!root.contains(el) || !seen(el)) continue;
-    const cs = getComputedStyle(el);
-    const c = ink(el, cs, x, y) || ((el instanceof HTMLCanvasElement || el instanceof HTMLImageElement || /url\(/.test(cs.backgroundImage)) && await pixel(el, cs, x, y).catch(() => '')) || hex(cs.backgroundColor);
+    for (const el of doc.elementsFromPoint(x + dx, y + dy)) if (el instanceof el.ownerDocument.defaultView.SVGGeometryElement && seen(el)) { const cs = css(el), c = hex(cs.stroke !== 'none' ? cs.stroke : cs.fill); if (c) return c; }
+  for (const el of doc.elementsFromPoint(x, y)) {
+    if (!top.contains(el) || !seen(el)) continue;
+    const cs = css(el);
+    const c = ink(el, cs, x, y) || ((/^(CANVAS|IMG)$/.test(el.tagName) || /url\(/.test(cs.backgroundImage)) && await pixel(el, cs, x, y).catch(() => '')) || hex(cs.backgroundColor);
     if (c) return c;
   }
   return '';

@@ -3,6 +3,7 @@
 // 网页没法浮在别的 App 上面，所以没有「全局」。
 import { state, commit, kvGet } from './store.js';
 import * as P from './music.js';
+import { dropper, icon } from './ui.js';
 
 // 内置字体都是能免费商用的（OFL / MIT），从 jsDelivr 按需下载，只在选中时才下
 const CDN = 'https://cdn.jsdelivr.net/npm/';
@@ -106,6 +107,9 @@ function open() {
     const paintDots = () => [...dots.children].forEach(d => { d.style.boxShadow = d.dataset.c === c.color ? '0 0 0 2px #fff' : 'inset 0 0 0 1px rgba(255,255,255,.35)'; });
     for (const col of COLORS) { const d = mk('button', `width:20px;height:20px;border:0;border-radius:50%;padding:0;cursor:pointer;background:${col}`); d.dataset.c = col; d.onclick = () => { c.color = col; paintDots(); save(); }; dots.append(d); }
     paintDots();
+    // 最前面一个吸管：面板先藏起来，在悬浮窗所在的那一页上吸
+    const drop = mk('button', 'width:20px;height:20px;border:0;border-radius:50%;padding:0;cursor:pointer;background:rgba(255,255,255,.14);color:#fff;display:grid;place-items:center');
+    drop.append(icon('drop', 12, 2)); drop.onclick = () => dropper(col => { c.color = col; paintDots(); save(); }, { doc, hide: [panel] }); dots.prepend(drop);
     const n = mk('span', 'min-width:2em;text-align:center', c.size);
     const step = k => () => { c.size = Math.min(48, Math.max(12, c.size + k)); n.textContent = c.size; save(); place(); };
     const font = mk('select', 'flex:1;min-width:0;border:0;border-radius:10px;padding:6px 8px;background:rgba(255,255,255,.14);color:#fff;font:13px sans-serif');
