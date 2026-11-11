@@ -119,11 +119,73 @@ export function colorWheel(hex, onChange, alpha) {
   const out = h('output', Math.round(va * 100) + '%'), sl = slider({ min: 0, max: 1, step: .01, value: va, onInput: v => { va = v; out.textContent = Math.round(v * 100) + '%'; place(); onChange(out2()); } });
   place();
   // 常用色一排小圆点：纯白、纯黑在盘上很难点准（白要正好圆心，黑要亮度拉到 0），点一下直接选中，盘和亮度跟着跳过去
-  const swatches = h('div.as-wheel__swatches', ...['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'].map(c =>
-    h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { [hu, sa, va] = toHsv(c); sl.value = va; out.textContent = Math.round(va * 100) + '%'; place(); onChange(out2()); } })));
+  // 最前面是吸管（在手机上哪儿都能吸）
+  const to = c => { [hu, sa, va] = toHsv(c); sl.value = va; out.textContent = Math.round(va * 100) + '%'; place(); onChange(out2()); };
+  const swatches = h('div.as-wheel__swatches', h('button.as-wheel__swatch.as-wheel__drop', { type: 'button', 'aria-label': '吸管', onclick: () => dropper(to) }, icon('drop', 12, 2)),
+    ...['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'].map(c =>
+    h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => to(c) })));
   const aOut = h('output', Math.round((1 - al) * 100) + '%');
   return h('div.as-wheel', swatches, wrap, h('div.as-settings-slider-row', h('span', '亮度'), sl, out),
     alpha ? h('div.as-settings-slider-row', h('span', '透明度'), slider({ min: 0, max: 1, step: .01, value: 1 - al, onInput: v => { al = 1 - v; aOut.textContent = Math.round(v * 100) + '%'; onChange(out2()); } }), aOut) : null);
+}
+/** 吸管：开着的抽屉先藏起来，手指按住挪，手指上方的圈套住哪儿、圈就变成那儿的颜色，松手选中（#rrggbb 给 onPick），抽屉回来 */
+export function dropper(onPick) {
+  const hid = [...root.querySelectorAll('.as-sheet, .as-sheet-mask')]; hid.forEach(e => e.classList.add('is-peek')); root.classList.add('is-dropping');
+  const ring = h('i.as-drop__ring'), cover = h('div.as-drop', { 'data-no-swipe': '' }, ring);
+  let n = 0, last = '';
+  const at = e => {
+    const b = root.getBoundingClientRect(), k = b.width / root.offsetWidth, x = e.clientX, y = e.clientY - 64 * k, me = ++n;   // 圈在手指上面，不被手指挡住
+    ring.style.left = (x - b.left) / k + 'px'; ring.style.top = (y - b.top) / k + 'px';
+    return colorAt(x, y).then(c => { if (me === n && c) { last = c; ring.style.borderColor = c; } return c; });
+  };
+  const end = c => { cover.remove(); root.classList.remove('is-dropping'); hid.forEach(e => e.classList.remove('is-peek')); toastEl?.classList.remove('is-open'); if (c) onPick(c); };
+  cover.addEventListener('pointerdown', e => { cover.setPointerCapture(e.pointerId); cover.classList.add('is-on'); at(e); });
+  cover.addEventListener('pointermove', e => { if (cover.hasPointerCapture(e.pointerId)) at(e); });
+  cover.addEventListener('pointerup', e => at(e).catch(() => '').then(c => end(c || last)));
+  root.append(cover);
+  toast('按住挪到要的颜色上，松手就选好', { label: '取消', fn: () => cover.isConnected && end(), wait: true });
+}
+// 屏幕上这一点是什么颜色（网页没法直接截屏，只能一层层看）：线条图读线的颜色（手指粗，旁边几像素也算），字读字色（渐变填色的按左右算唱到没唱到），
+// 图片 / 画布 / 背景图读那个像素（按铺满算，带上亮度、模糊），都不是就读底色。别的网站的图读不了就跳过
+const hex = c => { const m = c.match(/[\d.]+/g), k = /^color\(/.test(c) ? 255 : 1; return m && (m[3] == null || +m[3] > .05) ? '#' + m.slice(0, 3).map(v => Math.round(v * k).toString(16).padStart(2, '0')).join('') : ''; };   // rgb(…) 或 color(srgb 0–1 …)
+const seen = el => !el.closest('.as-drop') && (el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true);   // 藏着的（透明的锁屏那些）不算
+const shots = new WeakMap();
+async function pixel(el, cs, x, y) {
+  const src = el.currentSrc || (cs.backgroundImage.match(/url\("?(.+?)"?\)/) || [])[1], r = el.getBoundingClientRect(), key = src + cs.filter + r.width + r.height;
+  let c = shots.get(el);
+  if (el instanceof HTMLCanvasElement) c = { x: el.getContext('2d'), w: el.width / r.width, hh: el.height / r.height };
+  else if (!c || c.key !== key) {
+    const im = new Image(); im.crossOrigin = 'anonymous'; im.src = src;
+    await im.decode();
+    const cv = h('canvas', { width: Math.round(r.width), height: Math.round(r.height) }), x2 = cv.getContext('2d', { willReadFrequently: true }), k = Math.max(r.width / im.width, r.height / im.height);
+    x2.filter = cs.filter.replace(/url\([^)]*\)/g, '').trim() || 'none';
+    x2.drawImage(im, (r.width - im.width * k) / 2, (r.height - im.height * k) / 2, im.width * k, im.height * k);
+    shots.set(el, c = { key, x: x2, w: 1, hh: 1 });
+  }
+  const d = c.x.getImageData((x - r.left) * c.w | 0, (y - r.top) * c.hh | 0, 1, 1).data;
+  return d[3] ? hex(`rgb(${d[0]},${d[1]},${d[2]})`) : '';
+}
+function ink(el, cs, x, y) {
+  for (const t of el.childNodes) {
+    if (t.nodeType !== 3 || !t.textContent.trim()) continue;
+    const rg = document.createRange(); rg.selectNodeContents(t);
+    if (![...rg.getClientRects()].some(q => x >= q.left && x <= q.right && y >= q.top && y <= q.bottom)) continue;
+    const c = hex(cs.color); if (c) return c;
+    const stops = [...cs.backgroundImage.matchAll(/(rgba?\([^)]*\))\s*([\d.]+)%/g)], r = el.getBoundingClientRect(), f = (x - r.left) / r.width * 100;
+    if (stops.length) return hex((stops.find(m => f <= +m[2]) || stops[stops.length - 1])[1]);
+  }
+  return '';
+}
+async function colorAt(x, y) {
+  for (const [dx, dy] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]])
+    for (const el of document.elementsFromPoint(x + dx, y + dy)) if (el instanceof SVGGeometryElement && seen(el)) { const cs = getComputedStyle(el), c = hex(cs.stroke !== 'none' ? cs.stroke : cs.fill); if (c) return c; }
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (!root.contains(el) || !seen(el)) continue;
+    const cs = getComputedStyle(el);
+    const c = ink(el, cs, x, y) || ((el instanceof HTMLCanvasElement || el instanceof HTMLImageElement || /url\(/.test(cs.backgroundImage)) && await pixel(el, cs, x, y).catch(() => '')) || hex(cs.backgroundColor);
+    if (c) return c;
+  }
+  return '';
 }
 /** 一根滑条两个圆点，拖出一个范围（回复 1–5 条）。是两根叠在一起的滑条，只有圆点能按 */
 export function rangeRow(label, { min, max, value: [lo, hi], unit = '条', onInput }) {

@@ -1096,7 +1096,7 @@ export function openPlayer() {
       const r = bg.getBoundingClientRect(), W = Math.max(1, Math.round(r.width / 3)), H = Math.max(1, Math.round(r.height / 3)), k = Math.max(W / im.width, H / im.height), x = h('canvas', { width: W, height: H }).getContext('2d', { willReadFrequently: true });
       x.filter = (getComputedStyle(bg).filter.match(/brightness\([^)]*\)/) || ['none'])[0];
       x.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k);
-      ok({ x, r, d: x.getImageData(0, 0, W, H) });
+      ok({ d: x.getImageData(0, 0, W, H) });
     } catch { ok(null); } };
     im.onerror = () => ok(null); im.src = toneOf;
   });
@@ -1113,31 +1113,19 @@ export function openPlayer() {
     }
     return out.map(c => hex(c, 0));
   };
-  // 按钮颜色（在样式里，挨着歌词设置）：上面一条预览垫着背景，放真的按钮；「自动」= 背景亮就黑、暗就白；吸管 + 背景里的五种颜色；下面色盘。
-  // 吸管：抽屉先收起来，手指在播放页上按住挪，放手取那一点背景的颜色，再把抽屉打开
+  // 按钮颜色（在样式里，挨着歌词设置）：上面一条预览垫着背景，放真的按钮；「自动」= 背景亮就黑、暗就白；背景里的五种颜色；下面色盘（带吸管）
   function btnSheet() {
-    const shotP = shot();   // 读背景图要一会儿：抽屉先打开，读好了再把背景里的颜色放进去
     const pv = h('div.as-mu-btnpv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), ...[mode()[2], 'prev', P.playing() ? 'pause' : 'play', 'next', 'list'].map(n => icon(n, 22, 1.8)));
     const set = c => { M().btn = c; commit('music'); paintInk(); paint(); };
     const auto = h('button.as-mu-auto', { type: 'button', onclick: () => set('') }, '自动');
-    const drop = h('button.as-mu-drop', { type: 'button', 'aria-label': '吸管', onclick: () => shotP.then(s => { if (!s) { toast('这张背景读不了颜色'); return; } sh.close(); dropper(s); }) }, icon('drop', 16, 1.8));
-    const row = h('div.as-mu-bgsw', auto, drop);
+    const row = h('div.as-mu-bgsw', auto);
     const mk = () => colorWheel(M().btn || '#ffffff', set);
     let wheel = mk();
     const paint = () => { pv.style.color = M().btn || getComputedStyle(playBtn).color; auto.classList.toggle('is-on', !M().btn); [...row.querySelectorAll('.as-wheel__swatch')].forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M().btn)); };
     paint();
-    const sh = sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, row, wheel) });
-    shotP.then(s => { if (s) { row.append(...palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } }))); paint(); } });
-  }
-  function dropper(s) {
-    const lens = h('i.as-mu-lens'), cover = h('div.as-mu-dropper', { dataset: { noSwipe: '' } }, lens), { r, d: { data, width: W, height: H } } = s;
-    const at = e => { const x = Math.min(W - 1, Math.max(0, Math.round((e.clientX - r.left) / 3))), y = Math.min(H - 1, Math.max(0, Math.round((e.clientY - r.top) / 3))), c = hex(data, (y * W + x) * 4), b = p.el.getBoundingClientRect();
-      lens.style.left = e.clientX - b.left + 'px'; lens.style.top = e.clientY - b.top + 'px'; lens.style.background = c; return c; };
-    cover.addEventListener('pointerdown', e => { cover.setPointerCapture(e.pointerId); cover.classList.add('is-on'); at(e); });
-    cover.addEventListener('pointermove', e => { if (cover.hasPointerCapture(e.pointerId)) at(e); });
-    cover.addEventListener('pointerup', e => { M().btn = at(e); commit('music'); paintInk(); cover.remove(); btnSheet(); });
-    p.el.append(cover);
-    toast('按住要取色的地方，松手就选好', { label: '取消', fn: () => { if (cover.isConnected) { cover.remove(); btnSheet(); } } });
+    sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, row, wheel) });
+    shot().then(s => {   // 读背景图要一会儿：抽屉先打开，读好了再把背景里的颜色放进去
+      if (s) { row.append(...palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } }))); paint(); } });
   }
   async function skin() {
     const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' }, btnC = { value: 'btn', label: '按钮颜色', icon: 'play' };
