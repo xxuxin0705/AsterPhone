@@ -348,7 +348,7 @@ function searchIn(title, body, host, add) {
 /* ================= 我的 ================= */
 function renderMe(ctx) {
   const box = h('div');
-  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }]); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
+  ctx.right.append(navBtn('search', '搜索', () => ctx.go('search')), navBtn('edit', '编辑资料', () => editMe(paint)), navBtn('more', '更多', async () => { const v = await actionSheet('更多', [{ value: 'float', label: '歌词悬浮窗', icon: 'list' }, { value: 'keep', label: '自动存歌', icon: 'music' }, { value: 'pairs', label: '一起听的悄悄话', icon: 'headphones' }, { value: 'btn', label: '播放页按钮颜色', icon: 'palette' }]); if (v === 'btn') btnColor(); if (v === 'float') openFloat(); if (v === 'keep') openKeep(); if (v === 'pairs') openPairs(); }));
   const hearEl = h('b');   // 听歌时长一直在涨，单独改字，不跟着整块重画
   const en = () => (M().lang || clockCfg().lang) === 'en';   // 关注、粉丝、听歌时长：应用管理里选了就照它，没选跟着锁屏时间的语言
   const paintHeard = () => { hearEl.textContent = heard(en()); };
@@ -484,6 +484,12 @@ async function qqLogin(after) {
 async function openDaily() {
   try { const L = await waiting('正在读每日推荐…', () => P.neDaily()); if (!L) return; toast(`${L.length} 首`); openList('每日推荐', L, { sub: '网易云' }); }
   catch (e) { log('error', '音乐', '读每日推荐失败：' + e.message); toast('读不到：' + e.message); }
+}
+/* ---------- 播放页按钮（播放、上一首、分享这些）的颜色：自动 = 背景亮就用黑的、暗就用白的；也能自己挑（作者要的，放在主页「更多」里） ---------- */
+function btnColor() {
+  const wheel = colorWheel(M().btn || '#ffffff', c => { M().btn = c; commit('music'); });
+  wheel.hidden = !M().btn;
+  sheet({ title: '播放页按钮颜色', content: h('div.as-mu-color', segmented([['auto', '自动'], ['own', '自己挑']], M().btn ? 'own' : 'auto', v => { M().btn = v === 'own' ? M().btn || '#ffffff' : ''; wheel.hidden = v !== 'own'; commit('music'); }), wheel) });
 }
 /* ---------- 歌词悬浮窗的设置（显示在哪、字体、颜色、大小、固定） ---------- */
 async function openFloat() {
@@ -978,6 +984,9 @@ export function openPlayer() {
   // 自己的背景图不压暗，字照旧是白的；气泡颜色跟着背景的平均色
   // 自己的图默认就是原图；模糊、亮度能自己调。有图时字加一层淡阴影，亮的图上也看得清
   let tone = null, toneOf = '';
+  // 自己的背景图太亮（白字看不清）：字和按钮换成深色；按钮自己挑了颜色就用挑的
+  const paintInk = () => { p.el.classList.toggle('is-light', !!(tone && p.el.classList.contains('has-bg') && lum(tone) > .62));
+    M().btn ? p.el.style.setProperty('--mp-btn', M().btn) : p.el.style.removeProperty('--mp-btn'); };
   const blurSvg = h('div', { hidden: true }); blurSvg.innerHTML = '<svg width="0" height="0"><filter id="as-mp-blur" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0" edgeMode="duplicate"/></filter></svg>';
   const blurF = blurSvg.querySelector('feGaussianBlur'); p.el.append(blurSvg);
   // 以前只存一张（skin.bg 里直接是图）：挪进背景库
@@ -991,13 +1000,13 @@ export function openPlayer() {
     // 模糊用 SVG 的（边上照原图延伸），CSS 的 blur 边上会透出来，只能把图放大盖住
     blurF.setAttribute('stdDeviation', cur ? cur.blur : 0); bg.style.filter = cur ? `${cur.blur ? 'url(#as-mp-blur) ' : ''}brightness(${cur.bright})` : '';
     bg.classList.toggle('is-custom', has || wet); bg.classList.toggle('is-scene', wet && !has);
-    p.el.classList.toggle('has-bg', has); p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day);
+    p.el.classList.toggle('has-bg', has); p.el.classList.toggle('is-day', day); p.el.classList.toggle('is-dark', !day); paintInk();
     if (!src) return;
     if (src === toneOf) return;
     toneOf = src; tone = null; paintBub();
     avgColor(src).then(c => {
       if (src !== toneOf || !c) return;
-      tone = c; paintBub();
+      tone = c; paintBub(); paintInk();
     });
   };
   // 气泡：自己选了颜色就用；不然跟着背景（亮的背景配浅色气泡深色字，暗的反过来）；背景读不到颜色时按白天 / 夜里

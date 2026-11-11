@@ -181,7 +181,8 @@
 .as-mp__bg.is-custom { inset: 0; filter: none; transform: none; }
 .as-mp > .as-navbar, .as-mp > .as-page__body { position: relative; z-index: 1; }
 .as-mp { --mp-ink: 255,255,255; --mp-paper: #0b1020; }   /* paper：没唱的字调成实色用的底色（半透明的字会把底下的描边透出来） */
-.as-mp .as-navbar__back { color: rgb(var(--mp-ink)) !important; }
+.as-mp .as-navbar__back { color: var(--mp-btn, rgb(var(--mp-ink))) !important; }
+.as-mp.is-light { --mp-ink: 28,28,34; --mp-paper: #f4f4f6; }   /* 背景图很亮：字、按钮用深色 */
 /* 下雨天：背景就是那张雨景图（不糊不压暗，只在最下面压一点让按钮清楚）；白天那张浅，字和按钮换深蓝 */
 .as-mp.is-day { --mp-ink: 26,56,110; --mp-paper: #eef3fa; }
 .as-mp__bg.is-scene::after { background: linear-gradient(transparent 62%, rgba(10,22,52,.35)); }
@@ -251,7 +252,7 @@
 .as-mu-mvbox__head { display: flex; align-items: center; gap: 8px; padding: 0 2px 0 6px; }
 .as-mu-mvbox__head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
 .as-mu-mvbox__x { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; border: 0; background: var(--as-color-fill, rgba(120,120,128,.16)); color: inherit; }
-.as-mp__heart { border: 0; background: none; color: rgb(var(--mp-ink)); padding: 4px; cursor: pointer; display: grid; }
+.as-mp__heart { border: 0; background: none; color: var(--mp-btn, rgb(var(--mp-ink))); padding: 4px; cursor: pointer; display: grid; }
 .as-mp__heart.is-on { color: var(--mu-red); }
 .as-mp__heart.is-on svg { fill: currentColor; }
 .as-mp__prog { margin: 14px 22px 0; }
@@ -262,11 +263,11 @@
 .as-mp__track b { position: absolute; top: 6.5px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: rgb(var(--mp-ink)); }
 .as-mp__times { display: flex; justify-content: space-between; font: 400 10px/1 var(--font-ui); color: rgba(var(--mp-ink),.4); font-variant-numeric: tabular-nums; }
 .as-mp__ctrl { display: flex; align-items: center; justify-content: space-between; margin: 22px 18px 0; }
-.as-mp__ctrl button { border: 0; background: none; color: rgb(var(--mp-ink)); padding: 8px; cursor: pointer; display: grid; place-items: center; }
+.as-mp__ctrl button { border: 0; background: none; color: var(--mp-btn, rgb(var(--mp-ink))); padding: 8px; cursor: pointer; display: grid; place-items: center; }
 .as-mp__ctrl button:nth-child(2) svg, .as-mp__ctrl button:nth-child(4) svg, .as-mp__play svg { fill: currentColor; }
 .as-mp__play { width: 50px; height: 50px; }   /* 换成转圈时不能变矮，不然下面整块跟着挪 */
 .as-mp__tools { display: flex; justify-content: space-around; margin: 22px 10px 0; }
-.as-mp__tools button { border: 0; background: none; color: rgba(var(--mp-ink),.6); padding: 8px; cursor: pointer; display: grid; }
+.as-mp__tools button { border: 0; background: none; color: var(--mp-btn, rgba(var(--mp-ink),.6)); padding: 8px; cursor: pointer; display: grid; }
 
 .as-mu-queue { display: grid; grid-template-columns: minmax(0, 1fr); max-height: 56vh; overflow: auto; }   /* 列宽跟着盒子，名字太长就省略号，右边的 ⋯ 一直看得见 */
 .as-mu-queue__row { display: flex; align-items: baseline; gap: 8px; padding: 11px 6px; border: 0; border-bottom: 1px solid var(--as-color-line, rgba(0,0,0,.06)); background: none; text-align: left; color: var(--as-color-text); cursor: pointer; }
@@ -394,7 +395,7 @@
 /* 整句一份；没在唱的那几行不描边 */
 .as-fx__cur span { text-shadow: var(--sh); }
 .as-mp__lrc p.is-cur span { filter: var(--ds); }
-.as-mp.has-bg :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
+.as-mp.has-bg:not(.is-light) :is(.as-mp__ctrl, .as-mp__tools, .as-mp__info, .as-navbar__back) svg, .as-mp.has-bg:not(.is-light) .as-mp__track { filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 /* 乐评页（照网易云评论区） */
 .as-cm .as-page__body { padding: 0 0 120px; background: var(--mu-card); }
 .as-cm__song { display: flex; align-items: center; gap: 12px; padding: 10px 16px 14px; border-bottom: 8px solid var(--mu-bg); }

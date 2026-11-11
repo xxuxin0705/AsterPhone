@@ -7,12 +7,13 @@ import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, VAR_INFO, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
+import { APPS } from '../home/home.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.301';
+export const VERSION = '0.8.302';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -126,7 +127,14 @@ function openApps() {
         item({ icon: 'music', color: 'red', title: '音乐', chevron: true, onClick: openMusicApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
         item({ icon: 'list', color: 'teal', title: '日志', chevron: true, onClick: () => shell.openApp('log') }),
-      ]));
+      ]),
+      // 每个 App 的日间 / 夜间：默认跟随全局（全局跟着手机切深浅色时它也跟着切），选了日间就一直是日间（作者要的）
+      group('主题', APPS.map(a => { const T = () => (S().appTheme || {})[a.id] || '', name = v => ({ day: '日间', night: '夜间' })[v] || '跟随全局';
+        const row = item({ title: a.name, value: name(T()), chevron: true, onClick: async () => {
+          const v = await actionSheet(`${a.name}的主题`, [['', '跟随全局'], ['day', '日间'], ['night', '夜间']].map(([value, label]) => ({ value, label, active: T() === value })));
+          if (v == null) return; (S().appTheme = S().appTheme || {})[a.id] = v; if (!v) delete S().appTheme[a.id]; commit('settings');
+          row.querySelector('.as-list-item__value').textContent = name(v);
+        } }); return row; })));
   });
 }
 // 音乐：主页的关注 / 粉丝用中文还是英文（没选过跟着锁屏时间的语言）；角色歌单、乐评写到一半断了自动补写（默认关）

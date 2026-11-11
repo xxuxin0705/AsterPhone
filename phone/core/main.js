@@ -37,6 +37,9 @@ const sysDark = () => {
   try { return !!(window.parent !== window && window.parent.matchMedia(q).matches); } catch (e) { return false; }
 };
 const wantNight = () => state.settings.mode === 'night' || (state.settings.mode === 'auto' && sysDark());
+// 每个 App 能单独定日间 / 夜间（应用管理里选，作者要的）；没定就跟全局。在 App 里时照 App 的，回桌面照全局
+const appNight = () => { const t = (state.settings.appTheme || {})[currentApp]; return t ? t === 'night' : wantNight(); };
+const syncNight = () => { if ((phone.dataset.mode === 'night') !== appNight()) setNight(appNight()); };
 // 夜间告诉浏览器「这页是暗色的」：不然开着「网页深色主题」的浏览器会再自动调暗一遍（把浅色头像当图标反色、输入框变灰）；
 // 只靠 base.css 的 prefers-color-scheme 不够，有的浏览器在 iframe 里不报系统是暗色
 const markNight = night => { phone.dataset.mode = night ? 'night' : 'day'; document.documentElement.style.colorScheme = night ? 'dark' : ''; };
@@ -75,7 +78,7 @@ function syncStatusbar() {
   $('#statusbar').classList.toggle('is-hidden', !show);
   phone.classList.toggle('no-statusbar', !show);
 }
-function setCurrent(app) { currentApp = app; phone.dataset.asApp = app; syncStatusbar(); }
+function setCurrent(app) { currentApp = app; phone.dataset.asApp = app; syncStatusbar(); if (wallpaper) syncNight(); }
 
 /* ---------- 打开 / 关闭 App ---------- */
 async function openApp(id, opts = {}) {
@@ -250,7 +253,7 @@ async function boot() {
   });
   const lift = e => { if (touching === e.pointerId) { touching = null; wallpaper.release(); clearTimeout(liveT); if (livePressed) { livePressed = false; wallpaper.liveStop(); } } };
   addEventListener('pointerup', lift); addEventListener('pointercancel', lift);
-  const follow = () => { if (state.settings.mode === 'auto' && (phone.dataset.mode === 'night') !== wantNight()) setNight(wantNight()); };
+  const follow = () => { if (state.settings.mode === 'auto' || (state.settings.appTheme || {})[currentApp]) syncNight(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow);
   try { window.parent.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', follow); } catch (e) { /* 忽略 */ }
   // 有的手机浏览器切深色模式时不发通知，就每 2 秒自己看一眼；切回手机时也看一眼
