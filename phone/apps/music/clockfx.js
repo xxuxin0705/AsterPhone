@@ -3,7 +3,6 @@
 // 表盘是线画的（要能换颜色，图片换不了色）。
 import { h } from '../../core/util.js';
 
-const STEP = 13;   // 相邻两句歌词差几度
 const NS = 'http://www.w3.org/2000/svg';
 const svg = html => { const d = document.createElementNS(NS, 'svg'); d.setAttribute('viewBox', '-100 -100 200 200'); d.innerHTML = html; return d; };
 const ticks = (n, r0, r1, w) => Array.from({ length: n }, (_, k) => { const a = k * 2 * Math.PI / n, c = Math.cos(a), s = Math.sin(a); return `<line x1="${(c * r0).toFixed(2)}" y1="${(s * r0).toFixed(2)}" x2="${(c * r1).toFixed(2)}" y2="${(s * r1).toFixed(2)}" stroke-width="${w}"/>`; }).join('');
@@ -31,13 +30,18 @@ export function clockFx(el) {
     line(L, i) {
       if (L !== lastL) {   // 换歌（歌词到了）才重排一圈
         lastL = L;
-        rows = L.map((x, k) => h('p.as-ck__l', { style: { '--a': k * STEP + 'deg' } }, h('span', x.text), x.tr ? h('small', x.tr) : null));
+        rows = L.map(x => h('p.as-ck__l', h('span', x.text), x.tr ? h('small', x.tr) : null));
         wheel.replaceChildren(...rows); cur = -1;
       }
       rows[cur]?.classList.remove('is-cur');
       cur = i; rows[i]?.classList.add('is-cur');
-      wheel.style.setProperty('--at', -Math.max(i, 0) * STEP + 'deg');
-      rows.forEach((r, k) => r.classList.toggle('is-far', Math.abs(k - Math.max(i, 0)) > 4));
+      // 每句之间按真的高度排开（有翻译的、正在唱的那句占得多），不然有翻译时挤成一团：从唱到的这句往上、往下一句句累加角度
+      const c = Math.max(i, 0), R = parseFloat(getComputedStyle(el).getPropertyValue('--R')) || 150, deg = px => px / (R + 40) * 180 / Math.PI;
+      const hs = rows.map((r, k) => Math.abs(k - c) <= 5 ? r.offsetHeight : 0), at = [];
+      at[c] = 0;
+      for (let k = c + 1; k < rows.length; k++) at[k] = at[k - 1] + (k - c > 5 ? 30 : deg(hs[k - 1] / 2 + hs[k] / 2 + 14));
+      for (let k = c - 1; k >= 0; k--) at[k] = at[k + 1] - (c - k > 5 ? 30 : deg(hs[k + 1] / 2 + hs[k] / 2 + 14));
+      rows.forEach((r, k) => { r.style.setProperty('--a', Math.max(-170, Math.min(170, at[k])) + 'deg'); r.classList.toggle('is-far', Math.abs(k - c) > 4); });
     },
     prog(p) { rows[cur]?.style.setProperty('--p', p * 100 + '%'); },
     time(t, d) {
