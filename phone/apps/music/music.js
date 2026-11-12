@@ -666,7 +666,7 @@ function openFollows() {
   const p = page({ app: 'music', id: 'music-follows', title: '关注的歌手', back: true });
   const box = h('div.as-mu-sheet');
   const paint = () => box.replaceChildren(...(follows().length ? follows().map(a => h('div.as-mu-li', { role: 'button', onclick: () => openArtist(a, (M().mids || {})[a]) }, avatar('', a, 48), h('div', h('b', a)), icon('chevron', 16, 2)))
-    : [empty('还没有关注的歌手', h('div.as-muted', '播放页歌手名字旁边点「关注」'))]));
+    : [empty('还没有关注的歌手')]));
   paint(); p.body.append(box); p.el._onShow = paint;
   nav.push(p.el);
 }
