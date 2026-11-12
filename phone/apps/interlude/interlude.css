@@ -55,20 +55,22 @@
 .as-int-sheet .as-list-item.is-on .as-check { opacity: 1; }
 
 /* ---------- 开屏：画布上展开、写字、盖章、烧掉 ---------- */
-.as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #000; transition: opacity 500ms ease; }
+.as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; transition: opacity 400ms ease; }
 .as-int-splash.is-out { opacity: 0; pointer-events: none; }
-.as-int-sp__clip, .as-int-sp__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
-.as-int-splash.is-clip .as-int-sp__clip { opacity: 1; }
-.as-int-splash.is-open .as-int-sp__art { animation: as-int-art 300ms ease-out forwards, as-int-drift 6s 300ms linear forwards; }
-@keyframes as-int-art { to { opacity: 1; } }
-@keyframes as-int-drift { from { transform: scale(1); } to { transform: scale(1.05); } }
-/* 标题盖上来；开屏语晚一点浮出 */
-.as-int-sp__title { position: absolute; left: 9%; width: 82%; top: 11%; opacity: 0; pointer-events: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,.7)); }
-.as-int-splash.is-open .as-int-sp__title { animation: as-int-ttl 460ms cubic-bezier(.2, .8, .2, 1) forwards; }
-@keyframes as-int-ttl { from { opacity: 0; transform: scale(1.35); filter: blur(10px); } to { opacity: 1; transform: none; } }
-.as-int-sp__line { position: absolute; left: 0; right: 0; bottom: 8%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.8); text-wrap: balance; }
-.as-int-splash.is-open .as-int-sp__line { animation: as-int-line 700ms 600ms ease-out forwards; }
-@keyframes as-int-line { from { opacity: 0; transform: translateY(8px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.as-int-splash img, .as-int-splash i, .as-int-sp__g, .as-int-sp__thread { position: absolute; max-width: none; pointer-events: none; }
+.as-int-sp__bg, .as-int-sp__cream, .as-int-sp__g.is-full, .as-int-sp__thread { inset: 0; }
+.as-int-sp__thread { width: 100%; height: 100%; overflow: visible; }
+.as-int-sp__bg { background: #0b111d; }
+.as-int-sp__cream { background: #cdbfa6; }
+.as-int-sp__thread * { fill: none; stroke: #a67c3d; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 1px 1.5px rgba(20,14,6,.75)); }
+.as-int-sp__thread path { stroke-dasharray: 1; }
+.as-int-sp__hand { left: 50.37%; top: 45.89%; transform-origin: 50% 100%; background: #1b2440; clip-path: polygon(50% 0, 64% 9%, 88% 24%, 60% 33%, 62% 100%, 38% 100%, 40% 33%, 12% 24%, 36% 9%); }
+.as-int-sp__lt { inset: 0; background-size: 100% 100%; }
+.as-int-sp__lt.is-l { clip-path: inset(0 50% 0 0); }
+.as-int-sp__lt.is-r { clip-path: inset(0 0 0 50%); }
+.as-int-sp__lt.is-flap, .as-int-sp__lt.is-sh { clip-path: polygon(1% 2%, 99% 2%, 50% 55.4%); transform-origin: 50% 2%; }
+.as-int-sp__lt.is-sh { background: #141a2a; }
+.as-int-sp__line { position: absolute; left: 0; right: 0; top: 60%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.9); text-wrap: balance; }
 .as-int-splash__skip { position: absolute; right: 14px; top: 52px; padding: 6px 14px; border: 1px solid rgba(241,236,226,.4); border-radius: 999px; background: rgba(0,0,0,.2); color: #f1ece2; font: 500 12px/1 var(--font-ui); z-index: 1; }
 
 .as-int-card { background: #3a4252; }
