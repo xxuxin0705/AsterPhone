@@ -52,12 +52,12 @@ export function openGroupSettings(chat, redrawRoom) {
           chat.avatar = v; save(); draw();
         } }),
         field('群名', input({ value: chat.name, onInput: v => { chat.name = v.trim() || chat.name; save(); } })),
-        field('群介绍（只给 AI 看，帮它理解这是个什么群）', textarea({ value: chat.intro || '', rows: 3, placeholder: '例如：大学室友群，平时互损', onInput: v => { chat.intro = v; save(); } })),
+        field(withInfo('群介绍', '只给 AI 看，帮它理解这是个什么群。'), textarea({ value: chat.intro || '', rows: 3, placeholder: '群介绍', onInput: v => { chat.intro = v; save(); } })),
         field('群公告', textarea({ value: chat.notice || '', rows: 2, placeholder: '可以不写', onInput: v => { chat.notice = v; save(); } })),
       ]),
       group('我在本群', [
         field('我的群昵称', input({ value: cfg.myNick || '', placeholder: state.me.nick || '不填就用我的网名', onInput: v => { cfg.myNick = v.trim(); save(); } })),
-        field('我的头衔', input({ value: cfg.myTitle || '', placeholder: '例如：群宠', onInput: v => { cfg.myTitle = v.trim(); save(); } })),
+        field('我的头衔', input({ value: cfg.myTitle || '', placeholder: '头衔', onInput: v => { cfg.myTitle = v.trim(); save(); } })),
         item({ title: '我在本群的头像', right: cfg.myAvatar ? avatar(cfg.myAvatar, '', 30) : h('span.as-muted', '默认'), chevron: true, onClick: async () => {
           const v = await pickImage('我在本群的头像', { has: !!cfg.myAvatar }); if (v != null) { cfg.myAvatar = v; save(); draw(); }
         } }),
@@ -131,7 +131,7 @@ export function openGroupSettings(chat, redrawRoom) {
       { value: 'kick', label: '移出群聊', icon: 'trash', danger: true },
     ]);
     if (v === 'profile') (await import('./people.js')).openProfile(id);
-    if (v === 'title') { const t = await dialog({ title: '群头衔', input: { value: chat.titles[id] || '', placeholder: '例如：话痨担当' } }); if (t !== null) { chat.titles[id] = t.trim(); commit('chats'); draw(); } }
+    if (v === 'title') { const t = await dialog({ title: '群头衔', input: { value: chat.titles[id] || '', placeholder: '头衔' } }); if (t !== null) { chat.titles[id] = t.trim(); commit('chats'); draw(); } }
     if (v === 'admin') { chat.admins = isAdmin ? chat.admins.filter(x => x !== id) : [...(chat.admins || []), id]; commit('chats'); draw(); }
     if (v === 'owner') { chat.owner = id; commit('chats'); await E.addSystem(chat, `你把群主转让给了「${E.nameOf(m)}」`); draw(); }
     if (v === 'kick') {

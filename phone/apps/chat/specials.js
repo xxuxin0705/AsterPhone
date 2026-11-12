@@ -119,12 +119,12 @@ export async function plusAction(k, chat, c, { poke }) {
     case 'photo': {
       const f = await pickFile(); if (!f) return;
       const src = await fileToDataURL(f, 900);
-      const desc = await dialog({ title: '给这张图配一句描述', text: 'AI 看不到图片本身，靠这句话知道你发了什么。可以不填。', input: { placeholder: '例如：路边的小猫在晒太阳' }, confirm: '发送' });
+      const desc = await dialog({ title: '给这张图配一句描述', text: 'AI 看不到图片本身，靠这句话知道你发了什么。可以不填。', input: { placeholder: '描述' }, confirm: '发送' });
       if (desc === null) return;
       return send({ type: 'image', src, text: (desc || '').trim() });
     }
     case 'camera': {
-      const desc = await dialog({ title: '拍了一张什么？', text: '不用真的拍，写下画面就行，会变成一张图片卡片。', input: { placeholder: '例如：窗外的晚霞' }, confirm: '发送' });
+      const desc = await dialog({ title: '拍了一张什么？', text: '不用真的拍，写下画面就行，会变成一张图片卡片。', input: { placeholder: '画面' }, confirm: '发送' });
       if (desc && desc.trim()) return send({ type: 'image', text: desc.trim() });
       return;
     }
@@ -144,7 +144,7 @@ export async function plusAction(k, chat, c, { poke }) {
       return send({ type: k, amount, note: (note || '').trim() || (pk ? '恭喜发财，大吉大利' : '') });
     }
     case 'location': {
-      const t = await dialog({ title: '发送位置', input: { placeholder: '例如：雾港海边的咖啡店' }, confirm: '发送' });
+      const t = await dialog({ title: '发送位置', input: { placeholder: '地点' }, confirm: '发送' });
       if (t && t.trim()) return send({ type: 'location', text: t.trim() });
       return;
     }
@@ -295,7 +295,7 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
 /* ================= 钱包明细 ================= */
 export function ledgerList() {
   const L = state.me.ledger || [];
-  if (!L.length) return [item({ title: '还没有记录', sub: '转账、红包的收支会记在这里' })];
+  if (!L.length) return [item({ title: '还没有记录' })];
   return L.slice(0, 80).map(x => item({ title: x.note, sub: new Date(x.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     right: h('b', { style: { color: x.amount >= 0 ? 'var(--as-color-success)' : 'var(--as-color-text)' } }, (x.amount >= 0 ? '+' : '') + money(x.amount)) }));
 }

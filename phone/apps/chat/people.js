@@ -1,7 +1,7 @@
 // 联系人相关的页面和抽屉：资料页（直接改）、手动添加、选人。
 import { h, uid, sortZh } from '../../core/util.js';
 import { state, commit, contact, chatForContact, clearMsgs } from '../../core/store.js';
-import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem, pickImage } from '../../core/ui.js';
+import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { nameOf, relinkMoments } from './engine.js';
 
@@ -36,10 +36,10 @@ export function pickMany(title, list, { preselect = [], disabled = [] } = {}) {
 function contactFields(c, changed = () => {}) {
   const f = (label, key, ph, hint) => field(label, input({ value: c[key] || '', placeholder: ph, onInput: v => { c[key] = v; changed(key); } }), hint);
   return [
-    group('名字', [f('真实姓名（AI 按这个认人）', 'name', '例如：周叙白'), f('网名', 'nick', '例如：白'), f('备注', 'remark', '只有你看得到')]),
+    group('名字', [f(withInfo('真实姓名', 'AI 按这个认人。'), 'name', ''), f('网名', 'nick', ''), f(withInfo('备注', '只有你看得到。'), 'remark', '')]),
     group('资料', [
       field('性别', segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; changed('gender'); })),
-      f('地区', 'region', '例如：上海'), f('个性签名', 'sign', ''), f('拍一拍后缀', 'pokeSuffix', '例如：的小脑袋', '你拍 TA 时显示「你拍了拍 TA的小脑袋」'),
+      f('地区', 'region', ''), f('个性签名', 'sign', ''), f(withInfo('拍一拍后缀', '你拍 TA 时显示「你拍了拍 TA」加上这里写的字。'), 'pokeSuffix', ''),
     ]),
     group('人设', [field(c.charKey ? '补充 / 覆盖人设' : '人设', textarea({ value: c.persona || '', placeholder: c.charKey ? '留空就用角色卡里的人设' : '性格、经历、和你的关系……', rows: 5, onInput: v => { c.persona = v; changed('persona'); } }))]),
   ];
@@ -88,7 +88,7 @@ export function openProfile(cid, { onMessage } = {}) {
     h('div.as-chat-profile', ava, h('div.as-chat-profile__main', nameEl, lines)),
     h('div.as-chat-profile__btns',
       btn('发消息', 'primary', () => { const chat = chatForContact(c.id, true); onMessage ? onMessage(chat) : import('./room.js').then(m => m.openRoom(chat)); }),
-      btn('打电话', 'secondary', () => toast('语音通话下一轮做'))),
+      btn('打电话', 'secondary', () => import('./specials.js').then(m => m.openCall(chatForContact(c.id, true), c, 'voice')))),
     group('', [
       item({ title: '动态', right: thumbs, chevron: true, onClick: () => import('./moments.js').then(m => m.openUserMoments(c.id)) }),
       // 声音：和设置 → 连接 → 音色库里的是同一份

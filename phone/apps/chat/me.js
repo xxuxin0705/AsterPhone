@@ -1,7 +1,7 @@
 // 我：主页（头像、数字格、签名、关于我）、编辑资料、钱包、收藏。
 import { h } from '../../core/util.js';
 import { state, commit, subscribe, getMsgs, contact } from '../../core/store.js';
-import { page, group, item, field, input, textarea, segmented, avatar, icon, navText, toast, empty, dialog, pickImage } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, segmented, avatar, icon, navText, toast, empty, dialog, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { userPersona, userName, inTavern } from '../../core/bridge.js';
@@ -27,7 +27,7 @@ export function renderMe(ctx) {
       h('div.as-chat-me-stats', (me.stats || []).slice(0, 4).map(k => h('div.as-chat-me-stat', h('b', String(val[k] ?? '-')), h('span', STAT_LABEL[k] || k)))),
       (me.birthday || me.region || (me.tags || []).length) ? h('div.as-chips', { style: { margin: '0 4px 16px' } },
         me.birthday && h('span.as-chip', '🎂 ' + me.birthday), me.region && h('span.as-chip', '📍 ' + me.region), (me.tags || []).map(t => h('span.as-chip', '# ' + t))) : null,
-      group('关于我' + (me.persona == null ? '（跟随酒馆）' : '（已独立）'), [h('div.as-chat-me-about', { onclick: e => e.currentTarget.classList.toggle('is-open') }, about || '还没有人设。点右上「编辑」写一写，或者在酒馆里设置用户人设。')], about ? '点一下展开 / 收起' : null),
+      group(withInfo('关于我', me.persona == null ? '跟随酒馆里的用户人设。点右上「编辑」可以改成只在手机里用的。点一下展开 / 收起。' : '只在手机里用的人设。点一下展开 / 收起。'), [h('div.as-chat-me-about', { onclick: e => e.currentTarget.classList.toggle('is-open') }, about || '还没有人设')]),
       group('', [
         item({ icon: 'wallet', color: 'gold', title: '钱包', value: '¥' + (me.balance ?? 0), chevron: true, onClick: openWallet }),
         item({ icon: 'bookmark', color: 'orange', title: '收藏', value: String(state.favorites.length), chevron: true, onClick: openFavorites }),
@@ -56,12 +56,10 @@ function openEdit() {
     commit('me'); toast('已保存'); nav.pop();
   }, true) });
   p.body.append(
-    group('名字', [f('真名（AI 记忆按这个认你）', 'realName', inTavern() ? `不填就用酒馆里的「${userName()}」` : '例如：林小满'), f('网名（只改显示）', 'nick', '')]),
+    group('名字', [f(withInfo('真名', 'AI 记忆按这个认你。不填就用酒馆里的名字。'), 'realName', inTavern() ? userName() : ''), f(withInfo('网名', '只改显示。'), 'nick', '')]),
     group('资料', [f('个性签名', 'sign', ''), field('性别', segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], d.gender || '', v => { d.gender = v; })),
-      f('生日', 'birthday', '例如：3月14日'), f('所在地', 'region', '例如：雾港'), f('兴趣标签', 'tags', '用逗号隔开，例如：摄影，猫')]),
-    group('人设（只在手机里用，不写回酒馆、不注入正文）', [h('div.as-field', h('div.as-row', h('span.as-field__label', { style: { flex: 1 } }, '当前：', mark), resetBtn), personaBox)],
-      '没改过就跟随酒馆里的用户人设；改过就独立保存。'),
-    group('', [item({ title: '用户连结、绑定世界书、生图外观、我的声音', value: '下一轮', onClick: () => toast('这些下一轮做') })]));
+      f('生日', 'birthday', ''), f('所在地', 'region', ''), f('兴趣标签', 'tags', '用逗号隔开')]),
+    group(withInfo('人设', '只在手机里用，不写回酒馆、不注入正文。没改过就跟随酒馆里的用户人设；改过就独立保存。'), [h('div.as-field', h('div.as-row', h('span.as-field__label', { style: { flex: 1 } }, '当前：', mark), resetBtn), personaBox)]));
   nav.push(p.el);
 }
 

@@ -157,7 +157,7 @@ function openGenerate() {
     segmented([['random', '随机角色'], ['pick', '指定角色']], mode, v => { mode = v; pickBtn.hidden = v !== 'pick'; who2.hidden = v !== 'pick'; }),
     pickBtn, who2,
     h('div.as-settings-slider-row', { style: { padding: '4px' } }, h('span', '数量'), slider({ min: 1, max: 5, step: 1, value: 1, onInput: v => { count = v; cnt.textContent = v; } }), cnt),
-    h('div.as-muted', { style: { padding: '0 4px' } }, '用我发的照片、转载聊天记录：下一轮做'), go) });
+    go) });
   who2.hidden = true;
 }
 

@@ -18,7 +18,7 @@ const TABS = [
 let P = null, bar = null, cur = null, cleanup = null, unsub = null;
 
 export function open(opts = {}) {
-  P = page({ app: 'chat', id: 'chat-messages', title: '消息', back: true, cls: 'as-chat-root' });
+  P = page({ app: 'chat', id: 'chat-messages', title: '消息', large: true, back: true, cls: 'as-chat-root' });
   bar = h('nav.as-chat-tabbar', { role: 'tablist' }, TABS.map(t => h('button.as-chat-tab', { role: 'tab', dataset: { tab: t.id, asText: t.text }, onclick: () => switchTab(t.id) },
     icon(t.icon, 23, 1.7), h('span', { dataset: { asLabel: '' } }, t.label))));
   applyTexts();

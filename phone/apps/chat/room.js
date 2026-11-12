@@ -373,20 +373,22 @@ function openSettings(chat, redrawRoom) {
     const conns = state.connections.text;
     if (lastTab === 'look') box.append(
       group('资料', [
-        item({ icon: 'user', color: 'blue', title: '头像与备注', sub: '显示谁的头像、大小、圆角、备注名', chevron: true, onClick: () => openAvatarPage(chat, draw) }),
-        item({ icon: 'image', color: 'teal', title: '聊天背景', sub: cfg.bg ? '当前使用自定义图片' : '默认（跟随主题）', chevron: true, onClick: () => openBgPage(chat, draw) }),
+        item({ icon: 'user', color: 'blue', title: '头像与备注', chevron: true, onClick: () => openAvatarPage(chat, draw) }),
+        item({ icon: 'image', color: 'teal', title: '聊天背景', value: cfg.bg ? '自己的图' : '跟随主题', chevron: true, onClick: () => openBgPage(chat, draw) }),
       ]),
       group('显示', [
-        toggleItem({ title: '时间戳', sub: '一组消息下面显示时间' }, cfg.showTime !== false, v => { cfg.showTime = v; save(); }),
-        toggleItem({ title: '已读', sub: '我的消息下面显示「已读 / 送达」' }, cfg.showRead !== false, v => { cfg.showRead = v; save(); }),
-        toggleItem({ title: '显示 TA 的心里话', sub: 'TA 回复时想了但没说出口的话' }, !!cfg.showThink, v => { cfg.showThink = v; save(); }),
+        toggleItem({ title: withInfo('时间戳', '一组消息下面显示时间。') }, cfg.showTime !== false, v => { cfg.showTime = v; save(); }),
+        toggleItem({ title: withInfo('已读', '我的消息下面显示「已读 / 送达」。') }, cfg.showRead !== false, v => { cfg.showRead = v; save(); }),
+        toggleItem({ title: withInfo('显示 TA 的心里话', 'TA 回复时想了但没说出口的话。') }, !!cfg.showThink, v => { cfg.showThink = v; save(); }),
         h('div.as-field', h('span.as-field__label', '排版密度'), segmented([['comfy', '舒适'], ['compact', '紧凑']], cfg.density || 'comfy', v => { cfg.density = v; save(); })),
       ]));
+    // 拨开关只显示 / 收起温度那行，不重画整页
+    const tempRow = sliderRow('温度', 0, 1.5, .05, cfg.temperature ?? .9, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)); tempRow.hidden = cfg.temperature == null;
     if (lastTab === 'act') box.append(
       group('基础', [
         toggleItem({ title: '置顶聊天' }, chat.pinned, v => { chat.pinned = v; save(); }),
         toggleItem({ title: '消息免打扰' }, chat.muted, v => { chat.muted = v; save(); }),
-        toggleItem({ title: '续火花', sub: '两边当天都说过话就 +1 天，跟随时间来源' }, cfg.streak !== false, v => { cfg.streak = v; save(); }),
+        toggleItem({ title: withInfo('续火花', '两边当天都说过话就 +1 天，跟随时间来源。') }, cfg.streak !== false, v => { cfg.streak = v; save(); }),
       ]),
       group('AI', [
         item({ title: '提示词方案', value: P.schemeLabel('dm', cfg.prompt), chevron: true, onClick: async e => {
@@ -398,8 +400,8 @@ function openSettings(chat, redrawRoom) {
           const v = await actionSheet('这个聊天用哪个连接', [{ value: 'follow', label: '跟随应用设置', active: !cfg.conn || cfg.conn === 'follow' }, ...conns.map(x => ({ value: x.id, label: x.name, active: cfg.conn === x.id }))]);
           if (v) { cfg.conn = v; save(); draw(); }
         } }),
-        toggleItem({ title: '专属温度', sub: cfg.temperature == null ? '关着时跟随连接的设置' : null }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); draw(); }),
-        cfg.temperature != null ? sliderRow('温度', 0, 1.5, .05, cfg.temperature, v => { cfg.temperature = v; save(); }, v => Number(v).toFixed(2)) : null,
+        toggleItem({ title: withInfo('专属温度', '关着时跟随连接的设置。') }, cfg.temperature != null, v => { cfg.temperature = v ? .9 : null; save(); tempRow.hidden = !v; }),
+        tempRow,
       ].filter(Boolean)),
       replyGroup(chat, save),
       // 定时来找你只有仅线上才有；正文里提到 TA 就会来，不用设
@@ -413,9 +415,8 @@ function openSettings(chat, redrawRoom) {
       group('剧情关联', [
         h('div.as-field', h('span.as-field__label', withInfo('联动方式', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
-        item({ title: '注入记录', sub: '看看正文 AI 实际读到了什么', chevron: true, onClick: () => openInjectLog(chat) }),
-      ]),
-      group('', [item({ title: 'TA 的记忆', value: '下一轮', sub: '记忆宫殿做好后，在这里查看和编辑' })]));
+        item({ title: '注入记录', chevron: true, onClick: () => openInjectLog(chat) }),
+      ]));
     if (lastTab === 'data') box.append(
       group('记录', [
         item({ title: '导出聊天记录', chevron: true, onClick: () => import('./transfer.js').then(m => m.exportChats([chat])) }),
@@ -446,12 +447,12 @@ export function replyGroup(chat, save) {
 export function trGroup(cfg, save, draw) {
   const langs = LANGS.map(([v, l]) => [v, l]);
   const pickLang = async (key, title) => { const v = await actionSheet(title, langs.map(([v, l]) => ({ value: v, label: l, active: cfg[key] === v }))); if (v) { cfg[key] = v; save(); draw(); } };
-  return group('翻译（免费，不花你的 API）', [
-    toggleItem({ title: '自动翻译 TA 的消息', sub: `翻成 ${langName(cfg.myLang || 'zh-CN')}，显示在气泡下面` }, !!cfg.autoTr, v => { cfg.autoTr = v; save(); draw(); }),
+  return group(withInfo('翻译', '免费，不花你的 API。也可以长按任意一条消息 → 翻译。'), [
+    toggleItem({ title: withInfo('自动翻译 TA 的消息', '翻好的显示在 TA 的气泡下面。') }, !!cfg.autoTr, v => { cfg.autoTr = v; save(); draw(); }),
     item({ title: '我看的语言', value: langName(cfg.myLang || 'zh-CN'), chevron: true, onClick: () => pickLang('myLang', '翻成什么语言给我看') }),
-    toggleItem({ title: '发送前把我的话翻成 TA 的语言', sub: '原文显示在我的气泡下面' }, !!cfg.sendTr, v => { cfg.sendTr = v; save(); draw(); }),
+    toggleItem({ title: withInfo('发送前把我的话翻成 TA 的语言', '原文显示在我的气泡下面。') }, !!cfg.sendTr, v => { cfg.sendTr = v; save(); draw(); }),
     cfg.sendTr ? item({ title: 'TA 的语言', value: langName(cfg.theirLang || 'en'), chevron: true, onClick: () => pickLang('theirLang', 'TA 说什么语言') }) : null,
-  ].filter(Boolean), '也可以长按任意一条消息 → 翻译。');
+  ].filter(Boolean));
 }
 
 /** 头像与备注 */
@@ -521,7 +522,7 @@ async function openInjectLog(chat) {
     const a = auto.filter(mine), b = pinned.filter(mine);
     p.body.append(
       group(withInfo(`自动注入（${a.length}）`, chat.cfg.linkMode === 'follow' ? `这个聊天「跟随正文」：最近 ${chat.cfg.injectCount ?? 12} 条会自动写进正文。` : '这个聊天是「仅线上」：不会自动注入，只有手动钉住的会写进正文。'), a.length ? a.map(x => row(x, 'auto')) : [item({ title: '没有', sub: null })]),
-      group(`手动钉住（${b.length}）`, b.length ? b.map(x => row(x, 'pin')) : [item({ title: '没有', sub: '长按消息 → 注入正文，或多选后一起钉住' })]),
+      group(`手动钉住（${b.length}）`, b.length ? b.map(x => row(x, 'pin')) : [item({ title: '没有' })]),
       btn('预览正文 AI 看到的内容', 'secondary', async () => {
         const text = await S.injectionText();
         sheet({ title: `预览 · ${text.length} 字`, content: h('div.as-stack-gap', h('div.as-chat-preview', text || '（现在没有任何内容会注入正文）'),
