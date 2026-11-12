@@ -1,4 +1,4 @@
-// 壁纸库：自带「水中月」+ 自己加的图片和 Live 图。
+// 壁纸库：自带「水中月」「苹果」+ 自己加的图片和 Live 图。
 // 锁屏和桌面各有各的一排（row），加、删、调整都只管自己那排；也可以「随机」：每次锁屏 / 每次打开手机换一张。
 // 图片和视频本体存在 IndexedDB（键 wall:<blob 或 id>），state 里只记名字和类型。
 import { state, commit, kvGet, kvSet, kvDel } from './store.js';

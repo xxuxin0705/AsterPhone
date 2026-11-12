@@ -5,10 +5,10 @@
 import { state, commit } from './store.js';
 
 const V = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v};`).join('');
-// 两套：水中月（base.css 的默认值）和苹果（照 iPhone 设置：浅灰底白卡片 / 夜间清透黑）
+// 两套：水中月（base.css 的默认值）和苹果（照 iPhone 设置：浅灰底白卡片 / 夜间清透黑）；换主题时锁屏和桌面壁纸一起换成 wall
 export const THEMES = {
-  aero: { name: '水中月', swatch: ['#f4f9fc', '#bcd8e6', '#3a7aa3'], day: {}, night: {} },
-  apple: { name: '苹果', swatch: ['#ffffff', '#F2F2F7', '#007AFF'],
+  aero: { name: '水中月', wall: 'water', swatch: ['#f4f9fc', '#bcd8e6', '#3a7aa3'], day: {}, night: {} },
+  apple: { name: '苹果', wall: 'apple', swatch: ['#ffffff', '#F2F2F7', '#007AFF'],
     day: { 'as-color-bg': '#F2F2F7', 'as-color-bg-grad': 'none', 'as-color-surface': '#fff', 'as-color-surface-2': 'rgba(118,118,128,.12)', 'as-color-surface-solid': '#fff', 'as-color-glass-line': 'transparent',
       'as-color-text': '#000', 'as-color-text-2': 'rgba(60,60,67,.6)', 'as-color-border': 'rgba(60,60,67,.18)', 'as-color-accent': '#007AFF', 'as-shadow': 'none' },
     night: { 'as-color-bg': '#0b0b0d', 'as-color-bg-grad': 'none', 'as-color-surface': 'rgba(44,44,48,.62)', 'as-color-surface-2': 'rgba(118,118,128,.24)', 'as-color-surface-solid': '#1c1c1e', 'as-color-glass-line': 'rgba(255,255,255,.08)',

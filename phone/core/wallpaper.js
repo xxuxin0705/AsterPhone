@@ -4,6 +4,8 @@
 export const WALLPAPERS = {
   water:  { name: '水中月', day: 'water-day.jpg', night: 'water-night.jpg', aspect: 574 / 1242,
             moonDay: [0.50, 0.523], moonNight: [0.50, 0.523], noticeTop: '29.5%' },
+  apple:  { name: '苹果', day: 'apple-day.jpg', night: 'apple-night.jpg', aspect: 852 / 1846,
+            moonDay: [.5, .3], moonNight: [.5, .3], noticeTop: '38%' },
 };
 // 水中月：鱼群绕月亮转圈（圆心、横纵比、每条鱼的起始角度和半径）
 const RING = { cx: 0.4796, cy: 0.5536, k: 1.378,
@@ -38,7 +40,12 @@ void main(){
     if (hb < uGlitch * .5) iuv.x += (hash(blk * 1.7 + 3.1) - .5) * .14 * uGlitch;
   }
   vec2 off = vec2(0.), offN = vec2(0.);
-  if (uKind > 1.5) {
+  bool own = uKind > 1.5 && uKind < 2.5;
+  if (uKind > 2.5) {
+    // 苹果：丝绸一样慢慢起伏
+    off = vec2(sin(iuv.y*5. + uTime*.22), cos(iuv.x*4. - uTime*.18)) * .0035;
+    offN = off;
+  } else if (own) {
     // 自己的图片 / Live 图：不加特效，原样铺满
   } else {
     off = vec2(sin(iuv.y*38. + uTime*1.1) + sin((iuv.x+iuv.y)*27. - uTime*.8),
@@ -58,10 +65,10 @@ void main(){
     offN = off;
   }
   vec2 tuv = clamp(iuv + off, .001, .999), tuvN = clamp(iuv + offN, .001, .999);
-  if (uKind > 1.5) { tuv = uCrop.xy + tuv * uCrop.zw; tuvN = uCrop.xy + tuvN * uCrop.zw; }
+  if (own) { tuv = uCrop.xy + tuv * uCrop.zw; tuvN = uCrop.xy + tuvN * uCrop.zw; }
   float b = uUnlock * .007;
   vec3 cD = tap(uDay, tuv, b), cN = tap(uNight, tuvN, b);
-  if (uKind > 1.5) {   // 调图片时框超出了图片：超出的地方是黑的
+  if (own) {   // 调图片时框超出了图片：超出的地方是黑的
     vec2 qD = step(0., tuv) * step(tuv, vec2(1.)), qN = step(0., tuvN) * step(tuvN, vec2(1.));
     cD *= qD.x * qD.y; cN *= qN.x * qN.y;
   }
@@ -74,6 +81,11 @@ void main(){
   float rev = 1. - smoothstep(uReveal.z - .14, uReveal.z, d);
   float m = mix(uMixFrom, uMixTo, rev);
   vec3 col = mix(cD, cN, m);
+  if (uKind > 2.5) {
+    // 苹果：一道很淡的光斜着慢慢扫过去
+    float d0 = iuv.x*.8 + iuv.y*.6 - (fract(uTime*.045)*2.6 - .5);
+    col += exp(-d0*d0/.018) * mix(.1, .06, m) * mix(vec3(1.), vec3(.8,.86,1.), m);
+  }
   if (uKind < 1.5) {
     float fa = texture2D(uFish, clamp(iuv + off*1.5, 0., 1.)).a;
     col = mix(col, col*mix(vec3(.42,.56,.66), vec3(.28,.38,.5), m), fa * mix(.62, .88, m));
@@ -358,7 +370,7 @@ export class Wallpaper {
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, custom ? this.tex.day : this.tex.night);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.tex.fish);
       gl.uniform2f(U.uRes, this.glc.width, this.glc.height);
-      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform4fv(U.uCrop, custom && this.custom.crop ? this.custom.crop : [0, 0, 1, 1]); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : 1);
+      gl.uniform1f(U.uImgAspect, w.aspect); gl.uniform4fv(U.uCrop, custom && this.custom.crop ? this.custom.crop : [0, 0, 1, 1]); gl.uniform1f(U.uTime, tt); gl.uniform1f(U.uKind, custom ? 2 : this.kind === 'apple' ? 3 : 1);
       const s = this.mix, p = Math.min(1, Math.max(0, (t - s.start) / s.dur));
       gl.uniform1f(U.uMixFrom, p >= 1 ? s.to : s.from); gl.uniform1f(U.uMixTo, s.to);
       gl.uniform3f(U.uReveal, s.cx, s.cy, p >= 1 ? 3 : (1 - Math.pow(1 - p, 2)) * 1.6);

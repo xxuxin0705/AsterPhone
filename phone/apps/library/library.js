@@ -69,7 +69,7 @@ function drawThemes(box, redraw) {
   const cur = lib().theme;
   box.append(
     h('p.as-muted', { style: { margin: '0 6px 12px' } }, '主题是一整套颜色，一次只能用一个；日间 / 夜间各一套，跟着「外观 → 模式」切换。'),
-    h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: () => { setTheme(k); toast(`已换成「${t.name}」`); redraw(); } },
+    h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: () => { setTheme(k); Object.assign(state.settings.walls, { lock: t.wall, home: t.wall, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook(); toast(`已换成「${t.name}」`); redraw(); } },
       h('span.as-lib-theme__pv', { style: { background: `linear-gradient(170deg, ${t.swatch[0]}, ${t.swatch[1]})` } },
         h('i', { style: { background: 'rgba(255,255,255,.7)' } }), h('i.is-me', { style: { background: t.swatch[2] } }), h('i', { style: { background: 'rgba(255,255,255,.7)', width: '40%' } })),
       h('b', t.name), k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null))));
