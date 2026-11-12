@@ -68,7 +68,7 @@ export const sortZh = (a, b) => collator.compare(a, b);
 
 /** 文件 → dataURL（发图片、表情用），顺手压缩到 maxSize 以内。
  *  不先把整张原图读成一长串文字（手机拍的照片有十几兆，那样很卡、还会把页面撑崩），直接让浏览器打开文件 */
-export function fileToDataURL(file, maxSize = 512) {
+export function fileToDataURL(file, maxSize = 512, type = 'image/jpeg') {   // 要留透明（头像框、气泡图）就传 'image/png'
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
@@ -76,7 +76,7 @@ export function fileToDataURL(file, maxSize = 512) {
       const c = document.createElement('canvas');
       c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .86));
+      URL.revokeObjectURL(url); res(c.toDataURL(type, .86));
     };
     img.onerror = e => { URL.revokeObjectURL(url); rej(e); }; img.src = url;
   });

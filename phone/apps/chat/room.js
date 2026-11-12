@@ -1,5 +1,6 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
 import { h, onLongPress } from '../../core/util.js';
+import { addFrame, paintBubble, pickDeco, decoName } from '../../core/deco.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
 import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -117,9 +118,10 @@ export async function openRoom(chat) {
     let ava = null;
     if (showAva) {
       ava = chatAvatar(me ? E.myAvatarIn(chat) : (g ? who.avatar : E.avatarOf(c, chat)), me ? (state.me.nick || '我') : E.nameOf(who), chat.cfg);
-      ava.classList.add('as-chat-msg__avatar'); bindAvatar(ava, me, who);
+      ava.classList.add('as-chat-msg__avatar'); addFrame(ava, me ? state.me.frame : who?.frame); bindAvatar(ava, me, who);
     }
     const bubble = buildBubble(m, { chat, c: me ? c : who, redraw });
+    if (!m.type || m.type === 'text' || m.type === 'voice') paintBubble(bubble, me ? state.me.bubble : who?.bubble);
     const nameTag = g && !me && !cont ? h('div.as-chat-msg__name', E.nameOf(who),
       chat.owner === m.who ? h('em.is-owner', '群主') : (chat.admins || []).includes(m.who) ? h('em', '管理员') : chat.titles[m.who] ? h('em', chat.titles[m.who]) : null) : null;
     onLongPress(bubble, () => { if (!selecting) openMenu(m, bubble); });
@@ -468,14 +470,20 @@ function openAvatarPage(chat, after) {
     const A = avatarCfg(cfg);
     p.body.innerHTML = '';
     preview.replaceChildren(
-      h('button', { onclick: () => pick('theirAvatar', 'TA 在这个聊天的头像') }, chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 72 }), h('span', 'TA')),
-      h('button', { onclick: () => pick('myAvatar', '我在这个聊天的头像') }, chatAvatar(E.myAvatarIn(chat), state.me.nick || '我', { ...cfg, avatarSize: 72 }), h('span', '我')));
+      h('button', { onclick: () => pick('theirAvatar', 'TA 在这个聊天的头像') }, addFrame(chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 72 }), c.frame), h('span', 'TA')),
+      h('button', { onclick: () => pick('myAvatar', '我在这个聊天的头像') }, addFrame(chatAvatar(E.myAvatarIn(chat), state.me.nick || '我', { ...cfg, avatarSize: 72 }), state.me.frame), h('span', '我')));
+    // 头像框、气泡跟着人走：在这里给 TA 选，TA 在所有聊天里都戴着
+    const decoRow = (label, who, k, key) => { const r = item({ title: label, value: decoName(k, who[key]) || '不戴', chevron: true, onClick: async () => {
+      const v = await pickDeco(k, who[key]); if (v == null) return;
+      if (v === 'none') delete who[key]; else who[key] = v; commit(who === state.me ? 'me' : 'contacts'); draw();
+    } }); return r; };
     const out = (v, u) => h('output', v + u);
     const sizeOut = out(A.size, 'px'), radOut = out(A.radius, '%');
     p.body.append(
       group('显示谁的头像', [h('div.as-field', h('div.as-chips', [['both', '双方'], ['them', '仅对方'], ['me', '仅我'], ['none', '都不']].map(([k, label]) =>
         h('button.as-chip' + (A.who === k ? '.is-active' : ''), { onclick: () => { cfg.avatarWho = k; cfg.showAvatar = k !== 'none'; commit('chats'); draw(); } }, label))))]),
       group(withInfo('头像', '点一下更换，只在这个聊天里生效，情侣头像在这换。'), [preview]),
+      group('装扮', [decoRow('TA 的头像框', c, 'frames', 'frame'), decoRow('TA 的气泡', c, 'bubbles', 'bubble'), decoRow('我的头像框', state.me, 'frames', 'frame'), decoRow('我的气泡', state.me, 'bubbles', 'bubble')]),
       group('大小和圆角', [
         h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 26, max: 56, step: 1, value: A.size, onInput: v => { cfg.avatarSize = v; sizeOut.textContent = v + 'px'; commit('chats'); repaint(); } }), sizeOut),
         h('div.as-settings-slider-row', h('span', '圆角'), slider({ min: 0, max: 50, step: 1, value: A.radius, onInput: v => { cfg.avatarRadius = v; radOut.textContent = v + '%'; commit('chats'); repaint(); } }), radOut),

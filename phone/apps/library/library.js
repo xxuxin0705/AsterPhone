@@ -1,7 +1,8 @@
 // 资源库：主题（整部手机的一套样子，能存、导出、导入）、应用（各 App 的皮肤）、个性装扮（字体、表情包…到处都能用的）、教程。
-import { h, uid, pickFile } from '../../core/util.js';
+import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
+import { deco, addFrame, paintBubble, pack, unpack } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import * as time from '../../core/time.js';
@@ -47,7 +48,7 @@ export function open() {
   // 每个标签页画一次就留着，切页只换显示；数据变了才在旁边重画好再一次换上去（不闪）
   const DRAW = { theme: drawThemes, apps: drawSkins, deco: drawDeco, guide: drawGuide };
   const sig = { theme: () => JSON.stringify(userThemes().map(t => t.id + t.name)), guide: () => '', apps: () => JSON.stringify(lib().skins),
-    deco: () => JSON.stringify([userFonts().map(x => x.id), state.settings.clock.font, state.settings.uiFont, state.stickers.length]) };
+    deco: () => JSON.stringify([userFonts().map(x => x.id), state.settings.clock.font, state.settings.uiFont, state.stickers.length, deco().frames.map(x => x.id + x.name), deco().bubbles]) };
   const panes = {}, drawn = {};
   for (const k in DRAW) panes[k] = h('div', { hidden: true });
   p.body.append(tabs, ...Object.values(panes));
@@ -63,8 +64,18 @@ export function open() {
   return p.el;
 }
 
-/** 个性装扮：字体（锁屏时间和整个手机的字都从这里挑）、表情包（还是在聊天里管理，这里多一个入口） */
+/** 个性装扮：头像框、气泡（每个人可以戴不一样的，在聊天的「头像与备注」里选）、字体、表情包 */
 function drawDeco(box, redraw) {
+  const tile = (pv, name, onclick) => h('button.as-lib-deco__item', { onclick }, pv, h('span', name));
+  const add = onclick => h('button.as-lib-deco__item.is-add', { onclick }, h('span.as-lib-deco__pv', icon('plus', 22, 1.8)), h('span', '添加'));
+  box.append(
+    group(withInfo('头像框', '用透明背景的 PNG：中间留空，四周是框。给 TA 和自己选：聊天右上 ⋯ → 头像与备注。'), [h('div.as-lib-deco',
+      ...deco().frames.map(f => tile(h('span.as-lib-deco__pv', addFrame(avatar('', '我', 44), f.id)), f.name, () => decoMenu('frames', f, redraw))),
+      add(() => addDeco('frames', redraw)))]),
+    group(withInfo('气泡', '颜色、圆角、描边自己调；也可以用一张图，四个角不会被拉变形。给 TA 和自己选：聊天右上 ⋯ → 头像与备注。'), [h('div.as-lib-deco',
+      ...deco().bubbles.map(b => tile(h('span.as-lib-deco__pv', paintBubble(h('span.as-chat-bubble', '你好'), b.id)), b.name, () => decoMenu('bubbles', b, redraw))),
+      add(() => addDeco('bubbles', redraw)))]));
+
   const S = state.settings, used = id => [S.clock.font === 'u:' + id ? '锁屏时间' : '', S.uiFont === 'u:' + id ? '整个手机' : ''].filter(Boolean).join('、');
   box.append(group(withInfo('字体', '点一个可以删除。导入的字体只存在这台设备上，换手机要再导入一次。'), [...userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
     if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
@@ -74,6 +85,56 @@ function drawDeco(box, redraw) {
     try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 显示」里选用`); redraw(); } catch (e) { toast(e.message); }
   } })]),
   group('表情包', [item({ title: '管理表情包', value: `${state.stickers.length} 个`, chevron: true, onClick: async () => (await import('../chat/specials.js')).openStickerManager() })]));
+}
+
+const KIND = { frames: '头像框', bubbles: '气泡' };
+async function addDeco(k, redraw) {
+  const v = await actionSheet('添加' + KIND[k], [k === 'frames' ? { value: 'img', label: '选图片', icon: 'image' } : { value: 'new', label: '新建', icon: 'edit' }, { value: 'file', label: '导入别人分享的文件', icon: 'box' }]);
+  if (v === 'new') editBubble(null, redraw);
+  if (v === 'img') {
+    const f = await pickFile('image/*'); if (!f) return;
+    deco().frames.push({ id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', src: await fileToDataURL(f, 320, 'image/png') }); commit('deco'); redraw();
+  }
+  if (v === 'file') {
+    const f = await pickFile('*/*'); if (!f) return;
+    let d = null; try { d = JSON.parse(await f.text()); } catch (e) { /* 下面统一说 */ }
+    const n = unpack(k, d); toast(n ? `导入了 ${n} 个${KIND[k]}` : `这不是 AsterPhone 的${KIND[k]}文件`); if (n) redraw();
+  }
+}
+async function decoMenu(k, x, redraw) {
+  const v = await actionSheet(x.name, [...(k === 'bubbles' ? [{ value: 'edit', label: '编辑', icon: 'edit' }] : [{ value: 'name', label: '改名', icon: 'edit' }]),
+    { value: 'out', label: '导出', icon: 'box' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
+  if (v === 'edit') editBubble(x, redraw);
+  if (v === 'name') { const n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 20); commit('deco'); redraw(); } }
+  if (v === 'out') {
+    const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(pack(k, [x]))], { type: 'application/json' })), download: `AsterPhone-${KIND[k]}-${x.name}.json` });
+    document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
+  }
+  if (v === 'del' && await dialog({ title: `删除「${x.name}」？`, text: '戴着它的人会换回没有的样子。', confirm: '删除', danger: true })) { deco()[k].splice(deco()[k].indexOf(x), 1); commit('deco'); redraw(); }
+}
+/** 气泡编辑：上面是预览，下面调颜色、圆角、描边，或者换成一张图 */
+function editBubble(b, redraw) {
+  const d = b ? { ...b } : { id: uid('b'), name: '我的气泡', bg: '#ffffff', ink: '#1f3646', line: '#ffffff00', radius: 18 };
+  const pv = h('span.as-chat-bubble', '今晚的月亮很圆');
+  const paint = () => { pv.className = 'as-chat-bubble'; pv.removeAttribute('style'); paintBubble(pv, d); };
+  const color = (label, key) => { const dot = h('span.as-lib-dot', { style: { background: d[key] } });
+    return item({ title: label, right: dot, onClick: () => sheet({ title: label, content: h('div.as-mu-color', colorWheel(d[key], v => { d[key] = v; dot.style.background = v; paint(); }, true)) }) }); };
+  const imgRow = item({ title: '用一张图', value: d.img ? '已选' : '', chevron: true, onClick: async () => {
+    const v = await actionSheet('气泡图', [{ value: 'pick', label: '选图片', icon: 'image' }, ...(d.img ? [{ value: 'clear', label: '不用图', icon: 'trash', danger: true }] : [])]);
+    if (v === 'pick') { const f = await pickFile('image/*'); if (f) d.img = await fileToDataURL(f, 240, 'image/png'); }
+    if (v === 'clear') delete d.img;
+    imgRow.querySelector('.as-list-item__value').textContent = d.img ? '已选' : ''; paint();
+  } });
+  const rOut = h('output', d.radius + 'px');
+  const p = page({ app: 'library', id: 'library-bubble', title: b ? '编辑气泡' : '新建气泡', back: true, right: navText('保存', () => {
+    if (b) Object.assign(b, d); else deco().bubbles.push(d);
+    commit('deco'); toast('已保存'); nav.pop(); redraw();
+  }, true) });
+  p.body.append(h('div.as-lib-bubble-pv', pv),
+    group('', [field('名字', input({ value: d.name, onInput: v => { d.name = v.trim() || '我的气泡'; } }))]),
+    group('样子', [color('底色', 'bg'), color('字的颜色', 'ink'), color('描边', 'line'),
+      h('div.as-settings-slider-row', h('span', '圆角'), slider({ min: 0, max: 26, step: 1, value: d.radius, onInput: v => { d.radius = v; rOut.textContent = v + 'px'; paint(); } }), rOut), imgRow]));
+  paint(); nav.push(p.el);
 }
 
 /* ---------- 主题：自带的两套 + 自己存的；点一下整套换上（颜色、锁屏和桌面壁纸、主题里的 CSS） ---------- */
@@ -264,7 +325,7 @@ function drawGuide(box) {
       : go(a.id) }))));
 }
 const THEME_STEPS = ['换上一套主题，在设置里换好壁纸，在「应用 → 整部手机」里加皮肤，调成你想要的样子。', '回到「主题」点「存成主题」，起个名字。', '点主题右下角的 ⋯ → 导出，得到一个 .json 文件，发给别人。', '别人在「主题」点「导入」选这个文件，就整套换上了（你自己加的壁纸也在里面）。'];
-const DECO_STEPS = ['字体：在「个性装扮」点「导入字体」，选 .otf / .ttf 文件。', '导入的字体去「设置 → 显示」里选，锁屏时间和整个手机的字都能用。', '导入的字体只存在这台设备上，换手机要再导入一次。', '表情包还是在聊天里管理，这里只是多一个入口。'];
+const DECO_STEPS = ['头像框：在「个性装扮」点「添加 → 选图片」，用透明背景的 PNG，中间留空、四周是框。', '气泡：点「添加 → 新建」，调底色、字的颜色、描边、圆角；也可以用一张图（四个角不会被拉变形）。', '给 TA 和自己戴上：聊天右上 ⋯ → 头像与备注 →「装扮」；群里的人在 TA 的资料页里选。头像框、气泡跟着人走，TA 在所有聊天里都戴着。', '点一个头像框或气泡 → 导出，就能发给别人；别人点「添加 → 导入别人分享的文件」。', '字体：在「个性装扮」点「导入字体」，选 .otf / .ttf 文件。', '导入的字体去「设置 → 显示」里选，锁屏时间和整个手机的字都能用。', '导入的字体只存在这台设备上，换手机要再导入一次。', '表情包还是在聊天里管理，这里只是多一个入口。'];
 function openSteps(title, steps) {
   subPage('library-guide-steps', title + '教程', () => '', nb => nb.append(h('ol.as-lib-steps', steps.map(t => h('li', t)))));
 }

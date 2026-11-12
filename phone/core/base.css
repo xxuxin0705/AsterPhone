@@ -293,3 +293,10 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-pt > .as-pt__part { opacity: 0; }
 .as-pt > .as-pt__part.is-on { opacity: 1; }
 @keyframes as-pt-breath { 50% { transform: scale(1.006, 1.012); } }
+
+/* 个性装扮：头像框（框图比头像大一圈，压在头像外面）、气泡（颜色 / 九宫格图片，见 core/deco.js） */
+.as-avatar.has-frame { overflow: visible; position: relative; }
+.as-avatar.has-frame img { border-radius: inherit; }
+.as-avatar.has-frame::after { content: ''; position: absolute; inset: -22%; background: var(--frame) center / contain no-repeat; pointer-events: none; }
+.as-chat-bubble.has-deco { background: var(--deco-bg) !important; color: var(--deco-ink) !important; border: 1px solid var(--deco-line) !important; border-radius: var(--deco-r) !important; box-shadow: none !important; }
+.as-chat-bubble.has-deco-img { background: none !important; border: 14px solid transparent !important; border-image: var(--deco-img) 45% fill / 14px stretch !important; padding: 0 1px !important; }
