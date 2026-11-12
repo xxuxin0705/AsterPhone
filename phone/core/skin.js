@@ -14,7 +14,19 @@ export const THEMES = {
     night: { 'as-color-bg': '#0b0b0d', 'as-color-bg-grad': 'none', 'as-color-surface': 'rgba(44,44,48,.62)', 'as-color-surface-2': 'rgba(118,118,128,.24)', 'as-color-surface-solid': '#1c1c1e', 'as-color-glass-line': 'rgba(255,255,255,.08)',
       'as-color-text': '#fff', 'as-color-text-2': 'rgba(235,235,245,.6)', 'as-color-border': 'rgba(84,84,88,.45)', 'as-color-accent': '#0A84FF', 'as-color-on-accent': '#fff' } },
 };
-export const SCOPES = [['all', '全部'], ['lock', '锁屏'], ['home', '桌面'], ['chat', '聊天'], ['settings', '设置'], ['library', '资源库'], ['log', '日志']];
+// 资源库「应用」里能美化的 App 和页面。皮肤的 scope：'all'（整部手机）、App 编号（data-as-app）或页面编号（data-as-page，带「-」的）
+export const SKIN_APPS = [
+  { id: 'chat', name: '聊天', icon: 'chat', pages: [['chat-messages', '聊天列表'], ['chat-contacts', '联系人'], ['chat-room', '聊天界面'], ['chat-moments', '动态'], ['chat-me', '我的主页']] },
+  { id: 'music', name: '音乐', icon: 'music' }, { id: 'interlude', name: '幕间', icon: 'search' }, { id: 'memory', name: '念念铃', icon: 'bell' },
+  { id: 'diary', name: '日记', icon: 'note' }, { id: 'street', name: '商业街', icon: 'shop' }, { id: 'settings', name: '设置', icon: 'gear' },
+  { id: 'library', name: '资源库', icon: 'box' }, { id: 'log', name: '日志', icon: 'list' }, { id: 'home', name: '桌面', icon: 'grid' }, { id: 'lock', name: '锁屏', icon: 'lock' },
+];
+export function scopeName(sc) {
+  if (!sc || sc === 'all') return '整部手机';
+  for (const a of SKIN_APPS) { if (a.id === sc) return a.name; const pg = (a.pages || []).find(x => x[0] === sc); if (pg) return `${a.name} · ${pg[1]}`; }
+  return sc;
+}
+export const appOfScope = sc => SKIN_APPS.find(a => a.id === sc || (a.pages || []).some(x => x[0] === sc));
 
 export const lib = () => (state.library = state.library || { theme: 'aero', skins: [] });
 /** 自己存的主题：{ id, name, base（用哪套自带的颜色）, walls: { lock, home }, css } */
@@ -28,7 +40,7 @@ function styleEl(id) {
   if (!el) { el = document.createElement('style'); el.id = id; document.body.appendChild(el); }   // 放在最后，才能盖过自带样式
   return el;
 }
-const wrap = (sk) => sk.scope && sk.scope !== 'all' ? `@scope ([data-as-app="${sk.scope}"]) {\n${sk.css}\n}` : sk.css;
+const wrap = (sk) => sk.scope && sk.scope !== 'all' ? `@scope ([data-as-${sk.scope.includes('-') ? 'page' : 'app'}="${sk.scope}"]) {\n${sk.css}\n}` : sk.css;
 
 export function applySkins() {
   const L = lib(), u = userTheme(), t = THEMES[u ? u.base : L.theme] || THEMES.aero;

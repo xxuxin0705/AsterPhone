@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.324';
+export const VERSION = '0.8.325';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -137,13 +137,12 @@ function openApps() {
         } }); return row; })));
   });
 }
-// 音乐：主页的关注 / 粉丝用中文还是英文（没选过跟着锁屏时间的语言）；角色歌单、乐评写到一半断了自动补写（默认关）
+// 音乐：角色歌单、乐评写到一半断了自动补写（默认关）。主页文字中文 / 英文在「资源库 → 应用 → 音乐」
 function openMusicApp() {
   const m = state.music;
   sub('app-music', '音乐', body => {
     const moreF = sliderRow('最多补写', { min: 1, max: 10, step: 1, value: m.fillMax || 3, fmt: v => v + ' 次', onInput: v => { m.fillMax = v; commit('music'); } }); moreF.hidden = !m.fill;
     body.append(group('', [
-      field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); })),
       toggleItem({ title: withInfo('写到一半断了自动补写', '回复写到一半断了（比如切到后台），把写出来的给 AI，让它接着写完。每补一次多找一次 AI。') }, !!m.fill, v => { m.fill = v; commit('music'); moreF.hidden = !v; }),
       moreF]));
   });
@@ -159,16 +158,6 @@ function openInterludeApp() {
       if (r === '__go') { connKind = 'text'; openConnections(); return; }
       if (r) { a.conn.text = r; commit('apps'); re(); }
     } })]), group('', [
-      toggleItem({ title: '打开时放开屏' }, a.splash, v => { a.splash = v; commit('apps'); re(); }),
-      a.splash ? item({ title: '开屏字体', value: a.font && a.font !== 'random' ? { xdks: '玄冬楷书', qtbf: '千图笔锋手写体' }[a.font] || '每次随机' : '每次随机', chevron: true, onClick: async () => {
-        const { SPLASH_FONTS } = await import('../interlude/interlude.js');
-        const r = await actionSheet('开屏字体', [{ value: 'random', label: '每次随机', active: !a.font || a.font === 'random' }, ...SPLASH_FONTS.map(([k, n]) => ({ value: k, label: n, active: a.font === k }))]);
-        if (r) { a.font = r; commit('apps'); re(); }
-      } }) : null,
-      a.splash ? item({ title: '开屏语', value: '轮着用', chevron: true, onClick: async () => {
-        const { SPLASH_LINES } = await import('../interlude/interlude.js'), off = a.lineOff || (a.lineOff = []);
-        sheet({ title: '开屏语（轮着用）', content: group('', SPLASH_LINES.map((t, i) => toggleItem({ title: t }, !off.includes(i), on => { on ? off.splice(off.indexOf(i), 1) : off.push(i); commit('apps'); }))) });
-      } }) : null,
       field('语音（默认）', segmented([['tap', '点了才合成'], ['next', '提前合成下两句'], ['all', '全部合成']], { auto: 'next' }[a.voice] || a.voice || 'tap', v => { a.voice = v; commit('apps'); })),
       item({ title: '大成功 / 大失败', value: a.crit === 'book' ? '规则书' : a.crit === '3' ? '1～3 / 98～100' : '1～5 / 96～100', chevron: true, onClick: async () => {
         const { CRITS } = await import('../interlude/rules.js');

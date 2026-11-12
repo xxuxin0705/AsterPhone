@@ -14,3 +14,4 @@
 .as-lib-actions.is-two { grid-template-columns: repeat(2, 1fr); }
 .as-lib-actions .as-btn { white-space: nowrap; }   /* 按钮字一行写完 */
 .as-lib-code { display: block; padding: 8px 10px; border-radius: 10px; background: var(--as-color-surface-2); font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; user-select: text; -webkit-user-select: text; word-break: break-all; }
+.as-lib-steps { margin: 0 6px 16px; padding-left: 20px; display: grid; gap: 8px; font: 400 14px/1.6 var(--font-ui); color: var(--as-color-text); }
