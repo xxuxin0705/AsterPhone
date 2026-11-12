@@ -154,10 +154,11 @@ export function open() {
   return p.el;
 }
 
-/* ---------- 开屏（照重返未来 1999 的拍法，作者定的：一个特写镜头 → 黑场 → 主图甩进来 → 花体标题）：
- * 特写是一小段真的视频（作者用可灵从 GPT 的图生成的），主图、标题也是 GPT 画的。现在只有「雪夜列车」一套：
- * 包厢窗边的茶杯和台灯，对面一列车呼啸而过 → 像进了隧道一样全黑 → 一片横着的拖影扫过来，落定成雪原上冲出隧道的列车 → Interlude · 幕间 + 开屏语。
- * 视频放不出来（酒馆那边不给放、网慢）就跳过特写，直接从黑场开始 ---------- */
+/* ---------- 开屏（照重返未来 1999 的拍法，作者定的：特写到主图是一个连续的真镜头，不切、不拼转场，最后落在主图上盖花体标题，三秒多）：
+ * 镜头是一段真的视频（作者拿 GPT 画的首图、主图当首尾帧让 AI 生成的，我只调快了）。现在只有「雪夜列车」一套：
+ * 包厢里的茶杯、火漆信 → 镜头推向结霜的车窗、穿出去 → 掠过雪松往下看，落在冲出隧道的列车上 → Interlude · 幕间 + 开屏语。
+ * 视频比主图矮一截（它停住的画面就是主图中间那一块）：照主图里的位置叠着放，不裁；镜头落定时主图浮出来，上面的天、下面的暗部就接上了。
+ * 视频放不出来（酒馆那边不给放、网慢）就直接从主图开始 ---------- */
 // 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
 export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
 export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
@@ -166,18 +167,20 @@ async function splash(host) {
   const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
   const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
   const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const clip = h('video.as-int-sp__clip', { src: BASE + 'open-train.mp4', playsInline: true, preload: 'auto' }), art = img('open-train', '.as-int-sp__art'), pan = img('open-train-pan', '.as-int-sp__pan');
-  const el = h('div.as-int-splash', clip, art, pan, img('title', '.as-int-sp__title'), h('p.as-int-sp__line', line),
+  const clip = h('video.as-int-sp__clip', { src: BASE + 'open-train.mp4', playsInline: true, preload: 'auto' }), art = img('open-train', '.as-int-sp__art'), stage = h('div.as-int-sp__stage', clip, art);
+  const el = h('div.as-int-splash', stage, img('title', '.as-int-sp__title'), h('p.as-int-sp__line', line),
     h('button.as-int-splash__skip', { onclick: e => { e.stopPropagation(); done(); } }, '跳过'));
   host.append(el);
   let dead = false; const timers = [];
   function done() { if (dead) return; dead = true; timers.forEach(clearTimeout); clip.pause(); el.classList.add('is-out'); setTimeout(() => el.remove(), 500); }
-  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
   new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`).load().then(x => document.fonts.add(x)).catch(() => {});
-  // 黑场（什么都没有，像进了隧道）→ 主图甩进来、标题盖上（都是 CSS 里按 is-dark / is-open 排好的），之后点一下或等几秒进书桌
-  const reveal = () => { if (dead) return; clip.pause(); el.classList.add('is-dark'); at(380, () => { el.classList.add('is-open'); el.onclick = done; }); at(5200, done); };
-  await Promise.all([art.decode(), pan.decode()].map(x => x.catch(() => {})));
+  // 镜头落定 → 主图浮出、标题盖上（CSS 里按 is-open 排好的），之后点一下或等几秒进书桌
+  const reveal = () => { if (dead || el.classList.contains('is-open')) return; el.classList.add('is-open'); el.onclick = done; timers.push(setTimeout(done, 4600)); };
+  await art.decode().catch(() => {});
   if (dead) return;
+  // 主图（841×1870）铺满屏幕、居中；视频照它在主图里的位置叠在上面（CSS 里按百分比摆）。这时页面才排好版，量得到大小
+  const k = Math.max(el.clientWidth / 841, el.clientHeight / 1870);
+  Object.assign(stage.style, { width: 841 * k + 'px', height: 1870 * k + 'px' });
   // 带声音放；不让响（没点过屏幕）就静音放；两秒还没放起来就不等了
   const wait = setTimeout(reveal, 2000);
   clip.onplaying = () => { clearTimeout(wait); clip.onplaying = null; el.classList.add('is-clip'); };

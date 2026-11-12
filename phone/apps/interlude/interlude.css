@@ -57,23 +57,20 @@
 /* ---------- 开屏：画布上展开、写字、盖章、烧掉 ---------- */
 .as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #000; transition: opacity 500ms ease; }
 .as-int-splash.is-out { opacity: 0; pointer-events: none; }
-.as-int-sp__clip, .as-int-sp__art, .as-int-sp__pan { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
-/* 特写：整段视频完整放出来，不裁两边（作者不要裁）；屏幕比视频瘦长，上下空出的黑边和视频的边融在一起。到黑场那一下直接切掉（硬切，不淡出） */
-.as-int-sp__clip { object-fit: contain; -webkit-mask-image: linear-gradient(transparent, #000 7%, #000 93%, transparent); mask-image: linear-gradient(transparent, #000 7%, #000 93%, transparent); }
+.as-int-sp__stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* 视频停住的画面 = 主图从上往下 10.6% 起、高 78.7% 的那一块，照这个位置放；上下边融进黑里 */
+.as-int-sp__clip { position: absolute; left: 0; top: 10.64%; width: 100%; height: 78.71%; object-fit: fill; opacity: 0; -webkit-mask-image: linear-gradient(transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(transparent, #000 6%, #000 94%, transparent); }
 .as-int-splash.is-clip .as-int-sp__clip { opacity: 1; }
-.as-int-splash.is-dark .as-int-sp__clip { visibility: hidden; }
-/* 主图甩进来：先是一张横着拉出拖影的图（事先做好的小图，不现算模糊）从旁边扫进来，同时清楚的那张在底下浮出、落定，之后慢慢往前推 */
-.as-int-splash.is-open .as-int-sp__pan { animation: as-int-pan 560ms cubic-bezier(.12, .7, .2, 1) forwards; }
-@keyframes as-int-pan { from { opacity: 1; transform: translateX(-22%) scale(1.5); } 45% { opacity: 1; } to { opacity: 0; transform: translateX(0) scale(1.04); } }
-.as-int-splash.is-open .as-int-sp__art { animation: as-int-art 560ms cubic-bezier(.12, .7, .2, 1) forwards, as-int-drift 6s 560ms linear forwards; }
-@keyframes as-int-art { from { opacity: 0; transform: translateX(-7%) scale(1.14); } 35% { opacity: 0; } to { opacity: 1; transform: none; } }
+.as-int-sp__art { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.as-int-splash.is-open .as-int-sp__art { animation: as-int-art 420ms ease-out forwards, as-int-drift 6s 420ms linear forwards; }
+@keyframes as-int-art { to { opacity: 1; } }
 @keyframes as-int-drift { from { transform: scale(1); } to { transform: scale(1.05); } }
 /* 标题盖上来；开屏语晚一点浮出 */
 .as-int-sp__title { position: absolute; left: 9%; width: 82%; top: 11%; opacity: 0; pointer-events: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,.7)); }
-.as-int-splash.is-open .as-int-sp__title { animation: as-int-ttl 520ms 430ms cubic-bezier(.2, .8, .2, 1) forwards; }
+.as-int-splash.is-open .as-int-sp__title { animation: as-int-ttl 480ms 120ms cubic-bezier(.2, .8, .2, 1) forwards; }
 @keyframes as-int-ttl { from { opacity: 0; transform: scale(1.35); filter: blur(10px); } to { opacity: 1; transform: none; } }
 .as-int-sp__line { position: absolute; left: 0; right: 0; bottom: 8%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.8); text-wrap: balance; }
-.as-int-splash.is-open .as-int-sp__line { animation: as-int-line 900ms 1000ms ease-out forwards; }
+.as-int-splash.is-open .as-int-sp__line { animation: as-int-line 700ms 600ms ease-out forwards; }
 @keyframes as-int-line { from { opacity: 0; transform: translateY(8px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .as-int-splash__skip { position: absolute; right: 14px; top: 52px; padding: 6px 14px; border: 1px solid rgba(241,236,226,.4); border-radius: 999px; background: rgba(0,0,0,.2); color: #f1ece2; font: 500 12px/1 var(--font-ui); z-index: 1; }
 
