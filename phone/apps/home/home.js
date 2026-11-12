@@ -12,8 +12,8 @@ export const APPS = [
   { id: 'music', name: '音乐', icon: 'music' },
   { id: 'memory', name: '念念铃', icon: 'bell' },
   { id: 'diary', name: '日记', icon: 'note' },
-  { id: 'interlude', name: '幕间', img: 'assets/interlude/icon.webp' },
-  { id: 'street', name: '商业街', img: 'assets/street/icon.svg' },
+  { id: 'interlude', name: '幕间', icon: 'search' },
+  { id: 'street', name: '商业街', icon: 'shop' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 
@@ -24,7 +24,7 @@ export function initHome() {
   wMsg = h('div.as-home-widget__msg', { role: 'button', tabindex: 0, hidden: true });
   const widget = h('div.as-home-widget', wTime, wDate, wSub, wMsg);
   const appBtn = a => h('button.as-home-app', { dataset: { asApp: a.id }, 'aria-label': a.name, onpointerdown: () => shell.preload(a.id), onclick: e => shell.openApp(a.id, { from: e.currentTarget.querySelector('.as-home-app__icon') }) },
-    h('span.as-home-app__icon', a.img ? h('img', { src: a.img, alt: '' }) : icon(a.icon, 28, 1.7)), h('span.as-home-app__name', a.name));
+    h('span.as-home-app__icon', icon(a.icon, 28, 1.7)), h('span.as-home-app__name', a.name));
   homeEl.append(widget, h('div.as-home-grid', APPS.map(appBtn)));
   setInterval(renderWidget, 1000);
   renderWidget(); renderBadges();
