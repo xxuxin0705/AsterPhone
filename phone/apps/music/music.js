@@ -41,14 +41,14 @@ const play = (list, i, from) => { P.playList(list, i, from); openPlayer(); };
 P.onMusic(w => { if (w === 'error') toast(`《${(P.current() || {}).name || ''}》放不出来，跳下一首`); });
 
 /* ================= 外壳：四个标签 ================= */
-const TABS = [['home', '首页', renderHome], ['search', '搜索', renderSearch], ['radio', '电台', renderRadio], ['me', '我的', renderMe]];
+const TABS = [['home', '首页', renderHome, 'home'], ['search', '搜索', renderSearch, 'search'], ['radio', '电台', renderRadio, 'headphones'], ['me', '我的', renderMe, 'user']];
 let cur = null;
 export function open() {
   // 搜索页看着结果 / 联想时按返回，先回到搜索历史，再按才退出 App（手势往回滑也一样）
   const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root', onBack: () => (ctx.back && ctx.back()) || nav.back() });
   p.el._onBack = () => ctx.back && ctx.back();
   const titleEl = p.nav.querySelector('.as-navbar__title'), rightEl = p.nav.querySelector('.as-navbar__right');
-  const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.map(([id, label]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, label)));
+  const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.map(([id, label, , ic]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(ic, 22, 1.8), h('span', label))));
   const mini = miniBar(), meBg = h('div.as-mu-mebg');
   p.el.prepend(meBg);
   p.el.append(h('div.as-mu-dock', mini.el, tabs));

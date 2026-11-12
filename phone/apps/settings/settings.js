@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.329';
+export const VERSION = '0.8.330';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -701,7 +701,7 @@ function openData() {
 function exportSheet() {
   let withKeys = false;
   const s = sheet({ title: '导出数据', content: h('div.as-stack-gap',
-    group('', [toggleItem({ title: '包含密钥', sub: '默认不包含。要发给别人时千万别打开' }, false, v => { withKeys = v; })]),
+    group('', [toggleItem({ title: '包含密钥' }, false, v => { withKeys = v; })]),
     btn('导出全部', 'primary', async () => {
       const data = await exportAll({ withKeys });
       const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-备份-${new Date().toISOString().slice(0, 10)}.json` });
