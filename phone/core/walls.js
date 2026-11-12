@@ -140,6 +140,21 @@ export async function remove(id) {
   }
   commit('walls');
 }
+/* ---------- 主题打包：自己的壁纸变成一段文字带走，导入时再存回来 ---------- */
+const toData = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+export async function pack(id) {
+  if (isBuiltin(id)) return id;
+  const x = info(id), rec = x && await kvGet('wall:' + blobKey(id)).catch(() => null); if (!rec) return 'water';
+  return { name: x.name, type: x.type, crop: x.crop, img: rec.img && await toData(rec.img), video: rec.video && await toData(rec.video) };
+}
+export async function unpack(p, which) {
+  if (typeof p === 'string') return isBuiltin(p) ? p : 'water';
+  const blob = d => d ? fetch(d).then(r => r.blob()) : null;
+  const id = uid('w_');
+  await kvSet('wall:' + id, { img: await blob(p.img), video: await blob(p.video) });
+  W().list.push({ id, name: String(p.name || '图片').slice(0, 20), type: p.type === 'live' ? 'live' : 'image', crop: p.crop, at: Date.now(), row: which });
+  commit('walls'); return id;
+}
 /** 旧版锁屏、桌面共用一个列表：每张拆成锁屏一条、桌面一条（共用文件），以后各管各的 */
 export function splitRows() {
   const w = W(); if (w.list.every(x => x.row)) return;

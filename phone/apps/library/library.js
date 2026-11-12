@@ -1,9 +1,10 @@
-// 资源库：换主题（一套颜色）、管理皮肤（自己写 / 导入的 CSS）、字体库、皮肤说明书。
+// 资源库：主题（整部手机的一套样子，能存、导出、导入）、应用（各 App 的皮肤）、个性装扮（字体、表情包…到处都能用的）、教程。
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, navText, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { THEMES, SCOPES, lib, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
+import { THEMES, SCOPES, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
+import * as walls from '../../core/walls.js';
 import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
 
@@ -35,11 +36,11 @@ const CLASSES = [
 let tab = 'theme';
 export function open() {
   const p = page({ app: 'library', id: 'library-main', title: '资源库', large: true, back: true });
-  const tabs = h('div.as-chat-set-tabs', [['theme', '主题'], ['skins', '皮肤'], ['fonts', '字体'], ['guide', '怎么写']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; show(); } }, l)));
+  const tabs = h('div.as-chat-set-tabs', [['theme', '主题'], ['apps', '应用'], ['deco', '个性装扮'], ['guide', '教程']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; show(); } }, l)));
   // 每个标签页画一次就留着，切页只换显示；数据变了才在旁边重画好再一次换上去（不闪）
-  const DRAW = { theme: drawThemes, skins: drawSkins, fonts: drawFonts, guide: drawGuide };
-  const sig = { theme: () => '', guide: () => '', skins: () => JSON.stringify(lib().skins),
-    fonts: () => JSON.stringify([userFonts().map(x => x.id), state.settings.clock.font, state.settings.uiFont]) };
+  const DRAW = { theme: drawThemes, apps: drawSkins, deco: drawDeco, guide: drawGuide };
+  const sig = { theme: () => JSON.stringify(userThemes().map(t => t.id + t.name)), guide: () => '', apps: () => JSON.stringify(lib().skins),
+    deco: () => JSON.stringify([userFonts().map(x => x.id), state.settings.clock.font, state.settings.uiFont, state.stickers.length]) };
   const panes = {}, drawn = {};
   for (const k in DRAW) panes[k] = h('div', { hidden: true });
   p.body.append(tabs, ...Object.values(panes));
@@ -50,31 +51,84 @@ export function open() {
     if (drawn[tab] !== sig[tab]()) paint(tab);
   }
   show(); p.el._onShow = show;
+  // 以前的皮肤（v0.8.324 前）都在「应用」里：只提示一次
+  if (lib().skins.length && !lib().tipApps) { lib().tipApps = 1; commit('library'); toast('以前的皮肤都在「应用」里，要改去那里', { label: '去看看', fn: () => { tab = 'apps'; show(); } }); }
   return p.el;
 }
 
-/** 字体库：在这里导入的、在「外观」里导入的都在这；锁屏时间和整个手机的字都从这里挑 */
-function drawFonts(box, redraw) {
+/** 个性装扮：字体（锁屏时间和整个手机的字都从这里挑）、表情包（还是在聊天里管理，这里多一个入口） */
+function drawDeco(box, redraw) {
   const S = state.settings, used = id => [S.clock.font === 'u:' + id ? '锁屏时间' : '', S.uiFont === 'u:' + id ? '整个手机' : ''].filter(Boolean).join('、');
-  box.append(h('div.as-lib-actions.is-one', btn('导入', 'secondary', async () => {
-    const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
-    try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 外观」里选用`); redraw(); } catch (e) { toast(e.message); }
-  })));
-  box.appendChild(userFonts().length ? group(withInfo('我的字体', '点一个可以删除。导入的字体只存在这台设备上，换手机要再导入一次。'), userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
+  box.append(group(withInfo('字体', '点一个可以删除。导入的字体只存在这台设备上，换手机要再导入一次。'), [...userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
     if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
     await removeClockFont(x.id); commit('look'); shell.applyLook(); redraw();
-  } }))) : empty('还没有字体'));
+  } })), item({ icon: 'plus', title: '导入字体', onClick: async () => {
+    const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
+    try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 显示」里选用`); redraw(); } catch (e) { toast(e.message); }
+  } })]),
+  group('表情包', [item({ title: '管理表情包', value: `${state.stickers.length} 个`, chevron: true, onClick: async () => (await import('../chat/specials.js')).openStickerManager() })]));
 }
 
+/* ---------- 主题：自带的两套 + 自己存的；点一下整套换上（颜色、锁屏和桌面壁纸、主题里的 CSS） ---------- */
+function useTheme(k, t) {
+  setTheme(k);
+  const w = t.walls || { lock: t.wall, home: t.wall };
+  Object.assign(state.settings.walls, { lock: w.lock, home: w.home, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook();
+  toast(`已换成「${t.name}」`);
+}
 function drawThemes(box, redraw) {
   const cur = lib().theme;
-  box.append(
-    h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: e => { setTheme(k); Object.assign(state.settings.walls, { lock: t.wall, home: t.wall, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook(); toast(`已换成「${t.name}」`);
-        const b = e.currentTarget, on = b.parentNode.querySelector('.is-active'); if (on === b) return;   // 只换勾，不整页重画
-        on?.classList.remove('is-active'); b.classList.add('is-active'); b.append(on?.querySelector('.as-lib-theme__on') || h('span.as-lib-theme__on', icon('check', 14, 2.6))); } },
-      h('span.as-lib-theme__pv', { style: { backgroundImage: `url(assets/wallpapers/${t.wall}-day.jpg)` } },
-        h('i'), h('i.is-me', { style: { background: t.swatch[2] } }), h('i', { style: { width: '40%' } })),
-      h('b', t.name), k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null))));
+  const card = (k, t, mine) => {
+    const base = THEMES[mine ? t.base : k] || THEMES.aero;
+    const pv = h('span.as-lib-theme__pv', h('i'), h('i.is-me', { style: { background: base.swatch[2] } }), h('i', { style: { width: '40%' } }));
+    if (mine) walls.thumb(t.walls.home).then(u => { if (u) pv.style.backgroundImage = `url(${u})`; });
+    else pv.style.backgroundImage = `url(assets/wallpapers/${t.wall}-day.jpg)`;
+    return h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: e => {
+      useTheme(k, t);
+      const b = e.currentTarget, on = b.parentNode.querySelector('.is-active'); if (on === b) return;   // 只换勾，不整页重画
+      on?.classList.remove('is-active'); b.classList.add('is-active'); b.append(on?.querySelector('.as-lib-theme__on') || h('span.as-lib-theme__on', icon('check', 14, 2.6)));
+    } }, pv, h('b', t.name),
+      mine ? h('span.as-lib-theme__more', { role: 'button', 'aria-label': t.name + '更多', onclick: e => { e.stopPropagation(); themeMenu(t, redraw); } }, icon('more', 18, 2)) : null,
+      k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null);
+  };
+  box.append(h('div.as-lib-actions.is-two', btn('导入', 'secondary', () => importTheme(redraw)), btn('存成主题', 'secondary', () => saveTheme(redraw))),
+    h('div.as-lib-themes', ...Object.entries(THEMES).map(([k, t]) => card(k, t, false)), ...userThemes().map(t => card(t.id, t, true))));
+}
+/** 把现在的样子（颜色、锁屏和桌面壁纸、作用在全部的皮肤）存成一个主题 */
+async function saveTheme(redraw) {
+  const name = await dialog({ title: '存成主题', input: { value: '我的主题' } }); if (!name || !name.trim()) return;
+  const L = lib(), u = userThemes().find(x => x.id === L.theme);
+  const css = [u && u.css, ...L.skins.filter(x => x.on && x.scope === 'all').map(x => x.css)].filter(Boolean).join('\n');
+  const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, css };
+  userThemes().push(t); setTheme(t.id); toast(`存好了「${t.name}」`); redraw();
+}
+async function themeMenu(t, redraw) {
+  const v = await actionSheet(t.name, [{ value: 'out', label: '导出', icon: 'box' }, { value: 'name', label: '改名', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
+  if (v === 'out') {
+    toast('正在打包…', true);
+    try {
+      const data = { asterphone: 'theme', v: 1, name: t.name, base: t.base, css: t.css, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) } };
+      const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-主题-${t.name}.json` });
+      document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
+    } catch (e) { toast('打包失败：' + e.message); }
+  }
+  if (v === 'name') { const n = await dialog({ title: '改名', input: { value: t.name } }); if (n && n.trim()) { t.name = n.trim().slice(0, 20); commit('library'); redraw(); } }
+  if (v === 'del' && await dialog({ title: `删除「${t.name}」？`, text: '它用的壁纸还留在壁纸库里。', confirm: '删除', danger: true })) {
+    userThemes().splice(userThemes().indexOf(t), 1);
+    if (lib().theme === t.id) useTheme('aero', THEMES.aero); else commit('library');
+    redraw();
+  }
+}
+async function importTheme(redraw) {
+  const f = await pickFile('*/*'); if (!f) return;   // 不限类型：有的手机存下来的文件名会丢掉 .json
+  let d = null; try { d = JSON.parse(await f.text()); } catch (e) { /* 下面统一说 */ }
+  if (!d || d.asterphone !== 'theme') { toast('这不是 AsterPhone 的主题文件'); return; }
+  toast('正在导入…', true);
+  try {
+    const t = { id: uid('th'), name: String(d.name || '导入的主题').slice(0, 20), base: THEMES[d.base] ? d.base : 'aero', css: String(d.css || ''),
+      walls: { lock: await walls.unpack(d.walls?.lock ?? 'water', 'lock'), home: await walls.unpack(d.walls?.home ?? 'water', 'home') } };
+    userThemes().push(t); useTheme(t.id, t); redraw();
+  } catch (e) { toast('导入失败：' + e.message); }
 }
 
 function drawSkins(box, redraw) {
@@ -146,7 +200,7 @@ function editSkin(sk, redraw) {
 function drawGuide(box, redraw, show) {
   box.append(
     group(withInfo('例子', '皮肤就是一段 CSS。每个东西都有固定的「门牌号」（类名），永远不改名，所以写好的皮肤以后也能用。点一个例子就加到「我的皮肤」。'), EXAMPLES.map(e => item({ title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
-      lib().skins.push({ id: uid('sk'), on: true, ...e }); commit('library'); applySkins(); toast(`已加上「${e.name}」`); tab = 'skins'; show();
+      lib().skins.push({ id: uid('sk'), on: true, ...e }); commit('library'); applySkins(); toast(`已加上「${e.name}」`); tab = 'apps'; show();
     } }))),
     group(withInfo('颜色和尺寸变量', '写在 .as-phone { } 里。点一行就复制。'), VARS.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
     group(withInfo('常用门牌号', '点一行就复制。'), CLASSES.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),

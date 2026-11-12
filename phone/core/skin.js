@@ -17,6 +17,10 @@ export const THEMES = {
 export const SCOPES = [['all', '全部'], ['lock', '锁屏'], ['home', '桌面'], ['chat', '聊天'], ['settings', '设置'], ['library', '资源库'], ['log', '日志']];
 
 export const lib = () => (state.library = state.library || { theme: 'aero', skins: [] });
+/** 自己存的主题：{ id, name, base（用哪套自带的颜色）, walls: { lock, home }, css } */
+export const userThemes = () => (lib().themes = lib().themes || []);
+const userTheme = () => userThemes().find(x => x.id === lib().theme);
+export const themeName = () => (userTheme() || THEMES[lib().theme] || THEMES.aero).name;
 let trial = null;   // 正在试用的皮肤（还没保存）
 
 function styleEl(id) {
@@ -27,8 +31,8 @@ function styleEl(id) {
 const wrap = (sk) => sk.scope && sk.scope !== 'all' ? `@scope ([data-as-app="${sk.scope}"]) {\n${sk.css}\n}` : sk.css;
 
 export function applySkins() {
-  const L = lib(), t = THEMES[L.theme] || THEMES.aero;
-  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}`;
+  const L = lib(), u = userTheme(), t = THEMES[u ? u.base : L.theme] || THEMES.aero;
+  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}` + (u && u.css ? '\n' + u.css : '');
   const on = L.skins.filter(s => s.on);
   if (trial) on.push(trial);
   styleEl('as-skins').textContent = on.map(s => `/* 皮肤：${s.name} */\n${wrap(s)}`).join('\n\n');

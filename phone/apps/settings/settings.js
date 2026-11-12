@@ -11,9 +11,9 @@ import { APPS } from '../home/home.js';
 import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
-import { THEMES, lib } from '../../core/skin.js';
+import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.323';
+export const VERSION = '0.8.324';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -422,7 +422,7 @@ function openLook() {
           commit('look'); shell.applyLook(); valEl.textContent = fontName(S().uiFont) || '系统默认';
         } }),
         prev, sliderRow('字号', { min: .85, max: 1.3, step: .05, value: S().fontScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { S().fontScale = v; commit('look'); shell.phone.style.setProperty('--as-font-scale', v); } })]),
-      group('主题', [item({ title: '主题和皮肤', value: (THEMES[lib().theme] || THEMES.aero).name, chevron: true, onClick: () => shell.openApp('library') })]),
+      group('主题', [item({ title: '主题和皮肤', value: themeName(), chevron: true, onClick: () => shell.openApp('library') })]),
       group('模式', [h('div.as-field', segmented([['day', '日间'], ['night', '夜间'], ['auto', '跟随系统']], S().mode, (v, b) => { S().mode = v; commit('look'); shell.setNight(shell.wantNight(), b); }))]),
       group('时间', [clockPreview(night),
         fontSeg,
