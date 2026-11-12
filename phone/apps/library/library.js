@@ -20,7 +20,7 @@ const EXAMPLES = [
   { name: '大一号的锁屏时钟', scope: 'lock', css: `.as-lock-clock { font-size: 118px !important; }` },
 ];
 const VARS = [
-  ['--as-color-bg-grad', '页面背景渐变'], ['--as-color-surface', '玻璃面板的颜色'], ['--as-color-glass-line', '玻璃描边'], ['--as-color-gloss', '面板顶部高光'],
+  ['--as-color-bg-grad', '页面背景（渐变或图片）'], ['--as-color-surface', '玻璃面板的颜色'], ['--as-color-glass-line', '玻璃描边'], ['--as-color-gloss', '面板顶部高光'],
   ['--as-color-text', '主文字'], ['--as-color-text-2', '次要文字'], ['--as-color-accent', '强调色'], ['--as-color-accent-2', '强调色的亮端'],
   ['--as-blur', '毛玻璃模糊度'], ['--as-radius-l', '卡片圆角'], ['--as-font-scale', '字号倍数'],
 ];
@@ -35,34 +35,35 @@ const CLASSES = [
 let tab = 'theme';
 export function open() {
   const p = page({ app: 'library', id: 'library-main', title: '资源库', large: true, back: true });
-  const tabs = h('div.as-chat-set-tabs', { style: { gridTemplateColumns: 'repeat(4,1fr)' } }, [['theme', '主题'], ['skins', '皮肤'], ['fonts', '字体'], ['guide', '怎么写']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; draw(); } }, l)));
-  const box = h('div');
-  p.body.append(tabs, box);
-  function draw() {
+  const tabs = h('div.as-chat-set-tabs', [['theme', '主题'], ['skins', '皮肤'], ['fonts', '字体'], ['guide', '怎么写']].map(([k, l]) => h('button', { dataset: { k }, onclick: () => { tab = k; show(); } }, l)));
+  // 每个标签页画一次就留着，切页只换显示；数据变了才在旁边重画好再一次换上去（不闪）
+  const DRAW = { theme: drawThemes, skins: drawSkins, fonts: drawFonts, guide: drawGuide };
+  const sig = { theme: () => '', guide: () => '', skins: () => JSON.stringify(lib().skins),
+    fonts: () => JSON.stringify([userFonts().map(x => x.id), state.settings.clock.font, state.settings.uiFont]) };
+  const panes = {}, drawn = {};
+  for (const k in DRAW) panes[k] = h('div', { hidden: true });
+  p.body.append(tabs, ...Object.values(panes));
+  function paint(k) { const nb = h('div'); DRAW[k](nb, () => paint(k), show); panes[k].replaceChildren(...nb.childNodes); drawn[k] = sig[k](); }
+  function show() {
     [...tabs.children].forEach(b => b.classList.toggle('is-active', b.dataset.k === tab));
-    // 先在旁边画好再一次换上去，返回这页时不会闪
-    const nb = h('div');
-    if (tab === 'theme') drawThemes(nb, draw);
-    if (tab === 'skins') drawSkins(nb, draw);
-    if (tab === 'fonts') drawFonts(nb, draw);
-    if (tab === 'guide') drawGuide(nb, draw);
-    box.replaceChildren(...nb.childNodes);
+    for (const k in panes) panes[k].hidden = k !== tab;
+    if (drawn[tab] !== sig[tab]()) paint(tab);
   }
-  draw(); p.el._onShow = draw;
+  show(); p.el._onShow = show;
   return p.el;
 }
 
 /** 字体库：在这里导入的、在「外观」里导入的都在这；锁屏时间和整个手机的字都从这里挑 */
 function drawFonts(box, redraw) {
   const S = state.settings, used = id => [S.clock.font === 'u:' + id ? '锁屏时间' : '', S.uiFont === 'u:' + id ? '整个手机' : ''].filter(Boolean).join('、');
-  box.append(h('div.as-lib-actions', btn('导入字体文件', 'secondary', async () => {
+  box.append(h('div.as-lib-actions.is-one', btn('导入', 'secondary', async () => {
     const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
     try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 外观」里选用`); redraw(); } catch (e) { toast(e.message); }
   })));
-  box.appendChild(userFonts().length ? group('我的字体', userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
+  box.appendChild(userFonts().length ? group(withInfo('我的字体', '点一个可以删除。导入的字体只存在这台设备上，换手机要再导入一次。'), userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
     if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
     await removeClockFont(x.id); commit('look'); shell.applyLook(); redraw();
-  } })), '点一下可以删除。导入的字体只存在这台设备上，换手机要再导入一次。') : empty('还没有字体'));
+  } }))) : empty('还没有字体'));
 }
 
 function drawThemes(box, redraw) {
@@ -71,8 +72,8 @@ function drawThemes(box, redraw) {
     h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: e => { setTheme(k); Object.assign(state.settings.walls, { lock: t.wall, home: t.wall, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook(); toast(`已换成「${t.name}」`);
         const b = e.currentTarget, on = b.parentNode.querySelector('.is-active'); if (on === b) return;   // 只换勾，不整页重画
         on?.classList.remove('is-active'); b.classList.add('is-active'); b.append(on?.querySelector('.as-lib-theme__on') || h('span.as-lib-theme__on', icon('check', 14, 2.6))); } },
-      h('span.as-lib-theme__pv', { style: { background: `linear-gradient(170deg, ${t.swatch[0]}, ${t.swatch[1]})` } },
-        h('i', { style: { background: 'rgba(255,255,255,.7)' } }), h('i.is-me', { style: { background: t.swatch[2] } }), h('i', { style: { background: 'rgba(255,255,255,.7)', width: '40%' } })),
+      h('span.as-lib-theme__pv', { style: { backgroundImage: `url(assets/wallpapers/${t.wall}-day.jpg)` } },
+        h('i'), h('i.is-me', { style: { background: t.swatch[2] } }), h('i', { style: { width: '40%' } })),
       h('b', t.name), k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null))));
 }
 
@@ -82,11 +83,11 @@ function drawSkins(box, redraw) {
     btn('导入', 'secondary', () => importSkin(redraw)), btn('新建', 'secondary', () => editSkin(null, redraw)),
     btn('全部关掉', 'secondary', () => { L.skins.forEach(s => { s.on = false; }); commit('library'); applySkins(); toast('皮肤都关了，回到默认样子'); redraw(); })));
   if (!L.skins.length) { box.appendChild(empty('还没有皮肤')); return; }
-  box.appendChild(group('我的皮肤（可以同时开好几个）', L.skins.map(s => {
+  box.appendChild(group(withInfo('我的皮肤', '可以同时开好几个。点一个可以编辑、试用、分享、删除。'), L.skins.map(s => {
     const sw = h('button.as-switch' + (s.on ? '.is-active' : ''), { role: 'switch', 'aria-label': s.name });
     sw.addEventListener('click', e => { e.stopPropagation(); s.on = !s.on; sw.classList.toggle('is-active', s.on); commit('library'); applySkins(); });
     return item({ icon: 'palette', color: 'purple', title: s.name, sub: `${(SCOPES.find(x => x[0] === s.scope) || SCOPES[0])[1]} · ${s.css.length} 字`, right: sw, onClick: () => skinMenu(s, redraw) });
-  }), '点一个可以编辑、试用、分享、删除。'));
+  })));
 }
 async function skinMenu(s, redraw) {
   const L = lib();
@@ -126,7 +127,7 @@ function trial(sk) {
   trialT = setTimeout(() => { endTrial(); toast('试用结束，已恢复'); }, 15000);
 }
 function editSkin(sk, redraw) {
-  const d = sk ? { ...sk } : { id: uid('sk'), name: '我的皮肤', scope: 'all', css: '/* 在这里写 CSS，左边「怎么写」里有门牌号和例子 */\n', on: true };
+  const d = sk ? { ...sk } : { id: uid('sk'), name: '我的皮肤', scope: 'all', css: '/* 在这里写 CSS，「怎么写」里有门牌号和例子 */\n', on: true };
   const ta = textarea({ value: d.css, rows: 16, onInput: v => { d.css = v; } }); ta.classList.add('as-settings-prompt-text');
   const p = page({ app: 'library', id: 'library-edit', title: sk ? '编辑皮肤' : '新建皮肤', back: true, right: navText('保存', () => {
     const L = lib();
@@ -142,10 +143,10 @@ function editSkin(sk, redraw) {
   nav.push(p.el);
 }
 
-function drawGuide(box, redraw) {
+function drawGuide(box, redraw, show) {
   box.append(
-    group(withInfo('例子', '皮肤就是一段 CSS。每个东西都有固定的「门牌号」（类名），永远不改名，所以写好的皮肤以后也能用。点一个例子就加到「我的皮肤」。'), EXAMPLES.map(e => item({ icon: 'sparkle', color: 'pink', title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
-      lib().skins.push({ id: uid('sk'), on: true, ...e }); commit('library'); applySkins(); toast(`已加上「${e.name}」`); tab = 'skins'; redraw();
+    group(withInfo('例子', '皮肤就是一段 CSS。每个东西都有固定的「门牌号」（类名），永远不改名，所以写好的皮肤以后也能用。点一个例子就加到「我的皮肤」。'), EXAMPLES.map(e => item({ title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
+      lib().skins.push({ id: uid('sk'), on: true, ...e }); commit('library'); applySkins(); toast(`已加上「${e.name}」`); tab = 'skins'; show();
     } }))),
     group(withInfo('颜色和尺寸变量', '写在 .as-phone { } 里。点一行就复制。'), VARS.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
     group(withInfo('常用门牌号', '点一行就复制。'), CLASSES.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
