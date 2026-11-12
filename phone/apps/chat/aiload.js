@@ -216,7 +216,7 @@ export function openNewFriends() {
   const draw = () => {
     p.body.innerHTML = '';
     const list = state.friendRequests;
-    if (!list.length) { p.body.appendChild(empty('还没有好友申请。聊天里有人发名片给你，点一下名片就会出现在这里。')); return; }
+    if (!list.length) { p.body.appendChild(empty('还没有好友申请')); return; }
     p.body.appendChild(group('', list.map(r => item({ icon: avatar('', r.name, 36), color: 'transparent', cls: 'as-chat-person', title: r.name, sub: r.from ? `${r.from} 推荐的名片` : '名片',
       right: r.status === 'pending' ? h('span.as-row', btn('接受', 'primary', () => accept(r), { style: { padding: '8px 12px' } }), btn('忽略', 'secondary', () => { list.splice(list.indexOf(r), 1); commit('contacts'); draw(); }, { style: { padding: '8px 12px' } }))
         : h('span.as-muted', r.status === 'accepted' ? '已添加' : '已忽略') }))));

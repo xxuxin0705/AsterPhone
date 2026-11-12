@@ -42,7 +42,7 @@ function cover(personId = 'me') {
 /** 把一组动态画进 box */
 export function feedInto(box, list, redraw) {
   const visible = list.filter(m => !m.hiddenFromMe);
-  if (!visible.length) { box.appendChild(empty('还没有动态。点右上角相机发一条，或者点 ✦ 让角色们发。')); return; }
+  if (!visible.length) { box.appendChild(empty('还没有动态')); return; }
   visible.forEach(m => box.appendChild(card(m, redraw)));
 }
 function card(m, redraw) {

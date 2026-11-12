@@ -683,9 +683,8 @@ function retrySheet(kind = 'text') {
   const label = { text: '聊天', image: '生图', tts: '语音' }[kind];
   const maxRow = h('div.as-pbd__row', { hidden: F.retry === false }, h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(F.max || 1), v => { F.max = +v; save(); })));
   const box = h('div.as-pbd__wrap',
-    h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}失败了自动重试`), switchEl(F.retry !== false, v => { F.retry = v; save(); maxRow.hidden = !v; }, '失败自动重试')),
+    h('div.as-pbd__row.is-inline', h('span.as-pbd__label', withInfo(`${label}失败了自动重试`, '付费接口按次数或字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。')), switchEl(F.retry !== false, v => { F.retry = v; save(); maxRow.hidden = !v; }, '失败自动重试')),
     maxRow,
-    h('p.as-pbd__hint', '付费接口按次数或字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。'),
     h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}线断了，改用副 API`), sw), bkRow);
   sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
 }
@@ -695,7 +694,7 @@ export function schemesSheet({ onApply = () => {}, onChange = () => {} } = {}) {
   const list = C().schemes;
   const draw = () => {
     box.innerHTML = '';
-    if (!list.length) box.appendChild(h('p.as-pbd__hint', '还没有方案。把现在每根线插在哪存成一个方案，以后点一下就整套换过去。'));
+    if (!list.length) box.appendChild(h('p.as-pbd__hint', '还没有方案'));
     list.forEach(sc => box.appendChild(h('div.as-pbd__scheme' + (C().scheme === sc.id ? '.is-on' : ''),
       h('button.as-pbd__scheme-main', { onclick: () => applyScheme(sc) }, h('b', sc.name), h('span', Object.entries(sc.map).map(([k, id]) => {
         const tag = k === 'aux' ? '向量' : k.startsWith('aux:') ? k.slice(4) : null, cd = CORDS.find(x => x.use === (tag == null ? k : 'aux')), c = cd && (C()[cd.kind] || []).find(x => x.id === id);
@@ -824,7 +823,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
     box.append(h('button.as-pbd__fhead', { onclick: toggle, 'aria-expanded': String(open) }, icon(ic, 18, 1.8), h('span.as-pbd__ftitle', title), sum, h('span.as-pbd__chev', icon('chevron', 16, 2))), body);
     return box;
   };
-  const row = (label, ctrl, hint) => h('div.as-pbd__row', h('span.as-pbd__label', label), h('div.as-pbd__ctrl', ctrl), hint && h('p.as-pbd__hint', hint));
+  const row = (label, ctrl, hint) => h('div.as-pbd__row', h('span.as-pbd__label', hint ? withInfo(label, hint) : label), h('div.as-pbd__ctrl', ctrl));
 
   const groups = [];
   if (tavern) {
@@ -840,7 +839,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
     const tvBox = h('div.as-pbd__fbody');
     if (d.type === 'tavern') tvBox.append(...tvBody());
     groups.push(h('div.as-pbd__fold.is-open', d.type === 'tavern' ? tvBox : h('div.as-pbd__fbody', [info('API', d.api), info('模型', d.model), info('预设', d.preset), info('地址', d.url),
-          h('p.as-pbd__hint', d.gone ? '酒馆里已经没有这个配置了。把插在它上面的线换到别的接口，它就会自己消失。' : '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。')]
+          d.gone ? h('p.as-pbd__hint', '酒馆里已经没有这个配置了') : h('div.as-list-group__header', withInfo('酒馆的连接配置', '这是酒馆「连接配置」里存的一个配置。用它的时候不会切换酒馆自己正在用的连接。要改地址、模型，去酒馆里改，这里会跟着变。'))]
     )));
     if (setDefault || d.type === 'tavern-profile' && !isNew) groups.push(h('div.as-pbd__danger', setDefault ? defBtn() : null, d.type === 'tavern-profile' ? delB() : null));
   } else {
@@ -929,8 +928,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
           h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
       }, true));
       if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
-        b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '提示词缓存'), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')),
-          h('p.as-pbd__hint', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。'));
+        b.append(h('div.as-pbd__row.is-inline', h('span.as-pbd__label', withInfo('提示词缓存', '每次都一样的人设、设定会走缓存，按便宜很多的缓存价算，回得也更快。')), switchEl(d.adv.cache, v => { d.adv.cache = v; touch(); re(); }, '提示词缓存')));
       }));
     }
     if (kind === 'image') groups.push(fold('画风', 'image', () => `${(d.imgSets || []).find(x => x.id === (d.imgSet || ''))?.name || '默认方案'} · ${d.img.size}`, (b, re, rebuild) => {

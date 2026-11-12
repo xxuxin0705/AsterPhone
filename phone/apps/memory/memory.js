@@ -224,7 +224,7 @@ function openPeek() {
     } })))] : []));
   }
   p.body.append(...(M.peeks.length ? M.peeks.map((r, i) => group(r.who.join('、'), [item({ title: r.said || '（还没聊）', sub: '聊到这句时' }),
-    ...(r.items.length ? r.items.map(x => row(M.peeks[i + 1], x)) : [item({ title: '什么都没想起' })])])) : [empty('聊过天后，这里会列出 TA 想起了哪几件事')]), noBox);
+    ...(r.items.length ? r.items.map(x => row(M.peeks[i + 1], x)) : [item({ title: '什么都没想起' })])])) : [empty('还没有想起什么')]), noBox);
   paintNo();
   nav.push(p.el);
 }

@@ -45,6 +45,6 @@ export function openReport(who) {
       line('到现在是', `第${days}天`),
       top ? line('你们听过次数最多的歌', top.name) : null,
       line('单次一起听最长纪录', dur(r.best || 0)))
-      : empty('从这一版开始记：下次一起听的时候，这里就有第一次一起听的日子了')));
+      : empty('还没有一起听过')));
   nav.push(p.el);
 }

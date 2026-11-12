@@ -411,8 +411,7 @@ function openSettings(chat, redrawRoom) {
       trGroup(cfg, save, draw));
     if (lastTab === 'mem') box.append(
       group('剧情关联', [
-        h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); }),
-          h('span.as-field__hint', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')),
+        h('div.as-field', h('span.as-field__label', withInfo('联动方式', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
         item({ title: '注入记录', sub: '看看正文 AI 实际读到了什么', chevron: true, onClick: () => openInjectLog(chat) }),
       ]),
@@ -521,8 +520,7 @@ async function openInjectLog(chat) {
     } }, kind === 'pin' ? '取消钉住' : '不注入') });
     const a = auto.filter(mine), b = pinned.filter(mine);
     p.body.append(
-      h('p.as-muted', { style: { margin: '0 6px 14px' } }, chat.cfg.linkMode === 'follow' ? `这个聊天「跟随正文」：最近 ${chat.cfg.injectCount ?? 12} 条会自动写进正文。` : '这个聊天是「仅线上」：不会自动注入，只有手动钉住的会写进正文。'),
-      group(`自动注入（${a.length}）`, a.length ? a.map(x => row(x, 'auto')) : [item({ title: '没有', sub: null })]),
+      group(withInfo(`自动注入（${a.length}）`, chat.cfg.linkMode === 'follow' ? `这个聊天「跟随正文」：最近 ${chat.cfg.injectCount ?? 12} 条会自动写进正文。` : '这个聊天是「仅线上」：不会自动注入，只有手动钉住的会写进正文。'), a.length ? a.map(x => row(x, 'auto')) : [item({ title: '没有', sub: null })]),
       group(`手动钉住（${b.length}）`, b.length ? b.map(x => row(x, 'pin')) : [item({ title: '没有', sub: '长按消息 → 注入正文，或多选后一起钉住' })]),
       btn('预览正文 AI 看到的内容', 'secondary', async () => {
         const text = await S.injectionText();

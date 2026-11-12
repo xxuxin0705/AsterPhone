@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.321';
+export const VERSION = '0.8.322';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -717,7 +717,7 @@ function exportSheet() {
       const data = await exportAll({ withKeys });
       const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-备份-${new Date().toISOString().slice(0, 10)}.json` });
       document.body.appendChild(a); a.click(); a.remove(); s.close(); toast('已导出');
-    }), h('p.as-muted', { style: { margin: 0 } }, '按应用分别导出：下一轮做')) });
+    })) });
 }
 
 /* ================= 关于 ================= */

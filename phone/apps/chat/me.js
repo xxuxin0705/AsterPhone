@@ -80,7 +80,7 @@ export function openFavorites() {
   const p = page({ app: 'chat', id: 'chat-favorites', title: '收藏', back: true });
   const draw = () => {
     p.body.innerHTML = '';
-    if (!state.favorites.length) { p.body.appendChild(empty('长按聊天里的消息 → 收藏，就会出现在这里')); return; }
+    if (!state.favorites.length) { p.body.appendChild(empty('还没有收藏')); return; }
     p.body.appendChild(group('', state.favorites.slice().reverse().map(f => item({ title: f.text, sub: `${f.from === 'me' ? myNick() : nameOf(contact(f.contactId)) || f.name} · ${time.shortLabel(f)}`,
       onClick: async () => { if (await dialog({ title: '取消收藏？', text: f.text, confirm: '取消收藏', danger: true })) { state.favorites.splice(state.favorites.indexOf(f), 1); commit('me'); draw(); } } }))));
   };

@@ -1,7 +1,7 @@
 // 资源库：换主题（一套颜色）、管理皮肤（自己写 / 导入的 CSS）、字体库、皮肤说明书。
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, navText } from '../../core/ui.js';
+import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, navText, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SCOPES, lib, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
@@ -62,14 +62,15 @@ function drawFonts(box, redraw) {
   box.appendChild(userFonts().length ? group('我的字体', userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
     if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
     await removeClockFont(x.id); commit('look'); shell.applyLook(); redraw();
-  } })), '点一下可以删除。导入的字体只存在这台设备上，换手机要再导入一次。') : empty('还没有字体。导入 .otf / .ttf 以后，锁屏时间和整个手机的字都能用它。'));
+  } })), '点一下可以删除。导入的字体只存在这台设备上，换手机要再导入一次。') : empty('还没有字体'));
 }
 
 function drawThemes(box, redraw) {
   const cur = lib().theme;
   box.append(
-    h('p.as-muted', { style: { margin: '0 6px 12px' } }, '主题是一整套颜色，一次只能用一个；日间 / 夜间各一套，跟着「外观 → 模式」切换。'),
-    h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: () => { setTheme(k); Object.assign(state.settings.walls, { lock: t.wall, home: t.wall, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook(); toast(`已换成「${t.name}」`); redraw(); } },
+    h('div.as-lib-themes', Object.entries(THEMES).map(([k, t]) => h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: e => { setTheme(k); Object.assign(state.settings.walls, { lock: t.wall, home: t.wall, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook(); toast(`已换成「${t.name}」`);
+        const b = e.currentTarget, on = b.parentNode.querySelector('.is-active'); if (on === b) return;   // 只换勾，不整页重画
+        on?.classList.remove('is-active'); b.classList.add('is-active'); b.append(on?.querySelector('.as-lib-theme__on') || h('span.as-lib-theme__on', icon('check', 14, 2.6))); } },
       h('span.as-lib-theme__pv', { style: { background: `linear-gradient(170deg, ${t.swatch[0]}, ${t.swatch[1]})` } },
         h('i', { style: { background: 'rgba(255,255,255,.7)' } }), h('i.is-me', { style: { background: t.swatch[2] } }), h('i', { style: { background: 'rgba(255,255,255,.7)', width: '40%' } })),
       h('b', t.name), k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null))));
@@ -80,7 +81,7 @@ function drawSkins(box, redraw) {
   box.append(h('div.as-lib-actions',
     btn('导入', 'secondary', () => importSkin(redraw)), btn('新建', 'secondary', () => editSkin(null, redraw)),
     btn('全部关掉', 'secondary', () => { L.skins.forEach(s => { s.on = false; }); commit('library'); applySkins(); toast('皮肤都关了，回到默认样子'); redraw(); })));
-  if (!L.skins.length) { box.appendChild(empty('还没有皮肤。可以导入别人分享的 .css，或者去「怎么写」里拿几个例子。')); return; }
+  if (!L.skins.length) { box.appendChild(empty('还没有皮肤')); return; }
   box.appendChild(group('我的皮肤（可以同时开好几个）', L.skins.map(s => {
     const sw = h('button.as-switch' + (s.on ? '.is-active' : ''), { role: 'switch', 'aria-label': s.name });
     sw.addEventListener('click', e => { e.stopPropagation(); s.on = !s.on; sw.classList.toggle('is-active', s.on); commit('library'); applySkins(); });
@@ -143,11 +144,10 @@ function editSkin(sk, redraw) {
 
 function drawGuide(box, redraw) {
   box.append(
-    h('p.as-muted', { style: { margin: '0 6px 12px' } }, '皮肤就是一段 CSS。AsterPhone 里每个东西都有固定的「门牌号」（类名），永远不改名，所以写好的皮肤以后也能用。'),
-    group('例子（点一下加到我的皮肤）', EXAMPLES.map(e => item({ icon: 'sparkle', color: 'pink', title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
+    group(withInfo('例子', '皮肤就是一段 CSS。每个东西都有固定的「门牌号」（类名），永远不改名，所以写好的皮肤以后也能用。点一个例子就加到「我的皮肤」。'), EXAMPLES.map(e => item({ icon: 'sparkle', color: 'pink', title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
       lib().skins.push({ id: uid('sk'), on: true, ...e }); commit('library'); applySkins(); toast(`已加上「${e.name}」`); tab = 'skins'; redraw();
     } }))),
-    group('颜色和尺寸变量（写在 .as-phone 里）', VARS.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
-    group('常用门牌号', CLASSES.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) })), '点一行就复制。'),
-    group('改界面上的字', [h('div.as-field', h('code.as-lib-code', '/* @texts {"chat.tab.moments":"朋友圈"} */'), h('span.as-field__hint', '把这行注释放进皮肤里就能改字。目前能改：chat.tab.messages、chat.tab.contacts、chat.tab.moments、chat.tab.me'))]));
+    group(withInfo('颜色和尺寸变量', '写在 .as-phone { } 里。点一行就复制。'), VARS.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
+    group(withInfo('常用门牌号', '点一行就复制。'), CLASSES.map(([k, d]) => item({ title: k, sub: d, onClick: () => navigator.clipboard?.writeText(k).then(() => toast('已复制')) }))),
+    group(withInfo('改界面上的字', '把这行注释放进皮肤里就能改字。目前能改：chat.tab.messages、chat.tab.contacts、chat.tab.moments、chat.tab.me'), [h('div.as-field', h('code.as-lib-code', '/* @texts {"chat.tab.moments":"朋友圈"} */'))]));
 }

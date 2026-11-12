@@ -1,7 +1,7 @@
 // 特殊消息的样子和操作：气泡长什么样、「+」面板里每个按钮做什么、表情包面板、语音 / 视频通话界面、表情包管理。
 import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs, chatForContact } from '../../core/store.js';
-import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn } from '../../core/ui.js';
+import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, stopSpeak } from '../../core/api.js';
 import { speakAs } from '../../core/voice.js';
@@ -223,8 +223,8 @@ export function openStickerManager() {
   const p = page({ app: 'chat', id: 'chat-stickers', title: '表情包', back: true, right: navBtn('plus', '导入', async () => { await importStickers(); draw(); }) });
   function draw() {
     p.body.innerHTML = '';
-    if (!state.stickers.length) { p.body.appendChild(empty('还没有表情包。点右上角导入图片，图片名就是它的名字。', btn('导入', 'primary', async () => { await importStickers(); draw(); }))); return; }
-    p.body.append(h('p.as-muted', { style: { margin: '0 6px 12px' } }, 'AI 靠名字认表情包（不花钱），所以名字起得越像它的意思越好，比如「摸摸头」「哭哭」。点一个可以改名或删除。'),
+    if (!state.stickers.length) { p.body.appendChild(empty('还没有表情包', btn('导入', 'primary', async () => { await importStickers(); draw(); }))); return; }
+    p.body.append(h('div.as-list-group__header', withInfo('起名字', 'AI 靠名字认表情包（不花钱），所以名字起得越像它的意思越好，比如「摸摸头」「哭哭」。点一个可以改名或删除。')),
       h('div.as-chat-stickers.is-manage', state.stickers.map(s => h('button', { onclick: async () => {
         const v = await actionSheet(s.name, [{ value: 'rename', label: '改名字', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
         if (v === 'rename') { const n = await dialog({ title: '改名字', input: { value: s.name } }); if (n && n.trim()) { s.name = n.trim().slice(0, 20); commit('stickers'); draw(); } }

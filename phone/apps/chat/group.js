@@ -1,7 +1,7 @@
 // 群聊：建群、群头像（没设置时是群名第一个字）、群设置（资料 / 成员 / 行为 / 数据）。
 import { h } from '../../core/util.js';
 import { state, commit, contact, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
@@ -82,10 +82,10 @@ export function openGroupSettings(chat, redrawRoom) {
         toggleItem({ title: '置顶聊天' }, chat.pinned, v => { chat.pinned = v; save(); }),
         toggleItem({ title: '消息免打扰' }, chat.muted, v => { chat.muted = v; save(); }),
       ]),
-      group('谁来说话', [
+      group(withInfo('谁来说话', '点「让大家回复」时，AI 一次决定谁说、说几条、谁转去私聊你、谁在忙不回。被 @ 的人优先。'), [
         sliderRow('每轮最多几个人说话', 1, 8, 1, cfg.maxSpeakers || 3, v => { cfg.maxSpeakers = v; save(); }),
-        item({ title: '有人想私下找你时', value: '在群请求里顺便写好', sub: '「单独再生成一次」以后再加' }),
-      ], '点「让大家回复」时，AI 一次决定谁说、说几条、谁转去私聊你、谁在忙不回。被 @ 的人优先。'),
+        item({ title: '有人想私下找你时', value: '在群请求里顺便写好' }),
+      ]),
       replyGroup(chat, save),
       group('AI', [
         item({ title: '提示词方案', value: P.schemeLabel('group', cfg.prompt), chevron: true, onClick: async e => {
