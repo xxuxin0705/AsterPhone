@@ -654,7 +654,7 @@ export function openBoard({ list }) {
 /** 右上角「…」：插线板模式和列表模式共用，只有最后一项（换成另一个模式）不一样 */
 export async function connMenu({ mode, kind, schemes, add, switchMode }) {
   const v = await actionSheet('连接', [
-    { value: 'scheme', label: '接线方案（整套接法存起来、一键换）' },
+    { value: 'scheme', label: '接线方案' },
     ...(kind === 'embed' ? [] : [{ value: 'retry', label: '断线了怎么办' }]),   // 「其他」线（向量）还没有要重试、换接口的地方
     { value: 'add', label: '添加接口' },
     { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);

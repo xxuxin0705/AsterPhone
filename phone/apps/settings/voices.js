@@ -73,7 +73,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
     defBox.replaceChildren(group('', [
       toggleItem({ title: '没配音色的联系人用默认音色' }, V().useDefault, v => { V().useDefault = v; save(); male.hidden = female.hidden = !v; changed(); }),
       male, female,
-      ...(openConn ? [item({ title: '接口设置（地址、密钥、模型…）', chevron: true, onClick: () => openConn(c) })] : [])]));
+      ...(openConn ? [item({ title: '接口设置', chevron: true, onClick: () => openConn(c) })] : [])]));
   };
   const connTab = h('div',
     group('每个人用哪个渠道', [h('div.as-field', segmented([['one', '统一一个渠道'], ['each', '每个人用自己的渠道']], V().mode, v => { V().mode = v; save(); changed(); }))]),

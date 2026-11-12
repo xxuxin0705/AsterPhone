@@ -475,12 +475,12 @@ function openAvatarPage(chat, after) {
     p.body.append(
       group('显示谁的头像', [h('div.as-field', h('div.as-chips', [['both', '双方'], ['them', '仅对方'], ['me', '仅我'], ['none', '都不']].map(([k, label]) =>
         h('button.as-chip' + (A.who === k ? '.is-active' : ''), { onclick: () => { cfg.avatarWho = k; cfg.showAvatar = k !== 'none'; commit('chats'); draw(); } }, label))))]),
-      group('头像（点一下更换，只在这个聊天里生效，情侣头像在这换）', [preview]),
+      group(withInfo('头像', '点一下更换，只在这个聊天里生效，情侣头像在这换。'), [preview]),
       group('大小和圆角', [
         h('div.as-settings-slider-row', h('span', '大小'), slider({ min: 26, max: 56, step: 1, value: A.size, onInput: v => { cfg.avatarSize = v; sizeOut.textContent = v + 'px'; commit('chats'); repaint(); } }), sizeOut),
         h('div.as-settings-slider-row', h('span', '圆角'), slider({ min: 0, max: 50, step: 1, value: A.radius, onInput: v => { cfg.avatarRadius = v; radOut.textContent = v + '%'; commit('chats'); repaint(); } }), radOut),
       ]),
-      group('备注', [field('备注名（只有你看得到，聊天顶部和列表里显示这个）', input({ value: c.remark || '', placeholder: c.nick || c.name, onInput: v => { c.remark = v.trim(); commit('contacts'); } }))]));
+      group('备注', [field(withInfo('备注名', '只有你看得到，聊天顶部和列表里显示这个。'), input({ value: c.remark || '', placeholder: c.nick || c.name, onInput: v => { c.remark = v.trim(); commit('contacts'); } }))]));
   }
   function repaint() { preview.querySelectorAll('.as-avatar').forEach(a => { a.style.borderRadius = avatarCfg(cfg).radius + '%'; }); }
   draw();

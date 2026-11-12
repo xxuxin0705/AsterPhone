@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.326';
+export const VERSION = '0.8.327';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -183,7 +183,7 @@ function openChatApp() {
     };
     body.append(
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
-      group('聊天默认设置（每个聊天还能单独改）', [
+      group(withInfo('聊天默认设置', '每个聊天还能单独改。'), [
         toggleItem({ title: withInfo('角色配图真的生图', '角色发图片、发动态配图时：打开就真的用生图接口画出来；关着只显示一张写着画面的描述卡，点「生图」才画（省钱）。') }, a.defaults.imageGen, v => { a.defaults.imageGen = v; commit('apps'); }),
         rangeRow('私聊回复条数', { min: 1, max: 10, value: a.defaults.lines, onInput: v => { a.defaults.lines = v; commit('apps'); } }),
         rangeRow('群聊回复条数', { min: 1, max: 20, value: a.defaults.gLines, onInput: v => { a.defaults.gLines = v; commit('apps'); } }),
@@ -394,7 +394,7 @@ function openLook() {
         sliderRow('大小', { min: 36, max: 84, step: 2, value: d.fabSize, fmt: v => v + 'px', onInput: v => { d.fabSize = v; commit('settings'); shell.applyLook(); } }),
       ]),
       group('', [toggleItem({ title: '连点三下开关手机' }, d.tripleTap, v => { d.tripleTap = v; commit('settings'); shell.applyLook(); })]),
-      group('窗口大小（电脑上生效，手机上总是铺满）', [
+      group(withInfo('窗口大小', '电脑上生效，手机上总是铺满。'), [
         h('div.as-field', segmented([['auto', '自动'], ['manual', '手动']], d.winScale ? 'manual' : 'auto', v => { d.winScale = v === 'auto' ? 0 : 1; commit('settings'); shell.applyLook(); re(); })),
         d.winScale ? sliderRow('大小', { min: .7, max: 1.4, step: .05, value: d.winScale, fmt: v => Math.round(v * 100) + '%', onInput: v => { d.winScale = v; commit('settings'); shell.applyLook(); } }) : null,
       ].filter(Boolean)),
@@ -416,7 +416,7 @@ function openLook() {
       group('时间', [clockPreview(night),
         fontSeg,
         mine,
-        segField('颜色（只改锁屏上那个大时间）', segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); wheel.hidden = v !== 'custom'; })),
+        segField(withInfo('颜色', '只改锁屏上那个大时间。'), segmented([['auto', '自动'], ['light', '浅色'], ['dark', '深色'], ['custom', '自选']], S().clockColor, v => { S().clockColor = v; commit('look'); shell.applyLook(); paintClock(); wheel.hidden = v !== 'custom'; })),
         wheel,
         segField('语言', segmented([['zh', '中文'], ['en', 'English']], S().clock.lang, v => { S().clock.lang = v; commit('look'); shell.applyLook(); paintClock(); })),
         segField('小时制', segmented([['24', '24 小时'], ['12', '12 小时']], S().clock.h12 ? '12' : '24', v => { S().clock.h12 = v === '12'; commit('look'); shell.applyLook(); paintClock(); })),

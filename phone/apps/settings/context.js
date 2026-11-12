@@ -19,7 +19,7 @@ export function openContext({ sub, sliderRow, withInfo }) {
       ]),
       group('人设', [
         toggleItem({ title: '角色人设' }, s.charPersona, v => { s.charPersona = v; save(); }),
-        toggleItem({ title: '你的人设（User 人设卡）' }, s.userPersona, v => { s.userPersona = v; save(); }),
+        toggleItem({ title: '你的人设' }, s.userPersona, v => { s.userPersona = v; save(); }),
       ]),
       bookGroup(s, sub),
       tagGroup(s, withInfo),
