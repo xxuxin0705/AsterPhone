@@ -1,4 +1,4 @@
-// 壁纸库：自带两套（月夜城堡 / 水中月）+ 自己加的图片和 Live 图。
+// 壁纸库：自带「水中月」+ 自己加的图片和 Live 图。
 // 锁屏和桌面各有各的一排（row），加、删、调整都只管自己那排；也可以「随机」：每次锁屏 / 每次打开手机换一张。
 // 图片和视频本体存在 IndexedDB（键 wall:<blob 或 id>），state 里只记名字和类型。
 import { state, commit, kvGet, kvSet, kvDel } from './store.js';
@@ -18,13 +18,13 @@ const drawn = { lock: null, home: null };
 export function current(which) {
   const w = W();
   if (w[which + 'Random']) { if (!drawn[which] || !exists(drawn[which])) reroll(which); return drawn[which]; }
-  return exists(w[which]) ? w[which] : 'castle';
+  return exists(w[which]) ? w[which] : 'water';
 }
 /** 随机换一张（尽量别和上一张一样） */
 export function reroll(which) {
   const all = ids(which), prev = drawn[which];
   const pool = all.length > 1 ? all.filter(i => i !== prev) : all;
-  drawn[which] = pool[Math.floor(Math.random() * pool.length)] || 'castle';
+  drawn[which] = pool[Math.floor(Math.random() * pool.length)] || 'water';
   return drawn[which];
 }
 
@@ -64,10 +64,10 @@ function loadVideo(src) {
 /** 给壁纸层用的：自带的直接给名字；自己的给 { img, video, aspect } */
 export async function source(id) {
   if (isBuiltin(id)) return id;
-  const b = await blobs(id); if (!b) return 'castle';
+  const b = await blobs(id); if (!b) return 'water';
   const img = await loadImg(b.img).catch(() => null);
   const video = b.video ? await loadVideo(b.video).catch(() => null) : null;
-  if (!img && !video) return 'castle';
+  if (!img && !video) return 'water';
   const w = img ? img.naturalWidth : video.videoWidth, h = img ? img.naturalHeight : video.videoHeight;
   const crop = (info(id) || {}).crop || [0, 0, 1, 1];   // 自己调过位置：只显示框住的那一块
   return { id, img, video, crop, aspect: w && h ? (w * crop[2]) / (h * crop[3]) : 9 / 19.5 };
@@ -130,8 +130,8 @@ export async function remove(id) {
   if (isBuiltin(id)) return;
   const w = W(), k = blobKey(id);
   w.list = w.list.filter(x => x.id !== id);
-  if (w.lock === id) w.lock = 'castle';
-  if (w.home === id) w.home = 'castle';
+  if (w.lock === id) w.lock = 'water';
+  if (w.home === id) w.home = 'water';
   for (const r of ['lock', 'home']) if (drawn[r] === id) drawn[r] = null;
   // 另一排还在用同一份文件就留着
   if (!w.list.some(x => blobKey(x.id) === k)) {

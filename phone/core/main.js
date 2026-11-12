@@ -188,7 +188,7 @@ addEventListener('message', e => {
   if (d.aster === 'visible') { if (!booted) pendingVis = !!d.v; else onVisible(!!d.v); }
   if (d.aster === 'reset' && d.what === 'lock') { resetLock(); toast('锁屏已关闭，密码已清除'); }
   if (d.aster === 'reset' && d.what === 'look') { Object.assign(state.settings, { mode: 'auto', fontScale: 1, clockColor: 'auto', statusbar: { global: true, apps: {} }, clock: { lang: 'zh', h12: false, font: 'sf' } });
-    Object.assign(state.settings.walls, { lock: 'castle', home: 'castle', lockRandom: false, homeRandom: false, live: 'press', liveWake: true }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
+    Object.assign(state.settings.walls, { lock: 'water', home: 'water', lockRandom: false, homeRandom: false, live: 'press', liveWake: true }); commit('look'); applyLook(); setNight(wantNight(), null, false); }
 });
 
 /* ---------- 连点三下收起（手机空白处） ---------- */
@@ -228,7 +228,7 @@ async function boot() {
   if (isLocked()) { phone.classList.add('is-locked'); setCurrent('lock'); }
   else { showHome(true); setCurrent('home'); }
   wallpaper.setLiveMode(state.settings.walls.live);
-  await wallpaper.init(await walls.source(walls.current(wallNow())).catch(() => 'castle'));
+  await wallpaper.init(await walls.source(walls.current(wallNow())).catch(() => 'water'));
   wallpaper.setNight(wantNight(), null, true);
   renderNotices(); renderBadges(); sendUnread();
 

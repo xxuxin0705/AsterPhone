@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { THEMES, lib } from '../../core/skin.js';
 
-export const VERSION = '0.8.319';
+export const VERSION = '0.8.320';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -438,7 +438,7 @@ const segField = (label, seg) => h('div.as-field', h('span.as-field__label', lab
 
 /* ---------- 壁纸 ---------- */
 function wallLabel() {
-  const w = S().walls, name = k => w[k + 'Random'] ? '随机' : ((walls.info(w[k]) || {}).name || '月夜城堡');
+  const w = S().walls, name = k => w[k + 'Random'] ? '随机' : ((walls.info(w[k]) || {}).name || '水中月');
   return w.lock === w.home && !w.lockRandom && !w.homeRandom ? name('lock') : `${name('lock')} / ${name('home')}`;
 }
 /** 选文件（可以一次选多个：一张图 + 一个视频 = 一张 Live 图） */

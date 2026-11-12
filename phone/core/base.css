@@ -26,14 +26,14 @@ button { font: inherit; color: inherit; }
 
 /* ---------- 手机外壳 + 日 / 夜两套调色盘 ---------- */
 .as-phone {
-  /* 日间：很淡的底色 + 白玻璃。主题只换底色、字色、强调色三个，其余都从这三个算出来 */
-  --as-color-bg: #EAF5FA;
-  --as-color-bg-grad: linear-gradient(175deg, color-mix(in srgb, var(--as-color-bg) 40%, #fff), var(--as-color-bg));
-  --as-color-surface: rgba(255,255,255,.6); --as-color-surface-2: rgba(255,255,255,.4);
-  --as-color-surface-solid: color-mix(in srgb, var(--as-color-bg) 35%, #fff); --as-color-glass-line: rgba(255,255,255,.8); --as-color-gloss: rgba(255,255,255,.55);
-  --as-color-text: #293942; --as-color-text-2: color-mix(in srgb, var(--as-color-text) 60%, transparent); --as-color-border: color-mix(in srgb, var(--as-color-text) 9%, transparent);
-  --as-color-accent: #4c7d9a; --as-color-accent-2: color-mix(in srgb, var(--as-color-accent) 80%, #fff); --as-color-on-accent: #ffffff;
-  --as-color-danger: #e5484d; --as-color-success: #22a06b; --as-color-aurora: rgba(255,255,255,.7);
+  /* 默认主题「水中月」日间：App 后面是水中月壁纸的模糊小图，上面盖白玻璃；没有高光 */
+  --as-color-bg: #dcecf3;
+  --as-color-bg-grad: url(../assets/wallpapers/water-day-blur.jpg);
+  --as-color-surface: rgba(255,255,255,.55); --as-color-surface-2: rgba(255,255,255,.38);
+  --as-color-surface-solid: #f4f9fc; --as-color-glass-line: rgba(255,255,255,.75); --as-color-gloss: transparent;
+  --as-color-text: #1f3646; --as-color-text-2: color-mix(in srgb, var(--as-color-text) 60%, transparent); --as-color-border: color-mix(in srgb, var(--as-color-text) 9%, transparent);
+  --as-color-accent: #3a7aa3; --as-color-accent-2: color-mix(in srgb, var(--as-color-accent) 80%, #fff); --as-color-on-accent: #ffffff;
+  --as-color-danger: #e5484d; --as-color-success: #22a06b; --as-color-aurora: transparent;
   --as-color-mask: rgba(14,60,96,.28); --as-shadow: 0 10px 30px rgba(14,80,130,.12), 0 1px 2px rgba(14,80,130,.06);
   --as-blur: 22px;
   --as-bubble-me: var(--as-color-accent); --as-bubble-me-ink: var(--as-color-on-accent);
@@ -51,14 +51,14 @@ button { font: inherit; color: inherit; }
   user-select: none; -webkit-user-select: none; font-size: calc(15px * var(--as-font-scale));
 }
 .as-phone[data-mode="night"] {
-  /* 夜间：同一个色相压暗（不是黑），玻璃更透 */
-  --as-color-bg: #1d262b;
-  --as-color-bg-grad: linear-gradient(175deg, color-mix(in srgb, var(--as-color-bg) 92%, #fff), color-mix(in srgb, var(--as-color-bg) 85%, #000));
-  --as-color-surface: rgba(255,255,255,.1); --as-color-surface-2: rgba(255,255,255,.08);
-  --as-color-surface-solid: color-mix(in srgb, var(--as-color-bg) 91%, #fff); --as-color-glass-line: rgba(255,255,255,.18); --as-color-gloss: rgba(255,255,255,.14);
-  --as-color-text: #f1f8fc;
-  --as-color-accent: #a8cce1; --as-color-on-accent: var(--as-color-bg);
-  --as-color-danger: #ff6b70; --as-color-success: #3dd68c; --as-color-aurora: rgba(255,255,255,.05);
+  /* 水中月夜间：夜间那张壁纸的模糊小图（压暗过），深色玻璃 */
+  --as-color-bg: #0f2233;
+  --as-color-bg-grad: url(../assets/wallpapers/water-night-blur.jpg);
+  --as-color-surface: rgba(8,22,36,.4); --as-color-surface-2: rgba(255,255,255,.08);
+  --as-color-surface-solid: #15293b; --as-color-glass-line: rgba(255,255,255,.14);
+  --as-color-text: #eef6fb;
+  --as-color-accent: #9fcbe6; --as-color-on-accent: var(--as-color-bg);
+  --as-color-danger: #ff6b70; --as-color-success: #3dd68c;
   --as-color-mask: rgba(2,14,28,.55); --as-shadow: 0 10px 30px rgba(0,10,25,.3);
   --as-bubble-them: rgba(255,255,255,.12);
   --ink: #f6f3ee; --ink-2: rgba(246,243,238,.66);
@@ -100,12 +100,12 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 /* ---------- 页面栈 ---------- */
 .as-stack { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 .as-stack.has-app { pointer-events: auto; }
-.as-stack__page { position: absolute; inset: 0; z-index: 1; background: var(--as-color-bg); background-image: var(--as-color-bg-grad); color: var(--as-color-text); display: flex; flex-direction: column; overflow: hidden; touch-action: pan-y;
+.as-stack__page { position: absolute; inset: 0; z-index: 1; background: var(--as-color-bg) center / cover; background-image: var(--as-color-bg-grad); color: var(--as-color-text); display: flex; flex-direction: column; overflow: hidden; touch-action: pan-y;
   transition: transform var(--as-dur-page) var(--as-ease-standard), opacity var(--as-dur-page) var(--as-ease-standard), border-radius var(--as-dur-page), filter var(--as-dur-page); will-change: transform; }
 /* 页面角落两团极光：一团薄荷绿、一团天蓝，很淡 */
 .as-stack__page::before, .as-stack__page::after { content: ""; position: absolute; width: 60%; aspect-ratio: 1; border-radius: 50%; filter: blur(60px); pointer-events: none; z-index: 0; }
 .as-stack__page::before { top: -12%; right: -18%; background: var(--as-color-aurora); }
-.as-stack__page::after { bottom: -14%; left: -20%; background: color-mix(in srgb, var(--as-color-accent-2) 16%, transparent); }
+.as-stack__page::after { bottom: -14%; left: -20%; background: var(--as-color-aurora); }
 .as-stack__page > * { position: relative; z-index: 1; }
 .as-stack__page.is-entering { transform: translateX(100%); }
 .as-stack__page.is-leaving { transform: translateX(100%); }
@@ -176,7 +176,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-btn::before { content: ""; position: absolute; inset: 0; height: 50%; background: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,.05)); pointer-events: none; }
 .as-btn:active { transform: scale(.95); }
 .as-btn:disabled { opacity: .45; }
-.as-btn--primary { background: linear-gradient(180deg, var(--as-color-accent-2), var(--as-color-accent)); color: var(--as-color-on-accent); box-shadow: 0 6px 18px color-mix(in srgb, var(--as-color-accent) 35%, transparent); }
+.as-btn--primary { background: var(--as-color-accent); color: var(--as-color-on-accent); }
 .as-btn--secondary { background: var(--as-color-surface); color: var(--as-color-text); border-color: var(--as-color-glass-line); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .as-btn--text { background: none; color: var(--as-color-accent); padding: 10px 8px; }
 .as-btn--text::before, .as-btn--danger::before { display: none; }

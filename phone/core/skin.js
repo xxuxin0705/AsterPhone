@@ -5,14 +5,14 @@
 import { state, commit } from './store.js';
 
 const V = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v};`).join('');
-// 每套主题只给三个颜色（底色、字色、强调色），日夜各一组；别的颜色 base.css 里从这三个算。冰雾浅蓝就是 base.css 的默认值。
+// 两套：水中月（base.css 的默认值）和苹果（照 iPhone 设置：浅灰底白卡片 / 夜间清透黑）
 export const THEMES = {
-  aero: { name: '冰雾浅蓝', swatch: ['#f7fbfd', '#EAF5FA', '#4c7d9a'], day: {}, night: {} },
-  mint: { name: '清透薄荷', swatch: ['#effdfb', '#D7FAF4', '#408279'], day: { 'as-color-bg': '#D7FAF4', 'as-color-text': '#29423f', 'as-color-accent': '#408279' }, night: { 'as-color-bg': '#1d2b29', 'as-color-text': '#e5fcf8', 'as-color-accent': '#a8e1d9' } },
-  sakura: { name: '柔雾粉', swatch: ['#fef6f9', '#FCE9EF', '#af5572'], day: { 'as-color-bg': '#FCE9EF', 'as-color-text': '#422931', 'as-color-accent': '#af5572' }, night: { 'as-color-bg': '#2b1d21', 'as-color-text': '#fdf1f5', 'as-color-accent': '#e1a8ba' } },
-  dusk: { name: '浅雾紫', swatch: ['#f6f2fc', '#E9DFF8', '#7a5dac'], day: { 'as-color-bg': '#E9DFF8', 'as-color-text': '#322942', 'as-color-accent': '#7a5dac' }, night: { 'as-color-bg': '#221d2b', 'as-color-text': '#f1eafa', 'as-color-accent': '#bda8e1' } },
-  milk: { name: '奶黄浅色', swatch: ['#fffdeb', '#FFF9CC', '#967440'], day: { 'as-color-bg': '#FFF9CC', 'as-color-text': '#423829', 'as-color-accent': '#967440' }, night: { 'as-color-bg': '#2b281d', 'as-color-text': '#fffbde', 'as-color-accent': '#e1d3a8' } },
-  leaf: { name: '柔叶浅绿', swatch: ['#f1f9f3', '#DCF1E0', '#4c7b58'], day: { 'as-color-bg': '#DCF1E0', 'as-color-text': '#29422f', 'as-color-accent': '#4c7b58' }, night: { 'as-color-bg': '#1d2b20', 'as-color-text': '#e8f6eb', 'as-color-accent': '#a8e1b6' } },
+  aero: { name: '水中月', swatch: ['#f4f9fc', '#bcd8e6', '#3a7aa3'], day: {}, night: {} },
+  apple: { name: '苹果', swatch: ['#ffffff', '#F2F2F7', '#007AFF'],
+    day: { 'as-color-bg': '#F2F2F7', 'as-color-bg-grad': 'none', 'as-color-surface': '#fff', 'as-color-surface-2': 'rgba(118,118,128,.12)', 'as-color-surface-solid': '#fff', 'as-color-glass-line': 'transparent',
+      'as-color-text': '#000', 'as-color-text-2': 'rgba(60,60,67,.6)', 'as-color-border': 'rgba(60,60,67,.18)', 'as-color-accent': '#007AFF', 'as-shadow': 'none' },
+    night: { 'as-color-bg': '#0b0b0d', 'as-color-bg-grad': 'none', 'as-color-surface': 'rgba(44,44,48,.62)', 'as-color-surface-2': 'rgba(118,118,128,.24)', 'as-color-surface-solid': '#1c1c1e', 'as-color-glass-line': 'rgba(255,255,255,.08)',
+      'as-color-text': '#fff', 'as-color-text-2': 'rgba(235,235,245,.6)', 'as-color-border': 'rgba(84,84,88,.45)', 'as-color-accent': '#0A84FF', 'as-color-on-accent': '#fff' } },
 };
 export const SCOPES = [['all', '全部'], ['lock', '锁屏'], ['home', '桌面'], ['chat', '聊天'], ['settings', '设置'], ['library', '资源库'], ['log', '日志']];
 
