@@ -57,17 +57,14 @@
 /* ---------- 开屏：画布上展开、写字、盖章、烧掉 ---------- */
 .as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #000; transition: opacity 500ms ease; }
 .as-int-splash.is-out { opacity: 0; pointer-events: none; }
-.as-int-sp__stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-/* 视频停住的画面 = 主图从上往下 10.6% 起、高 78.7% 的那一块，照这个位置放；上下边融进黑里 */
-.as-int-sp__clip { position: absolute; left: 0; top: 10.64%; width: 100%; height: 78.71%; object-fit: fill; opacity: 0; -webkit-mask-image: linear-gradient(transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(transparent, #000 6%, #000 94%, transparent); }
+.as-int-sp__clip, .as-int-sp__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
 .as-int-splash.is-clip .as-int-sp__clip { opacity: 1; }
-.as-int-sp__art { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
-.as-int-splash.is-open .as-int-sp__art { animation: as-int-art 420ms ease-out forwards, as-int-drift 6s 420ms linear forwards; }
+.as-int-splash.is-open .as-int-sp__art { animation: as-int-art 300ms ease-out forwards, as-int-drift 6s 300ms linear forwards; }
 @keyframes as-int-art { to { opacity: 1; } }
 @keyframes as-int-drift { from { transform: scale(1); } to { transform: scale(1.05); } }
 /* 标题盖上来；开屏语晚一点浮出 */
 .as-int-sp__title { position: absolute; left: 9%; width: 82%; top: 11%; opacity: 0; pointer-events: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,.7)); }
-.as-int-splash.is-open .as-int-sp__title { animation: as-int-ttl 480ms 120ms cubic-bezier(.2, .8, .2, 1) forwards; }
+.as-int-splash.is-open .as-int-sp__title { animation: as-int-ttl 460ms cubic-bezier(.2, .8, .2, 1) forwards; }
 @keyframes as-int-ttl { from { opacity: 0; transform: scale(1.35); filter: blur(10px); } to { opacity: 1; transform: none; } }
 .as-int-sp__line { position: absolute; left: 0; right: 0; bottom: 8%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.8); text-wrap: balance; }
 .as-int-splash.is-open .as-int-sp__line { animation: as-int-line 700ms 600ms ease-out forwards; }
