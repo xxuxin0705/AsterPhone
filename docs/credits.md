@@ -106,3 +106,4 @@
 | 同上；等你看；不该想起 | 「记忆管线」01～06 几张图（待审隔离区、纠错 / 决策日志、注入块放最后） | 作者待确认（图上水印：小红书号 299234890） | 作者发给我的截图，原帖链接待补 | 还没问 |
 
 看过、这次没用上的：纯情卢关大帝「Reverie：无后端的 AI 自探索唤醒系统线路总图」https://xhslink.cn/o/ABDxU1tXY9H （小红书号 3628686381）；香脆小圆「新记忆系统稳定跑起来了」https://xhslink.cn/o/8BitrzJyNun 。以后用上了再挪到上面的表里。
+- 商业街的像素字：Fusion Pixel Font（12px Proportional SC，作者 TakWolf，SIL OFL 1.1），https://github.com/TakWolf/fusion-pixel-font ，从 jsDelivr 上 @fontsource/fusion-pixel-12px-proportional-sc 加载。

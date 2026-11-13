@@ -87,7 +87,7 @@ export function open() {
   };
   if (!seated) { seated = true; Object.assign(pick, state.apps.interlude.seat); }
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
-  const dice = h('div.as-int-traydice', { style: `left:${pxl(470)};top:${pyt(770)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
+  const dice = h('div.as-int-traydice', { style: `left:${pxl(470)};top:${pyt(752)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
   // 一屏放下整张桌子（作者不要左右拖、不要裁两边）：宽度铺满；屏幕比图短就裁掉一点上下补画的部分（桌子留在中间），比图还瘦长才放大裁两边；靠边那两把椅子上的头像往里挪到看得见的地方
   let W = 0, H = 0, ww = 0, wh = 0, ox = 0, oy = 0, zoom = null;
