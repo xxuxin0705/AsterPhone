@@ -19,10 +19,8 @@
 .as-mu-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; padding: 18px 12px max(6px, env(safe-area-inset-bottom, 0px)); background: linear-gradient(rgba(var(--mu-bg-rgb),0), rgba(var(--mu-bg-rgb),.94) 32%); }
 .as-mu-root.is-dark .as-mu-dock { background: linear-gradient(rgba(var(--mu-bg-rgb),0), var(--mu-bg) 32%); }
 .as-mu-tabs { display: grid; grid-template-columns: repeat(4, 1fr); }
-.as-mu-tabs button { border: 0; background: none; padding: 7px 0 6px; display: grid; justify-items: center; gap: 3px; font: 500 10.5px/1 var(--font-ui); color: var(--mu-gray); cursor: pointer; }
-.as-mu-tabs button.is-active { color: var(--mu-ink); }
-.as-mu-tabs button svg { transition: transform 320ms var(--as-ease-spring); }
-.as-mu-tabs button.is-active svg { transform: translateY(-1px) scale(1.06); }
+.as-mu-tabs button { border: 0; background: none; padding: 12px 0 10px; font: 400 16px/1 var(--font-ui); color: var(--mu-gray); cursor: pointer; }
+.as-mu-tabs button.is-active { color: var(--mu-ink); font-weight: 700; }
 .as-mu-mini { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 6px; border-radius: 26px; background: var(--mu-card); box-shadow: 0 4px 18px rgba(0,0,0,.07); cursor: pointer; }
 .as-mu-mini__cover { width: 40px; height: 40px; flex: none; border-radius: 50%; background: #333 center / cover; box-shadow: 0 0 0 5px #1c1c1c; margin-left: 4px; animation: as-mp-spin 20s linear infinite paused; }
 .as-mu-mini__cover.is-playing { animation-play-state: running; }

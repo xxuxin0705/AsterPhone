@@ -405,7 +405,3 @@
 .as-int-letter img { width: 54px; }
 .as-int-letter p { margin: 0; font-size: 15px; line-height: 1.9; white-space: pre-wrap; }
 .as-int-letter .as-int-row { align-self: stretch; }
-
-/* 幕间单独一套深色按钮：深色玻璃 + 黄铜色字，放在油画上不刺眼（不跟主题的强调色走） */
-[data-as-app="interlude"] .as-btn--primary { background: rgba(24,18,12,.78); color: #e6c58f; border-color: rgba(214,176,112,.55); box-shadow: 0 6px 18px rgba(0,0,0,.28); }
-[data-as-app="interlude"] .as-btn--secondary { background: rgba(24,18,12,.5); color: #efe3cc; border-color: rgba(239,227,204,.22); }
