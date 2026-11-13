@@ -1,7 +1,7 @@
 // 资源库：主题（整部手机的一套样子，能存、导出、导入）、应用（各 App 的皮肤）、个性装扮（字体、表情包…到处都能用的）、教程。
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
+import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
 import { deco, addFrame, paintBubble, pack, unpack } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
@@ -29,7 +29,7 @@ const GUIDE = {
   'chat-moments': { cls: [['.as-chat-moments-cover', '顶上的封面'], ['.as-chat-moment', '一条动态'], ['.as-chat-moment__name', '名字'], ['.as-chat-moment__text', '正文'], ['.as-chat-moment__imgs', '配图'], ['.as-chat-moment__comments', '评论']] },
   'chat-me': { cls: [['.as-chat-me-head', '头像和名字那一块'], ['.as-chat-me-head__name', '名字'], ['.as-chat-me-head__sign', '签名'], ['.as-chat-me-stats', '下面的几个数字']] },
   music: { cls: [['[class*="as-mu-"]', '音乐的东西都以 .as-mu- 开头'], ['.as-mp', '播放页'], ['.as-mp__lrc', '播放页的歌词']] },
-  interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头'], ['.as-int-splash', '开屏']] },
+  interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头']] },
   memory: { cls: [['[class*="as-mem-"]', '念念铃的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
   diary: { cls: [['[class*="as-dy-"]', '日记的东西都以 .as-dy- 开头']] },
   street: { cls: [['.as-street', '商业街'], ['.as-studio', '照相馆']] },
@@ -223,19 +223,6 @@ function drawSkins(box, redraw) {
 const STYLE = {
   music: () => { const m = state.music;
     return group('样式', [field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); }))]); },
-  interlude: () => { const a = state.apps.interlude;
-    const fontName = () => (a.font && a.font !== 'random' && { xdks: '玄冬楷书', qtbf: '千图笔锋手写体' }[a.font]) || '每次随机';
-    const fontRow = item({ title: '开屏字体', value: fontName(), chevron: true, onClick: async () => {
-      const { SPLASH_FONTS } = await import('../interlude/interlude.js');
-      const r = await actionSheet('开屏字体', [{ value: 'random', label: '每次随机', active: !a.font || a.font === 'random' }, ...SPLASH_FONTS.map(([k, n]) => ({ value: k, label: n, active: a.font === k }))]);
-      if (r) { a.font = r; commit('apps'); fontRow.querySelector('.as-list-item__value').textContent = fontName(); }
-    } });
-    const lineRow = item({ title: '开屏语', value: '轮着用', chevron: true, onClick: async () => {
-      const { SPLASH_LINES } = await import('../interlude/interlude.js'), off = a.lineOff || (a.lineOff = []);
-      sheet({ title: '开屏语（轮着用）', content: group('', SPLASH_LINES.map((t, i) => toggleItem({ title: t }, !off.includes(i), on => { on ? off.splice(off.indexOf(i), 1) : off.push(i); commit('apps'); }))) });
-    } });
-    fontRow.hidden = lineRow.hidden = !a.splash;
-    return group('样式', [toggleItem({ title: '打开时放开屏' }, a.splash, v => { a.splash = v; commit('apps'); fontRow.hidden = lineRow.hidden = !v; }), fontRow, lineRow]); },
 };
 function openAppSkins(a) {
   subPage('library-app', a.name, () => JSON.stringify(skinsOf(a).map(x => x.id)), (nb, draw) => {

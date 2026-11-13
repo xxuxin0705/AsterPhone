@@ -14,7 +14,6 @@ import { log } from '../../core/log.js';
 import * as G from './game.js';
 import * as R from './rules.js';
 import { restDice, throwDice } from './dice.js';
-import { windowGlass } from './glass.js';
 import { glass } from '../../core/glass.js';
 import { speakAs } from '../../core/voice.js';
 import { stopSpeak } from '../../core/api.js';
@@ -88,11 +87,6 @@ export function open() {
   };
   if (!seated) { seated = true; Object.assign(pick, state.apps.interlude.seat); }
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
-  // 窗户：点一下玻璃碎，再点一下复原（只是好玩，不存）
-  const WIN = [426, -127, 787, 332], glass = windowGlass(WIN[2] - WIN[0], WIN[3] - WIN[1],   // 玻璃的形状：两边沿着窗帘的边
-    '0,459 12,361 37,239 68,104 59,0 343,0 294,104 306,239 343,361 361,459');
-  Object.assign(glass.style, { left: pxl(WIN[0]), top: pyt(WIN[1]), width: pct(WIN[2] - WIN[0], IW), height: pct(WIN[3] - WIN[1], IH) });
-  world.append(glass, hot(WIN, 'window'));
   const dice = h('div.as-int-traydice', { style: `left:${pxl(470)};top:${pyt(770)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
   // 一屏放下整张桌子（作者不要左右拖、不要裁两边）：宽度铺满；屏幕比图短就裁掉一点上下补画的部分（桌子留在中间），比图还瘦长才放大裁两边；靠边那两把椅子上的头像往里挪到看得见的地方
@@ -116,7 +110,6 @@ export function open() {
     const hit = e.target.closest('.as-int-hot');
     if (!hit) { if (zoom) unzoom(); return; }
     if (hit.dataset.k === 'lamp') { lamp = !lampOn(); paintLamp(); return; }   // 台灯只管开关灯
-    if (hit.dataset.k === 'window') { glass.toggle(e.clientX, e.clientY); return; }
     focus(hit.dataset.k, hit);
   });
   // 推过去以后下面浮出的玻璃标签
@@ -157,54 +150,7 @@ export function open() {
   const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
   G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
-  if (state.apps.interlude.splash) splash(p.el, dice);
   return p.el;
-}
-
-/* ---------- 开屏：暴风雨的窗外，悬崖上的小人右手提灯、左手把那颗二十面骰扔过来，撞碎窗玻璃（玻璃上渗出来的金字跟着碎），骰子冲到眼前。
- * 前面这段是视频（画面是作者让豆包生成的；去水印、换小人、补骰子、加字都在视频里做好了），最后一帧骰子盖满屏幕；
- * 接着在真的书桌上用代码让它缩小、落进骰子盘，白天夜里都对得上；落定后浮一句开屏语 ---------- */
-// 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
-export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
-export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
-  '龙在睡觉。别在这时候数你的金币。', '灯灭之后，请各位保持原来的表情。', '读到这里，还来得及合上。——算了，你已经坐下了。'];
-const LAST = { w: 1982, x: 364, y: 772 };   // 视频最后一帧那颗骰子：在 720×1600 的画面里有多宽、中心在哪
-async function splash(host, tray) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
-  const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
-  const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const vid = h('video.as-int-sp__vid', { src: BASE + 'open-dice.mp4', muted: true, playsInline: true, preload: 'auto' });
-  const bg = h('i.as-int-sp__bg'), el = h('div.as-int-splash', bg, vid), skip = h('button.as-int-splash__skip', { onclick: () => done() }, '跳过');
-  el.append(skip); host.append(el); tray.style.visibility = 'hidden';   // 盘里的骰子等开屏那颗落下来再露出来
-  let dead = false; const anims = [];
-  function done() { if (dead) return; dead = true; vid.pause(); tray.style.visibility = ''; el.classList.add('is-out'); setTimeout(() => { anims.forEach(a => a.cancel()); el.remove(); }, 400); }
-  new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`).load().then(x => document.fonts.add(x)).catch(() => {});
-  const shown = new Promise(r => { vid.addEventListener('playing', () => r(1), { once: true }); vid.addEventListener('error', () => r(0), { once: true }); setTimeout(() => r(0), 4000); });
-  vid.play().catch(() => done());
-  if (!await shown || dead) { done(); return; }   // 视频放不出来就直接进书桌
-  const ended = new Promise(r => { vid.addEventListener('ended', r, { once: true }); setTimeout(r, 9000); });
-  const fly = h('div.as-int-traydice'), r0 = el.getBoundingClientRect(), rt = tray.getBoundingClientRect();
-  Object.assign(fly.style, { left: rt.left - r0.left + 'px', top: rt.top - r0.top + 'px', width: rt.width + 'px', height: rt.height + 'px', visibility: 'hidden' });
-  restDice(fly); el.insertBefore(fly, skip);
-  const [d20, d10] = fly.children;
-  await Promise.all([ended, d20.decode().catch(() => {}), d10.decode().catch(() => {})]);
-  if (dead) return;
-  // 交接：视频最后一帧那颗骰子在哪、多大，这边就从哪、多大开始缩，落进盘里
-  const W = el.clientWidth, H = el.clientHeight, k = Math.max(W / 720, H / 1600), at = (n) => { const b = n.getBoundingClientRect(); return [b.left + b.width / 2 - r0.left, b.top + b.height / 2 - r0.top]; };
-  const [tx, ty] = at(d20), [ux, uy] = at(d10), s0 = LAST.w * k / d20.offsetWidth, dx = W / 2 + (LAST.x - 360) * k - tx, dy = H / 2 + (LAST.y - 800) * k - ty;
-  const hop = d20.offsetWidth * .35, BU = 'translate(-50%, -40%) rotate(-14deg)', BT = 'translate(-50%, -50%)';
-  fly.style.visibility = ''; vid.remove(); bg.remove();
-  anims.push(d20.animate([{ transform: `translate(${dx}px, ${dy}px) ${BT} scale(${s0}) rotate(0deg)`, easing: 'cubic-bezier(.55, 0, .85, .4)' }, { offset: .58, transform: `${BT} rotate(360deg)`, easing: 'ease-out' },
-    { offset: .74, transform: `translateY(${-hop}px) ${BT} rotate(372deg)`, easing: 'ease-in' }, { offset: .86, transform: `${BT} rotate(360deg)`, easing: 'ease-out' }, { offset: .93, transform: `translateY(${-hop * .3}px) ${BT} rotate(362deg)`, easing: 'ease-in' }, { transform: `${BT} rotate(360deg)` }], { duration: 950 }));
-  anims.push(d10.animate([{ transform: `translate(${W * .1}px, ${-uy - d10.offsetHeight * 2}px) ${BU} scale(2.2) rotate(-320deg)`, easing: 'cubic-bezier(.55, 0, .85, .4)' }, { offset: .58, transform: BU, easing: 'ease-out' },
-    { offset: .74, transform: `translateY(${-hop * .8}px) ${BU} rotate(10deg)`, easing: 'ease-in' }, { offset: .86, transform: BU, easing: 'ease-out' }, { offset: .93, transform: `translateY(${-hop * .25}px) ${BU} rotate(2deg)`, easing: 'ease-in' }, { transform: BU }], { duration: 950, delay: 140, fill: 'backwards' }));
-  // 落地那一下桌子跟着震一震
-  const shake = [{ transform: 'none' }, { offset: .2, transform: 'translate(3px, -2px)' }, { offset: .45, transform: 'translate(-2px, 2px)' }, { offset: .7, transform: 'translate(1px, -1px)' }, { transform: 'none' }];
-  [el, host.querySelector('.as-int-scene')].forEach(n => anims.push(n.animate(shake, { duration: 260, delay: 550 })));
-  const say = h('p.as-int-sp__line', line); el.insertBefore(say, skip);
-  anims.push(say.animate([{ opacity: 0 }, { offset: .2, opacity: 1 }, { offset: .8, opacity: 1 }, { opacity: 0 }], { duration: 2000, delay: 1100 }));
-  setTimeout(done, 3100);
 }
 
 /* ---------- 开局设置：本、气氛、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */

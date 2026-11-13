@@ -17,13 +17,6 @@
 .as-int-world > img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; -webkit-user-drag: none; user-select: none; }
 .as-int-world > img.is-night { opacity: 0; }
 .as-int-scene.is-lit .as-int-world > img.is-night { opacity: 1; }
-.as-int-glass { position: absolute; overflow: visible; pointer-events: none; }
-.as-int-glass * { transform-box: fill-box; transform-origin: center; }
-.as-int-glass .is-crack { fill: none; stroke: rgba(236, 244, 255, .85); stroke-width: .75; stroke-linejoin: round; stroke-linecap: round; }
-.as-int-glass .is-glow { fill: none; stroke: rgba(200, 222, 255, .28); stroke-width: 3; filter: blur(1.5px); }
-.as-int-glass .is-pane { fill: rgba(220, 232, 250, .05); }
-.as-int-glass .is-shard { fill: rgba(214, 228, 248, .3); stroke: rgba(240, 246, 255, .75); stroke-width: .8; }
-.as-int-glass .is-flash { fill: rgba(255, 250, 235, .9); filter: blur(4px); }
 .as-int-hot { position: absolute; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 /* 钉在东西上的小玻璃牌（照 Toska 窗台的标注） */
 .as-int-pin { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; transition: opacity 300ms; }
@@ -38,7 +31,7 @@
 .as-int-sit small { padding: 1px 6px; border-radius: 999px; background: rgba(20,26,40,.6); color: #f1ece2; font: 500 10px/1.4 var(--font-ui); white-space: nowrap; }
 .as-int-traydice { position: absolute; pointer-events: none; }
 .as-int-traydice .as-int-die { position: absolute; top: 50%; transform: translate(-50%, -50%); filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
-.as-int-traydice .as-int-die.is-d20 { left: 32%; width: 42%; }
+.as-int-traydice .as-int-die.is-t { left: 32%; width: 46%; }
 .as-int-traydice .as-int-die.is-u { left: 72%; width: 38%; transform: translate(-50%, -40%) rotate(-14deg); }
 /* 推过去以后浮出的玻璃标签 */
 .as-int-label { position: absolute; left: 16px; right: 16px; bottom: 22px; z-index: 3; padding: 14px 16px; border-radius: 22px; display: flex; flex-direction: column; gap: 6px;
@@ -62,13 +55,6 @@
 .as-int-sheet .as-list-item.is-on .as-check { opacity: 1; }
 
 /* ---------- 开屏：画布上展开、写字、盖章、烧掉 ---------- */
-.as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; transition: opacity 400ms ease; }
-.as-int-splash.is-out { opacity: 0; pointer-events: none; }
-.as-int-sp__bg, .as-int-sp__vid { position: absolute; inset: 0; pointer-events: none; }
-.as-int-sp__vid { width: 100%; height: 100%; object-fit: cover; }
-.as-int-sp__bg { background: #0b111d; }
-.as-int-sp__line { position: absolute; left: 0; right: 0; top: 77%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.9); text-wrap: balance; }
-.as-int-splash__skip { position: absolute; right: 14px; top: 52px; padding: 6px 14px; border: 1px solid rgba(241,236,226,.4); border-radius: 999px; background: rgba(0,0,0,.2); color: #f1ece2; font: 500 12px/1 var(--font-ui); z-index: 1; }
 
 .as-int-card { background: #3a4252; }
 .as-int-card .as-page__body { display: flex; flex-direction: column; padding: 0 12px 12px; gap: 10px; }
