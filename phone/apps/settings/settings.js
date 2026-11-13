@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.341';
+export const VERSION = '0.8.342';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -158,6 +158,7 @@ function openInterludeApp() {
       if (r === '__go') { connKind = 'text'; openConnections(); return; }
       if (r) { a.conn.text = r; commit('apps'); re(); }
     } })]), group('', [
+      toggleItem({ title: '每次进入放开屏动画' }, a.splash !== false, v => { a.splash = v; commit('apps'); }),
       field('语音（默认）', segmented([['tap', '点了才合成'], ['next', '提前合成下两句'], ['all', '全部合成']], { auto: 'next' }[a.voice] || a.voice || 'tap', v => { a.voice = v; commit('apps'); })),
       item({ title: '大成功 / 大失败', value: a.crit === 'book' ? '规则书' : a.crit === '3' ? '1～3 / 98～100' : '1～5 / 96～100', chevron: true, onClick: async () => {
         const { CRITS } = await import('../interlude/rules.js');

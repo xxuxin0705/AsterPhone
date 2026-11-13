@@ -1,7 +1,7 @@
 // 资源库：主题（整部手机的一套样子，能存、导出、导入）、应用（各 App 的皮肤）、个性装扮（字体、表情包…到处都能用的）、教程。
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
+import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
 import { deco, addFrame, paintBubble, pack, unpack } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
@@ -223,7 +223,6 @@ function drawSkins(box, redraw) {
 const STYLE = {
   music: () => { const m = state.music;
     return group('样式', [field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); }))]); },
-  interlude: () => group('样式', [toggleItem({ title: '打开时放片头' }, state.apps.interlude.splash, v => { state.apps.interlude.splash = v; commit('apps'); })]),
 };
 function openAppSkins(a) {
   subPage('library-app', a.name, () => JSON.stringify(skinsOf(a).map(x => x.id)), (nb, draw) => {
