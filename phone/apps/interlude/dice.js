@@ -3,7 +3,7 @@
 const BASE = 'assets/interlude/';
 const roll = k => [0, 1, 2, 3].map(i => BASE + `dice-${k}${i}.webp`);
 const still = (k, n) => BASE + `dice-f${k}${n}.webp`;   // 每一面朝上的图
-[...roll('t'), ...roll('u'), ...[...Array(10).keys()].flatMap(n => [still('t', n), still('u', n)])].forEach(src => { new Image().src = src; });   // 先解码好，抛的时候不闪
+[BASE + 'dice-d20.webp', ...roll('t'), ...roll('u'), ...[...Array(10).keys()].flatMap(n => [still('t', n), still('u', n)])].forEach(src => { new Image().src = src; });   // 先解码好，抛的时候不闪
 
 // 落地的「嗒」：一小段带通滤波的噪声
 let actx = null;
@@ -16,9 +16,9 @@ function tick(vol) {
   } catch (e) { /* 不让响就算了 */ }
 }
 
-/** 静止的两颗，摆在 host 里（桌上的骰子盘） */
-export function restDice(host, t = 3, u = 7) {
-  host.replaceChildren(...[['t', t], ['u', u]].map(([k, n]) => Object.assign(new Image(), { src: still(k, n), alt: '', className: 'as-int-die is-' + k })));
+/** 桌上骰子盘里静止的：一颗二十面（和开屏落下来的是同一颗）加一颗个位十面 */
+export function restDice(host, u = 7) {
+  host.replaceChildren(...[[BASE + 'dice-d20.webp', 'd20'], [still('u', u), 'u']].map(([src, k]) => Object.assign(new Image(), { src, alt: '', className: 'as-int-die is-' + k })));
 }
 
 /** 在 host（一块盖住页面的层）里抛一次，抛完停住。t = 十位 0～9，u = 个位 0～9 */

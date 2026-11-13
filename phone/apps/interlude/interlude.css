@@ -38,7 +38,7 @@
 .as-int-sit small { padding: 1px 6px; border-radius: 999px; background: rgba(20,26,40,.6); color: #f1ece2; font: 500 10px/1.4 var(--font-ui); white-space: nowrap; }
 .as-int-traydice { position: absolute; pointer-events: none; }
 .as-int-traydice .as-int-die { position: absolute; top: 50%; transform: translate(-50%, -50%); filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
-.as-int-traydice .as-int-die.is-t { left: 32%; width: 46%; }
+.as-int-traydice .as-int-die.is-d20 { left: 32%; width: 44%; }
 .as-int-traydice .as-int-die.is-u { left: 72%; width: 38%; transform: translate(-50%, -40%) rotate(-14deg); }
 /* 推过去以后浮出的玻璃标签 */
 .as-int-label { position: absolute; left: 16px; right: 16px; bottom: 22px; z-index: 3; padding: 14px 16px; border-radius: 22px; display: flex; flex-direction: column; gap: 6px;
