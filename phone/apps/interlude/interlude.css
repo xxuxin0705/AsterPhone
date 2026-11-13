@@ -17,6 +17,13 @@
 .as-int-world > img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; -webkit-user-drag: none; user-select: none; }
 .as-int-world > img.is-night { opacity: 0; }
 .as-int-scene.is-lit .as-int-world > img.is-night { opacity: 1; }
+.as-int-glass { position: absolute; overflow: visible; pointer-events: none; }
+.as-int-glass * { transform-box: fill-box; transform-origin: center; }
+.as-int-glass .is-crack { fill: none; stroke: rgba(236, 244, 255, .85); stroke-width: .75; stroke-linejoin: round; stroke-linecap: round; }
+.as-int-glass .is-glow { fill: none; stroke: rgba(200, 222, 255, .28); stroke-width: 3; filter: blur(1.5px); }
+.as-int-glass .is-pane { fill: rgba(220, 232, 250, .05); }
+.as-int-glass .is-shard { fill: rgba(214, 228, 248, .3); stroke: rgba(240, 246, 255, .75); stroke-width: .8; }
+.as-int-glass .is-flash { fill: rgba(255, 250, 235, .9); filter: blur(4px); }
 .as-int-hot { position: absolute; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 /* 钉在东西上的小玻璃牌（照 Toska 窗台的标注） */
 .as-int-pin { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; transition: opacity 300ms; }

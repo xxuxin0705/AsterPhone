@@ -14,6 +14,7 @@ import { log } from '../../core/log.js';
 import * as G from './game.js';
 import * as R from './rules.js';
 import { restDice, throwDice } from './dice.js';
+import { windowGlass } from './glass.js';
 import { glass } from '../../core/glass.js';
 import { speakAs } from '../../core/voice.js';
 import { stopSpeak } from '../../core/api.js';
@@ -87,6 +88,11 @@ export function open() {
   };
   if (!seated) { seated = true; Object.assign(pick, state.apps.interlude.seat); }
   pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); if (!kpOk()) pick.kp = 'sys'; paintSeats();
+  // 窗户：点一下玻璃碎，再点一下复原（只是好玩，不存）
+  const WIN = [426, -127, 787, 332], glass = windowGlass(WIN[2] - WIN[0], WIN[3] - WIN[1],   // 玻璃的形状：两边沿着窗帘的边
+    '0,459 12,361 37,239 68,104 59,0 343,0 294,104 306,239 343,361 361,459');
+  Object.assign(glass.style, { left: pxl(WIN[0]), top: pyt(WIN[1]), width: pct(WIN[2] - WIN[0], IW), height: pct(WIN[3] - WIN[1], IH) });
+  world.append(glass, hot(WIN, 'window'));
   const dice = h('div.as-int-traydice', { style: `left:${pxl(470)};top:${pyt(770)};width:${pct(160, IW)};height:${pct(110, IH)}` }); world.append(dice); restDice(dice);
   // 拖着看、推镜头
   // 一屏放下整张桌子（作者不要左右拖、不要裁两边）：宽度铺满；屏幕比图短就裁掉一点上下补画的部分（桌子留在中间），比图还瘦长才放大裁两边；靠边那两把椅子上的头像往里挪到看得见的地方
@@ -110,6 +116,7 @@ export function open() {
     const hit = e.target.closest('.as-int-hot');
     if (!hit) { if (zoom) unzoom(); return; }
     if (hit.dataset.k === 'lamp') { lamp = !lampOn(); paintLamp(); return; }   // 台灯只管开关灯
+    if (hit.dataset.k === 'window') { glass.toggle(e.clientX, e.clientY); return; }
     focus(hit.dataset.k, hit);
   });
   // 推过去以后下面浮出的玻璃标签
