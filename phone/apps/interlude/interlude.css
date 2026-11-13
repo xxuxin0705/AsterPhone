@@ -38,7 +38,7 @@
 .as-int-sit small { padding: 1px 6px; border-radius: 999px; background: rgba(20,26,40,.6); color: #f1ece2; font: 500 10px/1.4 var(--font-ui); white-space: nowrap; }
 .as-int-traydice { position: absolute; pointer-events: none; }
 .as-int-traydice .as-int-die { position: absolute; top: 50%; transform: translate(-50%, -50%); filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
-.as-int-traydice .as-int-die.is-d20 { left: 32%; width: 44%; }
+.as-int-traydice .as-int-die.is-d20 { left: 32%; width: 42%; }
 .as-int-traydice .as-int-die.is-u { left: 72%; width: 38%; transform: translate(-50%, -40%) rotate(-14deg); }
 /* 推过去以后浮出的玻璃标签 */
 .as-int-label { position: absolute; left: 16px; right: 16px; bottom: 22px; z-index: 3; padding: 14px 16px; border-radius: 22px; display: flex; flex-direction: column; gap: 6px;
@@ -64,20 +64,10 @@
 /* ---------- 开屏：画布上展开、写字、盖章、烧掉 ---------- */
 .as-int-splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; transition: opacity 400ms ease; }
 .as-int-splash.is-out { opacity: 0; pointer-events: none; }
-.as-int-splash img, .as-int-splash i, .as-int-sp__g, .as-int-sp__thread { position: absolute; max-width: none; pointer-events: none; }
-.as-int-sp__bg, .as-int-sp__cream, .as-int-sp__g.is-full, .as-int-sp__thread { inset: 0; }
-.as-int-sp__thread { width: 100%; height: 100%; overflow: visible; }
+.as-int-sp__bg, .as-int-sp__vid { position: absolute; inset: 0; pointer-events: none; }
+.as-int-sp__vid { width: 100%; height: 100%; object-fit: cover; }
 .as-int-sp__bg { background: #0b111d; }
-.as-int-sp__cream { background: #cdbfa6; }
-.as-int-sp__thread * { fill: none; stroke: #a67c3d; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 1px 1.5px rgba(20,14,6,.75)); }
-.as-int-sp__thread path { stroke-dasharray: 1; }
-.as-int-sp__hand { left: 50.37%; top: 45.89%; transform-origin: 50% 100%; background: #1b2440; clip-path: polygon(50% 0, 64% 9%, 88% 24%, 60% 33%, 62% 100%, 38% 100%, 40% 33%, 12% 24%, 36% 9%); }
-.as-int-sp__lt { inset: 0; background-size: 100% 100%; }
-.as-int-sp__lt.is-l { clip-path: inset(0 50% 0 0); }
-.as-int-sp__lt.is-r { clip-path: inset(0 0 0 50%); }
-.as-int-sp__lt.is-flap, .as-int-sp__lt.is-sh { clip-path: polygon(1% 2%, 99% 2%, 50% 55.4%); transform-origin: 50% 2%; }
-.as-int-sp__lt.is-sh { background: #141a2a; }
-.as-int-sp__line { position: absolute; left: 0; right: 0; top: 60%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.9); text-wrap: balance; }
+.as-int-sp__line { position: absolute; left: 0; right: 0; top: 77%; margin: 0; padding: 0 12%; text-align: center; opacity: 0; pointer-events: none; font: 19px/1.7 "AsterSplash", "Noto Serif SC", serif; color: #efe6d2; text-shadow: 0 1px 8px rgba(0,0,0,.9); text-wrap: balance; }
 .as-int-splash__skip { position: absolute; right: 14px; top: 52px; padding: 6px 14px; border: 1px solid rgba(241,236,226,.4); border-radius: 999px; background: rgba(0,0,0,.2); color: #f1ece2; font: 500 12px/1 var(--font-ui); z-index: 1; }
 
 .as-int-card { background: #3a4252; }

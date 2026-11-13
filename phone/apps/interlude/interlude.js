@@ -157,90 +157,54 @@ export function open() {
   const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
   G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
-  if (state.apps.interlude.splash) splash(p.el);
+  if (state.apps.interlude.splash) splash(p.el, dice);
   return p.el;
 }
 
-/* ---------- 开屏《不可知之事》（克苏鲁这一套；分镜是作者和 GPT 定的，图也是作者让 GPT 画的，蓝灰 + 黄铜 + 旧纸）：
- * 不是一张张图轮着淡入淡出，是靠「形状对上」把六个镜头连成一个：
- * 罗盘转起来、镜头扎进中心 → 一对百分骰 → 扎进骰面，那片纸色铺满变成地图 → 照片、档案、剪报、卡片、胶带依次落下
- * → 黄铜线从地图上一路画过去、绕成一个圈，圈里是怀表，指针飞转、骤停 → 扎进表心，对上信封的火漆 → 信封往两边分开，对上双开门
- * → 门打开、镜头进门，后面就是真的书桌（书桌一直在底下，不重画）。
- * 每个东西只有一条时间线（下面的 tl，按秒写），全程用浏览器自带的动画，不另装动画库；想整体快一点改 SP_RATE ---------- */
+/* ---------- 开屏：暴风雨的窗外，悬崖上的小人右手提灯、左手把那颗二十面骰扔过来，撞碎窗玻璃（玻璃上渗出来的金字跟着碎），骰子冲到眼前。
+ * 前面这段是视频（画面是作者让豆包生成的；去水印、换小人、补骰子、加字都在视频里做好了），最后一帧骰子盖满屏幕；
+ * 接着在真的书桌上用代码让它缩小、落进骰子盘，白天夜里都对得上；落定后浮一句开屏语 ---------- */
 // 开屏语轮着用（作者挑的七句）；字体两款轮着随机。都在设置 → 应用管理 → 幕间里能改
 export const SPLASH_FONTS = [['xdks', '玄冬楷书'], ['qtbf', '千图笔锋手写体']];
 export const SPLASH_LINES = ['这一夜不会被记住。所以，放心去做。', '愿你今夜运气很好，好到不必知道真相。', '门后面的东西也在等你。它比你有耐心。', '别在纸上找自己的名字。找到了，也别念出声。',
   '龙在睡觉。别在这时候数你的金币。', '灯灭之后，请各位保持原来的表情。', '读到这里，还来得及合上。——算了，你已经坐下了。'];
-const SP_RATE = 1;   // 1 = 说明里定的 10 秒
-async function splash(host) {
+const LAST = { w: 1982, x: 364, y: 772 };   // 视频最后一帧那颗骰子：在 720×1600 的画面里有多宽、中心在哪
+async function splash(host, tray) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const A = state.apps.interlude, pickF = A.font || 'random', f = SPLASH_FONTS.find(x => x[0] === pickF) || SPLASH_FONTS[Math.floor(Math.random() * SPLASH_FONTS.length)];
   const pool = SPLASH_LINES.filter((_, i) => !(A.lineOff || []).includes(i)); if (!pool.length) pool.push(SPLASH_LINES[0]);
   const line = pool[(A.turn || 0) % pool.length]; A.turn = ((A.turn || 0) + 1) % 10000; commit('apps');
-  const el = h('div.as-int-splash', h('i.as-int-sp__bg')), skip = h('button.as-int-splash__skip', { onclick: () => done() }, '跳过');
-  host.append(el);
-  let dead = false, timer = 0; const anims = [];
-  function done() { if (dead) return; dead = true; clearTimeout(timer); el.classList.add('is-out'); setTimeout(() => { anims.forEach(a => a.cancel()); el.remove(); }, 400); }
+  const vid = h('video.as-int-sp__vid', { src: BASE + 'open-dice.mp4', muted: true, playsInline: true, preload: 'auto' });
+  const bg = h('i.as-int-sp__bg'), el = h('div.as-int-splash', bg, vid), skip = h('button.as-int-splash__skip', { onclick: () => done() }, '跳过');
+  el.append(skip); host.append(el); tray.style.visibility = 'hidden';   // 盘里的骰子等开屏那颗落下来再露出来
+  let dead = false; const anims = [];
+  function done() { if (dead) return; dead = true; vid.pause(); tray.style.visibility = ''; el.classList.add('is-out'); setTimeout(() => { anims.forEach(a => a.cancel()); el.remove(); }, 400); }
   new FontFace('AsterSplash', `url(${BASE}fonts/${f[0]}.woff2)`).load().then(x => document.fonts.add(x)).catch(() => {});
-  const P = Object.fromEntries(['compass', 'd10', 'd1', 'map', 'photo', 'doc', 'clip', 'card', 'tape0', 'tape1', 'watch', 'door', 'leaf-l', 'leaf-r'].map(k => [k, img('sp-' + k)]));
-  const letter = new Image(); letter.src = BASE + 'sp-letter.webp';
-  // 图没到齐不开演（中途不能卡住）；三秒还没齐就直接进书桌
-  const ok = await Promise.race([Promise.all([...Object.values(P), letter].map(i => i.decode())).then(() => 1, () => 0), new Promise(r => setTimeout(r, 3000))]);
-  if (dead) return; if (!ok) { done(); return; }
-  const W = el.clientWidth, H = el.clientHeight, cx = W / 2, cy = H * .42;   // (cx, cy)：罗盘心、表心、火漆、门环都落在这一点上，镜头才接得上
-  const put = (n, x, y, w, r) => Object.assign(n.style, { left: x - w / 2 + 'px', top: y - w * r / 2 + 'px', width: w + 'px', height: w * r + 'px' });
-  // 时间线：[[第几秒, 样式, 到下一格怎么走], …]，头尾自动补齐
-  const tl = (n, fr) => { if (fr[0][0] > 0) fr.unshift([0, fr[0][1]]); if (fr.at(-1)[0] < 10) fr.push([10, fr.at(-1)[1]]);
-    anims.push(n.animate(fr.map(([t, st, e]) => ({ offset: t / 10, easing: e || 'linear', ...st })), { duration: 10000 / SP_RATE, fill: 'both' })); return n; };
-  const tf = (x, y, rot, sc = 1) => `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${sc})`, OUT = 'cubic-bezier(.15, .8, .25, 1)', IN = 'cubic-bezier(.7, 0, .9, .45)', POP = 'cubic-bezier(.2, .9, .3, 1.12)';
-
-  // 01 罗盘
-  put(P.compass, cx, cy, W * .8, 651 / 640);
-  tl(P.compass, [[0, { opacity: 0, transform: tf(0, 0, 0, .86) }], [.35, { opacity: .55, transform: tf(0, 0, 0, .93) }, 'ease-out'], [.75, { opacity: 1, transform: tf(0, 0, 0, 1) }], [1, { opacity: 1, transform: tf(0, 0, -10, 1.02) }, IN],
-    [1.32, { opacity: 1, transform: tf(0, 0, 230, 3.6) }], [1.44, { opacity: 0, transform: tf(0, 0, 300, 4.4) }]]);
-  // 02 百分骰：先从罗盘心里转出来，再扎进个位骰朝上的那一面（纸色铺满）
-  const dw = W * .4, d10 = P.d10, d1 = P.d1, fx = cx + W * .17, fy = cy + W * .09 - dw * 1.07 * .173, dice = h('div.as-int-sp__g.is-full', d10, d1);
-  put(d10, cx - W * .17, cy - W * .07, dw, 1.08); put(d1, cx + W * .17, cy + W * .09, dw, 1.07); dice.style.transformOrigin = `${fx}px ${fy}px`;
-  tl(dice, [[1.2, { opacity: 0, transform: 'rotate(-150deg) scale(.25)' }, OUT], [1.55, { opacity: 1, transform: 'rotate(0deg) scale(1)' }], [2.05, { opacity: 1, transform: 'rotate(0deg) scale(1.04)' }, IN], [2.5, { opacity: 1, transform: 'rotate(0deg) scale(12)' }], [2.62, { opacity: 0, transform: 'rotate(0deg) scale(12)' }]]);
-  tl(d10, [[1.2, { transform: tf(W * .12, W * .05, 40) }, OUT], [1.55, { transform: tf(0, 0, -6) }, 'ease-in-out'], [1.8, { transform: tf(-W * .03, -W * .02, -12) }, 'ease-in-out'], [2.05, { transform: tf(-W * .02, -W * .01, -9) }]]);
-  tl(d1, [[1.2, { transform: tf(-W * .12, -W * .06, -50) }, OUT], [1.6, { transform: tf(0, 0, 8) }, 'ease-in-out'], [1.85, { transform: tf(W * .03, W * .02, 14) }, 'ease-in-out'], [2.05, { transform: tf(W * .02, W * .01, 10) }]]);
-  const cream = tl(h('i.as-int-sp__cream'), [[2.28, { opacity: 0 }], [2.5, { opacity: 1 }], [2.85, { opacity: 0 }]]);
-  // 03 地图 + 档案拼贴；04 黄铜线（都在 cam 这个「镜头」里，一起推拉）
-  const mw = W * 1.28, ph = [cx + W * .1, H * .36, W * .5, 600 / 420], dc = [W * .34, H * .7, W * .56, 738 / 520], r0 = W * .36, rc = r0 / 1.12, p0 = [W * .2, H * .45];
-  put(P.map, cx, H * .48, mw, 1164 / 760); put(P.photo, ...ph); put(P.doc, ...dc); put(P.clip, W * .31, H * .17, W * .54, 284 / 420); put(P.card, W * .7, H * .85, W * .48, 258 / 440);
-  put(P.tape0, ph[0], ph[1] - ph[2] * ph[3] / 2 + 4, W * .2, 58 / 170); put(P.tape1, dc[0] + dc[2] * .3, dc[1] - dc[2] * dc[3] / 2 + 6, W * .2, 60 / 170);
-  const drop = (n, t, x, y, r0, r1) => tl(n, [[t, { opacity: 0, transform: tf(x, y, r0) }], [t + .01, { opacity: 1, transform: tf(x, y, r0) }, POP], [t + .37, { opacity: 1, transform: tf(0, 0, r1) }]]);
-  drop(P.doc, 3.35, -W * .1, H * .6, -14, -5); drop(P.clip, 3.45, -W, 0, -16, -6); drop(P.card, 3.55, W, H * .1, 16, 6); drop(P.photo, 2.95, W, -H * .1, 14, 4);
-  [[P.tape0, 3.8, -4], [P.tape1, 4, 8]].forEach(([n, t, r]) => tl(n, [[t, { opacity: 0, transform: tf(0, -10, r, 1.5) }, OUT], [t + .16, { opacity: 1, transform: tf(0, 0, r) }]]));
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.classList.add('as-int-sp__thread');
-  svg.innerHTML = `<circle cx="${p0[0]}" cy="${p0[1]}" r="8"/><path pathLength="1" d="M${p0[0]} ${p0[1]}C${W * .42} ${H * .3} ${W * .78} ${H * .26} ${W * .8} ${H * .4}S${W * .56} ${H * .72} ${W * .36} ${H * .66}S${cx - rc} ${H * .56} ${cx - rc} ${cy}A${rc} ${rc} 0 1 1 ${cx + rc} ${cy}A${rc} ${rc} 0 1 1 ${cx - rc} ${cy}"/>`;
-  tl(svg.firstChild, [[4.45, { opacity: 0 }], [4.6, { opacity: 1 }]]); tl(svg.lastChild, [[4.5, { strokeDashoffset: 1 }, 'cubic-bezier(.45, 0, .3, 1)'], [6.1, { strokeDashoffset: 0 }]]);
-  const cam = h('div.as-int-sp__g.is-full', P.map, P.clip, P.doc, P.card, P.photo, P.tape0, P.tape1, svg); cam.style.transformOrigin = `${cx}px ${cy}px`;
-  tl(cam, [[2.45, { opacity: 0, transform: tf(0, H * .02, 0, 1.06) }], [2.5, { opacity: 1, transform: tf(0, H * .02, 0, 1.06) }, 'ease-out'], [4.5, { opacity: 1, transform: tf(0, -H * .015, 0, 1) }], [5.15, { opacity: 1, transform: tf(0, -H * .015, 0, 1) }, 'ease-in-out'],
-    [5.8, { opacity: 1, transform: tf(0, 0, 0, 1.12) }], [6.4, { opacity: 1, transform: tf(0, 0, 0, 1.12) }, IN], [6.9, { opacity: 1, transform: tf(0, 0, 0, 1.6) }], [6.96, { opacity: 0, transform: tf(0, 0, 0, 1.6) }]]);
-  const veil = tl(h('i.as-int-sp__bg'), [[5.75, { opacity: 0 }], [6.15, { opacity: .62 }], [6.9, { opacity: 1 }], [8.45, { opacity: 1 }, 'ease-in-out'], [9.5, { opacity: 0 }]]);
-  tl(el.firstChild, [[6.96, { opacity: 1 }], [7, { opacity: 0 }]]);
-  // 怀表：落在黄铜线画的圈里；图上画死的针抹掉了，盖两根能转的，飞转后骤停在原来的 10:10
-  const ww = r0 / .487, hand = (len, wid, deg, turns) => tl(h('i.as-int-sp__hand', { style: `width:${wid}%;height:${len}%;margin:-${len * 1091 / 600}% 0 0 -${wid / 2}%` }), [[6.1, { transform: `rotate(${deg}deg)` }, 'cubic-bezier(.5, 0, 1, .7)'], [6.4, { transform: `rotate(${deg + turns * 360}deg)` }]]);
-  const watch = h('div.as-int-sp__g', P.watch, hand(16, 4.4, 300.5, 1), hand(20.5, 3.6, 61.7, 5));
-  Object.assign(watch.style, { left: cx - ww * .5037 + 'px', top: cy - ww * 1091 / 600 * .4589 + 'px', width: ww + 'px', height: ww * 1091 / 600 + 'px', transformOrigin: '50.37% 45.89%' });
-  tl(watch, [[5.8, { opacity: 0, transform: 'scale(.88)' }, OUT], [6.12, { opacity: 1, transform: 'scale(1)' }], [6.4, { opacity: 1, transform: 'scale(1)' }, IN], [6.95, { opacity: 1, transform: 'scale(9)' }], [7.02, { opacity: 1, transform: 'scale(10)' }], [7.22, { opacity: 0, transform: 'scale(10)' }]]);
-  // 05 信封：火漆从表心的位置放大着接上，镜头拉远；封口掀一下；左右两半分开，后面就是门
-  const lw = W * .92, lh = lw * 474 / 860, part = (cls, fr) => tl(h('i.as-int-sp__lt' + cls, { style: `background-image:url(${letter.src})` }), fr);
-  const env = h('div.as-int-sp__g', part('.is-l', [[7.85, { transform: 'translateX(0)' }, IN], [8.12, { transform: `translateX(${-W * .8}px)` }]]), part('.is-r', [[7.85, { transform: 'translateX(0)' }, IN], [8.12, { transform: `translateX(${W * .8}px)` }]]),
-    tl(h('i.as-int-sp__lt.is-sh'), [[7.6, { opacity: 0 }], [7.82, { opacity: .45 }], [7.9, { opacity: 0 }]]), part('.is-flap', [[7.6, { opacity: 1, transform: 'rotateX(0deg)' }, 'ease-out'], [7.82, { opacity: 1, transform: 'rotateX(-38deg)' }], [7.9, { opacity: 0, transform: 'rotateX(-38deg)' }]]));
-  Object.assign(env.style, { left: cx - lw * .4996 + 'px', top: cy - lh * .5544 + 'px', width: lw + 'px', height: lh + 'px', transformOrigin: '49.96% 55.44%', perspective: '500px' });
-  tl(env, [[6.93, { opacity: 0, transform: 'scale(8.8)' }, OUT], [7.2, { opacity: 1, transform: 'scale(3.2)' }, OUT], [7.6, { opacity: 1, transform: 'scale(1)' }], [7.85, { opacity: 1, transform: 'scale(1)' }, IN], [8.02, { opacity: 1, transform: 'scale(1.5)' }], [8.12, { opacity: 0, transform: 'scale(1.9)' }]]);
-  // 06 门：铺满屏幕（所以这时把底色撤掉也看不出来），两扇绕着合页往里开，镜头进门，暗色散开就是真的书桌
-  const dh = H * 1.1, dwid = dh * 2 / 3, door = h('div.as-int-sp__g', P['leaf-l'], P['leaf-r'], P.door);
-  Object.assign(door.style, { left: (W - dwid) / 2 + 'px', top: cy - dh * .417 + 'px', width: dwid + 'px', height: dh + 'px', transformOrigin: '50% 41.7%', perspective: '900px' });
-  Object.assign(P['leaf-l'].style, { left: '20.02%', top: '16.08%', width: '30.08%', height: '81.58%', transformOrigin: '0 50%' }); Object.assign(P['leaf-r'].style, { left: '50.1%', top: '16.08%', width: '30.18%', height: '81.58%', transformOrigin: '100% 50%' });
-  [P.door, P.watch].forEach(n => Object.assign(n.style, { inset: 0, width: '100%', height: '100%' }));
-  tl(P['leaf-l'], [[8.1, { transform: 'rotateY(0deg)' }, 'cubic-bezier(.45, 0, .25, 1)'], [8.65, { transform: 'rotateY(102deg)' }]]); tl(P['leaf-r'], [[8.1, { transform: 'rotateY(0deg)' }, 'cubic-bezier(.45, 0, .25, 1)'], [8.65, { transform: 'rotateY(-102deg)' }]]);
-  tl(door, [[7.85, { opacity: 0, transform: 'scale(1.5)' }, OUT], [8.1, { opacity: 1, transform: 'scale(1)' }], [8.45, { opacity: 1, transform: 'scale(1)' }, 'cubic-bezier(.5, 0, .3, 1)'], [9.15, { opacity: 1, transform: 'scale(3.2)' }], [9.3, { opacity: 0, transform: 'scale(3.5)' }]]);
-  tl(skip, [[9.2, { opacity: 1 }], [9.5, { opacity: 0 }]]);
-  el.append(P.compass, cam, dice, cream, veil, watch, env, door, tl(h('p.as-int-sp__line', line), [[8.3, { opacity: 0 }], [8.55, { opacity: 1 }], [9.1, { opacity: 1 }], [9.4, { opacity: 0 }]]), skip);
-  timer = setTimeout(() => { dead = true; el.remove(); }, 10000 / SP_RATE);
+  const shown = new Promise(r => { vid.addEventListener('playing', () => r(1), { once: true }); vid.addEventListener('error', () => r(0), { once: true }); setTimeout(() => r(0), 4000); });
+  vid.play().catch(() => done());
+  if (!await shown || dead) { done(); return; }   // 视频放不出来就直接进书桌
+  const ended = new Promise(r => { vid.addEventListener('ended', r, { once: true }); setTimeout(r, 9000); });
+  const fly = h('div.as-int-traydice'), r0 = el.getBoundingClientRect(), rt = tray.getBoundingClientRect();
+  Object.assign(fly.style, { left: rt.left - r0.left + 'px', top: rt.top - r0.top + 'px', width: rt.width + 'px', height: rt.height + 'px', visibility: 'hidden' });
+  restDice(fly); el.insertBefore(fly, skip);
+  const [d20, d10] = fly.children;
+  await Promise.all([ended, d20.decode().catch(() => {}), d10.decode().catch(() => {})]);
+  if (dead) return;
+  // 交接：视频最后一帧那颗骰子在哪、多大，这边就从哪、多大开始缩，落进盘里
+  const W = el.clientWidth, H = el.clientHeight, k = Math.max(W / 720, H / 1600), at = (n) => { const b = n.getBoundingClientRect(); return [b.left + b.width / 2 - r0.left, b.top + b.height / 2 - r0.top]; };
+  const [tx, ty] = at(d20), [ux, uy] = at(d10), s0 = LAST.w * k / d20.offsetWidth, dx = W / 2 + (LAST.x - 360) * k - tx, dy = H / 2 + (LAST.y - 800) * k - ty;
+  const hop = d20.offsetWidth * .35, BU = 'translate(-50%, -40%) rotate(-14deg)', BT = 'translate(-50%, -50%)';
+  fly.style.visibility = ''; vid.remove(); bg.remove();
+  anims.push(d20.animate([{ transform: `translate(${dx}px, ${dy}px) ${BT} scale(${s0}) rotate(0deg)`, easing: 'cubic-bezier(.55, 0, .85, .4)' }, { offset: .58, transform: `${BT} rotate(360deg)`, easing: 'ease-out' },
+    { offset: .74, transform: `translateY(${-hop}px) ${BT} rotate(372deg)`, easing: 'ease-in' }, { offset: .86, transform: `${BT} rotate(360deg)`, easing: 'ease-out' }, { offset: .93, transform: `translateY(${-hop * .3}px) ${BT} rotate(362deg)`, easing: 'ease-in' }, { transform: `${BT} rotate(360deg)` }], { duration: 950 }));
+  anims.push(d10.animate([{ transform: `translate(${W * .1}px, ${-uy - d10.offsetHeight * 2}px) ${BU} scale(2.2) rotate(-320deg)`, easing: 'cubic-bezier(.55, 0, .85, .4)' }, { offset: .58, transform: BU, easing: 'ease-out' },
+    { offset: .74, transform: `translateY(${-hop * .8}px) ${BU} rotate(10deg)`, easing: 'ease-in' }, { offset: .86, transform: BU, easing: 'ease-out' }, { offset: .93, transform: `translateY(${-hop * .25}px) ${BU} rotate(2deg)`, easing: 'ease-in' }, { transform: BU }], { duration: 950, delay: 140, fill: 'backwards' }));
+  // 落地那一下桌子跟着震一震
+  const shake = [{ transform: 'none' }, { offset: .2, transform: 'translate(3px, -2px)' }, { offset: .45, transform: 'translate(-2px, 2px)' }, { offset: .7, transform: 'translate(1px, -1px)' }, { transform: 'none' }];
+  [el, host.querySelector('.as-int-scene')].forEach(n => anims.push(n.animate(shake, { duration: 260, delay: 550 })));
+  const say = h('p.as-int-sp__line', line); el.insertBefore(say, skip);
+  anims.push(say.animate([{ opacity: 0 }, { offset: .2, opacity: 1 }, { offset: .8, opacity: 1 }, { opacity: 0 }], { duration: 2000, delay: 1100 }));
+  setTimeout(done, 3100);
 }
 
 /* ---------- 开局设置：本、气氛、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */
