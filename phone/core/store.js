@@ -71,8 +71,8 @@ export function defaults() {
       },
       // 念念铃：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off / maybe 有值得记的才记 / every 每楼都记）、手机聊天时顺手记
       memory: { conn: { text: 'follow' }, on: true, story: 'maybe', chat: true },
-      // 幕间（跑团）：用哪个接口、语音默认怎么合成（tap 点了才合成 / next 提前合成下两句 / all 全部合成；每局开局时还能改）、大成功大失败用哪一档（局本身存在 kv 的 int:窗口 里）
-      interlude: { conn: { text: 'follow' }, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
+      // 幕间（跑团）：用哪个接口、打开 App 放不放片头、语音默认怎么合成（tap 点了才合成 / next 提前合成下两句 / all 全部合成；每局开局时还能改）、大成功大失败用哪一档（局本身存在 kv 的 int:窗口 里）
+      interlude: { conn: { text: 'follow' }, splash: true, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',

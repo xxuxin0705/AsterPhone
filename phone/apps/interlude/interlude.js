@@ -150,7 +150,22 @@ export function open() {
   const resume = () => { const saved = G.savedPick(); if (saved) { Object.assign(pick, saved); pick.party = pick.party.filter(id => contact(id) && id !== pick.kp); paintSeats(); } syncBar(); };
   G.load().then(() => { if (!restored) resume(); restored = true; syncBar(); });
   p.el._onShow = syncBar;
+  if (state.apps.interlude.splash) splash(p.el);
   return p.el;
+}
+
+/* ---------- 片头：《喜鹊谋杀案》那种蓝黑白平面剪影（剪影是作者让 GPT 画的，动效是代码做好录成的视频）：
+ * 骰子落在调查员卡上 → 飞上天变成月亮 → 钢笔签名那一笔变成去庄园的路 → 推进大门 → 人坠落散成纸页 → 「幕间」压在蓝黑分界线上。放完淡进书桌 ---------- */
+function splash(host) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const vid = h('video.as-int-sp__vid', { src: BASE + 'open-case.mp4', muted: true, playsInline: true, preload: 'auto' });
+  const el = h('div.as-int-splash', vid, h('button.as-int-splash__skip', { onclick: () => done() }, '跳过'));
+  host.append(el);
+  let dead = false;
+  function done() { if (dead) return; dead = true; vid.pause(); el.classList.add('is-out'); setTimeout(() => el.remove(), 400); }
+  vid.addEventListener('ended', done); vid.addEventListener('error', done);
+  vid.play().catch(done);   // 放不出来就直接进书桌
+  setTimeout(() => { if (!dead && vid.currentTime === 0) done(); }, 4000);
 }
 
 /* ---------- 开局设置：本、气氛、KP、每个人说什么语言、语音怎么合成 → 下一步车卡 ---------- */
