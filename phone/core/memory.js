@@ -52,7 +52,7 @@ export async function load() {
   for (const e of [...D.ev, ...D.wait.flatMap(w => w.ev || [])]) { e.who = [...new Set(e.who.map(bare))]; if (e.know) e.know = [...new Set(e.know.map(bare))]; }
   for (const q of [...D.ppl]) { const n = bare(q.name); if (n === q.name) continue; const o = D.ppl.find(p => p.name === n); if (o) { if (!o.who) o.who = q.who; D.ppl.splice(D.ppl.indexOf(q), 1); } else q.name = n; }
   for (const r of [...D.rel]) {
-    r.a = canon(r.a); r.b = canon(r.b);
+    r.a = canon(r.a); r.b = canon(whom(r.b));   // 以前因为「对某某」挂错的印象并回这一对
     const o = D.rel.find(q => q !== r && ((q.a === r.a && q.b === r.b) || (q.a === r.b && q.b === r.a)));
     if (o && D.rel.indexOf(o) < D.rel.indexOf(r)) { const v = o.a === r.a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa }; for (const k of ['since', 'now', 'va', 'vb', 'sa', 'sb']) if (!o[k] && v[k]) o[k] = v[k]; D.rel.splice(D.rel.indexOf(r), 1); }
   }
@@ -113,6 +113,8 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
 // 人名后面 AI 顺手加的括号注解去掉（「天内理子（昏迷）」「孔时雨（新人物）」），不然一个人会变成好几个人
 const bare = n => norm(n).replace(/\s*[（(][^（()）]*[)）]$/, '');
+// 印象那行第二格写的是「对谁」，AI 有时真把「对」字写进去（「对某某」），名字就对不上、整行印象丢了：不是真有人叫这个名字就去掉
+const whom = n => { n = bare(n); return /^对./.test(n) && !(D && D.ppl.some(p => p.name === n)) ? n.slice(1) : n; };
 // 「九月七桃霁（不知道）」这种是 AI 在说这个人不知道，不能去掉括号当成知道的人
 const folk = s => [...new Set(list(s).filter(n => !/[（(][^（()）]*(不知|不清楚|无人|没人)[^（()）]*[)）]$/.test(n)).map(bare).filter(Boolean))];
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
@@ -141,7 +143,7 @@ export function parse(raw) {
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: folk(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
         after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: folk(f[12]), from: f[13] || '', to: f[14] || '' });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: bare(f[0]), b: bare(f[1]), kind: (f[2] || '').replace(/(.)关系$/, '$1'), since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: unq(f[6]), vb: unq(f[7]), sa: unq(f[8]), sb: unq(f[9]) });   // 后四格是旧格式（两个人挤一行），照认
-    else if (m[1] === '印象' && f[1]) imp.push([bare(f[0]), bare(f[1]), unq(f[2]), unq(f[3])]);
+    else if (m[1] === '印象' && f[1]) imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]);
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
