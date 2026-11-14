@@ -501,7 +501,7 @@ async function openTags() {
       draw();
     };
     box.replaceChildren(
-      group(withInfo('大标签', '一件事属于哪一大类，AI 记事时从这里挑。「重要」「特殊日」「秘密」容易被想起，「日常」很像才想起，别的居中。'), [...M.bigs().map(t => item({ title: t, sub: `${d.ev.filter(e => e.big.includes(t)).length} 件`, chevron: true, onClick: edit(t, M.rebig, true) })),
+      group(withInfo('大标签', '一件事属于哪一大类，AI 记事时从这里挑。「重要」「纪念日」「秘密」容易被想起，「日常」很像才想起，别的居中。'), [...M.bigs().map(t => item({ title: t, sub: `${d.ev.filter(e => e.big.includes(t)).length} 件`, chevron: true, onClick: edit(t, M.rebig, true) })),
         item({ icon: icon('plus', 18, 2), title: '加一个', onClick: async () => { const to = await ask('加一个大标签', ''); if (!to || M.bigs().includes(to)) return; await M.rebig('', to); draw(); } })]),
       small.length ? group(withInfo('小标签', '具体的一类事（拍大头贴、喝酒、告白）。同一个小标签的事，想起一件会连着想起另外几件。改成已有的名字，两个就并成一个。'), small.map(([t, k]) => item({ title: t, sub: `${k} 件`, chevron: true, onClick: edit(t, M.retag) }))) : null);
   }

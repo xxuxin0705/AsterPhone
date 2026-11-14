@@ -22,10 +22,10 @@ export const DAY_KINDS = ['生日', '纪念日', '祭日', '节日', '其他'];
 const BATCH = 100000;   // 一批最多多少字（作者：好模型一次能吃十几万 token，不用切得太碎；回复写不完由下面的「接着整理」接上）
 const END = '【整理完了】';   // 整理的提示词让 AI 写完最后写这一行：没有就是写到一半断了
 // 大标签：出厂这 9 个，能自己加、改名、删（存在设置里）。前三个容易被想起，「日常」很像才想起，其余居中
-export const BIG = ['重要', '特殊日', '秘密', '亲密', '吵架', '战斗', '出游', '低谷', '日常'];
+export const BIG = ['重要', '纪念日', '秘密', '亲密', '吵架', '战斗', '出游', '低谷', '日常'];
 export const bigs = () => state.apps.memory.big || BIG;
 export const bigNames = () => bigs().join('、');
-const EASY = new Set(['重要', '特殊日', '秘密']);
+const EASY = new Set(['重要', '纪念日', '秘密']);
 // 没写亲近度的关系，按是什么关系算（0～5，轨道上离多近）
 const LV = { 恋人: 5, 暧昧: 4, 家人: 4, 朋友: 3, 对手: 1, 其他: 2 };
 export const lvOf = r => r.lv ?? LV[r.kind] ?? 2;
@@ -41,6 +41,7 @@ export async function load() {
   if (k !== win.key) return load();   // 读的时候换了窗口
   D = Object.assign(blank(), d); Dkey = k; ver++;
   D.ev.forEach(upgrade);
+  if ((state.apps.memory.big || []).includes('特殊日')) state.apps.memory.big = [...new Set(state.apps.memory.big.map(t => t === '特殊日' ? '纪念日' : t))];
   // 收拾上面说的那个错：别名里的「（空）」去掉，被它带进「后来听说的人」里的那个人也拿掉
   for (const q of D.ppl) if (q.alias.some(a => NONE.test(a))) {
     q.alias = q.alias.filter(a => !NONE.test(a));
@@ -50,7 +51,8 @@ export async function load() {
 }
 export const save = () => { ver++; return kvSet('mem:' + Dkey, D); };
 /** 以前记的事（存着的、还在「等你看」里的）没有大标签：重要度 4 以上的算「重要」；以前的「故事线」并进小标签 */
-const upgrade = e => { if (!e.big) { e.big = e.imp >= 4 ? ['重要'] : []; if (e.line && !e.tags.includes(e.line)) e.tags.push(e.line); } };
+const upgrade = e => { if (e.big && e.big.includes('特殊日')) e.big = [...new Set(e.big.map(t => t === '特殊日' ? '纪念日' : t))];   // v0.8.368 前这个大标签叫「特殊日」
+  if (!e.big) { e.big = e.imp >= 4 ? ['重要'] : []; if (e.line && !e.tags.includes(e.line)) e.tags.push(e.line); } };
 
 /* ---------- 名字 ---------- */
 const norm = s => String(s || '').trim();
