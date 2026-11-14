@@ -327,8 +327,8 @@ const LINES = { time: ['ev', 'days', 'todo', 'done'], rel: ['rel', 'facts'], pla
 const only = (x, want) => { if (want) for (const k in LINES) if (!want.includes(k)) for (const f of LINES[k]) x[f] = []; return x; };
 /** 重新生成：勾上的这几样旧的不要了。勾了「时间」就是全部重来（作者定的：导入来的事也一起去掉）；自己手写的成长留着 */
 function clearParts(want) {
-  if (want.includes('time')) { D.ev = []; D.days = []; D.todo = []; D.wait = []; D.facts = []; }
-  if (want.includes('rel')) D.rel = [];
+  if (want.includes('time')) { D.ev = []; D.days = []; D.todo = []; D.wait = []; }
+  if (want.includes('rel')) { D.rel = []; D.facts = []; }
   if (want.includes('places')) D.places = [];
   if (want.includes('grow')) D.grow = D.grow.filter(g => g.src === '手动');
 }
@@ -339,7 +339,10 @@ export async function refill(want, signal, redo) {
   try {
     await load(); const key = win.key;
     const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
+    // 一起经历过两件事以上的每一对人：明着列给 AI，不然它只爱写「谁和你」
+    const co = new Map();
+    for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）', want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
@@ -379,6 +382,8 @@ function known() {
 /** list：一批批文字。从第 done 批的第 at 个字接着跑。
  *  回复写到一半断了（没写结束那行）：已经写出来的先记下，看最后一件事剪到了原文的哪儿，从那儿接着；
  *  开了「自动补写」就自己接着找 AI（最多 fillMax 次），没开就停下，等你点「接着整理」 */
+/** 设置里的「清空」：挑哪几样清哪几样；四样都勾就是整个清空（连向量、没跑完的整理一起） */
+export async function clearSome(want) { await load(); if (want.length > 3) return wipe(); clearParts(want); await save(); }
 export async function startJob(label, list, done = 0, at = 0, opt = null) {
   if (running()) throw new Error('已经在整理了');
   await load();

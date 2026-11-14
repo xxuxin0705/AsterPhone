@@ -43,7 +43,7 @@ export const PROMPT_CATS = [
   ] },
   { app: '岁岁砂', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing', 'bigs', 'only'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people', 'lines', 'bigs'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people', 'lines', 'bigs'] },
-    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'places', 'events'] }] },
+    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'places', 'events', 'pairs'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
@@ -476,6 +476,9 @@ export const DEFAULT_PROMPTS = {
 
 【已经记下的事】（日期｜地点｜标题：经过｜在场的人｜原话）
 {{events}}
+
+【一起经历过事的人】（写关系时，下面每一对都要写一行）
+{{pairs}}
 
 一行一条，字段之间用 ｜ 隔开：
 关系：甲｜乙｜关系｜从什么时候起｜现在怎样｜亲近度｜甲眼里的乙｜乙眼里的甲｜甲对乙说的一句话｜乙对甲说的一句话
