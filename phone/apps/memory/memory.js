@@ -56,8 +56,8 @@ export function open() {
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null, loose = [];
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
-  // 关系页右上角：以正中这个人为中心，重新生成 TA 和所有人的关系
-  const gen = h('button.as-ss-back.as-ss-loose.as-ss-gen', { 'aria-label': '重新生成 TA 的关系', onclick: () => regenRel(names[ctr]) }, icon('sparkle', 16, 1.6));
+  // 关系页右上角「观星」：以正中这个人为中心，重新生成 TA 和所有人的关系
+  const gen = h('button.as-ss-back.as-ss-loose', { onclick: () => regenRel(names[ctr]) }, '观星');
   stage.append(more, gen);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
   const A = art(stage, { blank: shut, rel: openRel, self: () => openSelf(), center: i => setCtr(i), place: openPlace,
@@ -108,9 +108,9 @@ export function open() {
     const long = h('button', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? `${t[3]} 天` : [t[0] && `${t[0]} 年`, (t[0] || t[1]) && `${t[1]} 个月`, `${t[2]} 天`].filter(Boolean).join(' ')));
     fillLong();
-    // 顶上一排：翻面、编辑（作者：改放最下面要翻到底才发现）、单独重新生成这一对
+    // 顶上一排：翻面、编辑（作者：改放最下面要翻到底才发现）、问缘（单独重新生成这一对）
     show(h('div.as-ss-rel', h('div.tools', h('button', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button', { onclick: () => editRel(r) }, '编辑'),
-      h('button.gen', { 'aria-label': '重新生成这一对', onclick: () => regenRel(names[ctr], names[i]) }, icon('sparkle', 14, 1.6))),
+      h('button', { onclick: () => regenRel(names[ctr], names[i]) }, '问缘')),
       duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
         h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), kind && h('i', kind), kind && h('u'), h('b', who)),
       !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 的一句话')),
@@ -220,12 +220,12 @@ export function open() {
     // 归属写成简称的认成全名：「高专」→「东京咒术高专」（只有唯一一个地方的名字以它结尾时才认）
     const full = a => { const l = [...new Set([...pl.keys(), ...d.places.map(q => q.area)])].filter(n => n && n !== a && n.endsWith(a)); return l.length === 1 ? l[0] : a; };
     const junk = a => { const v = junk0(a); return v && full(v); };
-    const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
+    const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && !q.lone && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
     const set = [...pl.values()].map(q => junk(q.area)).filter(Boolean);
     const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
     const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
     const nodes = [...new Set([...pl.keys(), ...big])];
-    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || big.find(a => a !== n && (n.includes(a) || short(a, n))) || '']));   // 大地方也一样（东京咒术高专 → 东京）
+    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || (!(pl.get(n) || {}).lone && big.find(a => a !== n && (n.includes(a) || short(a, n)))) || '']));   // 大地方也一样（东京咒术高专 → 东京）
     for (const n of nodes) { let q = P.get(n), k = 0; while (q && q !== n && k++ < 20) q = P.get(q) || ''; if (q === n) P.set(n, ''); }   // 甲归乙、乙又归甲：绕圈了，当它没有上级
     // 最多三层（作者定的：城市 → 大地方 → 具体地点）：再往下的并到第三层，挂在它的上上级下面
     const depth = n => { let k = 1; for (let q = P.get(n); q && k < 9; q = P.get(q)) k++; return k; };
@@ -234,12 +234,12 @@ export function open() {
     if (root && !nodes.includes(root)) root = '';
     // 第一次进来默认看第二层（作者定的）：有城市（下面套了两层的）就先钻进现在所在的那个城市，没有在哪个城市就进事最多的那个；左上角能退回去看所有城市
     if (!rooted) { rooted = true; const here = (time.isStory() && time.story().place) || '', city = kids('').filter(n => kids(n).some(k => kids(k).length)).sort((a, b) => sum(b) - sum(a)); root = city.find(n => n === here || desc(n).includes(here)) || city[0] || ''; }
-    upOf = n => P.get(n) || ''; below = desc;
+    upOf = n => P.get(n) || ''; below = desc; upAt = upOf; areasAll = () => nodes.filter(n => kids(n).length);
     const level = kids(root).sort((a, b) => sum(b) - sum(a));
     loose = root ? [] : level.filter(n => !kids(n).length && pl.size > 12 && (cnt.get(n) || 0) < 2);
     more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
     const areas = level.filter(n => kids(n).length), spots = [...areas, ...level.filter(n => !kids(n).length && !loose.includes(n))];
-    const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
+    const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(A.mid() * (1 + Math.sin(a) * r * 1.15 / 250)) }; };   // 上下跟着画的高度摊开、居中
     const last = [...d.ev].reverse().find(e => e.place);
     A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''), root, up: upOf(root), deep: new Set(nodes.filter(n => kids(n).length)),
       areas: areas.map(n => ({ name: n, ...at(n), all: desc(n), list: kids(n).sort((a, b) => sum(b) - sum(a)).slice(0, 14) })),
@@ -318,7 +318,7 @@ function pickRel(l) {
 }
 
 /* ---------- 抽屉：改关系、日子、了解、地点 ---------- */
-let below = () => [];   // 一个地点下面所有层的地方（首页算地图时给的）：改归属时不让它反过来归到自己下面的地方
+let below = () => [], upAt = () => '', areasAll = () => [];   // 一个地点下面所有层的地方（首页算地图时给的）：改归属时不让它反过来归到自己下面的地方
 async function editRel(r) {
   const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '', sa: r.sa || '', sb: r.sb || '' };
   if (x.kind === '其他') x.kind = '';
@@ -391,33 +391,39 @@ async function editFact(o, about = '') {
   ].filter(Boolean) });
 }
 async function editPlace(n) {
-  const d = await M.load(), o = d.places.find(q => q.name === n), x = { name: n, area: (o && o.area) || '', intro: (o && o.intro) || '' };
-  // 归哪个大地方：从记下的地点里选（作者：要能选，不是自己填），事多的在前；自己和自己下面的地方不能当上级。没有的大地方再写一个新的
-  const under = below(n), cnt = new Map(); for (const e of d.ev) if (e.place) cnt.set(e.place, (cnt.get(e.place) || 0) + 1);
-  const all = [...new Set([...d.places.flatMap(q => [q.name, q.area]), ...cnt.keys()].filter(a => a && a !== n && !under.includes(a)))].sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0));
-  const area = btn(x.area || '不归哪里', 'secondary', async () => {
-    let v = await actionSheet('归哪个大地方', [{ value: '\u0000', label: '不归哪里', active: !x.area }, ...all.map(a => ({ value: a, label: a, active: a === x.area })), { value: '\u0001', label: '写一个新的' }]);
+  const d = await M.load(), o = d.places.find(q => q.name === n), x = { name: n, area: (o && o.area) || upAt(n), intro: (o && o.intro) || '' };
+  // 底下挂着地方的是大地方（地图按名字自动凑的组也算）。作者定的：只有小地方才选归哪个大地方，所以只列大地方；
+  // 大地方可以变成小地方，这时问底下的地方是跟着它一起挂过去（和它同级），还是放到外面单独放
+  const under = below(n), kids = under.filter(k => upAt(k) === n), big = kids.length > 0;
+  const cands = areasAll().filter(a => a !== n && !under.includes(a));
+  let small = !big, kidsOut = false;
+  const area = btn(x.area || '单独放', 'secondary', async () => {
+    let v = await actionSheet('归哪个大地方', [{ value: '\u0000', label: '单独放', active: !x.area }, ...cands.map(a => ({ value: a, label: a, active: a === x.area })), { value: '\u0001', label: '写一个新的' }]);
     if (v === '\u0001') v = ((await dialog({ title: '新的大地方', input: { placeholder: '名字' } })) || '').trim() || null;
-    if (v == null) return; x.area = v === '\u0000' ? '' : v; area.textContent = x.area || '不归哪里';
+    if (v == null) return; x.area = v === '\u0000' ? '' : v; area.textContent = x.area || '单独放';
   });
+  const kidsRow = big && field(`底下的 ${kids.length} 个地方`, segmented([[false, '和它同级'], [true, '放到外面']], false, v => { kidsOut = v; }));
+  if (kidsRow) kidsRow.hidden = true;
   const s = sheet({ title: n, content: [
     field('名字', input({ value: x.name, onInput: v => { x.name = v.trim(); } })),
+    big && field('它是', segmented([[false, '大地方'], [true, '小地方']], false, v => { small = v; kidsRow.hidden = !v; })),
     field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。能一层套一层（教室归学校，学校归城市）。'), area),
+    kidsRow,
     field('介绍', textarea({ value: x.intro, rows: 3, onInput: v => { x.intro = v.trim(); } })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       const to = x.name || n; if (x.area === n || x.area === to) x.area = '';
       if (under.includes(x.area) || M.loops(n, x.area)) { toast(`${x.area}已经在${n}下面了，不能反过来归`); return; }
-      // 改名：在这儿的事、归它的地方跟着改；改成已有的名字就合成一个
-      if (to !== n) {
-        for (const e of d.ev) if (e.place === n) e.place = to;
-        for (const q of d.places) if (q.area === n) q.area = to;
-        const t = d.places.find(q => q.name === to); if (t && o) d.places.splice(d.places.indexOf(o), 1);
-        if (t) { Object.assign(t, { area: x.area || t.area, intro: x.intro || t.intro }); await M.save(); s.close(); refresh(); return; }
-      }
-      if (o) Object.assign(o, { name: to, area: x.area, intro: x.intro }); else d.places.push({ name: to, area: x.area, intro: x.intro });
+      const rec = q => d.places.find(p => p.name === q) || d.places[d.places.push({ name: q, area: '', intro: '' }) - 1];
+      // 底下的地方把归属写死：自动凑的组改了名、变成小地方后，不会又按名字凑回去（作者：改了名没起作用）
+      for (const k of kids) { const r = rec(k); r.area = !small ? to : kidsOut ? '' : x.area; r.lone = !r.area; }
+      if (to !== n) { for (const e of d.ev) if (e.place === n) e.place = to; for (const q of d.places) if (q.area === n) q.area = to; }
+      const me = rec(to); if (o && o !== me) d.places.splice(d.places.indexOf(o), 1);   // 改成已有的名字：合成一个
+      Object.assign(me, { area: x.area, intro: x.intro || me.intro, lone: !x.area });
+      // 自动凑出来的组变成小地方、里面又没有事：它本来就不是真地方，不留
+      if (big && small && !d.ev.some(e => e.place === to) && !d.places.some(q => q.area === to)) d.places.splice(d.places.indexOf(me), 1);
       await M.save(); s.close(); refresh();
     })),
-  ] });
+  ].filter(Boolean) });
 }
 
 /* ---------- 改一件事 ---------- */

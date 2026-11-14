@@ -14,6 +14,10 @@ export function art(host, on) {
   const cv = h('canvas.as-ss-art'), men = h('div.as-ss-ov.as-ss-men'), names = h('div.as-ss-ov.as-ss-names'), back = h('button.as-ss-back', { onclick: () => zin ? zoom(-1) : on.up() }, '‹ 全部'), where = h('b.as-ss-at');
   host.append(cv, names, men, back, where); men.dataset.noSwipe = names.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
   const g = cv.getContext('2d'), page = host.closest('.as-page');
+  // 地点页画多高：一直铺到底下页签上面（作者：下面空一截）。页面还没摆出来量不到时先按 500
+  let roomH = 0;
+  const room = () => { if (!roomH) { const v = page.getBoundingClientRect().bottom - host.getBoundingClientRect().top - 96; if (v > 300) roomH = Math.max(500, Math.round(v)); } return roomH || 500; };
+  const tallOf = i => i === 2 ? room() : tall(i);
   let W = 0, H = 410, cur = 0, from = 0, t0 = -1e9, raf = 0, phone = null, fresh = false;
   let NAMES = [], LINK = [], POS = [], ctr = 0, selP = -1, drag = null, press = null;
   let AREAS = [], LONE = [], here = '', sel = null, zk = -1, zin = false, zT0 = -1e9, needle = 0;
@@ -71,7 +75,7 @@ export function art(host, on) {
   }
 
   /* 迷雾地图：先只看到大地方；点一个，别处的雾合上，这一片的雾散开，里面的小地方才出来 */
-  const BIG = () => [W / 2, 258, W / 2 - 22, 196];
+  const BIG = () => [W / 2, room() / 2, W / 2 - 22, Math.min(room() / 2 - 62, (W / 2 - 22) * 1.15)];   // 钻进一片：圈摆在画的正中
   /* 地图怎么看（作者定的）：位置定死了不让拖；两指捏着放大缩小，一指拖着挪。名字大小不变、只是散开，挤在一起的放大就分得开 */
   let V = [1, 0, 0];   // 放大几倍、往右挪了多少、往下挪了多少
   const T = (x, y) => [x * V[0] + V[1], y * V[0] + V[2]];
@@ -122,7 +126,7 @@ export function art(host, on) {
     raf = requestAnimationFrame(draw);
     phone = phone || page.closest('.as-phone');
     const P = PAL[phone.dataset.mode === 'night' ? 'night' : 'day'], t = now / 1000, p = cl((now - t0) / 1300);
-    const hh = Math.round(mix(tall(from), tall(cur), ease(p))); if (hh !== H || !W) { H = hh; size(); }
+    const hh = Math.round(mix(tallOf(from), tallOf(cur), ease(p))); if (hh !== H || !W) { H = hh; size(); }
     if (fresh && W) { fresh = false; fillNames(); }   // 名字要知道画多宽才摆得了
     g.clearRect(0, 0, W, H);
     if (p >= 1 || from === cur) show(cur, 1, P, t, 1);
@@ -193,7 +197,7 @@ export function art(host, on) {
   function mark() { host.querySelectorAll('.as-ss-ov .sel').forEach(b => b.classList.remove('sel')); sel = null; selP = -1; }
 
   return {
-    mark,
+    mark, mid: () => room() / 2,
     /** names：所有人（第 0 个是你）；link[a][b] = { kind, st: [[日期, 是什么, 离多远]…]（第 0 条是现在）}；areas：[{ name, x, y, list: 摆出来的小地点, all: 里面所有的小地点 }]；lone：[{ name, x, y }]；here：现在在哪 */
     set(d) {
       const same = d.names.join('|') === NAMES.join('|');
