@@ -321,7 +321,17 @@ export const dropJob = () => kvDel('memjob:' + win.key);
 export function cancelJob() { job && job.ac && job.ac.abort(); }
 /** 补充 / 重新生成（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样再写一遍。
  *  redo = false 补充：只添没有的、只填空着的格子，已经有的不动；redo = true 重新生成：这一样旧的不要了，换成新写的（AI 一条都没写出来就不动；自己手写的成长留着） */
-export const FILL = { rel: '关系', places: '地点', grow: '人物簿' };
+/** 整理哪几样（作者定的四样，顺序和首页一致）：时间 = 事、纪念日、待办；关系 = 关系和了解；地点；人物簿 = 成长。人物表每次都记 */
+export const PARTS = { time: '时间', rel: '关系', places: '地点', grow: '人物簿' };
+const LINES = { time: ['ev', 'days', 'todo', 'done'], rel: ['rel', 'facts'], places: ['places'], grow: ['grow'] }, NAMES = { time: '事件、日子、没完、完成', rel: '关系、了解', places: '地点', grow: '成长' };
+const only = (x, want) => { if (want) for (const k in LINES) if (!want.includes(k)) for (const f of LINES[k]) x[f] = []; return x; };
+/** 重新生成：勾上的这几样旧的不要了。勾了「时间」就是全部重来（作者定的：导入来的事也一起去掉）；自己手写的成长留着 */
+function clearParts(want) {
+  if (want.includes('time')) { D.ev = []; D.days = []; D.todo = []; D.wait = []; D.facts = []; }
+  if (want.includes('rel')) D.rel = [];
+  if (want.includes('places')) D.places = [];
+  if (want.includes('grow')) D.grow = D.grow.filter(g => g.src === '手动');
+}
 let refilling = false;
 export async function refill(want, signal, redo, onPart) {
   if (refilling) throw new Error('已经在重新填了');
@@ -329,7 +339,7 @@ export async function refill(want, signal, redo, onPart) {
   try {
     await load(); const key = win.key;
     const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, onPart, prompt: compose('memFill', { want: want.map(k => FILL[k]).join('、'),
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, onPart, prompt: compose('memFill', { want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
@@ -369,30 +379,32 @@ function known() {
 /** list：一批批文字。从第 done 批的第 at 个字接着跑。
  *  回复写到一半断了（没写结束那行）：已经写出来的先记下，看最后一件事剪到了原文的哪儿，从那儿接着；
  *  开了「自动补写」就自己接着找 AI（最多 fillMax 次），没开就停下，等你点「接着整理」 */
-export async function startJob(label, list, done = 0, at = 0) {
+export async function startJob(label, list, done = 0, at = 0, opt = null) {
   if (running()) throw new Error('已经在整理了');
   await load();
   const key = win.key, m = state.apps.memory;
-  job = { label, list, done, at, ac: new AbortController(), error: '', added: 0 };
+  job = { label, list, done, at, opt, ac: new AbortController(), error: '', added: 0 };
+  if (opt && opt.redo && !done && !at) { clearParts(opt.want); await save(); }   // 接着跑上次没跑完的就不再清了
   tell('start', job);
   try {
     let more = m.fill ? m.fillMax || 3 : 0;
     while (job.done < job.list.length) {
-      await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at });
+      await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       const full = list[job.done], from = job.at ? Math.max(0, full.lastIndexOf('\n【第 ', job.at) + 1) || job.at : 0, src = full.slice(from);   // 接着整理时从那一层开头接（楼层号才对得上）
       let raw;
       job.got = 0; job.t0 = Date.now();
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames() }), temperature: .3, stop: job.ac.signal, onPart: t => { job.got = t.length; } }); }
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 4 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal, onPart: t => { job.got = t.length; } }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-      const x = parse(raw); job.added += merge(x, label, src, HERE.has(label)); await save();
+      const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); await save();
       // 断了：最后一件剪下来的原文在哪儿结束，下次从那儿接（离结尾不到 300 字也当写完了：自己改过的提示词可能没让 AI 写结束那行）
       const end = Math.max(0, ...x.ev.map(e => e.orig ? src.indexOf(e.orig) + e.orig.length : 0));
       if (raw.includes(END) || (end && src.length - end < 300)) { job.done++; job.at = 0; tell('step', job); continue; }
+      if (!end && opt && !opt.want.includes('time')) throw new Error('回复写到一半断了，写出来的已经记下');
       if (!end) throw new Error(x.ev.length ? '回复写到一半断了，看不出写到了原文哪儿' : '回复写到一半断了，一件事都没记下');
       job.at = from + end; tell('step', job);
       if (more-- > 0) { log('info', '岁岁砂', `回复写到一半断了，记下了这部分，接着整理（还能补 ${more} 次）`); continue; }
-      await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at });
+      await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       throw new Error('回复写到一半断了，写出来的已经记下，点「接着整理」从断的地方接着');
     }
     await kvDel('memjob:' + key);
@@ -411,7 +423,7 @@ export async function autoSort(now) {
 }
 async function autoRun(now, m) {
   const d = await load(), ms = chatMsgs(), last = ms.length - 1, turn = x => !x.is_user && !x.is_system;
-  if (d.autoAt == null) {   // 第一次：以前的楼层不动（要整理以前的去「导入整理」），只从现在往后算；点「现在整理」就整理最近那几轮
+  if (d.autoAt == null) {   // 第一次：以前的楼层不动（要整理以前的去「整理」），只从现在往后算；点「现在整理」就整理最近那几轮
     let i = ms.length, n = now ? m.n || 10 : 0; while (i > 0 && n > 0) if (turn(ms[--i])) n--;
     d.autoAt = now ? i - 1 : last; await save();
   }

@@ -41,7 +41,7 @@ export const PROMPT_CATS = [
     { id: 'radioTrans', name: '电台 · 翻译老故事', vars: ['char', 'user', 'lang', 'zh', 'act', 'tale'] },
     { id: 'radioAfter', name: '电台 · 讲完的感想', vars: ['char', 'user', 'persona', 'title', 'tale', 'lang', 'zh', 'act'] },
   ] },
-  { app: '岁岁砂', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing', 'bigs'] },
+  { app: '岁岁砂', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing', 'bigs', 'only'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people', 'lines', 'bigs'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people', 'lines', 'bigs'] },
     { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'places', 'events'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
@@ -343,6 +343,7 @@ export const DEFAULT_PROMPTS = {
 - 记：第一次（约会、牵手、吵架…）；关系或情感变了（表白、确认关系、冷战、和好、分手）；身份变了（转学、升职、搬家、受伤）；约定和计划；送了或收到什么；新知道的关于某人的事（喜好、怕什么、过去、家人）；说出口的秘密；新出场的重要人物、新去的地方；生日、节日、纪念日。
 - 不记：没有新信息的日常（吃饭、走路、上课）；已经记过的又说一遍；风景、气氛、心理活动的描写；寒暄、接梗。
 
+{{only}}
 一行一条，按下面的格式写，字段之间用 ｜ 隔开，不要写别的：
 事件：日期｜时间｜地点｜标题｜经过｜人物｜小标签｜重要度｜影响｜关键词｜原话｜大标签｜谁知道｜原文从｜原文到
 关系：甲｜乙｜关系｜从什么时候起｜现在怎样｜亲近度｜甲眼里的乙｜乙眼里的甲｜甲对乙说的一句话｜乙对甲说的一句话

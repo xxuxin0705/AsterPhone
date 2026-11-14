@@ -1,7 +1,7 @@
 // 岁岁砂：TA 们记得的事（方案见 docs/pages-memory.md）。
 // 首页是一张画、三页：时间（沙漏，往下漏的那道沙是时间轴）/ 关系（轨道，谁都能当中心）/ 地点（迷雾地图，大地方里套小地点）。
 // 关系那页顶上有一排名字：点谁（或把星拖到正中），谁就是中心。时间和地点对谁都一样，不分人看（作者定的）。
-// 右上角设置：人物、记录、导入整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
+// 右上角设置：人物、记录、整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, colorFor } from '../../core/ui.js';
@@ -427,7 +427,7 @@ function openSort() {
     return g.msgs ? M.floorsText(g.msgs, chat) : g.entries ? g.entries.filter((e, i) => !file.off.has(i)).map(e => e.content) : g.text.split(/\n{2,}/);
   };
   let fresh = () => {};   // 楼层、标签一改，下面的预览和层数跟着换
-  const count = () => { const ps = parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字 · 分 ${M.batches(ps).length} 批` : ''; fresh(); paintRun(); };
+  const count = () => { const ps = src === 'known' ? [] : parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字 · 分 ${M.batches(ps).length} 批` : ''; fresh(); paintRun(); };
   // 正文楼层：读哪几层、包不包含你发的；正文筛选和「设置 → 上下文与世界书」是同一套（tagRows）；下面一块能一层层预览筛完的样子
   const floors = msgs => {
     const span = () => msgs.map((m, i) => i).filter(i => i >= chat.from && i <= chat.to && msgs[i].mes && (chat.withUser || !msgs[i].is_user));
@@ -470,31 +470,43 @@ function openSort() {
       const g = file.got;
       if (g && g.msgs) nb.push(...floors(g.msgs));
       if (g && g.entries) nb.push(group('要整理的条目', [h('div.as-field', entryRows(g.entries, file.off))]));
-    } else if (M.chatMsgs().length) nb.push(...floors(M.chatMsgs())); else nb.push(empty('现在没有打开酒馆的聊天'));
-    pick.replaceChildren(...nb.filter(Boolean)); count();
+    } else if (src === 'known') { /* 不读原文，没什么要挑的 */ }
+    else if (M.chatMsgs().length) nb.push(...floors(M.chatMsgs())); else nb.push(empty('现在没有打开酒馆的聊天'));
+    pick.replaceChildren(...nb.filter(Boolean)); chips[0].hidden = src === 'known'; count();
   }
   // 下面那一块：开始 / 正在整理第几批（取消）/ 上次没跑完（接着整理、放弃）
   async function paintRun() {
     const j = M.running(), left = j ? null : await M.leftover();
     if (j) act.replaceChildren(h('div.as-mem-sum', `正在整理「${j.label}」第 ${j.done + 1}/${j.list.length} 批…`), h('div.as-prompt-bar', btn('取消', 'secondary', () => M.cancelJob())));
     else if (left) act.replaceChildren(h('div.as-mem-sum', `「${left.label}」还剩 ${left.list.length - left.done} 批没整理${left.at ? '（这一批写到一半）' : ''}`),
-      h('div.as-prompt-bar', btn('放弃', 'secondary', async () => { await M.dropJob(); paintRun(); }), btn('接着整理', 'primary', () => go(left.label, left.list, left.done, left.at))));
-    else act.replaceChildren(h('div.as-prompt-bar', btn('开始整理', 'primary', () => {
-      const ps = parts(); if (!ps.length) { toast('没有要整理的内容'); return; }
-      go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps));
+      h('div.as-prompt-bar', btn('放弃', 'secondary', async () => { await M.dropJob(); paintRun(); }), btn('接着整理', 'primary', () => go(left.label, left.list, left.done, left.at, left.opt))));
+    else act.replaceChildren(h('div.as-prompt-bar', btn('开始整理', 'primary', async () => {
+      const w = Object.keys(M.PARTS).filter(k => want.has(k) && !(src === 'known' && k === 'time')), names = w.map(k => M.PARTS[k]).join('、');
+      if (!w.length) { toast('先勾上要整理哪几样'); return; }
+      const ps = src === 'known' ? [] : parts(); if (src !== 'known' && !ps.length) { toast('没有要整理的内容'); return; }
+      if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
+      if (src !== 'known') return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', (sig, got) => M.refill(w, sig, redo, got)); if (n) { toast(w.map(k => `${M.PARTS[k]} ${n[k]} 条`).join(' · ')); refresh(); } }
+      catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }
-  function go(label, list, done, at) {
-    M.startJob(label, list, done, at).catch(e => toast(e.message));
+  function go(label, list, done, at, opt) {
+    M.startJob(label, list, done, at, opt).catch(e => toast(e.message));
   }
+  // 整理哪几样、怎么整理：补充（只添没有的、填空着的）/ 重新生成（旧的换成新的；勾了「时间」就是全部重来，四样一起勾上）
+  const want = new Set(Object.keys(M.PARTS)); let redo = false;
+  const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => c.classList.toggle('is-active', want.has(Object.keys(M.PARTS)[i]))); };
+  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); } }, t));
+  const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、知道对方什么。地点：去过哪、归哪个大地方。人物簿：一个人后来变成什么样了。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
+    h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; paintWant(); }))]);
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
-  p.body.append(group('', [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天']], src, v => { src = v; paintPick(); }))]), pick, sum, act);
+  p.body.append(group('', [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天'], ['known', '记下的事']], src, v => { src = v; paintPick(); }))]), pick, what, sum, act);
   paintPick();
   nav.push(p.el);
 }
 
-/* ---------- 设置：查看、人物和标签、记录、导入整理、回想、清空 ---------- */
+/* ---------- 设置：查看、人物和标签、记录、整理、回想、清空 ---------- */
 async function openSet() {
   const p = page({ app: 'memory', id: 'memory-set', title: '设置', back: true }), m = S(), d = await M.load();
   const save = () => { commit('apps'); commit('inject'); }, val = (el, t) => { el.querySelector('.as-list-item__value').textContent = t; };
@@ -521,25 +533,8 @@ async function openSet() {
   // 写到一半断了自动补写：和「设置 → 应用管理 → 岁岁砂」是同一个开关
   const fillMax = pick('最多补写', 'fillMax', 3, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n]), ' 次'); fillMax.hidden = !m.fill;
   const fillOn = toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, on => { m.fill = on; commit('apps'); fillMax.hidden = !on; });
-  const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己去「导入整理」。'), [
+  const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己去「整理」。'), [
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
-    item({ title: withInfo('补充或重新生成', '不重读原文，只看已经记下的事，把勾上的那几样再写一遍。补充：只添没有的、填空着的，已经有的不动。重新生成：这一样旧的不要了，换成新写的。'), chevron: true, onClick: () => {
-      const want = new Set(); let redo = false;
-      const chips = Object.entries(M.FILL).map(([k, t]) => { const c = h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); c.classList.toggle('is-active'); all.classList.toggle('is-active', want.size === chips.length); } }, t); return c; });
-      const all = h('button.as-chip', { onclick: () => { const on = want.size < chips.length; Object.keys(M.FILL).forEach(k => on ? want.add(k) : want.delete(k)); [...chips, all].forEach(c => c.classList.toggle('is-active', on)); } }, '全选');
-      const s = sheet({ title: '补充或重新生成', content: [
-        h('div.as-mem-imp', segmented([['add', '在原有的上面补'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; })),
-        h('div.as-mem-imp', h('div.as-chips', all, chips)),
-        h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('开始', 'primary', async () => {
-          if (!want.size) { toast('先勾上要写哪几样'); return; }
-          const names = [...want].map(k => M.FILL[k]).join('、');
-          if (redo && !(await dialog({ title: `重新生成${names}？`, text: '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
-          s.close();
-          try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', (sig, got) => M.refill([...want], sig, redo, got)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
-          catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
-        })),
-      ] });
-    } }),
     fillOn, fillMax,
     toggleItem({ title: '手机聊天时顺手记' }, m.chat !== false, on => { m.chat = on; commit('apps'); }),
     toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在「等你看」里，你点「留下」TA 才会记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem]);
@@ -562,7 +557,7 @@ async function openSet() {
     toggleItem({ title: withInfo('来时路', '每轮都带一份经历过的事的目录（日期、地点、标题，最多 60 件），TA 一直知道自己经历过什么；每轮的字数会多一些。') }, !!m.road, on => { m.road = on; commit('apps'); })]);
   p.body.append(
     group('', [d.wait.length ? item({ title: '等你看', value: String(d.wait.length), chevron: true, onClick: openWait }) : null, item({ title: '刚才想起了什么', chevron: true, onClick: openPeek })].filter(Boolean)),
-    group('', [item({ title: '人物', chevron: true, onClick: openPeople }), item({ title: '标签', chevron: true, onClick: openTags }), item({ title: '导入整理', chevron: true, onClick: openSort })]),
+    group('', [item({ title: '人物', chevron: true, onClick: openPeople }), item({ title: '标签', chevron: true, onClick: openTags }), item({ title: '整理', chevron: true, onClick: openSort })]),
     rec, back,
     group('', [item({ title: '清空', danger: true, onClick: async () => {
       if (!(await dialog({ title: '清空这个聊天记下的全部？', text: '事、关系、地点、了解、日子、没完的事都会删掉，找不回来。设置和标签留着。', confirm: '清空', danger: true }))) return;
