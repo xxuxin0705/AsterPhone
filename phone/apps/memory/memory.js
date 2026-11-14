@@ -89,21 +89,21 @@ export function open() {
     const t0 = [...d.ev.filter(e => e.at && has(e, a) && has(e, b)).map(e => e.at), r.since, ...r.hist.map(x => x.since)].filter(x => /^\d{4}-\d\d-\d\d$/.test(x || '')).sort()[0];
     if (!t0) return [null, ''];
     const n = Math.max(0, Math.round(((time.isStory() && time.story().date || new Date()) - new Date(t0 + 'T00:00')) / 864e5));
-    return [n < 60 ? [[n, '天']] : n < 365 ? [[Math.floor(n / 30.4), '个月']] : [[Math.floor(n / 365), '年'], ...(n % 365 >= 30 ? [[Math.floor(n % 365 / 30.4), '个月']] : [])], dot(t0) + ' 起'];
+    return [n < 60 ? [[n, '天']] : n < 365 ? [[Math.floor(n / 30.4), '个月']] : [[Math.floor(n / 365), '年'], ...(n % 365 >= 30 ? [[Math.floor(n % 365 / 30.4), '个月']] : [])], dot(t0)];
   };
-  const CLOUD = '<svg viewBox="-8 -10 216 106" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="as-ss-st" width="3.2" height="3.2" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".62"/></pattern></defs>'
-    + '<path class="sh" transform="translate(5 6)" d="M30 70a22 22 0 0 1-6-42a26 26 0 0 1 44-14a30 30 0 0 1 52-4a26 26 0 0 1 46 10a22 22 0 0 1 8 42a24 24 0 0 1-40 12a30 30 0 0 1-54 2a26 26 0 0 1-50-6z"/><path d="M30 70a22 22 0 0 1-6-42a26 26 0 0 1 44-14a30 30 0 0 1 52-4a26 26 0 0 1 46 10a22 22 0 0 1 8 42a24 24 0 0 1-40 12a30 30 0 0 1-54 2a26 26 0 0 1-50-6z"/></svg>';
   function openRel(i) {
     const lk = link[ctr][i], me = names[ctr], who = names[i], cs = ctr ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (i ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
     const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), [long, from] = since(me, who, r);
-    const cloud = h('div.cloud', { html: CLOUD }); cloud.append(h('p', h('small', `对${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
+    // 一朵鼓鼓的云（十个圆球叠出来的），云里是那句话；云底下用细线吊着三张小牌子，长短不一、轻轻晃：现在的关系、认识了多久、看法。头像在左下，三个小泡飘上去
+    const tag = (cls, l, ...kids) => h('div.hang.' + cls, { style: { '--l': l + 'px' } }, h('div', kids));
     show(h('div.as-ss-rel',
-      h('header', h('div', face(me), h('b', me)), h('u'), h('u'), h('u'), cloud),
-      h('div.cells',
-        h('div.kin', h('small', '现在'), h('b', path[path.length - 1] || '—'), path.length > 1 && h('span', path.join(' → '))),
-        h('div.long', h('small', '认识了'), h('b', long ? long.map(([n, u]) => h('span', String(n), h('i', u))) : '—'), from && h('span', from)),
-        h('div.view', h('small', `${me}眼里的 TA`), h('p', lk.q[0] || h('em', '还没写')))),
+      h('div.cloud', [...Array(10)].map(() => h('i')), h('s'), h('s'), h('s'), h('p', h('small', `对${who}`), lk.say ? `「${lk.say}」` : h('em', '……'))),
+      h('div.row',
+        h('div.me', h('u'), h('u'), h('u'), face(me), h('b', me)),
+        tag('kin', 26, h('small', '现在'), h('b', path[path.length - 1] || '—'), path.length > 1 && h('span', path.join('→'))),
+        tag('long', 58, h('small', '认识了'), h('b', long ? long.map(([n, u]) => h('span', String(n), h('i', u))) : '—'), from && h('span', from)),
+        tag('view', 38, h('small', '看法'), h('p', lk.q[0] || h('em', '还没写')))),
       r.now && h('p.now', r.now)), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
