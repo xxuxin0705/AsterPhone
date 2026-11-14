@@ -230,6 +230,7 @@ export function open() {
      名字用正好以这两个字结尾的那个地方（东京咒术高专），没有就用这两个字。
      最外面那层只放主要的（作者：次要的不要放首页）：只出过一次、又没归属的零散地点收在右上角「没归类」里。没拖过的按向日葵那样一圈圈摆开 */
   let root = '', upOf = () => '';
+  below = () => [];
   function setMap() {
     const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
     const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
@@ -243,7 +244,7 @@ export function open() {
     for (const n of nodes) { let q = P.get(n), k = 0; while (q && q !== n && k++ < 20) q = P.get(q) || ''; if (q === n) P.set(n, ''); }   // 甲归乙、乙又归甲：绕圈了，当它没有上级
     const sum = n => (cnt.get(n) || 0) + kids(n).reduce((a, k) => a + sum(k), 0), kids = n => nodes.filter(x => P.get(x) === n), desc = n => kids(n).flatMap(k => [k, ...desc(k)]);
     if (root && !nodes.includes(root)) root = '';
-    upOf = n => P.get(n) || '';
+    upOf = n => P.get(n) || ''; below = desc;
     const level = kids(root).sort((a, b) => sum(b) - sum(a));
     loose = root ? [] : level.filter(n => !kids(n).length && pl.size > 12 && (cnt.get(n) || 0) < 2);
     more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
@@ -286,6 +287,7 @@ export function open() {
 }
 
 /* ---------- 抽屉：改关系、日子、了解、地点 ---------- */
+let below = () => [];   // 一个地点下面所有层的地方（首页算地图时给的）：改归属时不让它反过来归到自己下面的地方
 async function editRel(r) {
   const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '', sa: r.sa || '', sb: r.sb || '' };
   const s = sheet({ title: `${r.a} 和 ${r.b}`, content: [
@@ -352,16 +354,17 @@ async function editFact(o, about = '') {
 }
 async function editPlace(n) {
   const d = await M.load(), o = d.places.find(q => q.name === n), x = { area: (o && o.area) || '', intro: (o && o.intro) || '' };
-  const bigs = [...new Set(d.places.map(q => q.area).filter(a => a && a !== n))];
+  const under = below(n), bigs = [...new Set(d.places.map(q => q.area).filter(a => a && a !== n && !under.includes(a)))];   // 自己下面的地方不能反过来当上级
   const area = input({ value: x.area, onInput: v => pick(v.trim(), true) });
   const pick = (a, typed) => { x.area = a; if (!typed) area.value = a; chips.forEach(c => c.classList.toggle('is-active', c.textContent === a)); };
   const chips = bigs.map(a => h('button.as-chip' + (a === x.area ? '.is-active' : ''), { onclick: () => pick(a === x.area ? '' : a) }, a));
   const s = sheet({ title: n, content: [
-    field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。不属于哪里就都不选；要新的大地方就自己写。'), area),
+    field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。能一层套一层（医务室归高专，高专归东京）。不属于哪里就都不选；要新的大地方就自己写。'), area),
     h('div.as-mem-imp', h('div.as-chips', chips)),
     field('介绍', textarea({ value: x.intro, rows: 2, onInput: v => { x.intro = v.trim(); } })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (x.area === n) x.area = '';
+      if (under.includes(x.area) || M.loops(n, x.area)) { toast(`${x.area}已经在${n}下面了，不能反过来归`); return; }
       if (o) Object.assign(o, x); else d.places.push({ name: n, ...x });
       await M.save(); s.close(); refresh();
     })),

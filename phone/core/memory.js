@@ -149,6 +149,8 @@ const cutOrig = (e, text, here) => {
   if (e.from && text) { const [o, a, z] = excerpt(text, e.from, e.to); if (o) { e.orig = o; if (here) e.fl = floorsAt(text, a, z); } }
   delete e.from; delete e.to;
 };
+/** 把 name 归到 area 下面会不会绕成一圈（area 自己、或者它的上级的上级…就是 name）。地点能一层套一层，但不能互相归（作者定的） */
+export function loops(name, area) { for (let p = area, k = 0; p && k < 50; k++) { if (p === name) return true; p = (D.places.find(q => q.name === p) || {}).area; } return false; }
 /** 合并进来，返回新加了几条事件。text：这批记的是哪段原文（拿来剪原文节选）；here：这段原文是现在这个聊天的楼层 */
 export function merge(x, src = '', text = '', here = false) {
   for (const p of x.ppl) {
@@ -183,7 +185,8 @@ export function merge(x, src = '', text = '', here = false) {
   }
   for (const p of x.places || []) {   // 「等你看」里以前存下的没有这一项
     const o = D.places.find(o => o.name === p.name);
-    if (!o) D.places.push({ ...p, src }); else { if (!o.area) o.area = p.area; if (!o.intro) o.intro = p.intro; }
+    const area = loops(p.name, p.area) ? '' : p.area;   // AI 写成互相归的那一条不听
+    if (!o) D.places.push({ ...p, area, src }); else { if (!o.area) o.area = area; if (!o.intro) o.intro = p.intro; }
   }
   for (const d of x.days) {
     const o = D.days.find(o => o.md === d.md && alike(o.what, d.what) > .5);
@@ -367,10 +370,11 @@ export async function refill(want, signal, redo) {
     if (want.includes('places')) for (const [i, at] of x.at) { const e = evs[i - 1]; if (e && (redo || !e.place)) e.place = at; }
     const spots = new Set(D.ev.map(e => e.place));
     if (want.includes('places') && redo && x.at.length) D.places = D.places.filter(q => spots.has(q.name));
+    const tops = new Set(x.places.map(q => q.area));
     if (want.includes('places')) for (const q of x.places) {
-      if (!spots.has(q.name)) continue;   // 只归类事里有的，不让它添没发生过事的地点
+      if (!spots.has(q.name) && !tops.has(q.name)) continue;   // 只归类事里有的、和被写成上级的（东京咒术高专归东京），不让它添不相干的地点
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
-      if (redo || !o.area) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
+      if ((redo || !o.area) && !loops(q.name, q.area)) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
     await save(); return n;
   } finally { refilling = false; }
