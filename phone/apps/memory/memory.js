@@ -60,7 +60,8 @@ export function open() {
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
   stage.append(more);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
-  const A = art(stage, { blank: shut, rel: i => tab === 1 ? setCtr(i) : openRel(i), self: openSelf, center: i => setCtr(i), place: openPlace });
+  const A = art(stage, { blank: shut, rel: i => tab === 1 ? setCtr(i) : openRel(i), self: openSelf, center: i => setCtr(i), place: openPlace,
+    dive: (n, parent) => { root = parent; A.zoomTo(n); setMap(); }, up: () => { root = upOf(root); setMap(); } });
   const sig = () => M.ver + ':' + state.contacts.length;
   // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
   // 关系、地点下面没有东西；时间那页还没记下事时也一样：都定住（小屏上画加页签会比屏幕高一点，也不让拉）
@@ -222,6 +223,37 @@ export function open() {
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
 
+  /* 地图。地点是一棵树（作者定的：能一层套一层，东京 → 高专 → 医务室），root 是现在看的是哪一层（'' = 最外面）。
+     一层里：下面还有地方的是大地方（点一下钻进去看它直接管的那几个；里面的再点还能往下钻），没有的是单独的地点。
+     谁归谁：先看自己写的归属；没写的，名字里带着某个大地方的全名、或者用它的简称开头（大地方名字的后半截，至少两个字：「高专男生宿舍」→「东京咒术高专」）就算它的。
+     大地方 = 被写成归属的那些，加上程序看出来的：三个以上没归属的地点用同两个字开头（高专医务室、高专食堂…）就是一片，
+     名字用正好以这两个字结尾的那个地方（东京咒术高专），没有就用这两个字。
+     最外面那层只放主要的（作者：次要的不要放首页）：只出过一次、又没归属的零散地点收在右上角「没归类」里。没拖过的按向日葵那样一圈圈摆开 */
+  let root = '', upOf = () => '';
+  function setMap() {
+    const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
+    const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
+    for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
+    const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
+    const set = [...pl.values()].map(q => junk(q.area)).filter(Boolean);
+    const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
+    const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
+    const nodes = [...new Set([...pl.keys(), ...big])];
+    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || !big.includes(n) && big.find(a => a !== n && (n.includes(a) || short(a, n))) || '']));
+    for (const n of nodes) { let q = P.get(n), k = 0; while (q && q !== n && k++ < 20) q = P.get(q) || ''; if (q === n) P.set(n, ''); }   // 甲归乙、乙又归甲：绕圈了，当它没有上级
+    const sum = n => (cnt.get(n) || 0) + kids(n).reduce((a, k) => a + sum(k), 0), kids = n => nodes.filter(x => P.get(x) === n), desc = n => kids(n).flatMap(k => [k, ...desc(k)]);
+    if (root && !nodes.includes(root)) root = '';
+    upOf = n => P.get(n) || '';
+    const level = kids(root).sort((a, b) => sum(b) - sum(a));
+    loose = root ? [] : level.filter(n => !kids(n).length && pl.size > 12 && (cnt.get(n) || 0) < 2);
+    more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
+    const areas = level.filter(n => kids(n).length), spots = [...areas, ...level.filter(n => !kids(n).length && !loose.includes(n))];
+    const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
+    const last = [...d.ev].reverse().find(e => e.place);
+    A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''), root, up: upOf(root), deep: new Set(nodes.filter(n => kids(n).length)),
+      areas: areas.map(n => ({ name: n, ...at(n), all: desc(n), list: kids(n).sort((a, b) => sum(b) - sum(a)).slice(0, 14) })),
+      lone: spots.slice(areas.length).map(n => ({ name: n, ...at(n) })) });
+  }
   async function draw() {
     A.resume();
     d = await M.load(); if (sig() === seen) return;   // 返回这页时数据没变就一点都不动
@@ -244,27 +276,7 @@ export function open() {
       const r = { id: uid('r'), a: names[i], b: names[j], kind: '其他', since: '', now: '', lv: 1, hist: [] }, mk = () => ({ kind: '其他', r, say: '', st: [['', '', 4]], q: [''] });
       link[i][j] = mk(); link[j][i] = mk();
     }
-    // 地图：外面一层只放主要的（作者：次要的不要放首页）= 大地方，和发生过两件事以上的单独地点；只出过一次、又没归属的零散地点不上图，收在右上角「没归类」里。
-    // 没写归属、但名字里带着某个大地方全名的，算那个大地方的。每个大地方里最多摆 14 个小地点（事多的在前），其余的点大地方的名字在纸上看。没拖过的按向日葵那样一圈圈摆开
-    const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
-    const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
-    for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
-    // 大地方 = 写了归属的那些，加上程序自己看出来的：三个以上没归属的地点用同两个字开头（高专医务室、高专食堂、高专教室…），就是一片；
-    // 这片叫什么：有哪个地点的名字正好以这两个字结尾就用它（东京咒术高专），没有就用这两个字。这样清空了归属、AI 没归好，也不会全散在外面
-    const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
-    const set = [...pl.values()].map(q => junk(q.area)).filter(Boolean);
-    const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
-    // 没写归属的：名字里带着某个大地方的全名，或者用它的简称开头（大地方名字的后半截，至少两个字：「高专男生宿舍」→「东京咒术高专」），算那个大地方的
-    const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
-    const areaOf = q => junk(q.area) || !big.includes(q.name) && big.find(a => a !== q.name && (q.name.includes(a) || short(a, q.name))) || '';
-    loose = [...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && pl.size > 12 && (cnt.get(q.name) || 0) < 2).map(q => q.name);
-    more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
-    const spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && !loose.includes(q.name)).map(q => q.name)];
-    const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
-    const last = [...d.ev].reverse().find(e => e.place);
-    A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''),
-      areas: big.map(n => { const all = [...pl.values()].filter(q => areaOf(q) === n).map(q => q.name).sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0)); return { name: n, ...at(n), all, list: all.slice(0, 14) }; }),
-      lone: spots.slice(big.length).map(n => ({ name: n, ...at(n) })) });
+    setMap();
     bar.replaceChildren(...names.map((n, i) => h('button', { onclick: () => setCtr(i) }, n)), h('button.more', { onclick: openPeople }, '更多'));
     fillAxis(); setCtr(Math.max(0, names.indexOf(was)), false); if (tab === 1) openSelf();
   }

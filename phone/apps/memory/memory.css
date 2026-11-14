@@ -222,3 +222,7 @@
 /* 人物簿那页：纸一直开着，停在底下那排页签上面 */
 .as-ss-paper.keep { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); max-height: 42%; }
 .as-ss-paper.keep:not(.on) { transform: translateY(calc(105% + 90px)); }
+/* 地图能一层套一层：里面还有地方的小地点加粗；正上方写现在在哪一层 */
+.as-ss-names .sub button.deep { font-weight: 600; font-size: 13px; }
+.as-ss-at { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; font: 600 14px/1 var(--han); letter-spacing: 3px; text-indent: 3px; white-space: nowrap; color: var(--ink); }
+.as-ss-at.on { opacity: 1; transition: opacity .5s .3s; }

@@ -11,8 +11,8 @@ const NX = 86, NY = 345, R = 220, OC = 250, tall = i => i ? 500 : 410;   // 沙�
 
 /** host：放画的元素。on：tap 到了什么 —— rel(第几个人)、center(第几个人被拖到了正中)、place(名字, 里面的小地点)、move(地点名, x, y)、blank()（点了空白，回 true 是收起了底下那张纸） */
 export function art(host, on) {
-  const cv = h('canvas.as-ss-art'), men = h('div.as-ss-ov.as-ss-men'), names = h('div.as-ss-ov.as-ss-names'), back = h('button.as-ss-back', { onclick: () => zoom(-1) }, '‹ 全部');
-  host.append(cv, names, men, back); men.dataset.noSwipe = names.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
+  const cv = h('canvas.as-ss-art'), men = h('div.as-ss-ov.as-ss-men'), names = h('div.as-ss-ov.as-ss-names'), back = h('button.as-ss-back', { onclick: () => zin ? zoom(-1) : on.up() }, '‹ 全部'), where = h('b.as-ss-at');
+  host.append(cv, names, men, back, where); men.dataset.noSwipe = names.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
   const g = cv.getContext('2d'), page = host.closest('.as-page');
   let W = 0, H = 410, cur = 0, from = 0, t0 = -1e9, raf = 0, phone = null, fresh = false;
   let NAMES = [], LINK = [], POS = [], ctr = 0, selP = -1, drag = null, press = null;
@@ -121,24 +121,29 @@ export function art(host, on) {
   const at = (b, px, py) => { b.style.left = px + 'px'; b.style.top = py + 'px'; };
   const tapPlace = (b, o, px, py, subs) => { mark(null); b.classList.add('sel'); sel = [px, py]; on.place(o.name, subs); };
   const place = () => { const s = W / 400; names.querySelectorAll(':scope > button').forEach(b => at(b, ...T(b._o.x * s, b._o.y))); };
+  // 现在在哪一层（ROOT，'' 是最外面）：左上角那个按钮往回退一步（钻进一片里时退回这一层，在这一层时退到上一层），正上方写这一层的名字
+  let ROOT = '', UP = '', DEEP = new Set(), want = '';
+  const crumb = () => { back.textContent = '‹ ' + ((zin ? ROOT : UP) || '全部'); back.classList.toggle('on', cur === 2 && (zin || !!ROOT)); where.textContent = ROOT; where.classList.toggle('on', cur === 2 && !!ROOT && !zin); };
   function zoom(k) {
     on.blank(); zin = k >= 0; if (zin) { zk = k; V = [1, 0, 0]; } zT0 = performance.now(); const B = BIG();
-    names.classList.toggle('zoom', zin); back.classList.toggle('on', zin && cur === 2); place();
+    names.classList.toggle('zoom', zin); crumb(); place();
     names.querySelectorAll('button.area').forEach(b => { const me = zin && +b.dataset.k === k; b.classList.toggle('cur', me); if (me) at(b, B[0], B[1]); });
     names.querySelectorAll('.sub').forEach(q => q.classList.toggle('on', zin && +q.dataset.k === k));
   }
   function fillNames() {
-    const B = BIG(), s = W / 400; zin = false; zk = -1; V = [1, 0, 0]; names.classList.remove('zoom'); back.classList.remove('on');
+    const B = BIG(), s = W / 400; zin = false; zk = -1; V = [1, 0, 0]; names.classList.remove('zoom');
     names.replaceChildren(...AREAS.flatMap((a, k) => {
       const b = h('button.area', { dataset: { k, n: a.name } }, a.name), sub = h('div.sub', { dataset: { k } }, a.list.map((n, i) => {
         const ang = (a.list.length === 2 ? 0 : -Math.PI / 2) + (i + .5) / a.list.length * 6.283,   // 只有两个时摆在上下：摆左右会压住中间的大名字
-          rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
-        const c = h('button', { dataset: { n } }, n); c._tap = () => tapPlace(c, { name: n }, px, py); at(c, px, py); return c;
+          rr = a.list.length > 5 && i % 2 && Math.abs(Math.sin(ang)) > .5 ? .6 : 1,   // 多了就里外两圈；正左正右的不往里收（会压住正中的大名字）
+          px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
+        const c = h('button' + (DEEP.has(n) ? '.deep' : ''), { dataset: { n } }, n); c._tap = () => DEEP.has(n) ? on.dive(n, a.name) : tapPlace(c, { name: n }, px, py); at(c, px, py); return c;   // 里面还有地方的：再往下钻
       }));
       b._o = a; b._tap = () => zin ? tapPlace(b, a, B[0], B[1], a.all) : zoom(k);
       return [b, sub];
     }), ...LONE.map(l => { const b = h('button', { dataset: { n: l.name } }, l.name); b._o = l; b._tap = () => tapPlace(b, l, ...T(l.x * s, l.y)); return b; }));
-    place();
+    place(); crumb();
+    if (want) { const k = AREAS.findIndex(a => a.name === want); want = ''; if (k >= 0) zoom(k); }
   }
   // 手指：按在名字上没挪就是点它；按在空白没挪 = 收起 / 退回全部；挪了就是拖地图，两根手指就是放大缩小（钻进一片里时不能拖）
   const pts = new Map(); let g0 = null, moved = false, downT = null;
@@ -180,12 +185,14 @@ export function art(host, on) {
     /** names：所有人（第 0 个是你）；link[a][b] = { kind, st: [[日期, 是什么, 离多远]…]（第 0 条是现在）}；areas：[{ name, x, y, list: 摆出来的小地点, all: 里面所有的小地点 }]；lone：[{ name, x, y }]；here：现在在哪 */
     set(d) {
       const same = d.names.join('|') === NAMES.join('|');
-      ({ names: NAMES, link: LINK, areas: AREAS, lone: LONE, here } = d);
+      ({ names: NAMES, link: LINK, areas: AREAS, lone: LONE, here, root: ROOT, up: UP, deep: DEEP } = d);
       if (!same) { POS = []; men.replaceChildren(...NAMES.map(n => h('button', n))); if (ctr >= NAMES.length) ctr = 0; }
       fresh = true;
     },
     tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); host.classList.toggle('map', i === 2); if (i === 2) cv.dataset.noSwipe = ''; else delete cv.dataset.noSwipe;   // 在地图上横着拖是挪地图，不是「右滑返回」
-      men.classList.toggle('on', i === 1); back.classList.toggle('on', i === 2 && zin); },
+      men.classList.toggle('on', i === 1); crumb(); },
+    /** 下一次摆好名字以后直接钻进这一片（往下钻一层时用） */
+    zoomTo(n) { want = n; },
     /** 换一个人到正中（别的星会慢慢滑到新的位置） */
     center(i) { ctr = i; },
     resume() { if (!raf) raf = requestAnimationFrame(draw); },
