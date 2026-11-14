@@ -219,10 +219,10 @@
 /* 关系纸左上角的「翻面」 */
 .as-ss-rel { padding-top: 24px; }
 .as-ss-rel .flip { position: absolute; left: 14px; top: 10px; z-index: 2; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
-/* 人物簿那页：纸一直开着，停在底下那排页签上面 */
-.as-ss-paper.keep { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); max-height: 42%; }
-.as-ss-paper.keep:not(.on) { transform: translateY(calc(105% + 90px)); }
 /* 地图能一层套一层：里面还有地方的小地点加粗；正上方写现在在哪一层 */
 .as-ss-names .sub button.deep { font-weight: 600; font-size: 13px; }
 .as-ss-at { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; font: 600 14px/1 var(--han); letter-spacing: 3px; text-indent: 3px; white-space: nowrap; color: var(--ink); }
 .as-ss-at.on { opacity: 1; transition: opacity .5s .3s; }
+/* 蓝色的「成长线」：关系纸上是个按钮（在「翻面」右边），成长线那张纸的标题旁边是个蓝标 */
+.as-ss-rel .flip.line { left: 104px; background: var(--blue); color: #f4f3ee; }
+.as-ss-paper h4 small.go { margin-left: 10px; padding: 4px 8px; border-radius: 10px; background: var(--blue); color: #f4f3ee; font: 400 11px/1 var(--han); letter-spacing: 2px; vertical-align: middle; }

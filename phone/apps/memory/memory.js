@@ -31,7 +31,7 @@ M.onJob((how, j) => {
   if (j.label === '自动整理') { if (how === 'done' && j.added) log('info', '岁岁砂', `自动整理了一次，新记下 ${j.added} 件事`); if (how === 'fail') log('warn', '岁岁砂', '这次没自动整理成，下次一起补：' + j.error); return; }
   if (how === 'start') { clearInterval(tick); tick = setInterval(busyTip, 1000); busyTip(); }
   if (how === 'done' || how === 'fail') clearInterval(tick);
-  if (how === 'done') toast(`整理完了，新记下 ${j.added} 件事`);
+  if (how === 'done') toast(`整理完了：事 ${j.added} 件 · 关系 ${j.rel} 条 · 地点 ${j.places} 处 · 成长 ${j.grow} 条`);   // 每样记了多少都说（作者：显示成功了其实没整理出关系）
   if (how === 'fail') toast(j.error === '已中止' ? '已停下，可以接着整理' : '整理失败：' + j.error);
   if (how !== 'step') refresh();
 });
@@ -52,15 +52,13 @@ async function vecRun(tell) {
 export function open() {
   const p = page({ app: 'memory', id: 'memory-main', title: '岁岁砂', back: true, cls: 'as-ss', right: [navBtn('gear', '设置', openSet)] });
   const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage.up'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
-  const tabs = h('nav.as-ss-tabs', ['时间', '人物簿', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
+  const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null, loose = [];
-  // 底下四个页签：时间 / 人物簿 / 关系 / 地点。人物簿和关系用的是同一张星盘：人物簿里上面那行选谁（或在盘上点谁），底下那张纸就是谁的；关系里点谁出的是关系
-  const SCENE = [0, 1, 1, 2];
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
   stage.append(more);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
-  const A = art(stage, { blank: shut, rel: i => tab === 1 ? setCtr(i) : openRel(i), self: openSelf, center: i => setCtr(i), place: openPlace,
+  const A = art(stage, { blank: shut, rel: openRel, self: () => openSelf(), center: i => setCtr(i), place: openPlace,
     dive: (n, parent) => { root = parent; A.zoomTo(n); setMap(); }, up: () => { root = upOf(root); setMap(); } });
   const sig = () => M.ver + ':' + state.contacts.length;
   // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
@@ -71,7 +69,7 @@ export function open() {
   const show = (title, small, lead, intro, rows, none, acts) => {
     paper.replaceChildren(h('button.x', { onclick: shut }, '收起'), ...(title instanceof Node ? [title] : [h('h4', title, small && h('small', small)), lead && h('p.lead', lead), intro && h('p', intro)]),
       (rows.length || none) && h('ol', rows.length ? rows : h('li.none', none)), h('div.as-ss-acts', acts));
-    paper.scrollTop = 0; paper.classList.toggle('keep', tab === 1); paper.classList.add('on');   // 人物簿那页纸一直开着，让出底下的页签
+    paper.scrollTop = 0; paper.classList.add('on');
   };
   const li = (t, title, quote, small, onclick) => h('li' + (onclick ? '.tap' : ''), { onclick }, h('time', t), h('span', h('b', title, small && h('small', small)), quote && h('q', quote)));
   // 人（作者画的草稿）：正中这个人的头像，脑子里浮出一朵云，云里是 TA 对点的这个人说的一句话；下面三格：现在的关系、认识了多久、对 TA 的看法。
@@ -118,9 +116,9 @@ export function open() {
       + '<g fill="var(--blue)"><rect x="322" y="38" width="5" height="5"/><rect x="330" y="46" width="3" height="3"/><rect x="8" y="80" width="4" height="4"/></g>'
       + star(238, 40, 13, 'var(--cream)') + star(304, 62, 6, 'var(--b4)') + star(170, 30, 6, 'var(--blue)') + star(28, 104, 5, 'var(--cream)') + star(322, 150, 7, 'var(--cream)') + star(204, 186, 5, 'var(--blue)') + '</svg>';
   })();
-  // 两面（作者定的）：默认「TA 对正中这个人」（TA 怎么看我、对我说的话、知道我什么：手机里的 AI 演 TA 时脑子里装的就是这些），点「翻面」换成「正中这个人对 TA」，记住上次看的哪一面
+  // 两面（作者定的）：默认「正中这个人对 TA」（对 TA 说的话、怎么看 TA、知道 TA 什么），点「翻面」换成「TA 对正中这个人」，记住上次看的哪一面。蓝色的「成长线」看头像上这个人的
   function openRel(i) {
-    const out = !!S().relOut, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
+    const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
     const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), t = since(me, who, r);
     // 认识了多久：点一下在「几年几个月几天」和「一共多少天」之间换（记在设置里），只换这几个字
@@ -129,7 +127,7 @@ export function open() {
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? num(t[3], '天') : [t[0] && num(t[0], '年'), (t[0] || t[1]) && num(t[1], '个月'), num(t[2], '天')].filter(Boolean)), t && h('em', dot(t[4]) + ' 起'));
     fillLong();
     const pic = h('div.pic', { html: PIC }); pic.append(face(me), h('p', h('small', `${me} 对 ${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
-    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relOut = !out; commit('apps'); openRel(i); } }, '⇄ 翻面'), pic,
+    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button.flip.line', { onclick: () => openSelf(x) }, '成长线'), pic,
       h('div.cells',
         h('div.kin', h('div', h('small', '现在'), h('b', path[path.length - 1] || '—')), path.length > 1 && h('span', path.join(' → '))),
         long,
@@ -138,10 +136,10 @@ export function open() {
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
-  // 点正中这个人自己：TA 是怎么一步步变成现在这样的（成长），按先后
-  function openSelf() {
-    const who = names[ctr], l = d.grow.filter(g => ctr ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
-    show(who, '人物簿', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
+  // 成长线：这个人是怎么一步步变成现在这样的，按先后。点正中这个人自己、或者关系纸上蓝色的「成长线」进来
+  function openSelf(i = ctr) {
+    const who = names[i], l = d.grow.filter(g => i ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+    show(h('h4', who, h('small.go', '成长线')), '', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
   }
   // 地点：一句介绍、在这里发生过的事（大地方连里面小地点的一起）
   function openPlace(n, subs = []) {
@@ -213,12 +211,12 @@ export function open() {
     opened = null; axis.classList.toggle('cards', view === 'tag'); axis.replaceChildren(modes, ...rows); fit();
   }
   function setCtr(i, fx = true) {
-    ctr = i; shut(); A.center(i); if (tab === 1 && fx) openSelf();
+    ctr = i; shut(); A.center(i);
     [...bar.children].forEach((b, k) => { b.classList.toggle('on', k === i); if (k === i && fx) b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); });
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(SCENE[i]); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', SCENE[i] !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 3); if (i === 1) setTimeout(() => tab === 1 && openSelf(), 500); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
@@ -229,7 +227,7 @@ export function open() {
      大地方 = 被写成归属的那些，加上程序看出来的：三个以上没归属的地点用同两个字开头（高专医务室、高专食堂…）就是一片，
      名字用正好以这两个字结尾的那个地方（东京咒术高专），没有就用这两个字。
      最外面那层只放主要的（作者：次要的不要放首页）：只出过一次、又没归属的零散地点收在右上角「没归类」里。没拖过的按向日葵那样一圈圈摆开 */
-  let root = '', upOf = () => '';
+  let root = '', rooted = false, upOf = () => '';
   below = () => [];
   function setMap() {
     const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
@@ -240,10 +238,15 @@ export function open() {
     const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
     const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
     const nodes = [...new Set([...pl.keys(), ...big])];
-    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || !big.includes(n) && big.find(a => a !== n && (n.includes(a) || short(a, n))) || '']));
+    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || big.find(a => a !== n && (n.includes(a) || short(a, n))) || '']));   // 大地方也一样（东京咒术高专 → 东京）
     for (const n of nodes) { let q = P.get(n), k = 0; while (q && q !== n && k++ < 20) q = P.get(q) || ''; if (q === n) P.set(n, ''); }   // 甲归乙、乙又归甲：绕圈了，当它没有上级
+    // 最多三层（作者定的：城市 → 大地方 → 具体地点）：再往下的并到第三层，挂在它的上上级下面
+    const depth = n => { let k = 1; for (let q = P.get(n); q && k < 9; q = P.get(q)) k++; return k; };
+    for (const n of nodes) while (depth(n) > 3) P.set(n, P.get(P.get(n)));
     const sum = n => (cnt.get(n) || 0) + kids(n).reduce((a, k) => a + sum(k), 0), kids = n => nodes.filter(x => P.get(x) === n), desc = n => kids(n).flatMap(k => [k, ...desc(k)]);
     if (root && !nodes.includes(root)) root = '';
+    // 第一次进来默认看第二层（作者定的）：有城市（下面套了两层的）就先钻进现在所在的那个城市，没有在哪个城市就进事最多的那个；左上角能退回去看所有城市
+    if (!rooted) { rooted = true; const here = (time.isStory() && time.story().place) || '', city = kids('').filter(n => kids(n).some(k => kids(k).length)).sort((a, b) => sum(b) - sum(a)); root = city.find(n => n === here || desc(n).includes(here)) || city[0] || ''; }
     upOf = n => P.get(n) || ''; below = desc;
     const level = kids(root).sort((a, b) => sum(b) - sum(a));
     loose = root ? [] : level.filter(n => !kids(n).length && pl.size > 12 && (cnt.get(n) || 0) < 2);
@@ -279,7 +282,7 @@ export function open() {
     }
     setMap();
     bar.replaceChildren(...names.map((n, i) => h('button', { onclick: () => setCtr(i) }, n)), h('button.more', { onclick: openPeople }, '更多'));
-    fillAxis(); setCtr(Math.max(0, names.indexOf(was)), false); if (tab === 1) openSelf();
+    fillAxis(); setCtr(Math.max(0, names.indexOf(was)), false);
   }
   refresh = draw;
   draw().then(vecCheck); p.el._onShow = draw;
@@ -440,7 +443,7 @@ async function openWait() {
 }
 
 /* ---------- 整理 ---------- */
-let src = 'book';
+let src = 'chat';
 function openSort() {
   const p = page({ app: 'memory', id: 'memory-sort', title: '整理记忆', back: true });
   const pick = h('div'), sum = h('div.as-mem-sum'), act = h('div.as-mem-run');
@@ -518,7 +521,7 @@ function openSort() {
       const ps = src === 'known' ? [] : parts(); if (src !== 'known' && !ps.length) { toast('没有要整理的内容'); return; }
       if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
       if (src !== 'known') return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
-      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast(w.map(k => `${M.PARTS[k]} ${n[k]} 条`).join(' · ')); refresh(); } }
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`].filter(Boolean).join(' · ')); refresh(); } }
       catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }
@@ -527,9 +530,9 @@ function openSort() {
   }
   // 整理哪几样、怎么整理：补充（只添没有的、填空着的）/ 重新生成（旧的换成新的；勾了「时间」就是全部重来，四样一起勾上）
   const want = new Set(Object.keys(M.PARTS)); let redo = false;
-  const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => c.classList.toggle('is-active', want.has(Object.keys(M.PARTS)[i]))); };
-  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); } }, t));
-  const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、知道对方什么。地点：去过哪、归哪个大地方。人物簿：一个人后来变成什么样了。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
+  const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => { const k = Object.keys(M.PARTS)[i]; c.classList.toggle('is-active', want.has(k)); c.textContent = (want.has(k) ? '✓ ' : '') + M.PARTS[k]; }); };   // 勾上的前面写 ✓（作者：光看颜色分不出勾没勾）
+  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); } }, '✓ ' + t));
+  const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、对对方说的一句话、知道对方什么，还有每个人的成长线（后来变成什么样了）。地点：去过哪、归哪个大地方。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
     h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; paintWant(); }))]);
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
@@ -596,7 +599,7 @@ async function openSet() {
       const want = new Set();
       const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paint(); } }, t));
       const all = h('button.as-chip', { onclick: () => { const on = want.size < chips.length; Object.keys(M.PARTS).forEach(k => on ? want.add(k) : want.delete(k)); paint(); } }, '全选');
-      const paint = () => { chips.forEach((c, i) => c.classList.toggle('is-active', want.has(Object.keys(M.PARTS)[i]))); all.classList.toggle('is-active', want.size === chips.length); };
+      const paint = () => { chips.forEach((c, i) => { const k = Object.keys(M.PARTS)[i]; c.classList.toggle('is-active', want.has(k)); c.textContent = (want.has(k) ? '✓ ' : '') + M.PARTS[k]; }); all.classList.toggle('is-active', want.size === chips.length); };
       const s = sheet({ title: '清空哪些', content: [h('div.as-mem-imp', h('div.as-chips', all, chips)),
         h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('清空', 'danger', async () => {
           if (!want.size) { toast('先勾上要清空哪几样'); return; }

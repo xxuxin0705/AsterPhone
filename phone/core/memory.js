@@ -325,16 +325,15 @@ export const dropJob = () => kvDel('memjob:' + win.key);
 export function cancelJob() { job && job.ac && job.ac.abort(); }
 /** 补充 / 重新生成（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样再写一遍。
  *  redo = false 补充：只添没有的、只填空着的格子，已经有的不动；redo = true 重新生成：这一样旧的不要了，换成新写的（AI 一条都没写出来就不动；自己手写的成长留着） */
-/** 整理哪几样（作者定的四样，顺序和首页一致）：时间 = 事、纪念日、待办；关系 = 关系和了解；地点；人物簿 = 成长。人物表每次都记 */
-export const PARTS = { time: '时间', rel: '关系', places: '地点', grow: '人物簿' };
-const LINES = { time: ['ev', 'days', 'todo', 'done'], rel: ['rel', 'facts'], places: ['places'], grow: ['grow'] }, NAMES = { time: '事件、日子、没完、完成', rel: '关系、了解', places: '地点', grow: '成长' };
+/** 整理哪几样（作者定的三样，和首页一致）：时间 = 事、纪念日、待办；关系 = 关系（看法、一句话）、了解、成长线；地点。人物表每次都记 */
+export const PARTS = { time: '时间', rel: '关系', places: '地点' };
+const LINES = { time: ['ev', 'days', 'todo', 'done'], rel: ['rel', 'facts', 'grow'], places: ['places'] }, NAMES = { time: '事件、日子、没完、完成', rel: '关系、了解、成长', places: '地点' };
 const only = (x, want) => { if (want) for (const k in LINES) if (!want.includes(k)) for (const f of LINES[k]) x[f] = []; return x; };
 /** 重新生成：勾上的这几样旧的不要了。勾了「时间」就是全部重来（作者定的：导入来的事也一起去掉）；自己手写的成长留着 */
 function clearParts(want) {
   if (want.includes('time')) { D.ev = []; D.days = []; D.todo = []; D.wait = []; }
-  if (want.includes('rel')) { D.rel = []; D.facts = []; }
+  if (want.includes('rel')) { D.rel = []; D.facts = []; D.grow = D.grow.filter(g => g.src === '手动'); }
   if (want.includes('places')) { D.places = []; for (const e of D.ev) e.place = ''; }   // 作者定的：清空地点就是连每件事的「在哪」一起清，图上一颗钉都不留
-  if (want.includes('grow')) D.grow = D.grow.filter(g => g.src === '手动');
 }
 let refilling = false;
 export async function refill(want, signal, redo) {
@@ -346,12 +345,17 @@ export async function refill(want, signal, redo) {
     // 一起经历过两件事以上的每一对人：明着列给 AI，不然它只爱写「谁和你」
     const co = new Map();
     for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）', want: want.map(k => k === 'grow' ? '成长' : k === 'places' ? '在哪、地点' : PARTS[k]).join('、'),
+    // 关系、地点各找一次 AI（一起写太长，容易写到一半就断、后面那样一条都没有）；断了接着写
+    const base = { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: old.join('、') || '（没有）',
-      events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
+      events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
+    const ask = async w => parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, resume: 3, prompt: compose('memFill', { ...base, want: w }) }));
+    const x = { rel: [], grow: [], at: [], places: [] };
+    if (want.includes('rel')) { const y = await ask('关系、成长'); x.rel = y.rel; x.grow = y.grow; }
+    if (want.includes('places')) { const y = await ask('在哪、地点'); x.at = y.at; x.places = y.places; }
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-    const n = { rel: 0, places: 0, grow: x.grow.length };
-    if (want.includes('grow') && n.grow) {
+    const n = { rel: 0, places: 0, grow: x.grow.length, said: x.rel.filter(r => r.sa || r.sb).length };
+    if (n.grow) {
       if (redo) D.grow = D.grow.filter(g => g.src === '手动');
       for (const g of x.grow) { const who = canon(g.who); if (!D.grow.some(o => o.who === who && alike(o.text, g.text) > .6)) D.grow.push({ id: uid('g'), ...g, who, src: '重新填' }); }
     }
@@ -392,12 +396,12 @@ function known() {
  *  回复写到一半断了（没写结束那行）：已经写出来的先记下，看最后一件事剪到了原文的哪儿，从那儿接着；
  *  开了「自动补写」就自己接着找 AI（最多 fillMax 次），没开就停下，等你点「接着整理」 */
 /** 设置里的「清空」：挑哪几样清哪几样；四样都勾就是整个清空（连向量、没跑完的整理一起） */
-export async function clearSome(want) { await load(); if (want.length > 3) return wipe(); clearParts(want); await save(); }
+export async function clearSome(want) { await load(); if (want.length > 2) return wipe(); clearParts(want); await save(); }
 export async function startJob(label, list, done = 0, at = 0, opt = null) {
   if (running()) throw new Error('已经在整理了');
   await load();
   const key = win.key, m = state.apps.memory;
-  job = { label, list, done, at, opt, ac: new AbortController(), error: '', added: 0 };
+  job = { label, list, done, at, opt, ac: new AbortController(), error: '', added: 0, rel: 0, places: 0, grow: 0 };
   if (opt && opt.redo && !done && !at) { clearParts(opt.want); await save(); }   // 接着跑上次没跑完的就不再清了
   tell('start', job);
   try {
@@ -407,10 +411,10 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const full = list[job.done], from = job.at ? Math.max(0, full.lastIndexOf('\n【第 ', job.at) + 1) || job.at : 0, src = full.slice(from);   // 接着整理时从那一层开头接（楼层号才对得上）
       let raw;
       job.t0 = Date.now();
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 4 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal }); }
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 3 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-      const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); await save();
+      const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
       // 断了：最后一件剪下来的原文在哪儿结束，下次从那儿接（离结尾不到 300 字也当写完了：自己改过的提示词可能没让 AI 写结束那行）
       const end = Math.max(0, ...x.ev.map(e => e.orig ? src.indexOf(e.orig) + e.orig.length : 0));
       if (raw.includes(END) || (end && src.length - end < 300)) { job.done++; job.at = 0; tell('step', job); continue; }
