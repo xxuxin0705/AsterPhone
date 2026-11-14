@@ -509,7 +509,7 @@ function openSort() {
       if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
       // 没勾时间：不重新记事，就照已经记下的事把勾上的整套写全（每一对人的关系和印象、每件事在哪、地点归哪），一次发完；选了原文就一起给 AI 参考
       if (w.includes('time')) return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
-      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo, ps.join('\n\n'))); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`, n.cut && '写到一半断了，再补充一次接着填'].filter(Boolean).join(' · ')); refresh(); } }
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo, ps.join('\n\n'))); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`, n.cut ? '写到一半断了，再补充一次接着填' : n.miss && `还有 ${n.miss} 对没写全，再补充一次接着填`].filter(Boolean).join(' · ')); refresh(); } }
       catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }

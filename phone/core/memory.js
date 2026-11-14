@@ -12,7 +12,7 @@ import { state, commit, win, kvGet, kvSet, kvDel } from './store.js';
 import { uid } from './util.js';
 import { generate, generateMore, resolveConn, connOfTag, keysOf, embed, rerank } from './api.js';
 import { compose, myName } from './promptstore.js';
-import { cleanText, C as ctxCfg } from './context.js';
+import { cleanText, worldText, C as ctxCfg } from './context.js';
 import { log, apiLog } from './log.js';
 import { ctx } from './bridge.js';
 import * as time from './time.js';
@@ -387,8 +387,10 @@ export async function refill(want, signal, redo, source = '') {
     // 勾了几样都只找一次 AI（作者定的：点一次就调一次，不准自己拆成好几次）。写到一半断了：设置里开了自动补写才接着要；
     // 没开或补够了，写出来的先记下（最后半行不要），让作者自己再点一次补充
     // 补充时只列还没写全的那几对（写到一半断了再点补充，就接着写剩下的，不会每次都从头写、每次断在同一个地方）
-    const full = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return !redo && r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
-    const base = { pairs: [...co].filter(c => c[1] > 1 && !full(c[0])).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
+    const whole = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
+    // 人设多半写在世界书里（作者的人设栏是空的）：拿所有人的名字去世界书里找，和聊天时发的是同一套
+    const base = { world: await worldText([myName(), ...D.ppl.flatMap(p => [p.name, ...p.alias])].join(' ')).catch(() => '') || '（没有）',
+      pairs: [...co].filter(c => c[1] > 1 && (redo || !whole(c[0]))).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
       people: [myName() + '（就是 {{user}}）', ...D.ppl.filter(p => !isMe(p.name)).map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`)].join('、'), places: old.join('、') || '（没有）',
       source: source && '【原文】（写印象、了解、成长时可以参考里面这些人怎么说话、怎么相处；也可以根据它写关系）\n' + source,
       events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
@@ -396,7 +398,7 @@ export async function refill(want, signal, redo, source = '') {
     // 最后没写「【整理完了】」就是没写完（AI 自己停了也算）：开了自动补写就让它接着写
     const m = state.apps.memory, most = m.fill ? m.fillMax || 3 : 0, end = t => /【整理完了】/.test(t);
     let cut = false;
-    const y = w ? parse(await generateMore({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, resume: most, prompt: compose('memFill', { ...base, want: w }) }, end, most)
+    const y = w ? parse(await generateMore({ conn: resolveConn('text', 'memory'), app: '岁岁砂', stop: signal, resume: most, prompt: compose('memFill', { ...base, want: w }) }, end, most)
       .then(t => { cut = !end(t); return t; })
       .catch(e => { if (!e.part || (signal && signal.aborted)) throw e; cut = true; return e.part.slice(0, e.part.lastIndexOf('\n') + 1); })) : {};
     const x = { rel: [], grow: [], at: [], places: [], facts: [] };
@@ -433,6 +435,7 @@ export async function refill(want, signal, redo, source = '') {
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
       if ((redo || !o.area) && !loops(q.name, q.area)) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
+    n.miss = want.includes('rel') ? [...co].filter(c => c[1] > 1 && !whole(c[0])).length : 0;   // AI 写了「整理完了」但跳过了几对（作者：有的人没写，还显示成功）
     await save(); return n;
   } finally { refilling = false; }
 }
@@ -468,7 +471,7 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const cut = opt ? Object.keys(CUT).filter(k => !opt.want.includes(k)) : [];
       const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '' })
         .split('\n').filter(l => !cut.some(k => CUT[k].test(l))).join('\n').replace('\u0001', () => src);
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, temperature: .3, stop: job.ac.signal }); }
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, stop: job.ac.signal }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
