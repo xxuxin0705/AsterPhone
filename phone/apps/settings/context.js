@@ -59,7 +59,7 @@ function tagGroup(s, withInfo) {
   };
   const paint = () => ['keep', 'drop'].forEach(k => { paintList(k); paintPool(k); });   // 只换这几排标签，不重画整页
   const row = (k, title) => { boxes[k] = h('div.as-chips'); pools[k] = h('div'); return h('div.as-field', h('span.as-field__label', title), boxes[k], pools[k]); };
-  const g = group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。手机只看得到「给手机看」里的标签内容（点一下能暂时关掉）；「不给手机看」的和没分类的标签，整段都去掉。没被标签包着的正文照常给手机看。'),
+  const g = group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。「给手机看」的标签，里面的内容都给手机（点一下能暂时关掉）；里面不想给的，放进「不给手机看」。两边都没放的标签，在「给手机看」的标签外面就整段去掉。没被标签包着的正文照常给手机看。'),
     [row('keep', '给手机看'), row('drop', '不给手机看'), toggleItem({ title: '包含你发的消息' }, s.withUser, v => { s.withUser = v; save(); })]);
   paint();
   return g;

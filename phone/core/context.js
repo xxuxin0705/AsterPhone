@@ -36,13 +36,18 @@ export function tagsInside(keep = keepNow(), list = rawStory(30)) {
 
 /** 现在真正给手机看的标签：「给手机看」里没被暂时关掉的 */
 export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
-/** 按设置清洗一条正文：只留「给手机看」里的标签（去掉记号留下字），别的标签连内容一起去掉（「不给看」的、没分类的都算）；没被标签包着的字照常留着。
+/** 按设置清洗一条正文：「给手机看」的标签整段留着（去掉记号留下字，里面套着的别的标签也留着），「不给手机看」的在哪都连内容去掉；
+ *  不在「给手机看」里面的没分类标签也连内容去掉；没被标签包着的字照常留着。
  *  keep：要留哪些标签，不给就按「给手机看」（念念铃整理时自己挑） */
-export function cleanText(text, keep = keepNow()) {
+export function cleanText(text, keep = keepNow(), drop = C().drop || []) {
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|astermem|asterdiary|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   if (!keep.includes('!--')) t = t.replace(block('!--'), '');
-  for (const tag of new Set(tagsIn(t))) if (!keep.includes(tag)) t = t.replace(block(tag), '');
+  for (const tag of drop) if (!keep.includes(tag)) t = t.replace(block(tag), '');
+  const held = [];   // 「给手机看」的整段先拿出来放一边，剩下的没分类标签去掉后再放回去
+  for (const tag of keep) if (tag !== '!--') t = t.replace(block(tag), m => `\u0000${held.push(m) - 1}\u0000`);
+  for (const tag of new Set(tagsIn(t))) t = t.replace(block(tag), '');
+  while (/\u0000\d+\u0000/.test(t)) t = t.replace(/\u0000(\d+)\u0000/g, (_, i) => held[i]);
   return t.replace(/<!--|-->/g, '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
