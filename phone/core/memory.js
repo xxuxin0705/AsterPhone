@@ -360,17 +360,20 @@ export async function refill(want, signal, redo) {
     // 一起经历过两件事以上的每一对人：明着列给 AI，不然它只爱写「谁和你」
     const co = new Map();
     for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
-    // 勾了几样都只找一次 AI（作者定的：不准连着调两次）；写太长断了靠 resume 接着写
+    // 勾了几样都只找一次 AI（作者定的：点一次就调一次，不准自己拆成好几次）。写到一半断了：设置里开了自动补写才接着要；
+    // 没开或补够了，写出来的先记下（最后半行不要），让作者自己再点一次补充
     const base = { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
       people: [myName() + '（就是 {{user}}）', ...D.ppl.filter(p => !isMe(p.name)).map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`)].join('、'), places: old.join('、') || '（没有）',
       events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
     const w = [want.includes('rel') && '关系、了解、成长', want.includes('places') && '在哪、地点'].filter(Boolean).join('、');
-    const y = w ? parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, resume: 3, prompt: compose('memFill', { ...base, want: w }) })) : {};
+    const m = state.apps.memory; let cut = false;
+    const y = w ? parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, resume: m.fill ? m.fillMax || 3 : 0, prompt: compose('memFill', { ...base, want: w }) })
+      .catch(e => { if (!e.part || (signal && signal.aborted)) throw e; cut = true; return e.part.slice(0, e.part.lastIndexOf('\n') + 1); })) : {};
     const x = { rel: [], grow: [], at: [], places: [], facts: [] };
     if (want.includes('rel')) { x.rel = y.rel; x.grow = y.grow; x.facts = y.facts; }
     if (want.includes('places')) { x.at = y.at; x.places = y.places; }
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-    const n = { rel: 0, places: 0, grow: x.grow.length, facts: x.facts.length, said: x.rel.filter(r => r.sa || r.sb).length };
+    const n = { rel: 0, places: 0, grow: x.grow.length, facts: x.facts.length, said: x.rel.filter(r => r.sa || r.sb).length, cut };
     if (x.facts.length) { if (redo) D.facts = []; merge({ ppl: [], ev: [], rel: [], places: [], days: [], todo: [], done: [], grow: [], facts: x.facts }, '重新填'); }
     if (n.grow) {
       if (redo) D.grow = D.grow.filter(g => g.src === '手动');
@@ -441,15 +444,6 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       if (more-- > 0) { log('info', '岁岁砂', `回复写到一半断了，记下了这部分，接着整理（还能补 ${more} 次）`); continue; }
       await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       throw new Error('回复写到一半断了，写出来的已经记下，点「接着整理」从断的地方接着');
-    }
-    // 读原文时 AI 只写这一批里碰到的那几对人、那几个地方（作者：重新生成了关系，大多数人之间还是空的）。
-    // 原文读完，再照着记下的事把勾上的关系 / 地点整个补一遍（勾了两样也只找一次 AI）：每一对一起经历过事的人都写，每件事在哪、每个地方归哪都写；只添没有的、填空着的
-    const fill = opt && D.ev.length ? ['rel', 'places'].filter(k => opt.want.includes(k)) : [];
-    if (fill.length) {
-      await kvSet('memjob:' + key, { label, list, done: job.done, at: 0, opt });
-      job.phase = '补' + fill.map(k => PARTS[k]).join('、'); tell('step', job);
-      try { const n = await refill(fill, job.ac.signal, false); job.grow += n.grow; job.places += n.places; }
-      catch (e) { if (job.ac.signal.aborted) throw e; log('warn', '岁岁砂', `${job.phase}没成：${e.message}`); }
     }
     job.rel = D.rel.length; job.said = D.rel.filter(r => r.sa || r.sb).length;
     await kvDel('memjob:' + key);

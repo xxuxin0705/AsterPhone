@@ -26,7 +26,7 @@ let refresh = () => {};   // 抽屉里改了东西：让首页照新的重画
 // 整理的时候一直挂着一条提示（作者要的）：第几批、这一批等了多久、收到多少字、已经记下几件，带「取消」；每秒换一次字
 let tick = 0;
 const busyTip = () => { const j = M.running(); if (!j) return; const s = Math.round((Date.now() - (j.t0 || Date.now())) / 1000);
-  toast(`${j.phase ? '正在' + j.phase : `正在整理 ${j.done + 1}/${j.list.length} 批`} · ${s} 秒${j.added ? ` · 已记下 ${j.added} 件` : ''}`, { label: '取消', fn: () => M.cancelJob(), wait: true }); };
+  toast(`正在整理 ${j.done + 1}/${j.list.length} 批 · ${s} 秒${j.added ? ` · 已记下 ${j.added} 件` : ''}`, { label: '取消', fn: () => M.cancelJob(), wait: true }); };
 M.onJob((how, j) => {
   if (j.label === '自动整理') { if (how === 'done' && j.added) log('info', '岁岁砂', `自动整理了一次，新记下 ${j.added} 件事`); if (how === 'fail') log('warn', '岁岁砂', '这次没自动整理成，下次一起补：' + j.error); return; }
   if (how === 'start') { clearInterval(tick); tick = setInterval(busyTip, 1000); busyTip(); }
@@ -504,7 +504,7 @@ function openSort() {
       const ps = src === 'known' ? [] : parts(); if (src !== 'known' && !ps.length) { toast('没有要整理的内容'); return; }
       if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
       if (src !== 'known') return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
-      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`].filter(Boolean).join(' · ')); refresh(); } }
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`, n.cut && '写到一半断了，再补充一次接着填'].filter(Boolean).join(' · ')); refresh(); } }
       catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }
