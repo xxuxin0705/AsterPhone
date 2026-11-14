@@ -27,6 +27,13 @@ export function detectTags(list = rawStory(30)) {
 
 const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${esc(t)}(?=[\\s>])[^>]*>[\\s\\S]*?<\\/${esc(t)}>`, 'giu');
+/** 「给手机看」的标签里面还套着哪些标签、各几次（「不给手机看」只用从这些里挑） */
+export function tagsInside(keep = keepNow(), list = rawStory(30)) {
+  const count = {};
+  for (const m of list) for (const k of keep) for (const b of m.text.match(block(k)) || []) for (const t of tagsIn(b.slice(1))) if (t !== k) count[t] = (count[t] || 0) + 1;
+  return count;
+}
+
 /** 现在真正给手机看的标签：「给手机看」里没被暂时关掉的 */
 export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
 /** 按设置清洗一条正文：只留「给手机看」里的标签（去掉记号留下字），别的标签连内容一起去掉（「不给看」的、没分类的都算）；没被标签包着的字照常留着。

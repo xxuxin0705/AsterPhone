@@ -79,7 +79,7 @@
 .as-ctx-book { flex: none; width: 24px; height: 24px; margin-right: 12px; border-radius: 50%; border: 1.6px solid var(--as-color-text-3, #9aa0ab); background: none; display: grid; place-items: center; color: transparent; padding: 0; cursor: pointer; }
 .as-ctx-book.is-on { background: #30a46c; border-color: #30a46c; color: #fff; }
 .as-ctx-stat { margin: 8px 0 6px; font-size: 12px; text-align: right; }
-.as-ctx-preview { max-height: 260px; overflow: auto; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--as-color-surface-2); font: 12px/1.6 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
+.as-ctx-preview { margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--as-color-surface-2); font: 12px/1.6 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
 .as-list-item.is-dragging { background: var(--as-color-surface-2); box-shadow: 0 8px 22px rgba(20,40,70,.18); position: relative; z-index: 2; }
 .as-prompt-view { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.65 ui-monospace, "SF Mono", Menlo, Consolas, var(--font-ui); color: var(--as-color-text); }
 .as-prompt-bar { position: sticky; bottom: 0; display: flex; gap: 12px; padding: 12px 2px 4px; }
@@ -107,3 +107,15 @@
 .as-settings-now .as-list-item__value { max-width: 80%; }   /* 「现在」后面的日期时间要写全 */
 .as-chip.is-off { opacity: .45; text-decoration: line-through; }   /* 「给手机看」里暂时关掉的标签 */
 .as-ctx-add { color: var(--as-color-accent); border-style: dashed; }
+.as-ctx-poolhead { display: flex; align-items: center; gap: 12px; margin: 12px 0 6px; font-size: 12px; color: var(--as-color-text-3, #9aa0ab); }
+.as-ctx-poolhead span { flex: 1; }
+.as-ctx-more { border: 0; padding: 4px 0; background: none; color: var(--as-color-accent); font: 500 12px/1 var(--font-ui); }
+.as-ctx-pool { max-height: 66px; overflow: hidden; }   /* 先收成两行 */
+.as-ctx-pool.is-open { max-height: none; }
+.as-ctx-pool .as-chip { border-style: dashed; background: none; }
+.as-ctx-pool .as-chip small { opacity: .55; font-size: 11px; }
+.as-ctx-part { border-top: 1px solid var(--as-color-glass-line); }
+.as-ctx-part summary { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; font-size: 14px; list-style: none; cursor: pointer; }
+.as-ctx-part summary::-webkit-details-marker { display: none; }
+.as-ctx-part summary small { color: var(--as-color-text-3, #9aa0ab); font-size: 12px; }
+.as-ctx-part[open] summary span { color: var(--as-color-accent); }

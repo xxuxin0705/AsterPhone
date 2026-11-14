@@ -1,10 +1,10 @@
 // 设置 → 上下文与世界书：手机里的 AI 能看到哪些正文、哪些标签、人设、世界书，最后能预览。
 import { h } from '../../core/util.js';
 import { commit } from '../../core/store.js';
-import { group, item, toggleItem, segmented, input, empty, icon, actionSheet, dialog } from '../../core/ui.js';
+import { group, item, toggleItem, segmented, input, empty, icon, dialog } from '../../core/ui.js';
 import { worldNames, currentCharacter, characters } from '../../core/bridge.js';
 import { myPersona } from '../../core/promptstore.js';
-import { C, rawStory, detectTags, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
+import { C, rawStory, detectTags, tagsInside, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
 
 const label = t => t === '!--' ? '<!-- -->' : t;
 const save = () => commit('settings');
@@ -15,7 +15,6 @@ export function openContext({ sub, sliderRow, withInfo }) {
     body.append(
       group('上下文', [
         sliderRow('读取正文条数', { min: 0, max: 30, step: 1, value: s.count, onInput: v => { s.count = v; save(); } }),
-        toggleItem({ title: '包含你发的消息' }, s.withUser, v => { s.withUser = v; save(); }),
       ]),
       group('人设', [
         toggleItem({ title: '角色人设' }, s.charPersona, v => { s.charPersona = v; save(); }),
@@ -27,32 +26,43 @@ export function openContext({ sub, sliderRow, withInfo }) {
   });
 }
 
-/** 正文筛选：两排标签。「给手机看」的点一下能暂时关掉；「加标签」列出正文里扫到、还没分类的，也能自己打字加 */
+/** 正文筛选：两排标签，每排下面是正文里扫到、还没分类的标签（点一下就进这一排）。「给手机看」的点一下能暂时关掉。
+ *  「不给手机看」下面只列套在「给手机看」的标签里面的；先收成两行，「更多」展开；能按次数 / 字母排；扫不到的用「自己输入」 */
 function tagGroup(s, withInfo) {
   s.keepOff = s.keepOff || []; s.drop = (s.drop || []).filter(t => !s.keep.includes(t));   // 以前只有「要」：已经在「要」里的不再放进「不要」
-  const lists = { keep: s.keep, drop: s.drop };
-  const boxes = {}, paint = k => boxes[k].replaceChildren(...lists[k].map(t => {
-    const off = k === 'keep' && s.keepOff.includes(t);
-    return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : ''), { onclick: k === 'keep' ? () => {
-      s.keepOff = off ? s.keepOff.filter(x => x !== t) : [...s.keepOff, t]; save(); paint(k);
-    } : null }, label(t),
-      h('button.as-pbd__chipx', { 'aria-label': `删掉「${label(t)}」`, onclick: e => {
-        e.stopPropagation(); lists[k].splice(lists[k].indexOf(t), 1); s.keepOff = s.keepOff.filter(x => x !== t); save(); paint(k);
-      } }, icon('close', 11, 2.4)));
-  }), h('button.as-chip.as-ctx-add', { onclick: () => add(k) }, icon('plus', 12, 2.4), '加标签'));
-  const add = async k => {
-    const found = detectTags(), fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t));
-    let t = fresh.length ? await actionSheet('加标签', [...fresh.map(x => ({ value: x, label: `${label(x)} · 出现 ${found[x]} 次` })), { value: '__type', label: '自己输入…' }]) : '__type';
-    if (t === '__type') t = await dialog({ title: '加标签', input: { placeholder: '标签名' } });
+  const lists = { keep: s.keep, drop: s.drop }, boxes = {}, pools = {}, open = {};
+  let az = false;
+  const put = (k, t) => {
     t = String(t || '').trim().replace(/^<\/?|>$/g, '').toLowerCase(); if (!t) return;
     const other = k === 'keep' ? 'drop' : 'keep';
-    if (lists[other].includes(t)) { lists[other].splice(lists[other].indexOf(t), 1); paint(other); }   // 一个标签只在一边
+    if (lists[other].includes(t)) lists[other].splice(lists[other].indexOf(t), 1);   // 一个标签只在一边
     if (!lists[k].includes(t)) lists[k].push(t);
-    save(); paint(k);
+    save(); paint();
   };
-  const row = (k, title) => { boxes[k] = h('div.as-chips'); paint(k); return h('div.as-field', h('span.as-field__label', title), boxes[k]); };
-  return group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。手机只看得到「给手机看」里的标签内容（点一下能暂时关掉）；「不给手机看」的和没分类的标签，整段都去掉。没被标签包着的正文照常给手机看。'),
-    [row('keep', '给手机看'), row('drop', '不给手机看')]);
+  const paintList = k => boxes[k].replaceChildren(...lists[k].map(t => {
+    const off = k === 'keep' && s.keepOff.includes(t);
+    return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : ''), { onclick: k === 'keep' ? () => {
+      s.keepOff = off ? s.keepOff.filter(x => x !== t) : [...s.keepOff, t]; save(); paint();
+    } : null }, label(t),
+      h('button.as-pbd__chipx', { 'aria-label': `删掉「${label(t)}」`, onclick: e => {
+        e.stopPropagation(); lists[k].splice(lists[k].indexOf(t), 1); s.keepOff = s.keepOff.filter(x => x !== t); save(); paint();
+      } }, icon('close', 11, 2.4)));
+  }));
+  const paintPool = k => {
+    const found = k === 'drop' && s.keep.length ? tagsInside() : detectTags();
+    const fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t)).sort((a, b) => az ? a.localeCompare(b) : found[b] - found[a] || a.localeCompare(b));
+    const chips = h('div.as-chips.as-ctx-pool' + (open[k] ? '.is-open' : ''), ...fresh.map(t => h('button.as-chip', { onclick: () => put(k, t) }, label(t), h('small', String(found[t])))),
+      h('button.as-chip.as-ctx-add', { onclick: async () => put(k, await dialog({ title: '加标签', input: { placeholder: '标签名' } })) }, icon('plus', 12, 2.4), '自己输入'));
+    const more = h('button.as-ctx-more', { hidden: true, onclick: () => { open[k] = !open[k]; chips.classList.toggle('is-open', open[k]); more.textContent = open[k] ? '收起' : '更多'; } }, open[k] ? '收起' : '更多');
+    pools[k].replaceChildren(h('div.as-ctx-poolhead', h('span', '正文里的标签'), more, h('button.as-ctx-more', { onclick: () => { az = !az; paint(); } }, az ? 'A–Z' : '按次数')), chips);
+    requestAnimationFrame(() => { more.hidden = !open[k] && chips.scrollHeight <= chips.clientHeight + 2; });   // 两行放得下就不出「更多」
+  };
+  const paint = () => ['keep', 'drop'].forEach(k => { paintList(k); paintPool(k); });   // 只换这几排标签，不重画整页
+  const row = (k, title) => { boxes[k] = h('div.as-chips'); pools[k] = h('div'); return h('div.as-field', h('span.as-field__label', title), boxes[k], pools[k]); };
+  const g = group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。手机只看得到「给手机看」里的标签内容（点一下能暂时关掉）；「不给手机看」的和没分类的标签，整段都去掉。没被标签包着的正文照常给手机看。'),
+    [row('keep', '给手机看'), row('drop', '不给手机看'), toggleItem({ title: '包含你发的消息' }, s.withUser, v => { s.withUser = v; save(); })]);
+  paint();
+  return g;
 }
 
 /** 世界书：圈圈管整本开关，点名字进去管单条 */
@@ -101,18 +111,15 @@ function openBook(name, sub) {
   });
 }
 
-/** 预览：只看正文 / 全部（人设 + 世界书 + 正文，手机里的 AI 能看到的都在这），各多少字 */
+/** 预览：照发给 AI 的顺序一段段排下来，每段写多少字，点开看全文（聊天记录、念念铃想起的事、时间要进了聊天才有） */
 function previewGroup() {
-  const out = h('pre.as-ctx-preview'), stat = h('div.as-muted.as-ctx-stat');
-  const show = async k => {
-    const story = storyText();
-    if (k === 'story') { out.textContent = story || '（没有正文）'; stat.textContent = `正文 ${rawStory().length} 条 · ${story.length} 字`; return; }
-    out.textContent = '正在读世界书…';
-    const s = C(), cur = currentCharacter(), ch = cur && characters().find(x => x.key === cur.key), world = await worldText(story).catch(() => '');
-    const t = [s.charPersona && ch && ch.persona && `【${ch.name} 的人设】\n${ch.persona}`, s.userPersona && myPersona() && `【你的人设】\n${myPersona()}`,
-      world && `【世界书】\n${world}`, story && `【正文】\n${story}`].filter(Boolean).join('\n\n');
-    out.textContent = t || '（什么都没有）'; stat.textContent = `全部 ${t.length} 字`;
-  };
-  show('story');
-  return group('预览手机看到的内容', [h('div.as-field', segmented([['story', '正文'], ['all', '全部']], 'story', show), stat, out)]);
+  const box = h('div.as-field', h('div.as-muted', '正在读…'));
+  (async () => {
+    const s = C(), story = storyText(), cur = currentCharacter(), ch = cur && characters().find(x => x.key === cur.key), world = await worldText(story).catch(() => '');
+    const parts = [[ch ? `${ch.name} 的人设` : '角色人设', s.charPersona && ch && ch.persona], ['你的人设', s.userPersona && myPersona()], ['世界书', world], [`正文（${rawStory().length} 条）`, story]].map(([t, v]) => [t, v || '']);
+    box.replaceChildren(h('div.as-muted.as-ctx-stat', `一共 ${parts.reduce((n, p) => n + p[1].length, 0)} 字`),
+      ...parts.map(([t, v]) => h('details.as-ctx-part', h('summary', h('span', t), h('small', v ? `${v.length} 字` : '没有')), h('pre.as-ctx-preview', v || '（没有）'))),
+      h('div.as-muted.as-ctx-stat', '聊天记录、念念铃、时间：进聊天后接在后面'));
+  })();
+  return group('预览手机看到的内容', [box]);
 }
