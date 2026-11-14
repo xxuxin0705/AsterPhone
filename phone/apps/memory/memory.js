@@ -23,8 +23,14 @@ const split = s => String(s).split(/[、,，]/).map(t => t.trim()).filter(Boolea
 let refresh = () => {};   // 抽屉里改了东西：让首页照新的重画
 
 // 整理完了不管在哪一页都说一声（每隔几轮自动整理的只进日志，不打扰）
+// 整理的时候一直挂着一条提示（作者要的）：第几批、这一批等了多久、收到多少字、已经记下几件，带「取消」；每秒换一次字
+let tick = 0;
+const busyTip = () => { const j = M.running(); if (!j) return; const s = Math.round((Date.now() - (j.t0 || Date.now())) / 1000);
+  toast(`正在整理 ${j.done + 1}/${j.list.length} 批 · ${s} 秒${j.got ? ` · 收到 ${j.got} 字` : ''}${j.added ? ` · 已记下 ${j.added} 件` : ''}`, { label: '取消', fn: () => M.cancelJob(), wait: true }); };
 M.onJob((how, j) => {
   if (j.label === '自动整理') { if (how === 'done' && j.added) log('info', '岁岁砂', `自动整理了一次，新记下 ${j.added} 件事`); if (how === 'fail') log('warn', '岁岁砂', '这次没自动整理成，下次一起补：' + j.error); return; }
+  if (how === 'start') { clearInterval(tick); tick = setInterval(busyTip, 1000); busyTip(); }
+  if (how === 'done' || how === 'fail') clearInterval(tick);
   if (how === 'done') toast(`整理完了，新记下 ${j.added} 件事`);
   if (how === 'fail') toast(j.error === '已中止' ? '已停下，可以接着整理' : '整理失败：' + j.error);
   if (how !== 'step') refresh();
@@ -362,7 +368,6 @@ function openSort() {
     })));
   }
   function go(label, list, done, at) {
-    toast(`开始整理，一共 ${list.length} 批`);
     M.startJob(label, list, done, at).catch(e => toast(e.message));
   }
   const off = M.onJob(() => paintRun());
@@ -403,7 +408,6 @@ async function openSet() {
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
     item({ title: '现在整理', chevron: true, onClick: async () => {
       if (M.running()) { toast('已经在整理了'); return; }
-      toast('正在整理…', { label: '取消', fn: () => M.cancelJob(), wait: true });
       try { if (!(await M.autoSort(true))) toast('没有新的可整理'); } catch (e) { toast('整理失败：' + e.message); }
     } }),
     fillOn, fillMax,

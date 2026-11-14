@@ -321,7 +321,8 @@ export async function startJob(label, list, done = 0, at = 0) {
       await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at });
       const full = list[job.done], from = job.at ? Math.max(0, full.lastIndexOf('\n【第 ', job.at) + 1) || job.at : 0, src = full.slice(from);   // 接着整理时从那一层开头接（楼层号才对得上）
       let raw;
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames() }), temperature: .3, stop: job.ac.signal }); }
+      job.got = 0; job.t0 = Date.now();
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames() }), temperature: .3, stop: job.ac.signal, onPart: t => { job.got = t.length; } }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = parse(raw); job.added += merge(x, label, src, HERE.has(label)); await save();
