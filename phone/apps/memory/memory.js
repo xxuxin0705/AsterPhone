@@ -6,7 +6,7 @@ import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { worldNames, ctx } from '../../core/bridge.js';
+import { worldNames } from '../../core/bridge.js';
 import { loadBook, C as ctxCfg } from '../../core/context.js';
 import { tagRows } from '../settings/context.js';
 import { connLabel, resolveConn } from '../../core/api.js';
@@ -296,7 +296,7 @@ function openSort() {
   const p = page({ app: 'memory', id: 'memory-sort', title: '整理记忆', back: true });
   const pick = h('div'), sum = h('div.as-mem-sum'), act = h('div.as-mem-run');
   // 每种来源各自的选择；parts() 给出要整理的一段段文字
-  const book = { name: (ctx() && ctx().chatMetadata && ctx().chatMetadata.world_info) || '', entries: [], off: new Set() };
+  const book = { name: '', entries: [], off: new Set() };   // 不替你选（作者：以前默认填了这个聊天绑的世界书，没导入时也显示）
   const file = { name: '', got: null, off: new Set() };
   // 要 / 不要哪些标签：记住上次在这里挑的；没挑过就照「上下文与世界书」
   const chat = { withUser: true, from: 0, to: Infinity, keep: (S().keep || ctxCfg().keep).slice(), drop: (S().drop || ctxCfg().drop || []).slice(), keepOff: (S().keepOff || ctxCfg().keepOff || []).slice() };
