@@ -41,6 +41,11 @@ export async function load() {
   if (k !== win.key) return load();   // 读的时候换了窗口
   D = Object.assign(blank(), d); Dkey = k; ver++;
   D.ev.forEach(upgrade);
+  // 收拾上面说的那个错：别名里的「（空）」去掉，被它带进「后来听说的人」里的那个人也拿掉
+  for (const q of D.ppl) if (q.alias.some(a => NONE.test(a))) {
+    q.alias = q.alias.filter(a => !NONE.test(a));
+    for (const e of D.ev) { if (e.know) e.know = e.know.filter(n => n !== q.name); if (NONE.test(e.quote || '')) e.quote = ''; }
+  }
   return D;
 }
 export const save = () => { ver++; return kvSet('mem:' + Dkey, D); };
@@ -81,6 +86,8 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 // 关系：甲｜乙｜关系｜从何时起｜现在｜亲近度｜甲眼里的乙｜乙眼里的甲   人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 // 地点：名字｜归哪个大地方｜一句介绍
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
+// AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
+const NONE = /^[（(]?(空|无|没有|暂无|未知)[)）]?$/;
 /** 「2005年4月6日」「2005/4/6」「2005-04-06?」→ ['2005-04-06', 是不是推测] */
 export function day(s) {
   s = norm(s); const guess = /[?？]|推测|约|大概/.test(s);
@@ -92,7 +99,7 @@ export function parse(raw) {
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
   for (const line of text.split('\n')) {
     const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
-    const f = m[2].split(/[｜|]/).map(norm);
+    const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,

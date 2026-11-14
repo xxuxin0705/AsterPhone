@@ -100,7 +100,7 @@ export function open() {
   const row = (cls, t, title, small, onclick, more) => h('div.ev' + cls, { role: 'button', tabindex: 0, onclick }, h('time', t), h('i'), h('b', title), h('small', small), more);
   // 时间那页分四块看，不挤在一起（作者定的）：时间轴（能换从新到旧 / 从旧到新）、分类（按大标签，点开才列）、日子、没完的事
   let view = 'line';
-  const modes = h('div.as-ss-modes', [['line', '时间轴'], ['tag', '分类'], ['day', '日子'], ['todo', '没完的事']].map(([k, t]) => h('button' + (k === view ? '.on' : ''), { onclick: e => {
+  const modes = h('div.as-ss-modes', [['line', '时间轴'], ['tag', '分类'], ['day', '纪念日'], ['todo', '待办']].map(([k, t]) => h('button' + (k === view ? '.on' : ''), { onclick: e => {
     if (k === view) return; view = k; [...modes.children].forEach(x => x.classList.toggle('on', x === e.currentTarget)); fillAxis(); } }, t)));
   const evRow = (e, t) => {
     const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), t, e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
@@ -122,7 +122,7 @@ export function open() {
         if (v === 'done') t.done = true; else if (v === 'del') d.todo.splice(d.todo.indexOf(t), 1); else return;
         await M.save(); draw();
       })));
-      if (!todo.length) none('没有没完的事');
+      if (!todo.length) none('没有待办');
     } else if (view === 'tag') {
       for (const g of [...M.bigs(), '']) {   // 一个大标签一栏，点一下才列出里面的事
         const l = ev.filter(e => g ? e.big.includes(g) : !e.big.length); if (!l.length) continue;
@@ -132,7 +132,7 @@ export function open() {
       if (!ev.length) none('还没有记下的事');
     } else {
       const asc = !!S().asc; let yr = null;
-      if (ev.length) rows.push(h('div.yr.zh', h('button.txt', { onclick: () => { S().asc = !asc; commit('apps'); fillAxis(); } }, asc ? '从旧到新' : '从新到旧')));
+      if (ev.length) rows.push(h('div.yr.zh', h('button.sort', { 'aria-label': asc ? '现在从旧到新，点一下换成从新到旧' : '现在从新到旧，点一下换成从旧到新', onclick: () => { S().asc = !asc; commit('apps'); fillAxis(); toast(asc ? '从新到旧' : '从旧到新'); } }, icon('sort', 14, 2))));
       for (const e of asc ? ev : [...ev].reverse()) {
         const y = e.at ? e.at.slice(0, 4) : '不知道哪年'; if (y !== yr) rows.push(h('div.yr' + (e.at ? '' : '.zh'), h('em', yr = y)));
         rows.push(evRow(e, e.at ? dot(e.at.slice(5)) : ''));
