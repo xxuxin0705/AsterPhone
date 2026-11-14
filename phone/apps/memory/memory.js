@@ -249,10 +249,14 @@ export function open() {
     const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
     const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
     for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
-    const big = [...new Set([...pl.values()].map(q => junk(q.area)).filter(Boolean))];
+    // 大地方 = 写了归属的那些，加上程序自己看出来的：三个以上没归属的地点用同两个字开头（高专医务室、高专食堂、高专教室…），就是一片；
+    // 这片叫什么：有哪个地点的名字正好以这两个字结尾就用它（东京咒术高专），没有就用这两个字。这样清空了归属、AI 没归好，也不会全散在外面
+    const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
+    const set = [...pl.values()].map(q => junk(q.area)).filter(Boolean);
+    const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
     // 没写归属的：名字里带着某个大地方的全名，或者用它的简称开头（大地方名字的后半截，至少两个字：「高专男生宿舍」→「东京咒术高专」），算那个大地方的
     const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
-    const areaOf = q => junk(q.area) || big.find(a => a !== q.name && (q.name.includes(a) || short(a, q.name))) || '';
+    const areaOf = q => junk(q.area) || !big.includes(q.name) && big.find(a => a !== q.name && (q.name.includes(a) || short(a, q.name))) || '';
     loose = [...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && pl.size > 12 && (cnt.get(q.name) || 0) < 2).map(q => q.name);
     more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
     const spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && !loose.includes(q.name)).map(q => q.name)];
