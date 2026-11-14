@@ -188,7 +188,7 @@ export async function generate(opts) {
   throw last;
 }
 // 不限字数（作者定的）：思考也算在上限里，回到一半被截断就白花了。OpenAI 格式、Gemini 不传上限，Claude 必须填就给 64000（官方建议的大小），走酒馆的照酒馆预设
-async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart }) {
+async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart, resume = 0 }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -197,7 +197,8 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
   let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
   const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
-  let got = '';   // 流式收到的（线断了时带在报错上，接着写用）
+  let got = '', why = '';   // 流式收到的（线断了时带在报错上，接着写用）；AI 为什么停（字数到上限就不算写完）
+  const halt = r => { if (r) why = r; };
   // 收到多少字了告诉界面（core/ui.js 的 aiCount：等待的提示条、转圈的按钮、聊天里的「正在输入」后面都跟着写；结束报 null）
   const tell = n => document.dispatchEvent(new CustomEvent('as-ai', { detail: n }));
   const signal = call.signal, part = t => { got = t; call.part(t); tell(t.length); onPart && onPart(t); };
@@ -228,7 +229,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         if (think) { body.reasoning_effort = P.thinking; delete body.temperature; }
         const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
-        return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part);
+        return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part, halt);
       });
     } else if (conn.type === 'claude') {
       out = await withKey(async key => {
@@ -241,7 +242,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
           method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(await readErr(res));
-        return readOut(res, j => j.type === 'content_block_delta' && j.delta?.type === 'text_delta' ? j.delta.text : '', j => (j.content || []).filter(p => p.type === 'text').map(p => p.text).join(''), part);
+        return readOut(res, j => j.type === 'content_block_delta' && j.delta?.type === 'text_delta' ? j.delta.text : '', j => (j.content || []).filter(p => p.type === 'text').map(p => p.text).join(''), part, halt);
       });
     } else if (conn.type === 'gemini') {
       out = await withKey(async key => {
@@ -252,27 +253,33 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
           body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
         if (!res.ok) throw new Error(await readErr(res));
         const parts = j => (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
-        return readOut(res, parts, parts, part);
+        return readOut(res, parts, parts, part, halt);
       });
     } else throw new Error('这个渠道还不能用来生成文字：' + conn.type);
     // 走酒馆的：接口出错时酒馆不报错，而是把「[API 错误] … failed with status 502: <html>…」当回复交回来，要当失败（5xx 会照设置重试）
     const bad = /^\s*\[API (?:错误|Error)\]/i.test(String(out || '')) && String(out);
     if (bad) { call.part(bad); throw new Error(`${(/status (\d{3})/.exec(bad) || [])[1] || ''} 接口出错了${(/<title>([^<]*)<\/title>/i.exec(bad) || [])[1] ? `（${/<title>([^<]*)<\/title>/i.exec(bad)[1].trim()}）` : ''}`.trim()); }
+    // 回了字、连接也好好结束了，其实是字数到上限被掐断的（作者：只写了关系就停了，还标着成功）：开了自动补写就当断了、接着写；没开就照样给，日志记成警告
+    if (/^(length|max_tokens|MAX_TOKENS)$/.test(why)) {
+      if (resume > 0) throw Object.assign(new Error('字数到上限了'), { cut: String(out) });
+      call.done(String(out || '').trim(), '字数到上限了'); return String(out || '').trim();
+    }
     call.done(String(out || '').trim());
     return String(out || '').trim();
   } catch (e) {
     const msg = e && e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : (e && e.message) || String(e);
     if (e && e.raw) call.part(e.raw);
     call.fail(msg);
-    throw Object.assign(new Error(msg), { logId: call.id, part: msg !== '已中止' && !e.raw ? got : '' });   // 报错里的「查看日志」直接跳到这一条
+    throw Object.assign(new Error(msg), { logId: call.id, part: e.cut || (msg !== '已中止' && !e.raw ? got : '') });   // 报错里的「查看日志」直接跳到这一条
   } finally { free(); sleep(); tell(null); }
 }
 
 /** OpenAI 格式的几家：官方、DeepSeek、第三方中转 */
 const OAI = t => t === 'openai' || t === 'deepseek' || t === 'openai-compat';
 /** 读回复：流式就一段段拼起来（data: {...}），服务器没按流式回就当普通 JSON 读 */
-async function readOut(res, pickDelta, pickWhole, onPart = () => {}) {
-  if (!res.body || /application\/json/.test(res.headers.get('content-type') || '')) { const j = await res.json(), o = pickWhole(j) ?? ''; if (!String(o).trim()) throw empty(JSON.stringify(j)); return o; }
+const whyStop = j => j.choices?.[0]?.finish_reason || j.candidates?.[0]?.finishReason || j.delta?.stop_reason || j.stop_reason;
+async function readOut(res, pickDelta, pickWhole, onPart = () => {}, onStop = () => {}) {
+  if (!res.body || /application\/json/.test(res.headers.get('content-type') || '')) { const j = await res.json(), o = pickWhole(j) ?? ''; onStop(whyStop(j)); if (!String(o).trim()) throw empty(JSON.stringify(j)); return o; }
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = '', out = '', raw = '';
   for (;;) {
@@ -281,7 +288,7 @@ async function readOut(res, pickDelta, pickWhole, onPart = () => {}) {
     const lines = buf.split('\n'); buf = lines.pop();
     for (const l of lines) {
       const m = /^data:\s*(.*)$/.exec(l.trim()); if (!m || m[1] === '[DONE]') continue;
-      try { out += pickDelta(JSON.parse(m[1])) || ''; } catch (e) { /* 半截的行，等下一段 */ }
+      try { const j = JSON.parse(m[1]); out += pickDelta(j) || ''; onStop(whyStop(j)); } catch (e) { /* 半截的行，等下一段 */ }
     }
     onPart(out);
   }

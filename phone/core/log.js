@@ -54,7 +54,7 @@ export function startCall({ app, what = '生成', src = '', model = '', req = ''
     id: e.id, signal: ac.signal,
     // 流式：收到一段就更新，最多每 0.2 秒刷一次界面
     part(text) { e.res = cut(text); if (!pend) pend = setTimeout(() => { pend = 0; if (e.run) tell(e, 'update'); }, 200); },
-    done(res) { clearTimeout(pend); e.res = cut(res); const one = String(res).replace(/\s+/g, ' ').trim(); e.msg = `${what}完成：${one.length > 40 ? one.slice(0, 40) + '…' : one}`; end(); },   // 一眼看到回了什么
+    done(res, warn) { clearTimeout(pend); e.res = cut(res); const one = String(res).replace(/\s+/g, ' ').trim(); if (warn) e.level = 'warn'; e.msg = warn ? `${what}没写完（${warn}）：…${one.slice(-30)}` : `${what}完成：${one.length > 40 ? one.slice(0, 40) + '…' : one}`; end(); },   // warn：回了字但没写完，进「警告」   // 一眼看到回了什么
     fail(msg) { clearTimeout(pend); e.level = 'error'; e.msg = `${what}失败：${msg}`; end(); console.error('[AsterPhone]', app, e.msg); },
   };
 }
