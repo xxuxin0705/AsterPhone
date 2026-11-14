@@ -432,15 +432,18 @@ async function openWait() {
 /* ---------- 整理 ---------- */
 let src = 'chat';
 function openSort() {
+  // 上次在这里挑的都记着（作者：每次进来都要重新点）：来源、哪本世界书、关掉的条目、整理哪些、带不带你发的。补充 / 重新生成不记，免得哪次忘了看就把旧的换掉
+  const last = S().sort || (S().sort = {}), remember = () => { Object.assign(last, { src, book: book.name, off: book.entries.filter((e, i) => book.off.has(i)).map(e => e.title), want: [...want], withUser: chat.withUser }); commit('apps'); };
+  if (last.src) src = last.src;
   const p = page({ app: 'memory', id: 'memory-sort', title: '整理记忆', back: true });
   const pick = h('div'), sum = h('div.as-mem-sum'), act = h('div.as-mem-run');
   // 每种来源各自的选择；parts() 给出要整理的一段段文字
-  const book = { name: (ctx() && ctx().chatMetadata && ctx().chatMetadata.world_info) || '', entries: [], off: new Set() };
+  const book = { name: last.book || (ctx() && ctx().chatMetadata && ctx().chatMetadata.world_info) || '', entries: [], off: new Set() };
   const file = { name: '', got: null, off: new Set() };
   // 要 / 不要哪些标签：记住上次在这里挑的；没挑过就照「上下文与世界书」
-  const chat = { withUser: true, from: 0, to: Infinity, keep: (S().keep || ctxCfg().keep).slice(), drop: (S().drop || ctxCfg().drop || []).slice(), keepOff: (S().keepOff || ctxCfg().keepOff || []).slice() };
+  const chat = { withUser: last.withUser ?? true, from: 0, to: Infinity, keep: (S().keep || ctxCfg().keep).slice(), drop: (S().drop || ctxCfg().drop || []).slice(), keepOff: (S().keepOff || ctxCfg().keepOff || []).slice() };
   // 每个条目点一下展开看内容（固定大小的框里上下滑），再点收起；右边的开关管整不整理它
-  const entryRows = (list, off) => list.map((e, i) => h('details.as-ctx-part.as-mem-entry', h('summary', h('span', e.title, h('small', ` · ${e.content.length} 字`)), switchEl(!off.has(i), on => { on ? off.delete(i) : off.add(i); count(); }, e.title)),
+  const entryRows = (list, off) => list.map((e, i) => h('details.as-ctx-part.as-mem-entry', h('summary', h('span', e.title, h('small', ` · ${e.content.length} 字`)), switchEl(!off.has(i), on => { on ? off.delete(i) : off.add(i); count(); remember(); }, e.title)),
     h('pre.as-ctx-preview', e.content)));
   const parts = () => {
     if (src === 'book') return book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content);
@@ -466,7 +469,7 @@ function openSort() {
     };
     const step = d => () => { const l = span(); if (k + d >= 0 && k + d < l.length) { k += d; show(); } };
     fresh = show;
-    return [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); }),
+    return [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); remember(); }),
       field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(chat.from), onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
         h('span', '到'), input({ type: 'number', value: String(Math.min(chat.to, msgs.length - 1)), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })), n)]),
       group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着。「要」里的标签，里面的字拿去整理（点一下能暂时关掉）；里面不想要的，放进「不要」。两边都没放的标签，在「要」的标签外面就整段去掉。没被标签包着的正文照常整理。'), [keep, drop]),
@@ -478,10 +481,10 @@ function openSort() {
     if (src === 'book') {
       nb.push(group('', [item({ title: '世界书', value: book.name || '选一本', chevron: true, onClick: async () => {
         const v = await actionSheet('从哪本世界书整理', worldNames().map(n => ({ value: n, label: n, active: n === book.name })));
-        if (v) { book.name = v; book.entries = []; book.off.clear(); paintPick(); }
+        if (v) { book.name = v; book.entries = []; book.off.clear(); remember(); paintPick(); }
       } })]));
       if (book.name && !book.entries.length) {
-        try { book.entries = (await loadBook(book.name, true)).filter(e => e.content.trim()); } catch (e) { toast('读不到这本世界书'); }
+        try { book.entries = (await loadBook(book.name, true)).filter(e => e.content.trim()); book.entries.forEach((e, i) => (last.book === book.name && (last.off || []).includes(e.title)) && book.off.add(i)); } catch (e) { toast('读不到这本世界书'); }
       }
       if (book.entries.length) nb.push(group('要整理的条目', [h('div.as-field', entryRows(book.entries, book.off))]));
     } else if (src === 'file') {
@@ -517,14 +520,15 @@ function openSort() {
     M.startJob(label, list, done, at, opt).catch(e => toast(e.message));
   }
   // 整理哪几样、怎么整理：补充（只添没有的、填空着的）/ 重新生成（旧的换成新的；勾了「时间」就是全部重来，四样一起勾上）
-  const want = new Set(Object.keys(M.PARTS)); let redo = false;
+  const want = new Set(last.want || Object.keys(M.PARTS)); let redo = false;
   const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => { const k = Object.keys(M.PARTS)[i]; c.classList.toggle('is-active', want.has(k)); c.textContent = (want.has(k) ? '✓ ' : '') + M.PARTS[k]; }); };   // 勾上的前面写 ✓（作者：光看颜色分不出勾没勾）
-  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); count(); } }, '✓ ' + t));
+  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); count(); remember(); } }, '✓ ' + t));
+  paintWant();
   const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、对对方的一句话、知道对方什么，还有每个人的成长线（后来变成什么样了）。地点：去过哪、归哪个大地方。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
     h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; paintWant(); }))]);
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
-  p.body.append(group('', [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天'], ['known', '记下的事']], src, v => { src = v; paintPick(); }))]), pick, what, sum, act);
+  p.body.append(group('', [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天'], ['known', '记下的事']], src, v => { src = v; remember(); paintPick(); }))]), pick, what, sum, act);
   paintPick();
   nav.push(p.el);
 }
