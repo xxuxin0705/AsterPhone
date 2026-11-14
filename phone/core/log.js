@@ -10,7 +10,7 @@ import { debounce } from './util.js';
 export const logs = [];
 const subs = new Set();
 const running = new Map();   // 进行中的调用 id → AbortController
-const CAP = 20000, cut = s => { s = String(s ?? ''); return s.length > CAP ? s.slice(0, CAP) + `\n…（后面还有 ${s.length - CAP} 字没存）` : s; };
+const CAP = 200000, cut = s => { s = String(s ?? ''); return s.length > CAP ? s.slice(0, CAP) + `\n…（后面还有 ${s.length - CAP} 字没存）` : s; };
 const save = debounce(() => kvSet('logs', logs.slice(-300)).catch(() => {}), 800);
 const tell = (e, how) => subs.forEach(f => f(e, how));
 
