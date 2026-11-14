@@ -79,7 +79,9 @@ export function open() {
 
   // 底下那张纸：地点和人共用
   const show = (title, small, lead, intro, rows, none, acts, edit) => {
-    paper.replaceChildren(h('button.x', { onclick: shut }, '收起'), ...(title instanceof Node ? [title] : [h('h4', title, small && h('small', small), edit && h('small.go', { onclick: edit }, '编辑')), lead && h('p.lead', lead), intro && h('p', intro)]),
+    // 顶上一条（名字、收起，关系卡的翻面 / 编辑 / 问缘）钉在纸的顶上，滑到下面也能直接收起（作者要的）；title 给 [顶上那条, 下面的内容] 也行
+    const str = !(title instanceof Node) && !Array.isArray(title), [bar, body] = Array.isArray(title) ? title : str ? [h('h4', title, small && h('small', small), edit && h('small.go', { onclick: edit }, '编辑')), null] : title.tagName === 'H4' ? [title, null] : [null, title];
+    paper.replaceChildren(h('div.hd', h('button.x', { onclick: shut }, '收起'), bar), body || '', ...(str ? [lead && h('p.lead', lead), intro && h('p', intro)] : []),
       (rows.length || none) && h('ol', rows.length ? rows : h('li.none', none)), h('div.as-ss-acts', acts));
     paper.scrollTop = 0; paper.classList.add('on');
   };
@@ -119,14 +121,14 @@ export function open() {
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? `${t[3]} 天` : [t[0] && `${t[0]} 年`, (t[0] || t[1]) && `${t[1]} 个月`, `${t[2]} 天`].filter(Boolean).join(' ')));
     fillLong();
     // 顶上一排：翻面、编辑（作者：改放最下面要翻到底才发现）、问缘（单独重新生成这一对）
-    show(h('div.as-ss-rel', h('div.tools', h('button', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button', { onclick: () => editRel(r) }, '编辑'),
-      h('button', { onclick: () => regenRel(names[ctr], names[i]) }, '问缘')),
+    show([h('div.tools', h('button', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button', { onclick: () => editRel(r) }, '编辑'),
+      h('button', { onclick: () => regenRel(names[ctr], names[i]) }, '问缘')), h('div.as-ss-rel',
       duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
         h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), kind && h('i', kind), kind && h('u'), h('b', who)),
       !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 的一句话')),
       h('div.f', long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
       h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
-      (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
+      (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · ')))], '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }

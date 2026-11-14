@@ -100,7 +100,8 @@
 .as-ss-paper li q { display: block; margin-top: 2px; font-style: italic; color: var(--soft); quotes: none; }
 .as-ss-paper li time { flex: none; width: 78px; font: italic 400 14px/1.6 var(--latin); color: var(--soft); }
 .as-ss-paper li.none { color: var(--soft); font-size: 13px; }
-.as-ss-paper .x { position: absolute; right: 12px; top: 12px; border: 0; background: none; color: var(--soft); font: 400 13px/1 var(--han); padding: 8px; cursor: pointer; }
+.as-ss-paper .hd { position: sticky; top: -20px; z-index: 3; margin: -20px -22px 0; padding: 20px 22px 0; background: var(--card); }
+.as-ss-paper .x { position: absolute; z-index: 2; right: 12px; top: 12px; border: 0; background: none; color: var(--soft); font: 400 13px/1 var(--han); padding: 8px; cursor: pointer; }
 .as-ss-acts { display: flex; gap: 10px; margin-top: 16px; }
 .as-ss-acts .as-btn, .as-ss-axis .as-btn { flex: none; min-height: 0; border: 1px solid var(--line); background: none; box-shadow: none; color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 2px; padding: 9px 14px; border-radius: 18px; }
 /* 时间：那道往下漏的沙就是轴 */
@@ -158,7 +159,7 @@
 .as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }
 
 /* 关系那张纸：两套版式，「引号」（.who + .q）和「头像」（.duo） */
-.as-ss-rel { padding-top: 34px; }
+.as-ss-rel { padding-top: 4px; }
 /* 两个人：头像一左一右，虚线弧从说话的人指向对方，关系挂在弧顶 */
 .as-ss-rel .duo { position: relative; }
 .as-ss-rel .duo svg { display: block; width: 100%; }
@@ -202,14 +203,13 @@
 .as-ss-names.pan button { transition: color .3s, opacity .4s; }
 .as-ss-names { height: 100%; overflow: hidden; }
 .as-ss-stage.map canvas { touch-action: none; }
-.as-ss-paper .x { z-index: 2; }
 /* 地图上的名字小一点（作者：太满了）：大地方 14、小地点 11，钻进去时正中的大名字 18 */
 .as-ss-names button { font-size: 11px; letter-spacing: .5px; }
 .as-ss-names button.area { font-size: 14px; letter-spacing: 2px; text-indent: 2px; }
 .as-ss-names.zoom > button.cur { font-size: 18px; }
 /* 关系纸左上角的「翻面」 */
-.as-ss-rel .tools { position: absolute; left: 14px; top: 10px; z-index: 2; display: flex; gap: 8px; }
-.as-ss-rel .tools button { display: inline-flex; align-items: center; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
+.as-ss-paper .tools { display: flex; gap: 8px; padding-bottom: 10px; }
+.as-ss-paper .tools button { display: inline-flex; align-items: center; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
 /* 地图能一层套一层：里面还有地方的小地点加粗；正上方写现在在哪一层 */
 .as-ss-names .sub button.deep { font-weight: 600; font-size: 13px; }
 .as-ss-at { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; font: 600 14px/1 var(--han); letter-spacing: 3px; text-indent: 3px; white-space: nowrap; color: var(--ink); }
