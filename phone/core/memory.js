@@ -333,13 +333,13 @@ function clearParts(want) {
   if (want.includes('grow')) D.grow = D.grow.filter(g => g.src === '手动');
 }
 let refilling = false;
-export async function refill(want, signal, redo, onPart) {
+export async function refill(want, signal, redo) {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
   try {
     await load(); const key = win.key;
     const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, onPart, prompt: compose('memFill', { want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
@@ -392,8 +392,8 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       const full = list[job.done], from = job.at ? Math.max(0, full.lastIndexOf('\n【第 ', job.at) + 1) || job.at : 0, src = full.slice(from);   // 接着整理时从那一层开头接（楼层号才对得上）
       let raw;
-      job.got = 0; job.t0 = Date.now();
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 4 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal, onPart: t => { job.got = t.length; } }); }
+      job.t0 = Date.now();
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 4 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); await save();

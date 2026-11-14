@@ -452,3 +452,4 @@
 @keyframes as-breathe { 50% { transform: scaleY(calc(var(--k, 1) * .55)); } }
 .as-wave__st { display: flex; justify-content: space-between; margin: 8px 6px 0; font: 400 12px/1.2 var(--font-ui); color: var(--as-color-text-2); }
 .as-wave__st b { color: var(--as-color-text); font-weight: 600; }
+.as-chat-typing .as-ai-n { align-self: center; font-size: 11px; line-height: 6px; color: var(--as-color-text-2); } .as-chat-typing .as-ai-n:empty { display: none; }

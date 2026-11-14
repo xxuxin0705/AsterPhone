@@ -198,7 +198,9 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
   const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
   let got = '';   // 流式收到的（线断了时带在报错上，接着写用）
-  const signal = call.signal, part = t => { got = t; call.part(t); onPart && onPart(t); };
+  // 收到多少字了告诉界面（core/ui.js 的 aiCount：等待的提示条、转圈的按钮、聊天里的「正在输入」后面都跟着写；结束报 null）
+  const tell = n => document.dispatchEvent(new CustomEvent('as-ai', { detail: n }));
+  const signal = call.signal, part = t => { got = t; call.part(t); tell(t.length); onPart && onPart(t); };
   // 等 AI 的时候尽量不让系统把后台的页面停掉（作者要的保活，尽力而为）：占一把锁 + 放一段听不见的声音（浏览器一般不停正在出声的页面；用 WebAudio，不抢别的 App 的声音）
   const sleep = awake();
   let free; const held = new Promise(ok => { free = ok; }); navigator.locks && navigator.locks.request('as-ai', { mode: 'shared' }, () => held).catch(() => {});
@@ -263,7 +265,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     if (e && e.raw) call.part(e.raw);
     call.fail(msg);
     throw Object.assign(new Error(msg), { logId: call.id, part: msg !== '已中止' && !e.raw ? got : '' });   // 报错里的「查看日志」直接跳到这一条
-  } finally { free(); sleep(); }
+  } finally { free(); sleep(); tell(null); }
 }
 
 /** OpenAI 格式的几家：官方、DeepSeek、第三方中转 */

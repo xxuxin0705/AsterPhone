@@ -2,7 +2,7 @@
 import { h, onLongPress } from '../../core/util.js';
 import { addFrame, paintBubble, pickDeco, decoName } from '../../core/deco.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, aiCount, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -178,7 +178,7 @@ export async function openRoom(chat) {
     if (E.busy.has(chat.id)) list.appendChild(typingNode());
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   }
-  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them && !g ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i')));
+  const typingNode = () => h('div.as-chat-msg.is-them.as-chat-typing-row', avatarCfg(chat.cfg).them && !g ? chatAvatar(E.avatarOf(c, chat), E.nameOf(c), chat.cfg) : null, h('div.as-chat-typing', h('i'), h('i'), h('i'), aiCount()));
   function applyBg() { list.style.backgroundImage = chat.cfg.bg ? `url(${chat.cfg.bg})` : ''; }
 
   /* ---------- 头像：单击看资料，双击拍一拍 ---------- */
