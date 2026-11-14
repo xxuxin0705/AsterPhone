@@ -50,6 +50,13 @@ export async function load() {
   // 以前记下的带括号注解的人名收拾掉：事里的并回本人，人物表里重复的合成一个
   for (const e of [...D.ev, ...D.wait.flatMap(w => w.ev || [])]) { e.who = [...new Set(e.who.map(bare))]; if (e.know) e.know = [...new Set(e.know.map(bare))]; }
   for (const q of [...D.ppl]) { const n = bare(q.name); if (n === q.name) continue; const o = D.ppl.find(p => p.name === n); if (o) { if (!o.who) o.who = q.who; D.ppl.splice(D.ppl.indexOf(q), 1); } else q.name = n; }
+  for (const r of [...D.rel]) {
+    r.a = canon(r.a); r.b = canon(r.b);
+    const o = D.rel.find(q => q !== r && ((q.a === r.a && q.b === r.b) || (q.a === r.b && q.b === r.a)));
+    if (o && D.rel.indexOf(o) < D.rel.indexOf(r)) { const v = o.a === r.a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa }; for (const k of ['since', 'now', 'va', 'vb', 'sa', 'sb']) if (!o[k] && v[k]) o[k] = v[k]; D.rel.splice(D.rel.indexOf(r), 1); }
+  }
+  for (const f of D.facts) { f.about = canon(f.about); f.know = [...new Set(f.know.map(canon))]; }
+  for (const g of D.grow) g.who = canon(g.who);
   for (const r of [...D.rel, ...D.rel.flatMap(r => r.hist)]) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
   return D;
 }
@@ -107,7 +114,7 @@ export function parse(raw) {
   const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [], grow: [], at: [] };
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
   for (const line of text.split('\n')) {
-    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点|成长|在哪)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
+    const m = /^\s*(?:[-*•]+|\d+[.、)）])?\s*\**(事件|关系|人物|日子|没完|完成|了解|地点|成长|在哪)\**\s*[:：]\**\s*(.+)$/.exec(line); if (!m) continue;   // AI 有时加 1. / - / **加粗**
     const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
@@ -134,7 +141,14 @@ const grams = s => { const t = norm(s).replace(/\s+/g, ''), g = new Set(); for (
 const overlap = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n; };
 const alike = (a, b) => { const x = grams(a), y = grams(b); return overlap(x, y) / Math.max(1, Math.min(x.size, y.size)); };
 /** 人物表里的别名 → 正名 */
-const canon = n => { const p = D.ppl.find(p => p.name === n || p.alias.includes(n)); return p ? p.name : n; };
+// 写成简称的认回全名（作者：生成了关系却什么都没有——AI 写的是「桃霁」「夜蛾」，对不上名字行上的「九月七桃霁」「夜蛾正道」，就挂到了一个看不见的人身上）：
+// 先看人物表的别名；还对不上，就找唯一一个包含它的全名（你、人物表、手机联系人里的），至少两个字
+const canon = n => {
+  const p = D.ppl.find(p => p.name === n || p.alias.includes(n)); if (p) return p.name;
+  if (!n || n.length < 2 || isMe(n)) return n;
+  const full = [...new Set([myName(), ...D.ppl.map(p => p.name), ...state.contacts.map(c => c.name)].filter(x => x && x !== n && x.includes(n)))];
+  return full.length === 1 ? full[0] : n;
+};
 /** 原文节选：AI 只标「从哪句到哪句」（各抄开头十来个字），这里从原文里原样剪下来。回 [剪下来的, 开头位置, 结尾位置]，找不到是 [''] */
 function excerpt(text, from, to) {
   // 抄来的开头在原文的哪儿：回 [位置, 对上了几个字]（先对 12 个字，对不上就少对几个）
@@ -347,14 +361,15 @@ export async function refill(want, signal, redo) {
     for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
     // 关系、地点各找一次 AI（一起写太长，容易写到一半就断、后面那样一条都没有）；断了接着写
     const base = { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
-      people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: old.join('、') || '（没有）',
+      people: [myName() + '（就是 {{user}}）', ...D.ppl.filter(p => !isMe(p.name)).map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`)].join('、'), places: old.join('、') || '（没有）',
       events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
     const ask = async w => parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, resume: 3, prompt: compose('memFill', { ...base, want: w }) }));
-    const x = { rel: [], grow: [], at: [], places: [] };
-    if (want.includes('rel')) { const y = await ask('关系、成长'); x.rel = y.rel; x.grow = y.grow; }
+    const x = { rel: [], grow: [], at: [], places: [], facts: [] };
+    if (want.includes('rel')) { const y = await ask('关系、了解、成长'); x.rel = y.rel; x.grow = y.grow; x.facts = y.facts; }
     if (want.includes('places')) { const y = await ask('在哪、地点'); x.at = y.at; x.places = y.places; }
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-    const n = { rel: 0, places: 0, grow: x.grow.length, said: x.rel.filter(r => r.sa || r.sb).length };
+    const n = { rel: 0, places: 0, grow: x.grow.length, facts: x.facts.length, said: x.rel.filter(r => r.sa || r.sb).length };
+    if (x.facts.length) { if (redo) D.facts = []; merge({ ppl: [], ev: [], rel: [], places: [], days: [], todo: [], done: [], grow: [], facts: x.facts }, '重新填'); }
     if (n.grow) {
       if (redo) D.grow = D.grow.filter(g => g.src === '手动');
       for (const g of x.grow) { const who = canon(g.who); if (!D.grow.some(o => o.who === who && alike(o.text, g.text) > .6)) D.grow.push({ id: uid('g'), ...g, who, src: '重新填' }); }

@@ -116,7 +116,7 @@ export function open() {
       + '<g fill="var(--blue)"><rect x="322" y="38" width="5" height="5"/><rect x="330" y="46" width="3" height="3"/><rect x="8" y="80" width="4" height="4"/></g>'
       + star(238, 40, 13, 'var(--cream)') + star(304, 62, 6, 'var(--b4)') + star(170, 30, 6, 'var(--blue)') + star(28, 104, 5, 'var(--cream)') + star(322, 150, 7, 'var(--cream)') + star(204, 186, 5, 'var(--blue)') + '</svg>';
   })();
-  // 两面（作者定的）：默认「正中这个人对 TA」（对 TA 说的话、怎么看 TA、知道 TA 什么），点「翻面」换成「TA 对正中这个人」，记住上次看的哪一面。蓝色的「成长线」看头像上这个人的
+  // 两面（作者定的）：默认「正中这个人对 TA」（对 TA 说的话、怎么看 TA、知道 TA 什么），点「翻面」换成「TA 对正中这个人」，记住上次看的哪一面。成长线只在点正中那个人自己时出（作者定的）
   function openRel(i) {
     const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
@@ -127,7 +127,7 @@ export function open() {
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? num(t[3], '天') : [t[0] && num(t[0], '年'), (t[0] || t[1]) && num(t[1], '个月'), num(t[2], '天')].filter(Boolean)), t && h('em', dot(t[4]) + ' 起'));
     fillLong();
     const pic = h('div.pic', { html: PIC }); pic.append(face(me), h('p', h('small', `${me} 对 ${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
-    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button.flip.line', { onclick: () => openSelf(x) }, '成长线'), pic,
+    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), pic,
       h('div.cells',
         h('div.kin', h('div', h('small', '现在'), h('b', path[path.length - 1] || '—')), path.length > 1 && h('span', path.join(' → '))),
         long,
@@ -136,7 +136,7 @@ export function open() {
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
-  // 成长线：这个人是怎么一步步变成现在这样的，按先后。点正中这个人自己、或者关系纸上蓝色的「成长线」进来
+  // 成长线：这个人是怎么一步步变成现在这样的，按先后。点正中这个人自己进来
   function openSelf(i = ctr) {
     const who = names[i], l = d.grow.filter(g => i ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
     show(h('h4', who, h('small.go', '成长线')), '', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
@@ -521,7 +521,7 @@ function openSort() {
       const ps = src === 'known' ? [] : parts(); if (src !== 'known' && !ps.length) { toast('没有要整理的内容'); return; }
       if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
       if (src !== 'known') return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
-      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`].filter(Boolean).join(' · ')); refresh(); } }
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`].filter(Boolean).join(' · ')); refresh(); } }
       catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }

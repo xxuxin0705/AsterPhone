@@ -224,5 +224,4 @@
 .as-ss-at { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; font: 600 14px/1 var(--han); letter-spacing: 3px; text-indent: 3px; white-space: nowrap; color: var(--ink); }
 .as-ss-at.on { opacity: 1; transition: opacity .5s .3s; }
 /* 蓝色的「成长线」：关系纸上是个按钮（在「翻面」右边），成长线那张纸的标题旁边是个蓝标 */
-.as-ss-rel .flip.line { left: 104px; background: var(--blue); color: #f4f3ee; }
 .as-ss-paper h4 small.go { margin-left: 10px; padding: 4px 8px; border-radius: 10px; background: var(--blue); color: #f4f3ee; font: 400 11px/1 var(--han); letter-spacing: 2px; vertical-align: middle; }
