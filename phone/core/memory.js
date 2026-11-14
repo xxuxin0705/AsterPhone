@@ -34,7 +34,7 @@ const AUTO = '自动整理', HERE = new Set([AUTO, '现在整理', '当前聊天
 /* ---------- 存 ---------- */
 let D = null, Dkey = null;
 export let ver = 0;   // 改过一次加一：页面返回时看它变没变，没变就不重画
-const blank = () => ({ ev: [], rel: [], ppl: [], days: [], todo: [], trees: [], facts: [], wait: [], places: [] });
+const blank = () => ({ ev: [], rel: [], ppl: [], days: [], todo: [], trees: [], facts: [], wait: [], places: [], grow: [] });
 export async function load() {
   if (D && Dkey === win.key) return D;
   const k = win.key, d = await kvGet('mem:' + k);
@@ -98,10 +98,10 @@ export function day(s) {
   return m ? [`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`, guess] : ['', false];
 }
 export function parse(raw) {
-  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [] };
+  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [], grow: [] };
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
   for (const line of text.split('\n')) {
-    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
+    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点|成长)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
     const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
@@ -116,6 +116,7 @@ export function parse(raw) {
     }
     else if (m[1] === '没完' && f[1]) out.todo.push({ who: f[0], text: f[1] });
     else if (m[1] === '完成' && f[1]) out.done.push({ who: f[0], text: f[1] });
+    else if (m[1] === '成长' && f[2]) out.grow.push({ who: f[0], at: day(f[1])[0], text: f[2], why: f[3] || '' });   // 谁｜哪天｜变了什么（以前 → 现在）｜因为哪件事
     else if (m[1] === '了解' && f[1]) out.facts.push({ about: f[0], text: f[1], know: list(f[2]), old: f[3] || '' });   // 谁｜是什么｜谁知道｜以前（变了才有）
   }
   return out;
@@ -191,6 +192,8 @@ export function merge(x, src = '', text = '', here = false) {
     if (alike(o.text, f.text) <= .6) { o.hist.push({ text: o.text, know: o.know, src }); o.text = f.text; o.know = know; continue; }   // 变了：只有这次知道的人知道新的，其他人还以为是旧的
     o.know = [...new Set([...o.know, ...know])];
   }
+  // 成长：这个人自己变成什么样了。同一个人差不多的一条只记一次
+  for (const g of x.grow || []) { const who = canon(g.who); if (!D.grow.some(o => o.who === who && alike(o.text, g.text) > .6)) D.grow.push({ id: uid('g'), ...g, who, src }); }
   for (const t of x.done) { const o = D.todo.find(o => !o.done && alike(o.text, t.text) > .45); if (o) { o.done = true; o.doneBy = src; } }
   D.ev.sort((a, b) => (a.at || '9999').localeCompare(b.at || '9999'));
   return added;
@@ -198,7 +201,7 @@ export function merge(x, src = '', text = '', here = false) {
 
 /** 收回某一处记下的（正文那一楼换了 / 重新生成了、手机里那批消息重新生成了）：那一处新加的删掉，关系改回去、没完的事改回没完 */
 function forget(src) {
-  for (const k of ['ev', 'ppl', 'days', 'todo', 'wait', 'places']) D[k] = D[k].filter(x => x.src !== src);
+  for (const k of ['ev', 'ppl', 'days', 'todo', 'wait', 'places', 'grow']) D[k] = D[k].filter(x => x.src !== src);
   D.rel = D.rel.filter(r => r.src !== src);
   for (const r of D.rel) { const i = r.hist.findIndex(h => h.src === src); if (i >= 0) { const { kind, since, lv, va, vb } = r.hist[i]; Object.assign(r, { kind, since, lv, va, vb }); r.hist.splice(i); } }
   for (const t of D.todo) if (t.doneBy === src) { t.done = false; delete t.doneBy; }
@@ -311,7 +314,7 @@ export async function leftover() { return running() || (await kvGet('memjob:' + 
 export const dropJob = () => kvDel('memjob:' + win.key);
 export function cancelJob() { job && job.ac && job.ac.abort(); }
 /** 重新填（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样重新写一遍。AI 写了的格子盖掉旧的，没写的不动 */
-export const FILL = { rel: '关系', places: '地点' };
+export const FILL = { rel: '关系', places: '地点', grow: '成长' };
 let refilling = false;
 export async function refill(want, signal) {
   if (refilling) throw new Error('已经在重新填了');
@@ -323,7 +326,8 @@ export async function refill(want, signal) {
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-    const n = { rel: 0, places: 0 };
+    const n = { rel: 0, places: 0, grow: x.grow.length };
+    if (want.includes('grow') && n.grow) D.grow = [...D.grow.filter(g => g.src === '手动'), ...x.grow.map(g => ({ id: uid('g'), ...g, who: canon(g.who), src: '重新填' }))];   // 自己手写的留着
     if (want.includes('rel')) for (const r of x.rel) {
       const a = canon(r.a), b = canon(r.b); if (a === b) continue;
       let o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
@@ -443,6 +447,18 @@ const NOTE = '这些是真发生过的。自然地提起就好，不用每件都
 export const peeks = [];   // 最近几次想起了哪几件、为什么（「刚才想起了什么」那页看；不存，刷新就没了）
 /** 给 people（这次聊天里的 TA 们）带上的记忆。scan = 最近的聊天和正文，拿来对名字、对字面。
  *  返回 [一直记着的, 这会儿想起的]：前一块不常变，放在提示词前面能走缓存；后一块每次不一样，放在后面 */
+/* 成长（作者：角色是会变的，不能演回人设卡的出厂设置）：每次都带上涉及到的人最新的 4 条，不靠碰巧想起 */
+const GROW = '这些人后来变了（和人设写的不一样的地方，以这里为准）';
+const growLines = (d, ok) => [...new Set(d.grow.map(g => g.who))].filter(ok).flatMap(w => d.grow.filter(g => g.who === w).sort((a, b) => (a.at || '').localeCompare(b.at || '')).slice(-4)
+  .map(g => `- ${g.who}${g.at ? `（${g.at}）` : ''}：${g.text}${g.why ? `（因为：${g.why}）` : ''}`)).join('\n');
+/** 送进正文的那一小段：只有「跟随正文」时才有（作者定的：跟随正文也影响正文，仅线上只影响手机）；只带最近几楼里出现的人 */
+export async function growForStory() {
+  if (!state.apps.memory.on || state.apps.chat.defaults.linkMode !== 'follow') return '';
+  const d = await load(); if (!d.grow.length) return '';
+  const scan = ((ctx() || {}).chat || []).slice(-6).map(m => m.mes || '').join('\n');
+  const t = growLines(d, n => isMe(n) || [n, ...((d.ppl.find(p => p.name === n) || {}).alias || [])].some(x => scan.includes(x)));
+  return t && `[${GROW}]\n${t}`;
+}
 export async function memoryFor(people, scan = '') {
   const m = state.apps.memory;
   if (!m.on || !people.length) return ['', ''];
@@ -455,6 +471,7 @@ export async function memoryFor(people, scan = '') {
   const view = v => `「${v.replace(/^[「“"]|[」”"。.]+$/g, '')}」`;
   const rel = d.rel.filter(r => { const o = other(r); return o != null && (isMe(o) || ns.has(o) || hit(o)); });
   if (rel.length) lines.push('关系和看法：\n' + rel.map(r => `- ${r.a}和${r.b}是${r.kind}${r.since ? `（${r.since}起）` : ''}${r.now ? `，现在${r.now}` : ''}${r.va ? `；${r.a}眼里的${r.b}：${view(r.va)}` : ''}${r.vb ? `；${r.b}眼里的${r.a}：${view(r.vb)}` : ''}`).join('\n'));
+  const grown = growLines(d, n => ns.has(n) || isMe(n) || hit(n)); if (grown) lines.push(GROW + '：\n' + grown);
   // 知道的关于人的事：只带这次说话的 TA 们知道的；群里不是人人都知道的，写明谁知道（别说漏）
   const by = new Map();
   for (const f of d.facts) {

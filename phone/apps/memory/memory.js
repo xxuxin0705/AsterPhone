@@ -58,7 +58,7 @@ export function open() {
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
   stage.append(more);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
-  const A = art(stage, { blank: shut, rel: openRel, center: i => setCtr(i), place: openPlace,
+  const A = art(stage, { blank: shut, rel: openRel, self: openSelf, center: i => setCtr(i), place: openPlace,
     move: async (n, x, y) => { let o = d.places.find(q => q.name === n); if (!o) d.places.push(o = { name: n, area: '', intro: '' }); o.x = x; o.y = y; await M.save(); seen = sig(); } });
   const sig = () => M.ver + ':' + state.contacts.length;
   // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
@@ -90,6 +90,11 @@ export function open() {
     show(h('div.as-ss-pol', h('div', snap(names[ctr]), h('span', h('em', tie)), snap(who)), lk.say && h('blockquote', lk.say), h('p', lk.q[0] || (lk.say ? '' : h('small', '还没写看法')))), '', '', '',
       [...lk.st.slice(1).map((s, k) => li(dot(s[0]), '以前：' + s[1], lk.q[k + 1])), ...facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f)))], '',
       [btn('改', 'secondary', () => editRel(lk.r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
+  }
+  // 点正中这个人自己：TA 是怎么一步步变成现在这样的（成长），按先后
+  function openSelf() {
+    const who = names[ctr], l = d.grow.filter(g => ctr ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+    show(who, '成长', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
   }
   // 地点：一句介绍、在这里发生过的事（大地方连里面小地点的一起）
   function openPlace(n, subs = []) {
@@ -226,6 +231,20 @@ async function editRel(r) {
       Object.assign(r, x); await M.save(); s.close(); refresh();
     })),
   ] });
+}
+async function editGrow(o, who = '') {
+  const d = await M.load(), x = o ? { at: o.at, text: o.text, why: o.why } : { at: '', text: '', why: '' };
+  const s = sheet({ title: o ? o.who : who, content: [
+    field('哪天', input({ value: x.at, placeholder: '年-月-日', onInput: v => { x.at = v.trim(); } })),
+    field(withInfo('变了什么', '写成「以前怎样 → 现在怎样」。TA 以后说话做事会照现在的样子来，和人设不一样的以这里为准。'), textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
+    field('因为哪件事', input({ value: x.why, onInput: v => { x.why = v.trim(); } })),
+    o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.grow.splice(d.grow.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
+    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+      if (!x.text) { toast('写上变了什么'); return; }
+      if (o) Object.assign(o, x); else d.grow.push({ id: uid('g'), who, ...x, src: '手动' });
+      await M.save(); s.close(); refresh();
+    })),
+  ].filter(Boolean) });
 }
 // 日子：类型、日期（年-月-日，不知道年份就写月-日）、是什么日子、和谁有关；照「日子」那一行的格式读，和 AI 记的一样
 async function editDay(o) {

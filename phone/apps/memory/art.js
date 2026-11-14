@@ -143,10 +143,11 @@ export function art(host, on) {
   }
 
   // 人：点一下出纸（正中这个人眼里的 TA）；按住拖到正中，TA 就成了中心
-  men.onpointerdown = e => { const b = e.target.closest('button'), i = [...men.children].indexOf(b); if (cur !== 1 || i < 0 || i === ctr) return; b.setPointerCapture(e.pointerId); press = { i, x: e.clientX, y: e.clientY }; };
-  men.onpointermove = e => { if (!press || (!drag && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 8)) return; const r = cv.getBoundingClientRect(); on.blank(); drag = { i: press.i, x: e.clientX - r.left, y: e.clientY - r.top }; };
+  men.onpointerdown = e => { const b = e.target.closest('button'), i = [...men.children].indexOf(b); if (cur !== 1 || i < 0) return; b.setPointerCapture(e.pointerId); press = { i, x: e.clientX, y: e.clientY }; };
+  men.onpointermove = e => { if (!press || press.i === ctr || (!drag && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 8)) return; const r = cv.getBoundingClientRect(); on.blank(); drag = { i: press.i, x: e.clientX - r.left, y: e.clientY - r.top }; };
   men.onpointerup = men.onpointercancel = e => {
     if (!press) return; const p = press, d = drag; press = drag = null;
+    if (p.i === ctr) { if (e.type === 'pointerup') on.self(); return; }   // 点正中这个人自己：TA 的成长
     if (!d) { if (e.type === 'pointerup' && LINK[ctr][p.i]) { mark(null); selP = p.i; men.children[p.i].classList.add('sel'); on.rel(p.i); } return; }
     if (Math.hypot(d.x - W / 2, d.y - OC) < 44) on.center(p.i);
   };

@@ -11,7 +11,7 @@ import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
 import { themeNames } from './diary.js';
-import { lineNames, bigNames } from './memory.js';
+import { lineNames, bigNames, growForStory } from './memory.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
 const seen = new Set();
@@ -86,7 +86,7 @@ async function readMessage(id) {
   // 岁岁砂：这一楼写的 <astermem>（没写也要告诉它：换了 swipe 时之前那版记下的要收回）
   if (state.apps.memory.on) {
     const M = await import('./memory.js');
-    M.fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n')).catch(e => log('warn', '岁岁砂', '记不下这一楼：' + e.message));
+    M.fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n')).then(refresh, e => log('warn', '岁岁砂', '记不下这一楼：' + e.message));   // 记完再更新送进正文的那段（成长）
     M.autoSort().catch(e => log('warn', '岁岁砂', '这次没自动整理成：' + e.message));   // 选了「每隔几轮」才会真的整理
   }
   // 日记：同上，换了 swipe 就换成新的那几篇
@@ -145,7 +145,7 @@ export async function injectionText() {
 const refresh = debounce(async () => {
   if (!inTavern()) return;
   try {
-    const text = await injectionText();
+    const text = [await injectionText(), await growForStory().catch(() => '')].filter(Boolean).join('\n\n');
     const pos = state.apps.chat.injectPos === 'prompt' ? { position: 0, depth: 0 } : { position: 1, depth: state.apps.chat.injectDepth ?? 3 };
     setInjection(KEY_CHAT, text, pos);
   } catch (e) { log('warn', '酒馆联动', '更新注入失败', e); }
