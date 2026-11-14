@@ -4,13 +4,13 @@
 // 右上角设置：人物、记录、导入整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, colorFor } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
 import { loadBook, C as ctxCfg } from '../../core/context.js';
 import { tagRows } from '../settings/context.js';
 import { connLabel, resolveConn } from '../../core/api.js';
-import { myName } from '../../core/promptstore.js';
+import { myName, myAvatar } from '../../core/promptstore.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import * as M from '../../core/memory.js';
@@ -54,7 +54,9 @@ export function open() {
   const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage.up'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
   const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
-  let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null;
+  let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null, loose = [];
+  const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
+  stage.append(more);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
   const A = art(stage, { blank: shut, rel: openRel, center: i => setCtr(i), place: openPlace,
     move: async (n, x, y) => { let o = d.places.find(q => q.name === n); if (!o) d.places.push(o = { name: n, area: '', intro: '' }); o.x = x; o.y = y; await M.save(); seen = sig(); } });
@@ -65,16 +67,28 @@ export function open() {
 
   // 底下那张纸：地点和人共用
   const show = (title, small, lead, intro, rows, none, acts) => {
-    paper.replaceChildren(h('button.x', { onclick: shut }, '收起'), h('h4', title, small && h('small', small)), lead && h('p.lead', lead), intro && h('p', intro),
-      h('ol', rows.length ? rows : h('li.none', none)), h('div.as-ss-acts', acts));
+    paper.replaceChildren(h('button.x', { onclick: shut }, '收起'), ...(title instanceof Node ? [title] : [h('h4', title, small && h('small', small)), lead && h('p.lead', lead), intro && h('p', intro)]),
+      (rows.length || none) && h('ol', rows.length ? rows : h('li.none', none)), h('div.as-ss-acts', acts));
     paper.scrollTop = 0; paper.classList.add('on');
   };
   const li = (t, title, quote, small, onclick) => h('li' + (onclick ? '.tap' : ''), { onclick }, h('time', t), h('span', h('b', title, small && h('small', small)), quote && h('q', quote)));
-  // 人：正中这个人和 TA 的关系是怎么变过来的、每一段怎么看 TA；下面是正中这个人知道的关于 TA 的事
+  // 人：两张相纸用一根线牵着（作者画的草稿），只写正中这个人 → 点的这个人：对 TA 说的一句话、对 TA 的看法；反过来的要把 TA 放到正中才看。
+  // 下面是以前的关系、正中这个人知道的关于 TA 的事。事件不放这里。相纸上的照片：你的头像 / 手机联系人的头像，别的人点一下自己换
+  const picOf = n => M.isMe(n) ? myAvatar() : (d.ppl.find(q => q.name === n) || {}).pic || (state.contacts.find(c => M.namesOf(c).has(n)) || {}).avatar || '';
+  const snap = n => {
+    const face = () => picOf(n) ? h('img', { src: picOf(n), alt: '' }) : h('i', { style: { background: colorFor(n) } }, n.slice(-1));
+    const f = h('figure', { onclick: M.isMe(n) ? null : async () => {
+      let o = d.ppl.find(q => q.name === n); const v = await pickImage(n, { has: !!(o && o.pic) }); if (v == null) return;
+      if (!o) d.ppl.push(o = { name: n, alias: [], who: '' }); o.pic = v; await M.save(); seen = sig(); f.firstChild.replaceWith(face());
+    } }, face(), h('figcaption', n));
+    return f;
+  };
   function openRel(i) {
     const lk = link[ctr][i], who = names[i], cs = ctr ? new Set([names[ctr]]) : new Set([names[0], '我']);
     const facts = d.facts.filter(f => (i ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
-    show(who, lk.kind, `${names[ctr]}眼里的${who}`, '', [...lk.st.map((s, k) => li(dot(s[0]), s[1], lk.q[k])), ...facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f)))], '',
+    const tie = [lk.kind !== '其他' && lk.kind, lk.r.now].filter(Boolean).join(' · ');
+    show(h('div.as-ss-pol', h('div', snap(names[ctr]), h('span', h('em', tie)), snap(who)), lk.say && h('blockquote', lk.say), h('p', lk.q[0] || (lk.say ? '' : h('small', '还没写看法')))), '', '', '',
+      [...lk.st.slice(1).map((s, k) => li(dot(s[0]), '以前：' + s[1], lk.q[k + 1])), ...facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f)))], '',
       [btn('改', 'secondary', () => editRel(lk.r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
   // 地点：一句介绍、在这里发生过的事（大地方连里面小地点的一起）
@@ -152,7 +166,7 @@ export function open() {
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
@@ -167,17 +181,20 @@ export function open() {
     link = names.map(() => ({}));
     for (const r of d.rel) {
       const i = idx(r.a), j = idx(r.b); if (i < 0 || j < 0 || i === j) continue;
-      const st = [{ ...r, title: r.kind + (r.now ? '，' + r.now : '') }, ...[...r.hist].reverse().map(x => ({ ...x, title: x.kind }))];
-      const mk = v => ({ kind: r.kind, r, st: st.map(x => [x.since || '', x.title, 5 - M.lvOf(x)]), q: st.map(x => x[v] || '') });
+      const st = [{ ...r, title: [r.kind !== '其他' && r.kind, r.now].filter(Boolean).join('，') }, ...[...r.hist].reverse().map(x => ({ ...x, title: x.kind }))];
+      const mk = v => ({ kind: r.kind, r, say: r['s' + v[1]] || '', st: st.map(x => [x.since || '', x.title, 5 - M.lvOf(x)]), q: st.map(x => x[v] || '') });
       link[i][j] = mk('va'); link[j][i] = mk('vb');
     }
-    // 地图：外面一层只放主要的（作者：次要的不要放首页）= 大地方，和发生过两件事以上的单独地点；只出过一次的零散地点收进「其他」。
-    // 每个大地方里最多摆 14 个小地点（事多的在前），其余的事点大地方的名字在纸上看。没拖过的按向日葵那样一圈圈摆开
+    // 地图：外面一层只放主要的（作者：次要的不要放首页）= 大地方，和发生过两件事以上的单独地点；只出过一次、又没归属的零散地点不上图，收在右上角「没归类」里。
+    // 没写归属、但名字里带着某个大地方全名的，算那个大地方的。每个大地方里最多摆 14 个小地点（事多的在前），其余的点大地方的名字在纸上看。没拖过的按向日葵那样一圈圈摆开
     const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a;   // AI 有时把「（空）」写进归属
     const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
     for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
-    const areaOf = q => junk(q.area) || (pl.size > 12 && (cnt.get(q.name) || 0) < 2 && !q.x ? '其他' : '');
-    const big = [...new Set([...pl.values()].map(areaOf).filter(Boolean))].sort((a, b) => (a === '其他') - (b === '其他')), spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name)).map(q => q.name)];
+    const big = [...new Set([...pl.values()].map(q => junk(q.area)).filter(Boolean))];
+    const areaOf = q => junk(q.area) || big.find(a => a !== q.name && q.name.includes(a)) || '';
+    loose = [...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && pl.size > 12 && (cnt.get(q.name) || 0) < 2 && !q.x).map(q => q.name);
+    more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
+    const spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && !loose.includes(q.name)).map(q => q.name)];
     const at = n => { const q = pl.get(n) || {}, k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return q.x ? { x: q.x, y: q.y } : { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
     const last = [...d.ev].reverse().find(e => e.place);
     A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''),
@@ -193,14 +210,16 @@ export function open() {
 
 /* ---------- 抽屉：改关系、日子、了解、地点 ---------- */
 async function editRel(r) {
-  const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '' };
+  const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '', sa: r.sa || '', sb: r.sb || '' };
   const s = sheet({ title: `${r.a} 和 ${r.b}`, content: [
     segmented(M.KINDS.map(k => [k, k]), x.kind, v => { x.kind = v; }),
     field('从什么时候起', input({ value: x.since, onInput: v => { x.since = v.trim(); } })),
     field('现在怎样', input({ value: x.now, onInput: v => { x.now = v.trim(); } })),
     field(withInfo('亲近度', '5 最亲。关系页上越亲的离得越近。'), segmented([0, 1, 2, 3, 4, 5].map(n => [n, String(n)]), x.lv, v => { x.lv = v; })),
     field(`${r.a}眼里的${r.b}`, textarea({ value: x.va, rows: 2, onInput: v => { x.va = v.trim(); } })),
+    field(`${r.a}对${r.b}说的一句话`, input({ value: x.sa, onInput: v => { x.sa = v.trim(); } })),
     field(`${r.b}眼里的${r.a}`, textarea({ value: x.vb, rows: 2, onInput: v => { x.vb = v.trim(); } })),
+    field(`${r.b}对${r.a}说的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
     h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return; d.rel.splice(d.rel.indexOf(r), 1); await M.save(); s.close(); refresh(); })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
@@ -242,8 +261,13 @@ async function editFact(o, about = '') {
 }
 async function editPlace(n) {
   const d = await M.load(), o = d.places.find(q => q.name === n), x = { area: (o && o.area) || '', intro: (o && o.intro) || '' };
+  const bigs = [...new Set(d.places.map(q => q.area).filter(a => a && a !== n))];
+  const area = input({ value: x.area, onInput: v => pick(v.trim(), true) });
+  const pick = (a, typed) => { x.area = a; if (!typed) area.value = a; chips.forEach(c => c.classList.toggle('is-active', c.textContent === a)); };
+  const chips = bigs.map(a => h('button.as-chip' + (a === x.area ? '.is-active' : ''), { onclick: () => pick(a === x.area ? '' : a) }, a));
   const s = sheet({ title: n, content: [
-    field(withInfo('归哪个大地方', '写了就收进那个大地方里：地图上先看到大地方，点进去才看到它。不属于哪里就空着。'), input({ value: x.area, onInput: v => { x.area = v.trim(); } })),
+    field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。不属于哪里就都不选；要新的大地方就自己写。'), area),
+    h('div.as-mem-imp', h('div.as-chips', chips)),
     field('介绍', textarea({ value: x.intro, rows: 2, onInput: v => { x.intro = v.trim(); } })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (x.area === n) x.area = '';
@@ -440,6 +464,18 @@ async function openSet() {
     item({ title: '现在整理', chevron: true, onClick: async () => {
       if (M.running()) { toast('已经在整理了'); return; }
       try { if (!(await M.autoSort(true))) toast('没有新的可整理'); } catch (e) { toast('整理失败：' + e.message); }
+    } }),
+    item({ title: withInfo('重新填', '不重读原文，只看已经记下的事，把勾上的重新写一遍。AI 写出来的会盖掉旧的，没写的不动。'), chevron: true, onClick: () => {
+      const want = new Set();
+      const s = sheet({ title: '重新填', content: [
+        h('div.as-mem-imp', h('div.as-chips', Object.entries(M.FILL).map(([k, t]) => { const c = h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); c.classList.toggle('is-active'); } }, t); return c; }))),
+        h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('开始', 'primary', async () => {
+          if (!want.size) { toast('先勾上要重新填的'); return; }
+          s.close();
+          try { const n = await waiting('正在重新填…', sig => M.refill([...want], sig)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
+          catch (e) { toast('重新填失败：' + e.message); }
+        })),
+      ] });
     } }),
     fillOn, fillMax,
     toggleItem({ title: '手机聊天时顺手记' }, m.chat !== false, on => { m.chat = on; commit('apps'); }),

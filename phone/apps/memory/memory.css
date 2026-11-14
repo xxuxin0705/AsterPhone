@@ -156,3 +156,27 @@
 .as-ss-cat > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .as-ss-cat button { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; padding: 10px 12px; border-radius: 4px; border-left: 2px solid var(--blue); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }
+
+/* 关系那张纸：两张相纸用一根线牵着，下面是正中这个人对 TA 说的一句话和看法 */
+.as-ss-pol > div { display: flex; align-items: flex-start; justify-content: center; padding: 6px 0 2px; }
+.as-ss-pol figure { flex: none; width: 92px; margin: 0; padding: 6px 6px 0; background: #fbfaf6; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 6px 14px rgba(0,0,0,.12); transform: rotate(-4deg); cursor: pointer; }
+.as-ss-pol figure:last-child { transform: rotate(3deg); margin-top: 10px; }
+.as-ss-pol figure img, .as-ss-pol figure i { display: grid; place-items: center; width: 80px; height: 80px; object-fit: cover; color: #fff; font: 600 30px/1 var(--han); font-style: normal; }
+.as-ss-pol figcaption { height: 28px; font: 400 12px/28px var(--han); letter-spacing: 1px; text-align: center; color: #17171c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 线：从这张的右上角垂到那张的左上角，两头各一颗钉；中间挂着是什么关系 */
+.as-ss-pol span { position: relative; z-index: 1; flex: 1; max-width: 120px; height: 46px; margin: 2px -9px 0; border: 1.5px solid var(--blue); border-top: 0; border-radius: 0 0 50% 50% / 0 0 100% 100%; }
+.as-ss-pol span::before, .as-ss-pol span::after { content: ''; position: absolute; top: -4px; left: -4px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
+.as-ss-pol span::after { left: auto; right: -4px; }
+.as-ss-pol em { position: absolute; left: -20px; right: -20px; top: 54px; font: 400 12px/1.4 var(--han); font-style: normal; letter-spacing: 1px; text-align: center; color: var(--soft); }
+.as-ss-pol blockquote { margin: 18px 0 0; font: 600 17px/1.6 var(--han); letter-spacing: 1px; text-align: center; }
+.as-ss-pol blockquote::before { content: '\300C'; color: var(--blue); } .as-ss-pol blockquote::after { content: '\300D'; color: var(--blue); }
+.as-ss-pol p { margin: 8px 0 0; text-align: center; color: var(--soft); }
+/* 地点：一颗彩色图钉，下面是名字（太长的截短，点开纸上是全名） */
+.as-ss-names button { display: block; max-width: 8em; overflow: hidden; text-overflow: ellipsis; text-align: center; --c: #d8493f; }
+.as-ss-names button.area { max-width: 9em; }
+.as-ss-names button::before { content: ''; display: block; width: 12px; height: 19px; margin: 0 auto 3px; background: radial-gradient(circle at 4px 4px, rgba(255,255,255,.75) 1.2px, transparent 1.8px), radial-gradient(circle at 6px 6px, var(--c) 5.5px, transparent 6px), linear-gradient(#77767c, #77767c) 50% 100% / 1.5px 8px no-repeat; }
+.as-ss-names button:nth-of-type(5n+2), .as-ss-names .sub button:nth-child(5n+2) { --c: #e2a23b; }
+.as-ss-names button:nth-of-type(5n+3), .as-ss-names .sub button:nth-child(5n+3) { --c: #3f9b6c; }
+.as-ss-names button:nth-of-type(5n+4), .as-ss-names .sub button:nth-child(5n+4) { --c: #1f2fc4; }
+.as-ss-names button:nth-of-type(5n), .as-ss-names .sub button:nth-child(5n) { --c: #9a57b5; }
+.as-ss-loose { left: auto; right: 14px; }

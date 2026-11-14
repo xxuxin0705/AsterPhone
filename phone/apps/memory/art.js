@@ -133,7 +133,8 @@ export function art(host, on) {
     const B = BIG(), s = W / 400; zin = false; zk = -1; names.classList.remove('zoom'); back.classList.remove('on');
     names.replaceChildren(...AREAS.flatMap((a, k) => {
       const b = h('button.area', { dataset: { k, n: a.name } }, a.name), sub = h('div.sub', { dataset: { k } }, a.list.map((n, i) => {
-        const ang = -Math.PI / 2 + (i + .5) / a.list.length * 6.283, rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
+        const ang = (a.list.length === 2 ? 0 : -Math.PI / 2) + (i + .5) / a.list.length * 6.283,   // 只有两个时摆在上下：摆左右会压住中间的大名字
+        rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
         const c = h('button', { dataset: { n }, onclick: () => tapPlace(c, { name: n }, px, py) }, n); at(c, px, py); return c;
       }));
       at(b, a.x * s, a.y); movable(b, a, () => zin ? tapPlace(b, a, B[0], B[1], a.all) : zoom(k));

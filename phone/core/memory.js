@@ -47,6 +47,7 @@ export async function load() {
     q.alias = q.alias.filter(a => !NONE.test(a));
     for (const e of D.ev) { if (e.know) e.know = e.know.filter(n => n !== q.name); if (NONE.test(e.quote || '')) e.quote = ''; }
   }
+  for (const r of D.rel) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
   return D;
 }
 export const save = () => { ver++; return kvSet('mem:' + Dkey, D); };
@@ -85,7 +86,7 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 // 大标签（big）= bigs() 里的一到两个；第 12 格以前写的是故事线，不是大标签的就当小标签
 // 谁知道（know）= 不在场、后来听说的人；原文从 / 到 = 这件事在原文里从哪句到哪句（各抄开头几个字），照着从原文里剪下来存成 orig
 // 影响（after）= 这件事过去后留下了什么（伤、心结、还留着的东西），没有就空着；以前存的 now 是事情刚结束时的样子，只在 TA 最近那件事上当「现在」用
-// 关系：甲｜乙｜关系｜从何时起｜现在｜亲近度｜甲眼里的乙｜乙眼里的甲   人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
+// 关系：甲｜乙｜关系｜从何时起｜现在｜亲近度｜甲眼里的乙｜乙眼里的甲｜甲对乙说的一句话｜乙对甲说的一句话   人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 // 地点：名字｜归哪个大地方｜一句介绍
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
@@ -106,7 +107,7 @@ export function parse(raw) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
         after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: list(f[12]), from: f[13] || '', to: f[14] || '' });
-    } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: f[6] || '', vb: f[7] || '' });
+    } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: f[6] || '', vb: f[7] || '', sa: f[8] || '', sb: f[9] || '' });
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
@@ -161,7 +162,7 @@ export function merge(x, src = '', text = '', here = false) {
   }
   for (const r of x.rel) {
     const a = canon(r.a), b = canon(r.b), o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
-    const v = o && o.a !== a ? { va: r.vb, vb: r.va } : { va: r.va, vb: r.vb };   // 存着的那条甲乙是反过来的：两边的看法也对调
+    const v = o && o.a !== a ? { va: r.vb, vb: r.va, sa: r.sb, sb: r.sa } : { va: r.va, vb: r.vb, sa: r.sa, sb: r.sb };   // 存着的那条甲乙是反过来的：两边的看法也对调
     if (!o) { D.rel.push({ id: uid('r'), a, b, kind: r.kind, since: r.since, now: r.now, lv: r.lv, ...v, hist: [], src }); continue; }
     // 关系变了：旧的（连同那时的亲近度和看法）留进 hist，以后能看出关系是怎么变过来的
     if (o.kind !== r.kind) { o.hist.push({ kind: o.kind, since: o.since, lv: o.lv, va: o.va, vb: o.vb, src }); o.kind = r.kind; o.since = r.since || o.since; o.lv = undefined; }
@@ -169,6 +170,8 @@ export function merge(x, src = '', text = '', here = false) {
     if (r.lv != null) o.lv = r.lv;
     if (v.va) o.va = v.va;
     if (v.vb) o.vb = v.vb;
+    if (v.sa) o.sa = v.sa;
+    if (v.sb) o.sb = v.sb;
   }
   for (const p of x.places || []) {   // 「等你看」里以前存下的没有这一项
     const o = D.places.find(o => o.name === p.name);
@@ -307,6 +310,36 @@ export const running = () => job && job.ac ? job : null;
 export async function leftover() { return running() || (await kvGet('memjob:' + win.key)) || null; }
 export const dropJob = () => kvDel('memjob:' + win.key);
 export function cancelJob() { job && job.ac && job.ac.abort(); }
+/** 重新填（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样重新写一遍。AI 写了的格子盖掉旧的，没写的不动 */
+export const FILL = { rel: '关系', places: '地点' };
+let refilling = false;
+export async function refill(want, signal) {
+  if (refilling) throw new Error('已经在重新填了');
+  refilling = true;
+  try {
+    await load(); const key = win.key;
+    const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { want: want.map(k => FILL[k]).join('、'),
+      people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
+      events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
+    if (key !== win.key) throw new Error('换了聊天窗口，先停下');
+    const n = { rel: 0, places: 0 };
+    if (want.includes('rel')) for (const r of x.rel) {
+      const a = canon(r.a), b = canon(r.b); if (a === b) continue;
+      let o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
+      if (!o) D.rel.push(o = { id: uid('r'), a, b, hist: [], src: '重新填' });
+      const v = o.a === a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa };
+      o.kind = r.kind; for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) if (v[k] != null && v[k] !== '') o[k] = v[k];
+      n.rel++;
+    }
+    if (want.includes('places')) for (const q of x.places) {
+      if (!spots.includes(q.name)) continue;   // 只归类已有的，不让它添新地点
+      let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
+      o.area = q.area; if (q.intro) o.intro = q.intro; n.places++;
+    }
+    await save(); return n;
+  } finally { refilling = false; }
+}
 /** 已经知道的人、关系和最近的事，告诉 AI 别重复、名字照这个写 */
 function known() {
   const ppl = D.ppl.map(p => `${p.name}${p.alias.length ? `（${p.alias.join('、')}）` : ''}`).join('、');
