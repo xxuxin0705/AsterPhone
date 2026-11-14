@@ -129,7 +129,8 @@ function onVisible(v) {
     if (lock()) { if (W.lockRandom) walls.reroll('lock'); setCurrent('lock'); showHome(false); phone.classList.add('is-locked'); showWall('lock'); }
     else showWall('home');
   } else {
-    if (isLocked() || nav.depth() === 0) wallpaper.resume();
+    // 壁纸等手机放大出来（400 毫秒）以后再动：一边放大一边画水波，手机上会卡成几帧（作者：打开很慢、很卡）。放大那一下用的是收起时停住的那一帧
+    setTimeout(() => { if (shell.visible && (isLocked() || nav.depth() === 0)) wallpaper.resume(); }, 450);
     // 亮屏时 Live 锁屏自己动一下（像苹果那样）
     if (isLocked() && W.liveWake) wallReady.then(() => setTimeout(() => { if (isLocked() && shell.visible) wallpaper.livePlay(); }, 250));
     shell.onShow && shell.onShow();

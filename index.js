@@ -57,6 +57,7 @@ function build() {
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && opened) close(); });
     window.addEventListener('message', onMessage);
+    document.addEventListener('visibilitychange', () => { if (ready) warm(); });
 
     iframe.addEventListener('load', () => iframe.contentDocument.addEventListener('focusin', lift));
     window.addEventListener('resize', holdSize);
@@ -159,7 +160,7 @@ function onMessage(e) {
     if (!iframe || e.source !== iframe.contentWindow || !e.data || typeof e.data !== 'object') return;
     const d = e.data;
     if (d.aster === 'close') close();
-    if (d.aster === 'ready') { ready = true; post({ aster: 'visible', v: opened }); }
+    if (d.aster === 'ready') { ready = true; post({ aster: 'visible', v: opened }); setTimeout(warm, 800); }
     if (d.aster === 'cfg') {
         cfg = { fab: d.fab || 'iphone', fabSize: d.fabSize || 52, tripleTap: !!d.tripleTap, winScale: d.winScale || 0 };
         try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (err) { /* 忽略 */ }
@@ -174,6 +175,13 @@ function onMessage(e) {
 function aimAtFab() {
     const r = fab.getBoundingClientRect(), f = overlay.firstChild;
     f.style.transformOrigin = r.width ? `${r.left + r.width / 2 - f.offsetLeft}px ${r.top + r.height / 2 - f.offsetTop}px` : '';
+}
+/* 手机收着的时候浏览器一笔都不画它，第一次打开要现画整台手机（解图片、排版、上色），手机上会卡一两秒（作者：打开很慢、很卡）。
+   所以装好以后、每次切回这个页面时，先让它几乎透明地亮半秒画好（1% 的透明度，看不出来），真打开时就只剩放大那一下 */
+function warm() {
+    if (opened || document.hidden) return;
+    overlay.classList.add('warm');
+    setTimeout(() => overlay.classList.remove('warm'), 600);
 }
 function open() {
     if (opened) return;

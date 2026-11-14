@@ -39,6 +39,7 @@
     pointer-events: none;
     transition: opacity 320ms, visibility 0s 320ms;
 }
+#aster-overlay.warm { visibility: visible; opacity: .01; transition: none; }   /* 先悄悄画一遍，见 index.js 的 warm */
 #aster-overlay.open { visibility: visible; opacity: 1; pointer-events: auto; transition: opacity 320ms; }
 #aster-overlay .aster-frame {
     width: min(100vw, calc((100dvh - 40px) * 390 / 844), calc(420px * var(--aster-scale, 1)));
