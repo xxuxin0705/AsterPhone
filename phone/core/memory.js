@@ -251,12 +251,12 @@ export async function dropChat(chatId, batch) { const d = await load(), src = `c
 /* ---------- 来源 → 一批批文字 ---------- */
 const DATE_RE = /(\d{4})\s*[年/-]\s*(\d{1,2})\s*[月/-]\s*(\d{1,2})/;
 /** 正文的一层层 → 每层前面标上第几层、谁、日期（正文里写了日期就读出来，不用 AI 猜） */
-export function floorsText(msgs, { withUser = true, from = 0, to = Infinity, keep } = {}) {
-  const out = [];
+export function floorsText(msgs, { withUser = true, from = 0, to = Infinity, keep, drop, keepOff = [] } = {}) {
+  const out = []; if (keep) keep = keep.filter(t => !keepOff.includes(t));   // 「要」里点灭了的暂时不要
   msgs.forEach((m, i) => {
     // 隐藏起来的楼层（is_system，总结插件常这么做）也要：那正是早先的剧情
     if (i < from || i > to || !m.mes || (m.is_user && !withUser)) return;
-    const d = DATE_RE.exec(m.mes), t = cleanText(m.mes, keep);
+    const d = DATE_RE.exec(m.mes), t = cleanText(m.mes, keep, drop);
     if (t) out.push(`【第 ${i} 层 · ${m.name || ''}${d ? ` · ${d[1]}年${+d[2]}月${+d[3]}日` : ''}】\n${t}`);
   });
   return out;
@@ -343,7 +343,7 @@ async function autoRun(now, m) {
   }
   const from = d.autoAt + 1;
   if (ms.slice(from).filter(turn).length < (now ? 1 : m.n || 10)) return false;
-  await startJob(now ? '现在整理' : AUTO, batches(floorsText(ms, { from, to: last, keep: m.keep })));
+  await startJob(now ? '现在整理' : AUTO, batches(floorsText(ms, { from, to: last, keep: m.keep, drop: m.drop, keepOff: m.keepOff })));
   if (job) { if (!now) { job = null; await dropJob(); } return true; }   // 没成：自动的不留「接着整理」，下次从同一楼重来
   D.autoAt = last; await save();
   return true;

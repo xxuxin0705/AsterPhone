@@ -27,8 +27,16 @@ export function openContext({ sub, sliderRow, withInfo }) {
 /** 正文筛选：两排标签，每排下面是正文里扫到、还没分类的标签（点一下就进这一排）。「给手机看」的点一下能暂时关掉。
  *  「不给手机看」下面只列套在「给手机看」的标签里面的，「给手机看」下面只列在它们外面的；先收成两行，「更多」展开；能按次数 / 字母排；扫不到的用「自己输入」 */
 function tagGroup(s, withInfo, sliderRow, fresh) {
+  const [keep, drop, paint] = tagRows(s, () => rawStory(30), save, fresh);
+  return group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。「给手机看」的标签，里面的内容都给手机（点一下能暂时关掉）；里面不想给的，放进「不给手机看」。两边都没放的标签，在「给手机看」的标签外面就整段去掉。没被标签包着的正文照常给手机看。'),
+    [sliderRow('读取正文条数', { min: 0, max: 30, step: 1, value: s.count, onInput: v => { s.count = v; save(); fresh(); } }),
+      keep, drop, toggleItem({ title: '包含你发的消息' }, s.withUser, v => { s.withUser = v; save(); paint(); })]);
+}
+/** 那两排标签（岁岁砂整理时也用这一套）：s = { keep, drop, keepOff }；scan() = 拿来扫标签的正文 [{ text }]；changed() = 改了以后（刷新预览）。
+ *  回 [「要」那排, 「不要」那排, 重新扫一遍] */
+export function tagRows(s, scan, save, changed, names = ['给手机看', '不给手机看']) {
   s.keepOff = s.keepOff || []; s.drop = (s.drop || []).filter(t => !s.keep.includes(t));   // 以前只有「要」：已经在「要」里的不再放进「不要」
-  const lists = { keep: s.keep, drop: s.drop }, boxes = {}, pools = {}, open = {};
+  const lists = { keep: s.keep, drop: s.drop }, boxes = {}, pools = {}, open = {}, on = () => s.keep.filter(t => !s.keepOff.includes(t));
   let az = false;
   const put = (k, t) => {
     t = String(t || '').trim().replace(/^<\/?|>$/g, '').toLowerCase(); if (!t) return;
@@ -37,8 +45,8 @@ function tagGroup(s, withInfo, sliderRow, fresh) {
     if (!lists[k].includes(t)) lists[k].push(t);
     save(); paint();
   };
-  const paintList = k => { const inside = k === 'drop' ? tagsInside() : null; boxes[k].replaceChildren(...lists[k].map(t => {
-    const off = k === 'keep' && s.keepOff.includes(t), idle = inside && !inside[t];   // idle：不在「给手机看」的标签里面，本来就看不到，放不放都一样（变灰，不自动删）
+  const paintList = k => { const inside = k === 'drop' ? tagsInside(on(), scan()) : null; boxes[k].replaceChildren(...lists[k].map(t => {
+    const off = k === 'keep' && s.keepOff.includes(t), idle = inside && !inside[t];   // idle：不在「要」的标签里面，本来就看不到，放不放都一样（变灰，不自动删）
     return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : '') + (idle ? '.is-idle' : ''), { onclick: k === 'keep' ? () => {
       s.keepOff = off ? s.keepOff.filter(x => x !== t) : [...s.keepOff, t]; save(); paint();
     } : null }, label(t),
@@ -47,7 +55,7 @@ function tagGroup(s, withInfo, sliderRow, fresh) {
       } }, icon('close', 11, 2.4)));
   })); };
   const paintPool = k => {
-    const found = !s.keep.length ? detectTags() : k === 'drop' ? tagsInside() : tagsOutside();
+    const found = !s.keep.length ? detectTags(scan()) : k === 'drop' ? tagsInside(on(), scan()) : tagsOutside(on(), scan());
     const fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t)).sort((a, b) => az ? a.localeCompare(b) : found[b] - found[a] || a.localeCompare(b));
     const chips = h('div.as-chips.as-ctx-pool' + (open[k] ? '.is-open' : ''), ...fresh.map(t => h('button.as-chip', { onclick: () => put(k, t) }, label(t), h('small', String(found[t])))),
       h('button.as-chip.as-ctx-add', { onclick: async () => put(k, await dialog({ title: '加标签', input: { placeholder: '标签名' } })) }, icon('plus', 12, 2.4), '自己输入'));
@@ -55,16 +63,13 @@ function tagGroup(s, withInfo, sliderRow, fresh) {
     pools[k].replaceChildren(h('div.as-ctx-poolhead', h('span', '正文里的标签'), more, h('button.as-ctx-more', { onclick: () => { az = !az; paint(); } }, az ? 'A–Z' : '按次数')), chips);
     requestAnimationFrame(() => { more.hidden = !open[k] && chips.scrollHeight <= chips.clientHeight + 2; });   // 两行放得下就不出「更多」
   };
-  const paint = () => { ['keep', 'drop'].forEach(k => { paintList(k); paintPool(k); }); fresh(); };   // 只换这几排标签，不重画整页
+  const paint = () => { ['keep', 'drop'].forEach(k => { paintList(k); paintPool(k); }); changed(); };   // 只换这几排标签，不重画整页
   const row = (k, title) => { boxes[k] = h('div.as-chips'); pools[k] = h('div'); return h('div.as-field', h('span.as-field__label', title), boxes[k], pools[k]); };
-  const g = group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着，比如 <thinking> 是 AI 的思考过程。「给手机看」的标签，里面的内容都给手机（点一下能暂时关掉）；里面不想给的，放进「不给手机看」。两边都没放的标签，在「给手机看」的标签外面就整段去掉。没被标签包着的正文照常给手机看。'),
-    [sliderRow('读取正文条数', { min: 0, max: 30, step: 1, value: s.count, onInput: v => { s.count = v; save(); fresh(); } }),
-      row('keep', '给手机看'), row('drop', '不给手机看'), toggleItem({ title: '包含你发的消息' }, s.withUser, v => { s.withUser = v; save(); paint(); })]);
+  const rows = [row('keep', names[0]), row('drop', names[1])];
   paint();
-  return g;
+  return [...rows, paint];
 }
 
-/** 世界书：圈圈管整本开关，点名字进去管单条 */
 function bookGroup(s, sub, fresh) {
   const on = tavernBooks(), names = [...new Set([...on, ...worldNames()])], painters = [];
   const rows = names.map(n => {
