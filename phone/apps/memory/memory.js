@@ -109,7 +109,7 @@ export function open() {
     show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'),
       duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
         h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), h('b', who)),
-      !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 说的一句话')),
+      !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 的一句话')),
       h('div.f', !duo && kind && h('div', h('small', '现在'), h('b', kind)), long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
       h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
       (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
@@ -282,9 +282,9 @@ async function editRel(r) {
     field('现在怎样', input({ value: x.now, onInput: v => { x.now = v.trim(); } })),
     field(withInfo('亲近度', '5 最亲。关系页上越亲的离得越近。'), segmented([0, 1, 2, 3, 4, 5].map(n => [n, String(n)]), x.lv, v => { x.lv = v; })),
     field(`${r.a}眼里的${r.b}`, textarea({ value: x.va, rows: 2, onInput: v => { x.va = v.trim(); } })),
-    field(`${r.a}对${r.b}说的一句话`, input({ value: x.sa, onInput: v => { x.sa = v.trim(); } })),
+    field(`${r.a}对${r.b}的一句话`, input({ value: x.sa, onInput: v => { x.sa = v.trim(); } })),
     field(`${r.b}眼里的${r.a}`, textarea({ value: x.vb, rows: 2, onInput: v => { x.vb = v.trim(); } })),
-    field(`${r.b}对${r.a}说的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
+    field(`${r.b}对${r.a}的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
     d.rel.includes(r) && h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return; d.rel.splice(d.rel.indexOf(r), 1); await M.save(); s.close(); refresh(); })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (!d.rel.includes(r)) d.rel.push(r); else if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
@@ -515,7 +515,7 @@ function openSort() {
   const want = new Set(Object.keys(M.PARTS)); let redo = false;
   const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => { const k = Object.keys(M.PARTS)[i]; c.classList.toggle('is-active', want.has(k)); c.textContent = (want.has(k) ? '✓ ' : '') + M.PARTS[k]; }); };   // 勾上的前面写 ✓（作者：光看颜色分不出勾没勾）
   const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); } }, '✓ ' + t));
-  const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、对对方说的一句话、知道对方什么，还有每个人的成长线（后来变成什么样了）。地点：去过哪、归哪个大地方。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
+  const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、对对方的一句话、知道对方什么，还有每个人的成长线（后来变成什么样了）。地点：去过哪、归哪个大地方。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
     h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; paintWant(); }))]);
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
