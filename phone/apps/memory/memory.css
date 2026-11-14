@@ -146,3 +146,12 @@
 .as-ss-axis .yr button.sort { left: 26px; right: auto; background: var(--paper); }   /* 换新旧顺序：放在年份那一列，不挤右边 */
 .as-ss-axis .yr.fold { cursor: pointer; } .as-ss-axis .yr.fold em { color: var(--ink); font-size: 14px; top: 9px; }
 .as-ss-names .sub button { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }   /* 名字太长的小地点截短，点开纸上是全名 */
+/* 分类：不走时间轴，一栏栏卡片 */
+.as-ss-axis.cards::before, .as-ss-axis.cards::after { display: none; }
+.as-ss-axis.cards .as-ss-modes { padding-left: 22px; }
+.as-ss-cat { padding: 14px 22px 4px; }
+.as-ss-cat em { display: block; font: 600 15px/1 var(--han); letter-spacing: 3px; }
+.as-ss-cat em small { margin-left: 10px; font: 400 12px/1 var(--han); letter-spacing: 1px; color: var(--soft); }
+.as-ss-cat > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.as-ss-cat button { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; padding: 10px 12px; border-radius: 4px; border-left: 2px solid var(--blue); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }

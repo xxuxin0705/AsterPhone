@@ -124,10 +124,15 @@ export function open() {
       })));
       if (!todo.length) none('没有待办');
     } else if (view === 'tag') {
-      for (const g of [...M.bigs(), '']) {   // 一个大标签一栏，点一下才列出里面的事
-        const l = ev.filter(e => g ? e.big.includes(g) : !e.big.length); if (!l.length) continue;
-        const rs = l.map(e => { const b = evRow(e, dot(e.at).slice(2)); b.hidden = true; return b; });
-        rows.push(h('div.yr.zh.fold', { role: 'button', tabindex: 0, onclick: () => { rs.forEach(r => { r.hidden = !r.hidden; }); arcs(); fit(); } }, h('em', `${g || '没分类'} · ${l.length} 件`)), ...rs);
+      // 不用时间轴：一个大标签一栏，下面是小标签的卡片（名字 + 几件）；点一张，底下那张纸按先后列出这一类所有的事。
+      // 一个小标签只出现一次（所有人过生日的事在一张卡里），放在它的事最常挂的那个大标签下面
+      const by = new Map(); for (const e of ev) for (const t of kin(e).length ? kin(e) : ['没细分']) by.set(t, [...(by.get(t) || []), e]);
+      const home = es => { const n = new Map(); for (const e of es) for (const g of e.big) n.set(g, (n.get(g) || 0) + 1); return ([...n].sort((a, b) => b[1] - a[1])[0] || [''])[0]; };
+      const cards = [...by].map(([t, es]) => [t, es, home(es)]).sort((a, b) => b[1].length - a[1].length);
+      for (const g of [...M.bigs(), '']) {
+        const l = cards.filter(c => c[2] === g || (!g && !M.bigs().includes(c[2]))); if (!l.length) continue;
+        rows.push(h('div.as-ss-cat', h('em', g || '没分类'), h('div', l.map(([t, es]) => h('button', { onclick: () =>
+          show(t, `${es.length} 件`, '', '', es.map(e => li(dot(e.at), e.title, e.text, [e.part, e.place].filter(Boolean).join(' · '), () => editEvent(e))), '') }, t, h('small', String(es.length)))))));
       }
       if (!ev.length) none('还没有记下的事');
     } else {
@@ -139,7 +144,7 @@ export function open() {
       }
       if (!ev.length) rows.push(h('div.none', '还没有记下的事', btn('去整理', 'secondary', openSort)));
     }
-    opened = null; axis.replaceChildren(modes, ...rows); fit();
+    opened = null; axis.classList.toggle('cards', view === 'tag'); axis.replaceChildren(modes, ...rows); fit();
   }
   function setCtr(i, fx = true) {
     ctr = i; shut(); A.center(i);
