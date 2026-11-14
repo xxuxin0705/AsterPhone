@@ -323,13 +323,13 @@ export function cancelJob() { job && job.ac && job.ac.abort(); }
  *  redo = false 补充：只添没有的、只填空着的格子，已经有的不动；redo = true 重新生成：这一样旧的不要了，换成新写的（AI 一条都没写出来就不动；自己手写的成长留着） */
 export const FILL = { rel: '关系', places: '地点', grow: '人物簿' };
 let refilling = false;
-export async function refill(want, signal, redo) {
+export async function refill(want, signal, redo, onPart) {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
   try {
     await load(); const key = win.key;
     const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { want: want.map(k => FILL[k]).join('、'),
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, onPart, prompt: compose('memFill', { want: want.map(k => FILL[k]).join('、'),
       people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');

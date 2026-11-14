@@ -521,12 +521,8 @@ async function openSet() {
   // 写到一半断了自动补写：和「设置 → 应用管理 → 岁岁砂」是同一个开关
   const fillMax = pick('最多补写', 'fillMax', 3, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n]), ' 次'); fillMax.hidden = !m.fill;
   const fillOn = toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, on => { m.fill = on; commit('apps'); fillMax.hidden = !on; });
-  const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己点「现在整理」或去「导入整理」。'), [
+  const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己去「导入整理」。'), [
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
-    item({ title: '现在整理', chevron: true, onClick: async () => {
-      if (M.running()) { toast('已经在整理了'); return; }
-      try { if (!(await M.autoSort(true))) toast('没有新的可整理'); } catch (e) { toast('整理失败：' + e.message); }
-    } }),
     item({ title: withInfo('补充或重新生成', '不重读原文，只看已经记下的事，把勾上的那几样再写一遍。补充：只添没有的、填空着的，已经有的不动。重新生成：这一样旧的不要了，换成新写的。'), chevron: true, onClick: () => {
       const want = new Set(); let redo = false;
       const chips = Object.entries(M.FILL).map(([k, t]) => { const c = h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); c.classList.toggle('is-active'); all.classList.toggle('is-active', want.size === chips.length); } }, t); return c; });
@@ -539,7 +535,7 @@ async function openSet() {
           const names = [...want].map(k => M.FILL[k]).join('、');
           if (redo && !(await dialog({ title: `重新生成${names}？`, text: '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
           s.close();
-          try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill([...want], sig, redo)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
+          try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', (sig, got) => M.refill([...want], sig, redo, got)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
           catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
         })),
       ] });

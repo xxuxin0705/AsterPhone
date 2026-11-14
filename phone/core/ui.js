@@ -363,12 +363,18 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
 let toastEl = null, toastT = 0;
 /* 要等的事都要能取消（作者定的规矩，以后新加的也一样）。点了取消就不等了：提示「已取消」，返回 undefined；
  * fn 拿到 signal，能断的断掉（找 AI 的传给 generate 的 stop）。只把「要等的那一步」放进 fn，拿到结果后再动页面，取消了就不会再动 */
-const run = (ac, fn) => new Promise((ok, no) => {
+const run = (ac, fn, got) => new Promise((ok, no) => {
   ac.signal.addEventListener('abort', () => { toast('已取消'); ok(); }, { once: true });
-  Promise.resolve().then(() => fn(ac.signal)).then(v => ac.signal.aborted || ok(v), e => ac.signal.aborted || no(e));
+  Promise.resolve().then(() => fn(ac.signal, got)).then(v => ac.signal.aborted || ok(v), e => ac.signal.aborted || no(e));
 });
 /** 提示条转圈 +「取消」 */
-export function waiting(msg, fn) { const ac = new AbortController(); toast(msg, { label: '取消', fn: () => ac.abort(), wait: true }); return run(ac, fn); }
+export function waiting(msg, fn) {
+  const ac = new AbortController(), t0 = Date.now(), opt = { label: '取消', fn: () => ac.abort(), wait: true }; let n = 0, tick;
+  // 每秒更新「几秒」，让人知道一直在动；找 AI 的把收到的字报上来（fn 的第二个参数，传现在一共收到的文字），后面再接「收到多少字」（作者定的）
+  const got = t => { n = t.length; };
+  tick = setInterval(() => toast(`${msg.replace(/…$/, '')} · ${Math.round((Date.now() - t0) / 1000)} 秒${n ? ` · 收到 ${n} 字` : ''}`, opt), 1000);
+  toast(msg, opt); return run(ac, fn, got).finally(() => clearInterval(tick));
+}
 /** 按钮干活时（拉取、试听…）转圈、大小不变，再点一下就取消；给了 msg 就同时挂一条带「取消」的提示 */
 export async function busy(btn, fn, msg) {
   if (btn._ac) { btn._ac.abort(); return; }
