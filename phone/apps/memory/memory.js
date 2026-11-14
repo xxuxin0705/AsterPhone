@@ -449,7 +449,7 @@ function openSort() {
     return g.msgs ? M.floorsText(g.msgs, chat) : g.entries ? g.entries.filter((e, i) => !file.off.has(i)).map(e => e.content) : g.text.split(/\n{2,}/);
   };
   let fresh = () => {};   // 楼层、标签一改，下面的预览和层数跟着换
-  const count = () => { const ps = src === 'known' ? [] : parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字 · 分 ${M.batches(ps).length} 批` : ''; fresh(); paintRun(); };
+  const count = () => { const ps = src === 'known' ? [] : parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字` + (want.has('time') ? ` · 分 ${M.batches(ps).length} 批` : '') : ''; fresh(); paintRun(); };
   // 正文楼层：读哪几层、包不包含你发的；正文筛选和「设置 → 上下文与世界书」是同一套（tagRows）；下面一块能一层层预览筛完的样子
   const floors = msgs => {
     const span = () => msgs.map((m, i) => i).filter(i => i >= chat.from && i <= chat.to && msgs[i].mes && (chat.withUser || !msgs[i].is_user));
@@ -507,8 +507,9 @@ function openSort() {
       if (!w.length) { toast('先勾上要整理哪几样'); return; }
       const ps = src === 'known' ? [] : parts(); if (src !== 'known' && !ps.length) { toast('没有要整理的内容'); return; }
       if (redo && !(await dialog({ title: `重新生成${names}？`, text: w.includes('time') ? '现在记着的全部去掉，照这次的内容重新记' : '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
-      if (src !== 'known') return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
-      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo)); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`, n.cut && '写到一半断了，再补充一次接着填'].filter(Boolean).join(' · ')); refresh(); } }
+      // 没勾时间：不重新记事，就照已经记下的事把勾上的整套写全（每一对人的关系和印象、每件事在哪、地点归哪），一次发完；选了原文就一起给 AI 参考
+      if (w.includes('time')) return go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps), 0, 0, { want: w, redo });
+      try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill(w, sig, redo, ps.join('\n\n'))); if (n) { toast([w.includes('rel') && (n.rel ? `关系 ${n.rel} 条（${n.said} 条有一句话）· 了解 ${n.facts} 条 · 成长 ${n.grow} 条` : 'AI 一条关系都没写出来'), w.includes('places') && `地点 ${n.places} 处`, n.cut && '写到一半断了，再补充一次接着填'].filter(Boolean).join(' · ')); refresh(); } }
       catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
     })));
   }
@@ -518,7 +519,7 @@ function openSort() {
   // 整理哪几样、怎么整理：补充（只添没有的、填空着的）/ 重新生成（旧的换成新的；勾了「时间」就是全部重来，四样一起勾上）
   const want = new Set(Object.keys(M.PARTS)); let redo = false;
   const paintWant = () => { if (redo && want.has('time')) Object.keys(M.PARTS).forEach(k => want.add(k)); chips.forEach((c, i) => { const k = Object.keys(M.PARTS)[i]; c.classList.toggle('is-active', want.has(k)); c.textContent = (want.has(k) ? '✓ ' : '') + M.PARTS[k]; }); };   // 勾上的前面写 ✓（作者：光看颜色分不出勾没勾）
-  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); } }, '✓ ' + t));
+  const chips = Object.entries(M.PARTS).map(([k, t]) => h('button.as-chip.is-active', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); paintWant(); count(); } }, '✓ ' + t));
   const what = group(withInfo('整理哪些', '时间：发生过的事、纪念日、待办。关系：谁和谁什么关系、怎么看对方、对对方的一句话、知道对方什么，还有每个人的成长线（后来变成什么样了）。地点：去过哪、归哪个大地方。补充：只添没有的、填空着的，已经有的不动。重新生成：勾上的这几样旧的不要了，换成新写的；勾了时间就是全部重来。「记下的事」不读原文，只看已经记下的事来写，很省，但写不了时间。'), [
     h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; paintWant(); }))]);
   const off = M.onJob(() => paintRun());

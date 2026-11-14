@@ -43,7 +43,7 @@ export const PROMPT_CATS = [
   ] },
   { app: '岁岁砂', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing', 'bigs', 'only'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people', 'lines', 'bigs'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people', 'lines', 'bigs'] },
-    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'places', 'events', 'pairs'] }] },
+    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'places', 'events', 'pairs', 'source'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
@@ -380,6 +380,7 @@ ${REL_VOICE}
 - 地点：地点最多三层：城市（东京、京都、冲绳…）→ 大地方（学校、街区、一栋楼）→ 具体地点（教室、医务室）。归哪个大地方写它直接在哪个地方里面（医务室归高专，高专归东京），那个大地方自己也写一行、写它在哪个城市，城市自己那一行归属空着；最顶上一层只能是城市，一个地方只有一个上级，同一个地方每次归一样的，两个地方不能互相归。介绍写一句这是个什么样的地方。
 - 日子的类型只能是：生日、纪念日、祭日、节日、其他。日期写 2005-04-06，只知道月日就写 04-06。纪念日记值得纪念的第一次发生的那天（第一次见面、表白、开始交往、第一次约会、第一次接吻、求婚、结婚……），满一个月、100 天、半年、每满一年会自动算，不用另记；节日只记一起过、有意义的（情人节、白色情人节、七夕、生日会、圣诞节、跨年……）。和某个日子有关的事件，小标签里写上它的类型（例：生日）。
 - 关系有变化就再写一行新的。
+- 关系和印象要写全：这一批内容里出场过的每个人，和 TA 有过来往的每个人之间都要写，不要只写主角那几个。
 - 没完的事：说好了还没做的约定、没聊完的话；已经做完的不写。
 - 全部写完以后，最后单独一行写：【整理完了】`},
   memMaybe: { name: '有值得记的才记', cats: ['memMaybe'], on: true, main: true,
@@ -490,6 +491,8 @@ ${REL_VOICE}
 
 【一起经历过事的人】（写关系时，下面每一对都要写一行）
 {{pairs}}
+
+{{source}}
 
 一行一条，字段之间用 ｜ 隔开：
 关系：甲｜乙｜关系｜从什么时候起｜现在怎样｜亲近度

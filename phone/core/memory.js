@@ -355,6 +355,9 @@ export function cancelJob() { job && job.ac && job.ac.abort(); }
 /** 整理哪几样（作者定的三样，和首页一致）：时间 = 事、纪念日、待办；关系 = 关系（看法、一句话）、了解、成长线；地点。人物表每次都记 */
 export const PARTS = { time: '时间', rel: '关系', places: '地点' };
 const LINES = { time: ['ev', 'days', 'todo', 'done'], rel: ['rel', 'facts', 'grow'], places: ['places'] }, NAMES = { time: '事件、日子、没完、完成', rel: '关系、印象、了解、成长', places: '地点' };
+// 读原文时没勾的那几样：格式和规矩整行从提示词里拿掉，AI 没东西可照着写（只说一句「别写」它不听：作者只勾了关系和地点，回来十几件事，白等白花钱）
+const CUT = { time: /^(事件：|日子：|没完：|完成：|什么算值得记|- (记：|不记：|日期写|经过写|重要度|影响：|关键词：|原话：|时间：|小标签：|大标签：|谁知道：|原文从|事件里的地点|日子的类型|没完的事))/,
+  rel: /^(关系：|印象：|了解：|成长：|- (关系|印象|看法和一句话|了解：|成长：))/, places: /^(地点：|- 地点：)/ };
 const only = (x, want) => { if (want) for (const k in LINES) if (!want.includes(k)) for (const f of LINES[k]) x[f] = []; return x; };
 /** 重新生成：勾上的这几样旧的不要了。勾了「时间」就是全部重来（作者定的：导入来的事也一起去掉）；自己手写的成长留着 */
 function clearParts(want) {
@@ -363,7 +366,7 @@ function clearParts(want) {
   if (want.includes('places')) { D.places = []; for (const e of D.ev) e.place = ''; }   // 作者定的：清空地点就是连每件事的「在哪」一起清，图上一颗钉都不留
 }
 let refilling = false;
-export async function refill(want, signal, redo) {
+export async function refill(want, signal, redo, source = '') {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
   try {
@@ -374,8 +377,11 @@ export async function refill(want, signal, redo) {
     for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
     // 勾了几样都只找一次 AI（作者定的：点一次就调一次，不准自己拆成好几次）。写到一半断了：设置里开了自动补写才接着要；
     // 没开或补够了，写出来的先记下（最后半行不要），让作者自己再点一次补充
-    const base = { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
+    // 补充时只列还没写全的那几对（写到一半断了再点补充，就接着写剩下的，不会每次都从头写、每次断在同一个地方）
+    const full = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return !redo && r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
+    const base = { pairs: [...co].filter(c => c[1] > 1 && !full(c[0])).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
       people: [myName() + '（就是 {{user}}）', ...D.ppl.filter(p => !isMe(p.name)).map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`)].join('、'), places: old.join('、') || '（没有）',
+      source: source && '【原文】（写印象、了解、成长时可以参考里面这些人怎么说话、怎么相处；也可以根据它写关系）\n' + source,
       events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
     const w = [want.includes('rel') && '关系、印象、了解、成长', want.includes('places') && '在哪、地点'].filter(Boolean).join('、');
     const m = state.apps.memory; let cut = false;
@@ -444,7 +450,11 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const full = list[job.done], from = job.at ? Math.max(0, full.lastIndexOf('\n【第 ', job.at) + 1) || job.at : 0, src = full.slice(from);   // 接着整理时从那一层开头接（楼层号才对得上）
       let raw;
       job.t0 = Date.now();
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: compose('memSort', { source: src, existing: known(), bigs: bigNames(), only: opt && opt.want.length < 3 ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行不要写。` : '' }), temperature: .3, stop: job.ac.signal }); }
+      // 原文先用记号占着位置，筛完提示词再放回去，免得原文里的行被误删
+      const cut = opt ? Object.keys(CUT).filter(k => !opt.want.includes(k)) : [];
+      const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '' })
+        .split('\n').filter(l => !cut.some(k => CUT[k].test(l))).join('\n').replace('\u0001', () => src);
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, temperature: .3, stop: job.ac.signal }); }
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
