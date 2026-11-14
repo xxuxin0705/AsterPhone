@@ -108,9 +108,9 @@ export function open() {
     fillLong();
     show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'),
       duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
-        h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), h('b', who)),
+        h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), kind && h('i', kind), kind && h('u'), h('b', who)),
       !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 的一句话')),
-      h('div.f', !duo && kind && h('div', h('small', '现在'), h('b', kind)), long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
+      h('div.f', long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
       h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
       (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
@@ -276,8 +276,12 @@ export function open() {
 let below = () => [];   // 一个地点下面所有层的地方（首页算地图时给的）：改归属时不让它反过来归到自己下面的地方
 async function editRel(r) {
   const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '', sa: r.sa || '', sb: r.sb || '' };
+  if (x.kind === '其他') x.kind = '';
+  const kind = input({ value: x.kind, onInput: v => pick(v.trim(), true) });
+  const pick = (k, typed) => { x.kind = k; if (!typed) kind.value = k; chips.forEach(c => c.classList.toggle('is-active', c.textContent === k)); };
+  const chips = [...new Set([...M.KINDS, ...d.rel.map(q => q.kind)])].filter(k => k !== '其他').map(k => h('button.as-chip' + (k === x.kind ? '.is-active' : ''), { onclick: () => pick(k === x.kind ? '' : k) }, k));
   const s = sheet({ title: `${r.a} 和 ${r.b}`, content: [
-    segmented(M.KINDS.map(k => [k, k]), x.kind, v => { x.kind = v; }),
+    field('关系', kind), h('div.as-mem-imp', h('div.as-chips', chips)),
     field('从什么时候起', input({ value: x.since, onInput: v => { x.since = v.trim(); } })),
     field('现在怎样', input({ value: x.now, onInput: v => { x.now = v.trim(); } })),
     field(withInfo('亲近度', '5 最亲。关系页上越亲的离得越近。'), segmented([0, 1, 2, 3, 4, 5].map(n => [n, String(n)]), x.lv, v => { x.lv = v; })),
@@ -287,7 +291,7 @@ async function editRel(r) {
     field(`${r.b}对${r.a}的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
     d.rel.includes(r) && h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return; d.rel.splice(d.rel.indexOf(r), 1); await M.save(); s.close(); refresh(); })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
-      if (!d.rel.includes(r)) d.rel.push(r); else if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
+      x.kind = x.kind || '其他'; if (!d.rel.includes(r)) d.rel.push(r); else if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
       Object.assign(r, x); await M.save(); s.close(); refresh();
     })),
   ] });
