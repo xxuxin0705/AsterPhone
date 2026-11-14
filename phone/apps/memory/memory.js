@@ -60,7 +60,8 @@ export function open() {
     move: async (n, x, y) => { let o = d.places.find(q => q.name === n); if (!o) d.places.push(o = { name: n, area: '', intro: '' }); o.x = x; o.y = y; await M.save(); seen = sig(); } });
   const sig = () => M.ver + ':' + state.contacts.length;
   // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
-  const fit = () => { p.body.style.overflowY = p.body.scrollHeight > p.body.clientHeight + 1 ? '' : 'hidden'; };
+  // 关系、地点下面没有东西；时间那页还没记下事时也一样：都定住（小屏上画加页签会比屏幕高一点，也不让拉）
+  const fit = () => { p.body.style.overflowY = tab || !d || !d.ev.length || p.body.scrollHeight <= p.body.clientHeight + 1 ? 'hidden' : ''; if (p.body.style.overflowY) p.body.scrollTop = 0; };
 
   // 底下那张纸：地点和人共用
   const show = (title, small, lead, intro, rows, none, acts) => {
