@@ -212,3 +212,7 @@
 .as-ss-names { height: 100%; overflow: hidden; }
 .as-ss-stage.map canvas { touch-action: none; }
 .as-ss-paper .x { z-index: 2; }
+/* 地图上的名字小一点（作者：太满了）：大地方 14、小地点 11，钻进去时正中的大名字 18 */
+.as-ss-names button { font-size: 11px; letter-spacing: .5px; }
+.as-ss-names button.area { font-size: 14px; letter-spacing: 2px; text-indent: 2px; }
+.as-ss-names.zoom > button.cur { font-size: 18px; }
