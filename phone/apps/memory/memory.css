@@ -64,7 +64,8 @@
 .as-ss-who button.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 .as-ss-who button.more { border-style: dashed; }
 /* 画，和盖在画上的名字（真的字，能点能拖） */
-.as-ss-stage { position: relative; flex: none; }
+.as-ss-stage { position: relative; flex: none; transition: margin .6s; }
+.as-ss-stage.up { margin-top: -22px; }   /* 时间页：沙漏顶上那条横杠贴着标题栏，不空一截（画布上面本来留了 26px） */
 .as-ss-art { display: block; width: 100%; height: 410px; }
 .as-ss-ov { position: absolute; left: 0; top: 0; width: 100%; opacity: 0; pointer-events: none; transition: opacity .3s; }
 .as-ss-ov.on { opacity: 1; pointer-events: auto; transition: opacity .6s .7s; }

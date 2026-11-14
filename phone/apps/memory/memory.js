@@ -51,7 +51,7 @@ async function vecRun(tell) {
 
 export function open() {
   const p = page({ app: 'memory', id: 'memory-main', title: '岁岁砂', back: true, cls: 'as-ss', right: [navBtn('gear', '设置', openSet)] });
-  const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
+  const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage.up'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
   const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null;
@@ -104,7 +104,7 @@ export function open() {
     if (k === view) return; view = k; [...modes.children].forEach(x => x.classList.toggle('on', x === e.currentTarget)); fillAxis(); } }, t)));
   const evRow = (e, t) => {
     const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), t, e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
-      h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', ['参与的人：' + e.who.join('、'), (e.know || []).length && '后来听说：' + e.know.join('、'), ...e.big, ...kin(e)].filter(Boolean).join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
+      h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', ['参与的人：' + e.who.join('、'), (e.know || []).length && '后来听说：' + e.know.join('、')].filter(Boolean).join(' · ')), (e.big.length || kin(e).length) && h('span.meta', '标签：' + [...new Set([...e.big, ...kin(e)])].join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
     b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e;
     return b;
   };
@@ -152,7 +152,7 @@ export function open() {
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
