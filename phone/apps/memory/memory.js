@@ -58,8 +58,7 @@ export function open() {
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
   stage.append(more);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
-  const A = art(stage, { blank: shut, rel: openRel, self: openSelf, center: i => setCtr(i), place: openPlace,
-    move: async (n, x, y) => { let o = d.places.find(q => q.name === n); if (!o) d.places.push(o = { name: n, area: '', intro: '' }); o.x = x; o.y = y; await M.save(); seen = sig(); } });
+  const A = art(stage, { blank: shut, rel: openRel, self: openSelf, center: i => setCtr(i), place: openPlace });
   const sig = () => M.ver + ':' + state.contacts.length;
   // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
   // 关系、地点下面没有东西；时间那页还没记下事时也一样：都定住（小屏上画加页签会比屏幕高一点，也不让拉）
@@ -72,24 +71,42 @@ export function open() {
     paper.scrollTop = 0; paper.classList.add('on');
   };
   const li = (t, title, quote, small, onclick) => h('li' + (onclick ? '.tap' : ''), { onclick }, h('time', t), h('span', h('b', title, small && h('small', small)), quote && h('q', quote)));
-  // 人：两张相纸用一根线牵着（作者画的草稿），只写正中这个人 → 点的这个人：对 TA 说的一句话、对 TA 的看法；反过来的要把 TA 放到正中才看。
-  // 下面是以前的关系、正中这个人知道的关于 TA 的事。事件不放这里。相纸上的照片：你的头像 / 手机联系人的头像，别的人点一下自己换
+  // 人（作者画的草稿）：正中这个人的头像，脑子里浮出一朵云，云里是 TA 对点的这个人说的一句话；下面三格：现在的关系、认识了多久、对 TA 的看法。
+  // 只写正中这个人 → 点的这个人，反过来的要把 TA 放到正中才看。再下面是正中这个人知道的关于 TA 的事。事件不放这里。
+  // 头像：你的头像 / 手机联系人的头像，别的人点一下自己换
   const picOf = n => M.isMe(n) ? myAvatar() : (d.ppl.find(q => q.name === n) || {}).pic || (state.contacts.find(c => M.namesOf(c).has(n)) || {}).avatar || '';
-  const snap = n => {
-    const face = () => picOf(n) ? h('img', { src: picOf(n), alt: '' }) : h('i', { style: { background: colorFor(n) } }, n.slice(-1));
-    const f = h('figure', { onclick: M.isMe(n) ? null : async () => {
+  const face = n => {
+    const pic = () => picOf(n) ? h('img', { src: picOf(n), alt: '' }) : h('i', { style: { background: colorFor(n) } }, n.slice(-1));
+    const f = h('button.face', { 'aria-label': M.isMe(n) ? n : `换${n}的头像`, onclick: M.isMe(n) ? null : async () => {
       let o = d.ppl.find(q => q.name === n); const v = await pickImage(n, { has: !!(o && o.pic) }); if (v == null) return;
-      if (!o) d.ppl.push(o = { name: n, alias: [], who: '' }); o.pic = v; await M.save(); seen = sig(); f.firstChild.replaceWith(face());
-    } }, face(), h('figcaption', n));
+      if (!o) d.ppl.push(o = { name: n, alias: [], who: '' }); o.pic = v; await M.save(); seen = sig(); f.firstChild.replaceWith(pic());
+    } }, pic());
     return f;
   };
+  // 认识了多久：从两个人第一次一起出现的那件事（或关系最早的日期）算到故事里的今天
+  const since = (a, b, r) => {
+    const has = (e, n) => e.who.some(w => w === n || (M.isMe(n) && M.isMe(w)));
+    const t0 = [...d.ev.filter(e => e.at && has(e, a) && has(e, b)).map(e => e.at), r.since, ...r.hist.map(x => x.since)].filter(x => /^\d{4}-\d\d-\d\d$/.test(x || '')).sort()[0];
+    if (!t0) return [null, ''];
+    const n = Math.max(0, Math.round(((time.isStory() && time.story().date || new Date()) - new Date(t0 + 'T00:00')) / 864e5));
+    return [n < 60 ? [[n, '天']] : n < 365 ? [[Math.floor(n / 30.4), '个月']] : [[Math.floor(n / 365), '年'], ...(n % 365 >= 30 ? [[Math.floor(n % 365 / 30.4), '个月']] : [])], dot(t0) + ' 起'];
+  };
+  const CLOUD = '<svg viewBox="-8 -10 216 106" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="as-ss-st" width="3.2" height="3.2" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".62"/></pattern></defs>'
+    + '<path class="sh" transform="translate(5 6)" d="M30 70a22 22 0 0 1-6-42a26 26 0 0 1 44-14a30 30 0 0 1 52-4a26 26 0 0 1 46 10a22 22 0 0 1 8 42a24 24 0 0 1-40 12a30 30 0 0 1-54 2a26 26 0 0 1-50-6z"/><path d="M30 70a22 22 0 0 1-6-42a26 26 0 0 1 44-14a30 30 0 0 1 52-4a26 26 0 0 1 46 10a22 22 0 0 1 8 42a24 24 0 0 1-40 12a30 30 0 0 1-54 2a26 26 0 0 1-50-6z"/></svg>';
   function openRel(i) {
-    const lk = link[ctr][i], who = names[i], cs = ctr ? new Set([names[ctr]]) : new Set([names[0], '我']);
+    const lk = link[ctr][i], me = names[ctr], who = names[i], cs = ctr ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (i ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
-    const tie = [lk.kind !== '其他' && lk.kind, lk.r.now].filter(Boolean).join(' · ');
-    show(h('div.as-ss-pol', h('div', snap(names[ctr]), h('span', h('em', tie)), snap(who)), lk.say && h('blockquote', lk.say), h('p', lk.q[0] || (lk.say ? '' : h('small', '还没写看法')))), '', '', '',
-      [...lk.st.slice(1).map((s, k) => li(dot(s[0]), '以前：' + s[1], lk.q[k + 1])), ...facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f)))], '',
-      [btn('改', 'secondary', () => editRel(lk.r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
+    const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), [long, from] = since(me, who, r);
+    const cloud = h('div.cloud', { html: CLOUD }); cloud.append(h('p', h('small', `对${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
+    show(h('div.as-ss-rel',
+      h('header', h('div', face(me), h('b', me)), h('u'), h('u'), h('u'), cloud),
+      h('div.cells',
+        h('div.kin', h('small', '现在'), h('b', path[path.length - 1] || '—'), path.length > 1 && h('span', path.join(' → '))),
+        h('div.long', h('small', '认识了'), h('b', long ? long.map(([n, u]) => h('span', String(n), h('i', u))) : '—'), from && h('span', from)),
+        h('div.view', h('small', `${me}眼里的 TA`), h('p', lk.q[0] || h('em', '还没写')))),
+      r.now && h('p.now', r.now)), '', '', '',
+      facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
+      [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
   // 点正中这个人自己：TA 是怎么一步步变成现在这样的（成长），按先后
   function openSelf() {
@@ -197,10 +214,10 @@ export function open() {
     for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
     const big = [...new Set([...pl.values()].map(q => junk(q.area)).filter(Boolean))];
     const areaOf = q => junk(q.area) || big.find(a => a !== q.name && q.name.includes(a)) || '';
-    loose = [...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && pl.size > 12 && (cnt.get(q.name) || 0) < 2 && !q.x).map(q => q.name);
+    loose = [...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && pl.size > 12 && (cnt.get(q.name) || 0) < 2).map(q => q.name);
     more.textContent = `没归类 ${loose.length}`; more.hidden = !loose.length;
     const spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name) && !loose.includes(q.name)).map(q => q.name)];
-    const at = n => { const q = pl.get(n) || {}, k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return q.x ? { x: q.x, y: q.y } : { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
+    const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
     const last = [...d.ev].reverse().find(e => e.place);
     A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''),
       areas: big.map(n => { const all = [...pl.values()].filter(q => areaOf(q) === n).map(q => q.name).sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0)); return { name: n, ...at(n), all, list: all.slice(0, 14) }; }),

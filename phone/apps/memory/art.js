@@ -72,12 +72,15 @@ export function art(host, on) {
 
   /* 迷雾地图：先只看到大地方；点一个，别处的雾合上，这一片的雾散开，里面的小地方才出来 */
   const BIG = () => [W / 2, 258, W / 2 - 22, 196];
-  const spot = () => { const s = W / 400, k = AREAS.findIndex(a => a.name === here || a.all.includes(here)), l = LONE.find(o => o.name === here), o = k >= 0 ? AREAS[k] : l || AREAS[0] || LONE[0]; return o ? [o.x * s, o.y] : [W / 2, 200]; };
+  /* 地图怎么看（作者定的）：位置定死了不让拖；两指捏着放大缩小，一指拖着挪。名字大小不变、只是散开，挤在一起的放大就分得开 */
+  let V = [1, 0, 0];   // 放大几倍、往右挪了多少、往下挪了多少
+  const T = (x, y) => [x * V[0] + V[1], y * V[0] + V[2]];
+  const spot = () => { const s = W / 400, k = AREAS.findIndex(a => a.name === here || a.all.includes(here)), l = LONE.find(o => o.name === here), o = k >= 0 ? AREAS[k] : l || AREAS[0] || LONE[0]; return o ? T(o.x * s, o.y) : [W / 2, 200]; };
   function fog(P, t, b, fall = 0) {
     const s = W / 400, z = ease(cl((performance.now() - zT0) / 600)), zz = zin ? z : 1 - z, B = BIG();
-    const holes = AREAS.map((a, k) => { const r = Math.min(70, 38 + a.list.length * 4), o = [a.x * s, a.y, r, r]; return k === zk ? o.map((v, j) => mix(v, B[j], zz)) : [o[0], o[1], r * (1 - zz), r * (1 - zz)]; }).concat(LONE.map(l => [l.x * s, l.y, 27 * (1 - zz), 27 * (1 - zz)])).concat([[38, H - 44, 24, 24]]);
+    const holes = AREAS.map((a, k) => { const r = Math.min(70, 38 + a.list.length * 4) * V[0], o = [...T(a.x * s, a.y), r, r]; return k === zk ? o.map((v, j) => mix(v, B[j], zz)) : [o[0], o[1], r * (1 - zz), r * (1 - zz)]; }).concat(LONE.map(l => [...T(l.x * s, l.y), 27 * V[0] * (1 - zz), 27 * V[0] * (1 - zz)])).concat([[38, H - 44, 24, 24]]);
     for (let q = 0; q < W; q += 34) line([[q, 0], [q, H]], P.pencil, .35); for (let q = 0; q < H; q += 34) line([[0, q], [W, q]], P.pencil, .35);
-    if (zz < 1 && AREAS.length > 1) { const A = g.globalAlpha; g.globalAlpha = A * (1 - zz); line(AREAS.map(a => [a.x * s, a.y]), P.blue, 1.3, [1.5, 5]); g.globalAlpha = A; }
+    if (zz < 1 && AREAS.length > 1) { const A = g.globalAlpha; g.globalAlpha = A * (1 - zz); line(AREAS.map(a => T(a.x * s, a.y)), P.blue, 1.3, [1.5, 5]); g.globalAlpha = A; }
     holes.slice(0, -1).forEach(o => { if (o[2] < 2) return; g.beginPath(); g.setLineDash([2, 4]); g.ellipse(o[0], o[1], o[2] * b, o[3] * b, 0, 0, 7); g.strokeStyle = P.pencil; g.lineWidth = .7; g.stroke(); g.setLineDash([]); });
     if (sel) ring(sel[0], sel[1], 30, P.blue, 1.2);
     // 指南针：指着点开的那个地方；没点开就指着现在所在的地方
@@ -114,33 +117,50 @@ export function art(host, on) {
     else FWD['' + cur + from](P, t, 1 - p);
   }
 
-  /* 地点的名字：大地方点一下钻进去；里面的小地方、不属于哪片的地方点一下出纸。外面这层的名字按住能拖，位置记住 */
+  /* 地点的名字：大地方点一下钻进去；里面的小地方、不属于哪片的地方点一下出纸 */
   const at = (b, px, py) => { b.style.left = px + 'px'; b.style.top = py + 'px'; };
   const tapPlace = (b, o, px, py, subs) => { mark(null); b.classList.add('sel'); sel = [px, py]; on.place(o.name, subs); };
-  function movable(b, o, tap) {
-    let p = null, moved = false;
-    b.onpointerdown = e => { if (zin) return; b.setPointerCapture(e.pointerId); p = [e.clientX, e.clientY, o.x, o.y]; moved = false; };
-    b.onpointermove = e => { if (!p || (!moved && Math.hypot(e.clientX - p[0], e.clientY - p[1]) < 8)) return; moved = true; on.blank(); const s = W / 400; o.x = Math.max(30, Math.min(370, p[2] + (e.clientX - p[0]) / s)); o.y = Math.max(40, Math.min(tall(2) - 40, p[3] + e.clientY - p[1])); at(b, o.x * s, o.y); };
-    b.onpointerup = b.onpointercancel = e => { const was = p; p = null; if (moved) return on.move(o.name, Math.round(o.x), Math.round(o.y)); if (e.type === 'pointerup' && (was || zin)) tap(); };
-  }
+  const place = () => { const s = W / 400; names.querySelectorAll(':scope > button').forEach(b => at(b, ...T(b._o.x * s, b._o.y))); };
   function zoom(k) {
-    on.blank(); zin = k >= 0; if (zin) zk = k; zT0 = performance.now(); const B = BIG(), s = W / 400;
-    names.classList.toggle('zoom', zin); back.classList.toggle('on', zin && cur === 2);
-    names.querySelectorAll('button.area').forEach(b => { const a = AREAS[b.dataset.k], me = zin && +b.dataset.k === k; b.classList.toggle('cur', me); me ? at(b, B[0], B[1]) : at(b, a.x * s, a.y); });
+    on.blank(); zin = k >= 0; if (zin) { zk = k; V = [1, 0, 0]; } zT0 = performance.now(); const B = BIG();
+    names.classList.toggle('zoom', zin); back.classList.toggle('on', zin && cur === 2); place();
+    names.querySelectorAll('button.area').forEach(b => { const me = zin && +b.dataset.k === k; b.classList.toggle('cur', me); if (me) at(b, B[0], B[1]); });
     names.querySelectorAll('.sub').forEach(q => q.classList.toggle('on', zin && +q.dataset.k === k));
   }
   function fillNames() {
-    const B = BIG(), s = W / 400; zin = false; zk = -1; names.classList.remove('zoom'); back.classList.remove('on');
+    const B = BIG(), s = W / 400; zin = false; zk = -1; V = [1, 0, 0]; names.classList.remove('zoom'); back.classList.remove('on');
     names.replaceChildren(...AREAS.flatMap((a, k) => {
       const b = h('button.area', { dataset: { k, n: a.name } }, a.name), sub = h('div.sub', { dataset: { k } }, a.list.map((n, i) => {
         const ang = (a.list.length === 2 ? 0 : -Math.PI / 2) + (i + .5) / a.list.length * 6.283,   // 只有两个时摆在上下：摆左右会压住中间的大名字
-        rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
-        const c = h('button', { dataset: { n }, onclick: () => tapPlace(c, { name: n }, px, py) }, n); at(c, px, py); return c;
+          rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
+        const c = h('button', { dataset: { n } }, n); c._tap = () => tapPlace(c, { name: n }, px, py); at(c, px, py); return c;
       }));
-      at(b, a.x * s, a.y); movable(b, a, () => zin ? tapPlace(b, a, B[0], B[1], a.all) : zoom(k));
+      b._o = a; b._tap = () => zin ? tapPlace(b, a, B[0], B[1], a.all) : zoom(k);
       return [b, sub];
-    }), ...LONE.map(l => { const b = h('button', { dataset: { n: l.name } }, l.name); at(b, l.x * s, l.y); movable(b, l, () => tapPlace(b, l, l.x * s, l.y)); return b; }));
+    }), ...LONE.map(l => { const b = h('button', { dataset: { n: l.name } }, l.name); b._o = l; b._tap = () => tapPlace(b, l, ...T(l.x * s, l.y)); return b; }));
+    place();
   }
+  // 手指：按在名字上没挪就是点它；按在空白没挪 = 收起 / 退回全部；挪了就是拖地图，两根手指就是放大缩小（钻进一片里时不能拖）
+  const pts = new Map(); let g0 = null, moved = false, downT = null;
+  host.addEventListener('pointerdown', e => {
+    if (cur !== 2 || e.target.closest('.as-ss-back')) return;
+    host.setPointerCapture(e.pointerId); if (!pts.size) { moved = false; downT = e.target.closest('button'); }
+    pts.set(e.pointerId, [e.clientX, e.clientY]); g0 = null;
+  });
+  host.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]); if (zin) return;
+    const p = [...pts.values()], q = p[1] || p[0], r = cv.getBoundingClientRect(), c = [(p[0][0] + q[0]) / 2 - r.left, (p[0][1] + q[1]) / 2 - r.top], d = Math.hypot(p[0][0] - q[0], p[0][1] - q[1]);
+    if (!g0) { g0 = { c, d, V: [...V] }; return; }
+    if (!moved) { if (!p[1] && Math.hypot(c[0] - g0.c[0], c[1] - g0.c[1]) < 8) return; moved = true; on.blank(); names.classList.add('pan'); }
+    const k = Math.max(1, Math.min(4, g0.V[0] * (g0.d ? d / g0.d : 1))), lim = (v, max) => Math.min(0, Math.max(max - max * k, v));
+    V = [k, lim(c[0] - (g0.c[0] - g0.V[1]) / g0.V[0] * k, W), lim(c[1] - (g0.c[1] - g0.V[2]) / g0.V[0] * k, H)];   // 手指中间底下的那个地方跟着手指走，不拖出边
+    place();
+  });
+  const lift = e => {
+    if (!pts.delete(e.pointerId)) return; g0 = null; if (pts.size) return; names.classList.remove('pan');
+    if (!moved && e.type === 'pointerup') downT && downT._tap ? downT._tap() : cv.onclick();
+  };
+  host.addEventListener('pointerup', lift); host.addEventListener('pointercancel', lift);
 
   // 人：点一下出纸（正中这个人眼里的 TA）；按住拖到正中，TA 就成了中心
   men.onpointerdown = e => { const b = e.target.closest('button'), i = [...men.children].indexOf(b); if (cur !== 1 || i < 0) return; b.setPointerCapture(e.pointerId); press = { i, x: e.clientX, y: e.clientY }; };
@@ -164,7 +184,8 @@ export function art(host, on) {
       if (!same) { POS = []; men.replaceChildren(...NAMES.map(n => h('button', n))); if (ctr >= NAMES.length) ctr = 0; }
       fresh = true;
     },
-    tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); men.classList.toggle('on', i === 1); back.classList.toggle('on', i === 2 && zin); },
+    tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); host.classList.toggle('map', i === 2); if (i === 2) cv.dataset.noSwipe = ''; else delete cv.dataset.noSwipe;   // 在地图上横着拖是挪地图，不是「右滑返回」
+      men.classList.toggle('on', i === 1); back.classList.toggle('on', i === 2 && zin); },
     /** 换一个人到正中（别的星会慢慢滑到新的位置） */
     center(i) { ctr = i; },
     resume() { if (!raf) raf = requestAnimationFrame(draw); },

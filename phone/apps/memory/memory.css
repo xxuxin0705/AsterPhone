@@ -157,20 +157,49 @@
 .as-ss-cat button { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; padding: 10px 12px; border-radius: 4px; border-left: 2px solid var(--blue); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }
 
-/* 关系那张纸：两张相纸用一根线牵着，下面是正中这个人对 TA 说的一句话和看法 */
-.as-ss-pol > div { display: flex; align-items: flex-start; justify-content: center; padding: 6px 0 2px; }
-.as-ss-pol figure { flex: none; width: 92px; margin: 0; padding: 6px 6px 0; background: #fbfaf6; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 6px 14px rgba(0,0,0,.12); transform: rotate(-4deg); cursor: pointer; }
-.as-ss-pol figure:last-child { transform: rotate(3deg); margin-top: 10px; }
-.as-ss-pol figure img, .as-ss-pol figure i { display: grid; place-items: center; width: 80px; height: 80px; object-fit: cover; color: #fff; font: 600 30px/1 var(--han); font-style: normal; }
-.as-ss-pol figcaption { height: 28px; font: 400 12px/28px var(--han); letter-spacing: 1px; text-align: center; color: #17171c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 线：从这张的右上角垂到那张的左上角，两头各一颗钉；中间挂着是什么关系 */
-.as-ss-pol span { position: relative; z-index: 1; flex: 1; max-width: 120px; height: 46px; margin: 2px -9px 0; border: 1.5px solid var(--blue); border-top: 0; border-radius: 0 0 50% 50% / 0 0 100% 100%; }
-.as-ss-pol span::before, .as-ss-pol span::after { content: ''; position: absolute; top: -4px; left: -4px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
-.as-ss-pol span::after { left: auto; right: -4px; }
-.as-ss-pol em { position: absolute; left: -20px; right: -20px; top: 54px; font: 400 12px/1.4 var(--han); font-style: normal; letter-spacing: 1px; text-align: center; color: var(--soft); }
-.as-ss-pol blockquote { margin: 18px 0 0; font: 600 17px/1.6 var(--han); letter-spacing: 1px; text-align: center; }
-.as-ss-pol blockquote::before { content: '\300C'; color: var(--blue); } .as-ss-pol blockquote::after { content: '\300D'; color: var(--blue); }
-.as-ss-pol p { margin: 8px 0 0; text-align: center; color: var(--soft); }
+/* 关系那张纸：头像脑子里浮出一朵云（云里是对 TA 说的一句话），下面三格：现在的关系、认识了多久、看法 */
+.as-ss-rel header { position: relative; display: flex; align-items: flex-end; gap: 4px; padding: 2px 34px 0 0; }
+.as-ss-rel header > div:first-child { flex: none; width: 76px; text-align: center; }
+.as-ss-rel header b { display: block; margin-top: 15px; font: 600 12px/1.2 var(--han); letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 头像：一圈细线、一圈刻度（和上面那个星盘一样），右下垫一层点出来的影子 */
+.as-ss-rel .face { position: relative; display: block; width: 64px; height: 64px; margin: 6px auto 0; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer;
+  box-shadow: 0 0 0 3px var(--card), 0 0 0 4.2px var(--ink); }
+.as-ss-rel .face::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 1px dashed var(--soft); }
+.as-ss-rel .face::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%; transform: translate(7px, 8px); background: radial-gradient(var(--ink) .7px, transparent 1px) 0 0 / 3.4px 3.4px; }
+.as-ss-rel .face img, .as-ss-rel .face i { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; color: #fff; font: 600 26px/1 var(--han); font-style: normal; }
+/* 三个越来越大的小泡，从头像飘向那朵云 */
+.as-ss-rel header u { flex: none; align-self: flex-start; border: 1.4px solid var(--ink); border-radius: 50%; background: var(--card); box-shadow: 2px 2.5px 0 var(--blue); }
+.as-ss-rel header u:nth-of-type(1) { width: 6px; height: 6px; margin: 52px 0 0 -6px; }
+.as-ss-rel header u:nth-of-type(2) { width: 9px; height: 9px; margin-top: 38px; }
+.as-ss-rel header u:nth-of-type(3) { width: 13px; height: 13px; margin-top: 22px; }
+.as-ss-rel .cloud { position: relative; flex: 1; min-width: 0; min-height: 92px; display: grid; place-items: center; margin-bottom: 26px; }
+.as-ss-rel .cloud svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.as-ss-rel .cloud path { fill: var(--card); stroke: var(--ink); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.as-ss-rel .cloud path.sh { fill: url(#as-ss-st); stroke: none; }
+.as-ss-rel .cloud pattern circle { fill: var(--blue); }
+.as-ss-rel .cloud p { position: relative; margin: 0; padding: 20px 26px 22px; font: 600 15px/1.5 var(--han); letter-spacing: 1px; text-align: center; }
+.as-ss-rel .cloud small { display: block; margin-bottom: 2px; font: 400 11px/1.4 var(--han); letter-spacing: 2px; color: var(--soft); }
+.as-ss-rel em { font-style: normal; color: var(--soft); font-weight: 400; }
+.as-ss-rel .cells { display: grid; grid-template-columns: 80px 80px 1fr; gap: 8px; margin-top: 4px; }
+.as-ss-rel .cells > div { position: relative; min-height: 96px; padding: 10px 10px 9px; overflow: hidden; }
+.as-ss-rel .cells small { display: block; font: 400 11px/1 var(--han); letter-spacing: 2px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-ss-rel .cells b { display: block; margin-top: 14px; font: 600 20px/1.15 var(--han); letter-spacing: 2px; }
+.as-ss-rel .cells span { display: block; margin-top: 6px; font: 400 10px/1.4 var(--han); opacity: .75; }
+/* 关系：一整块钴蓝，右下角一圈圈涟漪 */
+.as-ss-rel .kin { background: var(--blue); color: #f4f3ee; }
+.as-ss-rel .kin::after { content: ''; position: absolute; right: -22px; bottom: -22px; width: 56px; height: 56px; border-radius: 50%; border: 1px solid rgba(244,243,238,.55); box-shadow: 0 0 0 7px var(--blue), 0 0 0 8px rgba(244,243,238,.4), 0 0 0 15px var(--blue), 0 0 0 16px rgba(244,243,238,.25); }
+/* 认识了多久：墨线框，底下一层慢慢堆起来的沙（点） */
+.as-ss-rel .long { border: 1.5px solid var(--ink); }
+.as-ss-rel .long b { margin-top: 10px; font: italic 500 26px/1.1 var(--latin); letter-spacing: 0; }
+.as-ss-rel .long b span { display: block; margin: 0; font: inherit; opacity: 1; white-space: nowrap; }
+.as-ss-rel .long b i { margin-left: 3px; font: 400 11px/1 var(--han); font-style: normal; }
+.as-ss-rel .long { padding-bottom: 20px; }
+.as-ss-rel .long::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: radial-gradient(var(--blue) .8px, transparent 1.1px) 0 0 / 4px 4px; -webkit-mask: linear-gradient(transparent, #000); mask: linear-gradient(transparent, #000); }
+/* 看法：一张便签，左上一个大引号 */
+.as-ss-rel .view { background: var(--paper); box-shadow: 3px 3px 0 var(--ink); border: 1.5px solid var(--ink); }
+.as-ss-rel .view::before { content: '\201C'; position: absolute; right: 8px; top: -6px; font: 700 54px/1 Georgia, serif; color: var(--blue); opacity: .22; }
+.as-ss-rel .view p { position: relative; margin: 9px 0 0; font: 400 13px/1.65 var(--han); }
+.as-ss-rel p.now { margin: 12px 0 0; padding-left: 10px; border-left: 2px solid var(--blue); font: 400 12px/1.7 var(--han); color: var(--soft); }
 /* 地点：一颗彩色图钉，下面是名字（太长的截短，点开纸上是全名） */
 .as-ss-names button { display: block; max-width: 8em; overflow: hidden; text-overflow: ellipsis; text-align: center; --c: #d8493f; }
 .as-ss-names button.area { max-width: 9em; }
@@ -180,3 +209,7 @@
 .as-ss-names button:nth-of-type(5n+4), .as-ss-names .sub button:nth-child(5n+4) { --c: #1f2fc4; }
 .as-ss-names button:nth-of-type(5n), .as-ss-names .sub button:nth-child(5n) { --c: #9a57b5; }
 .as-ss-loose { left: auto; right: 14px; }
+.as-ss-names.pan button { transition: color .3s, opacity .4s; }
+.as-ss-names { height: 100%; overflow: hidden; }
+.as-ss-stage.map canvas { touch-action: none; }
+.as-ss-paper .x { z-index: 2; }

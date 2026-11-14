@@ -47,7 +47,7 @@ export async function load() {
     q.alias = q.alias.filter(a => !NONE.test(a));
     for (const e of D.ev) { if (e.know) e.know = e.know.filter(n => n !== q.name); if (NONE.test(e.quote || '')) e.quote = ''; }
   }
-  for (const r of D.rel) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
+  for (const r of [...D.rel, ...D.rel.flatMap(r => r.hist)]) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
   return D;
 }
 export const save = () => { ver++; return kvSet('mem:' + Dkey, D); };
