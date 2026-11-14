@@ -18,7 +18,7 @@ const tagsIn = text => [...String(text).matchAll(/<([\p{L}_][\p{L}\p{N}_:-]*)[\s
 export function detectTags(list = rawStory(30)) {
   const count = {};
   for (const m of list) {
-    for (const k of tagsIn(m.text)) count[k] = (count[k] || 0) + 1;
+    for (const k of tagsIn(m.text.replace(block('!--'), ''))) count[k] = (count[k] || 0) + 1;   // 注释里写到的 <xxx> 不算标签
     const nc = (m.text.match(/<!--/g) || []).length; if (nc) count['!--'] = (count['!--'] || 0) + nc;
   }
   delete count[(state.timeTagName || 'astertime').toLowerCase()]; delete count.astertime; delete count.asterphone;
@@ -30,7 +30,7 @@ const block = t => t === '!--' ? /<!--[\s\S]*?-->/g : new RegExp(`<${esc(t)}(?=[
 /** 「给手机看」的标签里面还套着哪些标签、各几次（「不给手机看」只用从这些里挑） */
 export function tagsInside(keep = keepNow(), list = rawStory(30)) {
   const count = {};
-  for (const m of list) for (const k of keep) for (const b of m.text.match(block(k)) || []) for (const t of tagsIn(b.slice(1))) if (t !== k) count[t] = (count[t] || 0) + 1;
+  for (const m of list) for (const k of keep) for (const b of m.text.replace(block('!--'), '').match(block(k)) || []) for (const t of tagsIn(b.slice(1))) if (t !== k) count[t] = (count[t] || 0) + 1;
   return count;
 }
 
@@ -44,10 +44,12 @@ export function cleanText(text, keep = keepNow(), drop = C().drop || []) {
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|astermem|asterdiary|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');
   if (!keep.includes('!--')) t = t.replace(block('!--'), '');
   for (const tag of drop) if (!keep.includes(tag)) t = t.replace(block(tag), '');
-  const held = [];   // 「给手机看」的整段先拿出来放一边，剩下的没分类标签去掉后再放回去
-  for (const tag of keep) if (tag !== '!--') t = t.replace(block(tag), m => `\u0000${held.push(m) - 1}\u0000`);
-  for (const tag of new Set(tagsIn(t))) t = t.replace(block(tag), '');
-  while (/\u0000\d+\u0000/.test(t)) t = t.replace(/\u0000(\d+)\u0000/g, (_, i) => held[i]);
+  // 「给手机看」的整段原样留着；它们之间、外面的那几截各自去掉没分类的标签。
+  // 分开洗：外面有个标签没合上、到后面才合上时，不会把中间「给手机看」的那段一起带走
+  const out = s => { for (const tag of new Set(tagsIn(s))) s = s.replace(block(tag), ''); return s; };
+  const ks = keep.filter(k => k !== '!--').map(esc);
+  if (ks.length) { let r = '', at = 0; for (const m of t.matchAll(new RegExp(`<(${ks.join('|')})(?=[\\s>])[^>]*>[\\s\\S]*?<\\/\\1>`, 'giu'))) { r += out(t.slice(at, m.index)) + m[0]; at = m.index + m[0].length; } t = r + out(t.slice(at)); }
+  else t = out(t);
   return t.replace(/<!--|-->/g, '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
