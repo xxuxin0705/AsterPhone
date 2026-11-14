@@ -137,7 +137,7 @@ export function open() {
   // 点正中这个人自己：TA 是怎么一步步变成现在这样的（成长），按先后
   function openSelf() {
     const who = names[ctr], l = d.grow.filter(g => ctr ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
-    show(who, '成长', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
+    show(who, '人物簿', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
   }
   // 地点：一句介绍、在这里发生过的事（大地方连里面小地点的一起）
   function openPlace(n, subs = []) {
@@ -510,7 +510,7 @@ async function openSet() {
   // 记录：每轮顺手记（正文生成时顺手写下，不另外花钱）/ 每隔几轮整理一次（另外找一次 AI）/ 只手动
   let turn = m.story === 'every' ? 'every' : 'maybe';
   const mode = () => m.story === 'n' ? 'n' : m.story === 'off' ? 'off' : 'turn';
-  const how = h('div.as-mem-imp', segmented([['maybe', '有值得记的才记'], ['every', '每楼都记']], turn, v => { m.story = turn = v; save(); }));
+  const how = h('div.as-field', h('span.as-field__label', withInfo('记哪些', '有值得记的才记：一个月后要是完全不记得会觉得奇怪或失落的事。比如第一次（约会、吵架）、关系变了、约定、送了或收到什么、新知道的关于某人的事、说出口的秘密、新出场的人、生日节日；吃饭走路这种日常不记。每楼都记：每一楼都记一条。')), segmented([['maybe', '有值得记的才记'], ['every', '每楼都记']], turn, v => { m.story = turn = v; save(); }));
   const every = pick('隔几轮', 'n', 10, [[3], [5], [10], [15], [20], [30]], ' 轮');
   const paint = () => { how.hidden = mode() !== 'turn'; every.hidden = mode() !== 'n'; };
   const label = () => { const v = m.conn.text; return v === 'follow' ? `跟随聊天线（${connLabel(resolveConn('text', 'memory'))}）` : connLabel(resolveConn('text', 'memory')); };
@@ -527,15 +527,20 @@ async function openSet() {
       if (M.running()) { toast('已经在整理了'); return; }
       try { if (!(await M.autoSort(true))) toast('没有新的可整理'); } catch (e) { toast('整理失败：' + e.message); }
     } }),
-    item({ title: withInfo('重新填', '不重读原文，只看已经记下的事，把勾上的重新写一遍。AI 写出来的会盖掉旧的，没写的不动。'), chevron: true, onClick: () => {
-      const want = new Set();
-      const s = sheet({ title: '重新填', content: [
-        h('div.as-mem-imp', h('div.as-chips', Object.entries(M.FILL).map(([k, t]) => { const c = h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); c.classList.toggle('is-active'); } }, t); return c; }))),
+    item({ title: withInfo('补充或重新生成', '不重读原文，只看已经记下的事，把勾上的那几样再写一遍。补充：只添没有的、填空着的，已经有的不动。重新生成：这一样旧的不要了，换成新写的。'), chevron: true, onClick: () => {
+      const want = new Set(); let redo = false;
+      const chips = Object.entries(M.FILL).map(([k, t]) => { const c = h('button.as-chip', { onclick: () => { want.has(k) ? want.delete(k) : want.add(k); c.classList.toggle('is-active'); all.classList.toggle('is-active', want.size === chips.length); } }, t); return c; });
+      const all = h('button.as-chip', { onclick: () => { const on = want.size < chips.length; Object.keys(M.FILL).forEach(k => on ? want.add(k) : want.delete(k)); [...chips, all].forEach(c => c.classList.toggle('is-active', on)); } }, '全选');
+      const s = sheet({ title: '补充或重新生成', content: [
+        h('div.as-mem-imp', segmented([['add', '在原有的上面补'], ['redo', '重新生成']], 'add', v => { redo = v === 'redo'; })),
+        h('div.as-mem-imp', h('div.as-chips', all, chips)),
         h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('开始', 'primary', async () => {
-          if (!want.size) { toast('先勾上要重新填的'); return; }
+          if (!want.size) { toast('先勾上要写哪几样'); return; }
+          const names = [...want].map(k => M.FILL[k]).join('、');
+          if (redo && !(await dialog({ title: `重新生成${names}？`, text: '现在记着的会换成新写的', confirm: '重新生成', danger: true }))) return;
           s.close();
-          try { const n = await waiting('正在重新填…', sig => M.refill([...want], sig)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
-          catch (e) { toast('重新填失败：' + e.message); }
+          try { const n = await waiting(redo ? '正在重新生成…' : '正在补充…', sig => M.refill([...want], sig, redo)); if (!n) return; toast([...want].map(k => `${M.FILL[k]} ${n[k]} 条`).join(' · ')); refresh(); }
+          catch (e) { toast((redo ? '重新生成' : '补充') + '失败：' + e.message); }
         })),
       ] });
     } }),

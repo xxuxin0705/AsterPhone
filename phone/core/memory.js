@@ -47,6 +47,9 @@ export async function load() {
     q.alias = q.alias.filter(a => !NONE.test(a));
     for (const e of D.ev) { if (e.know) e.know = e.know.filter(n => n !== q.name); if (NONE.test(e.quote || '')) e.quote = ''; }
   }
+  // 以前记下的带括号注解的人名收拾掉：事里的并回本人，人物表里重复的合成一个
+  for (const e of [...D.ev, ...D.wait.flatMap(w => w.ev || [])]) { e.who = [...new Set(e.who.map(bare))]; if (e.know) e.know = [...new Set(e.know.map(bare))]; }
+  for (const q of [...D.ppl]) { const n = bare(q.name); if (n === q.name) continue; const o = D.ppl.find(p => p.name === n); if (o) { if (!o.who) o.who = q.who; D.ppl.splice(D.ppl.indexOf(q), 1); } else q.name = n; }
   for (const r of [...D.rel, ...D.rel.flatMap(r => r.hist)]) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
   return D;
 }
@@ -89,6 +92,9 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 // 关系：甲｜乙｜关系｜从何时起｜现在｜亲近度｜甲眼里的乙｜乙眼里的甲｜甲对乙说的一句话｜乙对甲说的一句话   人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 // 地点：名字｜归哪个大地方｜一句介绍
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
+// 人名后面 AI 顺手加的括号注解去掉（「天内理子（昏迷）」「孔时雨（新人物）」），不然一个人会变成好几个人
+const bare = n => norm(n).replace(/\s*[（(][^（()）]*[)）]$/, '');
+const folk = s => [...new Set(list(s).map(bare).filter(Boolean))];
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
 const NONE = /^[（(]?(空|无|没有|暂无|未知)[)）]?$/;
 /** 「2005年4月6日」「2005/4/6」「2005-04-06?」→ ['2005-04-06', 是不是推测] */
@@ -105,19 +111,19 @@ export function parse(raw) {
     const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
-      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
-        after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: list(f[12]), from: f[13] || '', to: f[14] || '' });
-    } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: f[6] || '', vb: f[7] || '', sa: f[8] || '', sb: f[9] || '' });
+      out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: folk(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
+        after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: folk(f[12]), from: f[13] || '', to: f[14] || '' });
+    } else if (m[1] === '关系' && f[1]) out.rel.push({ a: bare(f[0]), b: bare(f[1]), kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: f[6] || '', vb: f[7] || '', sa: f[8] || '', sb: f[9] || '' });
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
-    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
+    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
       const [kind, at, what, who] = DAY_KINDS.includes(f[0]) ? f : ['其他', ...f], d = /(?:(\d{4})\D+)?(\d{1,2})\D+(\d{1,2})/.exec(at || ''), p = x => x.padStart(2, '0');
       if (d && what) out.days.push({ kind, date: d[1] ? `${d[1]}-${p(d[2])}-${p(d[3])}` : '', md: `${p(d[2])}-${p(d[3])}`, what, who: list(who) });
     }
     else if (m[1] === '没完' && f[1]) out.todo.push({ who: f[0], text: f[1] });
     else if (m[1] === '完成' && f[1]) out.done.push({ who: f[0], text: f[1] });
-    else if (m[1] === '成长' && f[2]) out.grow.push({ who: f[0], at: day(f[1])[0], text: f[2], why: f[3] || '' });   // 谁｜哪天｜变了什么（以前 → 现在）｜因为哪件事
-    else if (m[1] === '了解' && f[1]) out.facts.push({ about: f[0], text: f[1], know: list(f[2]), old: f[3] || '' });   // 谁｜是什么｜谁知道｜以前（变了才有）
+    else if (m[1] === '成长' && f[2]) out.grow.push({ who: bare(f[0]), at: day(f[1])[0], text: f[2], why: f[3] || '' });   // 谁｜哪天｜变了什么（以前 → 现在）｜因为哪件事
+    else if (m[1] === '了解' && f[1]) out.facts.push({ about: bare(f[0]), text: f[1], know: folk(f[2]), old: f[3] || '' });   // 谁｜是什么｜谁知道｜以前（变了才有）
   }
   return out;
 }
@@ -313,10 +319,11 @@ export const running = () => job && job.ac ? job : null;
 export async function leftover() { return running() || (await kvGet('memjob:' + win.key)) || null; }
 export const dropJob = () => kvDel('memjob:' + win.key);
 export function cancelJob() { job && job.ac && job.ac.abort(); }
-/** 重新填（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样重新写一遍。AI 写了的格子盖掉旧的，没写的不动 */
-export const FILL = { rel: '关系', places: '地点', grow: '成长' };
+/** 补充 / 重新生成（作者要的）：不重读原文，只看已经记下的事，把勾选的那几样再写一遍。
+ *  redo = false 补充：只添没有的、只填空着的格子，已经有的不动；redo = true 重新生成：这一样旧的不要了，换成新写的（AI 一条都没写出来就不动；自己手写的成长留着） */
+export const FILL = { rel: '关系', places: '地点', grow: '人物簿' };
 let refilling = false;
-export async function refill(want, signal) {
+export async function refill(want, signal, redo) {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
   try {
@@ -327,19 +334,25 @@ export async function refill(want, signal) {
       events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
     const n = { rel: 0, places: 0, grow: x.grow.length };
-    if (want.includes('grow') && n.grow) D.grow = [...D.grow.filter(g => g.src === '手动'), ...x.grow.map(g => ({ id: uid('g'), ...g, who: canon(g.who), src: '重新填' }))];   // 自己手写的留着
-    if (want.includes('rel')) for (const r of x.rel) {
-      const a = canon(r.a), b = canon(r.b); if (a === b) continue;
-      let o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
-      if (!o) D.rel.push(o = { id: uid('r'), a, b, hist: [], src: '重新填' });
-      const v = o.a === a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa };
-      o.kind = r.kind; for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) if (v[k] != null && v[k] !== '') o[k] = v[k];
-      n.rel++;
+    if (want.includes('grow') && n.grow) {
+      if (redo) D.grow = D.grow.filter(g => g.src === '手动');
+      for (const g of x.grow) { const who = canon(g.who); if (!D.grow.some(o => o.who === who && alike(o.text, g.text) > .6)) D.grow.push({ id: uid('g'), ...g, who, src: '重新填' }); }
+    }
+    if (want.includes('rel') && x.rel.length) {
+      if (redo) D.rel = [];
+      for (const r of x.rel) {
+        const a = canon(r.a), b = canon(r.b); if (a === b) continue;
+        let o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
+        if (!o) D.rel.push(o = { id: uid('r'), a, b, kind: r.kind, hist: [], src: '重新填' });
+        const v = o.a === a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa };
+        for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) if (v[k] != null && v[k] !== '' && (o[k] == null || o[k] === '')) o[k] = v[k];
+        n.rel++;
+      }
     }
     if (want.includes('places')) for (const q of x.places) {
       if (!spots.includes(q.name)) continue;   // 只归类已有的，不让它添新地点
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
-      o.area = q.area; if (q.intro) o.intro = q.intro; n.places++;
+      if (redo || !o.area) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
     await save(); return n;
   } finally { refilling = false; }
