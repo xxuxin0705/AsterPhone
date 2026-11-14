@@ -55,10 +55,11 @@ export const CHANNELS = {
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
-    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、两个实时通话，也可以自定义
+    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、一个重排、两个实时通话，也可以自定义
     { v: 'siliconflow-embed', label: '硅基流动', tag: '向量', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
     { v: 'zhipu-embed', label: '智谱', tag: '向量', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
     { v: 'openai-embed', label: '第三方向量（OpenAI 兼容）', tag: '向量', base: '', model: 'text-embedding-3-small', site: '', custom: true },
+    { v: 'siliconflow-rerank', label: '硅基流动', tag: '重排', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-reranker-v2-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '向量找到以后再排一遍，挑最对得上的。' },
     { v: 'openai-realtime', label: 'OpenAI 实时语音', tag: '通话', base: 'https://api.openai.com/v1', model: 'gpt-realtime-2.1', site: 'https://platform.openai.com/api-keys' },
     { v: 'gemini-live', label: 'Gemini Live', tag: '通话', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.8-live', site: 'https://aistudio.google.com/apikey' },
     { v: 'other-compat', label: '自定义（OpenAI 兼容）', tag: '', base: '', model: '', site: '', custom: true },
@@ -293,7 +294,7 @@ function empty(raw) {
 
 /** 拉取模型列表 */
 // 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
-const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'openai-embed', 'openai-realtime', 'other-compat']);
+const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'siliconflow-rerank', 'openai-embed', 'openai-realtime', 'other-compat']);
 /** 拉模型列表：能从网上拉的就拉，没有列表接口的给出这家固定的那几个。失败了记进日志 */
 export async function listModels(conn) {
   try { return await pullModels(conn); }
@@ -811,6 +812,11 @@ export function seedChannels() {
   if (d.aux) { if (C.embed.some(c => c.id === d.aux) && !d[auxKey('向量')]) d[auxKey('向量')] = d.aux; d.aux = ''; changed = true; }
   if (!d[auxKey('向量')] && !C.seeded.embPlug && C.embed.some(c => c.id === 'emb_siliconflow-embed')) { d[auxKey('向量')] = 'emb_siliconflow-embed'; changed = true; }
   C.seeded.embPlug = true;
+  // 重排：第一次默认插在硅基流动上；密钥没填就照抄向量那条的（同一家，不用填两遍）
+  const rr = C.embed.find(c => c.id === 'emb_siliconflow-rerank'), em = C.embed.find(c => c.id === 'emb_siliconflow-embed');
+  if (rr && !d[auxKey('重排')] && !C.seeded.rerankPlug) { d[auxKey('重排')] = rr.id; changed = true; }
+  C.seeded.rerankPlug = true;
+  if (rr && em && !keysOf(rr).length && keysOf(em).length) { rr.key = em.key; rr.keys = [...(em.keys || [])]; changed = true; }
   return changed;
 }
 export const seedImageChannels = seedChannels;
@@ -840,4 +846,13 @@ export async function testEmbed(conn) {
   const j = await res.json(), v = j.data?.[0]?.embedding;
   if (!Array.isArray(v)) throw new Error('接口没有返回向量');
   return v.length;
+}
+/** 重排：docs 里哪几条和 query 最对得上。回 [[第几条, 分数]…]，分高的在前 */
+export async function rerank(conn, query, docs, signal) {
+  const key = keysOf(conn)[0] || '';
+  const res = await xf(oaiBase(conn.base) + '/rerank', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, query, documents: docs }) });
+  if (!res.ok) throw new Error(await readErr(res));
+  const r = (await res.json()).results;
+  if (!Array.isArray(r)) throw new Error('接口没有返回排序');
+  return r.map(x => [x.index, x.relevance_score]);
 }

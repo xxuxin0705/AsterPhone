@@ -7,7 +7,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
+import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, rerank, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
 import { tavernProfiles } from '../../core/bridge.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
@@ -733,6 +733,7 @@ async function doTest(c, kind) {
   if (kind !== 'text' && !ch.noKey && !keysOf(c).length) throw new Error('还没填密钥');
   if (kind === 'text') { await testConn(c); return {}; }
   if (c.type === 'gemini-live') { await testLive(c); return { note: '能开实时对话' }; }
+  if (kind === 'embed' && tagOf(c) === '重排') { const r = await rerank(c, '喝醉了', ['一起拍大头贴', '喝了一口梅酒就睡着了']); return { note: r[0] && r[0][0] === 1 ? '排对了' : '但排得不对' }; }
   if (c.type === 'openai-realtime' || c.type === 'other-compat') { const w = await testCompat(c); return w ? { note: w } : {}; }
   if (kind === 'embed') { const n = await testEmbed(c); return { note: `返回了 ${n} 维向量` }; }
   if (kind === 'tts') { await testVoice(c); return {}; }
