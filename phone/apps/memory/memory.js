@@ -4,7 +4,7 @@
 // 右上角设置：人物、记录、整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, colorFor } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, dateField, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, colorFor } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
 import { loadBook, C as ctxCfg } from '../../core/context.js';
@@ -339,7 +339,7 @@ async function editRel(r) {
   const chips = [...new Set([...M.KINDS, ...d.rel.map(q => q.kind)])].filter(k => k !== '其他').map(k => h('button.as-chip' + (k === x.kind ? '.is-active' : ''), { onclick: () => pick(k === x.kind ? '' : k) }, k));
   const s = sheet({ title: `${r.a} 和 ${r.b}`, content: [
     field('关系', kind), h('div.as-mem-imp', h('div.as-chips', chips)),
-    field('从什么时候起', input({ type: 'date', value: M.day(x.since)[0], onInput: v => { x.since = v; } })),
+    field('从什么时候起', dateField(M.day(x.since)[0], v => { x.since = v; })),
     field('现在怎样', input({ value: x.now, onInput: v => { x.now = v.trim(); } })),
     field(withInfo('亲近度', '5 最亲，关系页上越亲的离得越近。0 是不认识，关系页上不显示。'), segmented([0, 1, 2, 3, 4, 5].map(n => [n, String(n)]), x.lv, v => { x.lv = v; })),
     field(`${r.a}眼里的${r.b}`, textarea({ value: x.va, rows: 2, onInput: v => { x.va = v.trim(); } })),
@@ -358,7 +358,7 @@ async function editRel(r) {
 async function editGrow(o, who = '') {
   const d = await M.load(), x = o ? { at: o.at, text: o.text, why: o.why } : { at: '', text: '', why: '' };
   const s = sheet({ title: o ? o.who : who, content: [
-    field('哪天', input({ type: 'date', value: M.day(x.at)[0], onInput: v => { x.at = v; } })),
+    field('哪天', dateField(M.day(x.at)[0], v => { x.at = v; })),
     field(withInfo('变了什么', '写成「以前怎样 → 现在怎样」。TA 以后说话做事会照现在的样子来，和人设不一样的以这里为准。'), textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
     field('因为哪件事', input({ value: x.why, onInput: v => { x.why = v.trim(); } })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.grow.splice(d.grow.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
@@ -372,17 +372,15 @@ async function editGrow(o, who = '') {
 // 日子：类型、日期（年-月-日，不知道年份就写月-日）、是什么日子、和谁有关；照「日子」那一行的格式读，和 AI 记的一样
 async function editDay(o) {
   const d = await M.load(), x = o ? { kind: o.kind || '其他', at: o.date || o.md, what: o.what, who: o.who.join('、') } : { kind: '生日', at: '', what: '', who: '' };
-  let day = /^\d{4}/.test(x.at) ? x.at : x.at ? '2000-' + x.at : '', noYear = !!o && !o.date;
   const s = sheet({ title: o ? o.what : '加一个日子', content: [
     segmented(M.DAY_KINDS.map(k => [k, k]), x.kind, v => { x.kind = v; }),
     field('是什么日子', input({ value: x.what, onInput: v => { x.what = v.trim(); } })),
-    // 点一下选日期；只知道哪天、不知道哪年（比如生日）就打开「不知道哪年」，存的时候只留月-日
-    field('日期', input({ type: 'date', value: /^\d{4}/.test(x.at) ? x.at : x.at ? '2000-' + x.at : '', onInput: v => { day = v; } })),
-    toggleItem({ title: '不知道哪年' }, noYear, v => { noYear = v; }),
+    // 只知道哪天、不知道哪年（比如生日）：年份那列最上面选「不知道哪年」，只存月-日
+    field('日期', dateField(x.at, v => { x.at = v; }, true)),
     field('和谁有关', whoPick(d, x.who, v => { x.who = v; })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
-      const y = M.parse(`日子：${x.kind}｜${noYear ? day.slice(5) : day}｜${x.what}｜${x.who}`).days[0];
+      const y = M.parse(`日子：${x.kind}｜${x.at}｜${x.what}｜${x.who}`).days[0];
       if (!y) { toast(x.what ? '选一下日期' : '写上是什么日子'); return; }
       if (o) Object.assign(o, y); else d.days.push(y);
       await M.save(); s.close(); refresh();
@@ -447,7 +445,7 @@ async function editEvent(e) {
   const flag = (k, on, off) => { const b = btn(x[k] ? on : off, 'secondary', () => { x[k] = !x[k]; b.textContent = x[k] ? on : off; }); return b; };
   p.body.append(
     group('', [field('标题', input({ value: x.title, onInput: v => { x.title = v.trim(); } })),
-      field('日期', input({ type: 'date', value: x.at, onInput: v => { x.at = v; x.guess = false; } })),
+      field('日期', dateField(x.at, v => { x.at = v; x.guess = false; })),
       field('时间', input({ value: x.part, onInput: v => { x.part = v.trim(); } })),
       field('地点', input({ value: x.place, onInput: v => { x.place = v.trim(); } })),
       field('经过', textarea({ value: x.text, rows: 3, onInput: v => { x.text = v.trim(); } })),

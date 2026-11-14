@@ -301,3 +301,12 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-chat-bubble.has-deco { background: var(--deco-bg) !important; color: var(--deco-ink) !important; border: 1px solid var(--deco-line) !important; border-radius: var(--deco-r) !important; box-shadow: none !important; }
 .as-chat-bubble.has-deco-img { background: none !important; border: 14px solid transparent !important; border-image: var(--deco-img) 45% fill / 14px stretch !important; padding: 0 1px !important; }
 .as-btn .as-ai-n { margin-left: 6px; font-size: 11px; font-weight: 400; } .as-ai-n:empty { display: none; }
+
+/* 选日期的滚轮：三列，正中那一格是选中的 */
+.as-wheels { position: relative; display: flex; height: 200px; margin: 4px 0 14px; -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.as-wheels::after { content: ''; position: absolute; left: 0; right: 0; top: 80px; height: 40px; border-block: 1px solid var(--as-color-glass-line); pointer-events: none; }
+.as-wheel { flex: 1; overflow-y: auto; scroll-snap-type: y mandatory; padding: 80px 0; scrollbar-width: none; overscroll-behavior: contain; }
+.as-wheel::-webkit-scrollbar { display: none; }
+.as-wheel > div { height: 40px; scroll-snap-align: center; text-align: center; font: 400 16px/40px var(--font-ui); color: var(--as-color-text-2); white-space: nowrap; }
+.as-wheel > div.on { color: var(--as-color-text); font-weight: 600; }
+.as-date { text-align: left; cursor: pointer; }

@@ -1,7 +1,7 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
 import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow, kvGet } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel, busy } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, dateField, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel, busy } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
 import { PROMPT_CATS, catInfo, VAR_INFO, blocksIn, schemesOf, schemeOf, schemeName, useScheme, copyScheme, renameScheme, removeScheme, setOn, moveBlock, newBlock, saveBlock, removeBlock } from '../../core/promptstore.js';
@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.417';
+export const VERSION = '0.8.418';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -643,7 +643,7 @@ function openLinkTime() {
   sub('linktime', '联动方式与时间', body => {
     const st = time.story(), a = state.apps.chat, p2 = n => String(n).padStart(2, '0');
     const hm = input({ value: `${p2(st.hh)}:${p2(st.mm)}`, type: 'time' });
-    const dateIn = input({ value: `${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}`, type: 'date' });
+    const dateIn = dateField(`${st.date.getFullYear()}-${p2(st.date.getMonth() + 1)}-${p2(st.date.getDate())}`);
     const nowText = () => { if (S().timeSrc === 'story') { const s1 = time.story(); return `${time.fmtDate(s1.date)} ${p2(s1.hh)}:${p2(s1.mm)}`; } const d = new Date(); return `${time.fmtDate(d)} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
     const nowItem = item({ title: '现在', value: nowText(), cls: 'as-settings-now' });
     // 切换「跟随剧情 / 现实时间」只显示 / 藏起手动设定那一块，不重画整页

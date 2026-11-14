@@ -240,6 +240,40 @@ export function empty(text, action) { return h('div.as-empty', h('div.as-empty__
 export function badge(n) { return n > 0 ? h('span.as-badge', n > 99 ? '99+' : String(n)) : null; }
 
 /* ---------- 抽屉 ---------- */
+/** 选日期（作者：系统日历只能一个月一个月翻，换年份太慢）：点一下出年、月、日三列滚轮，滑一下就到。
+ *  值是「年-月-日」；noYear 时年份那列最上面多一个「不知道哪年」，选了值就只有「月-日」。返回的按钮 .value 能读能写 */
+export function dateField(value, onChange = () => {}, noYear = false) {
+  const show = v => !v ? '选日期' : /^\d{4}/.test(v) ? v.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日') : v.replace(/^0?(\d+)-0?(\d+)$/, '$1月$2日 · 不知道哪年');
+  const b = h('button.as-input.as-date', { type: 'button', onclick: async () => { const v = await pickDate(value, noYear); if (v == null) return; b.value = v; onChange(v); } }, show(value));
+  Object.defineProperty(b, 'value', { get: () => value, set: v => { value = v; b.textContent = show(v); } });
+  return b;
+}
+function pickDate(value, noYear) {
+  return new Promise(res => {
+    const now = new Date(), m = /^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/.exec(value || ''), p2 = n => String(n).padStart(2, '0');
+    let y = m ? +(m[1] || 0) : now.getFullYear(), mo = m ? +m[2] : now.getMonth() + 1, d = m ? +m[3] : now.getDate(), done = false;
+    if (!y && !noYear) y = now.getFullYear();
+    // 一列滚轮：停下来时正中那一格就是选中的；只换那一格的颜色，不重画
+    const wheel = (items, cur, set) => {
+      const col = h('div.as-wheel'), fill = l => { col.replaceChildren(...l.map(([v, t]) => h('div', { dataset: { v } }, t))); };
+      let t = 0, l = items; fill(l);
+      const pick = () => { const i = Math.max(0, Math.min(l.length - 1, Math.round(col.scrollTop / 40))); [...col.children].forEach((c, k) => c.classList.toggle('on', k === i)); return l[i][0]; };
+      col.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => set(pick()), 90); });
+      col.go = v => { const i = Math.max(0, l.findIndex(x => x[0] === v)); col.scrollTop = i * 40; pick(); };
+      col.reset = (nl, v) => { l = nl; fill(l); col.go(v); };
+      requestAnimationFrame(() => col.go(cur));
+      return col;
+    };
+    const dim = () => new Date(y || 2000, mo, 0).getDate(), days = () => Array.from({ length: dim() }, (_, i) => [i + 1, i + 1 + ' 日']);
+    const fixDay = () => { if (dc.children.length === dim()) return; if (d > dim()) d = dim(); dc.reset(days(), d); };   // 这个月的天数变了才重排「日」那列
+    const yc = wheel([...(noYear ? [[0, '不知道哪年']] : []), ...Array.from({ length: 201 }, (_, i) => [1900 + i, 1900 + i + ' 年'])], y, v => { y = v; fixDay(); });
+    const mc = wheel(Array.from({ length: 12 }, (_, i) => [i + 1, i + 1 + ' 月']), mo, v => { mo = v; fixDay(); });
+    const dc = wheel(days(), d, v => { d = v; });
+    const s = sheet({ title: '选日期', content: [h('div.as-wheels', yc, mc, dc),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { done = true; s.close(); res(y ? `${y}-${p2(mo)}-${p2(d)}` : `${p2(mo)}-${p2(d)}`); }))],
+      onClose: () => { if (!done) res(null); } });
+  });
+}
 export function sheet({ title, content, onClose, cls = '' }) {
   const mask = h('div.as-sheet-mask');
   const grab = h('div.as-sheet__grab');
