@@ -128,8 +128,13 @@ export function day(s) {
 export function parse(raw) {
   const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [], grow: [], at: [] }, imp = [];
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
+  let last = '';
   for (const line of text.split('\n')) {
-    const m = /^\s*(?:[-*•]+|\d+[.、)）])?\s*\**(事件|关系|印象|人物|日子|没完|完成|了解|地点|成长|在哪)\**\s*[:：]\**\s*(.+)$/.exec(line); if (!m) continue;   // AI 有时加 1. / - / **加粗**
+    let m = /^\s*(?:[-*•]+|\d+[.、)）])?\s*\**(事件|关系|印象|人物|日子|没完|完成|了解|地点|成长|在哪)\**\s*[:：]\**\s*(.+)$/.exec(line);   // AI 有时加 1. / - / **加粗**
+    // AI 有时只在第一行写「印象：」，后面的行不带（作者遇到的：十几行印象全丢了）：紧跟在印象后面、长得一样的行照认
+    if (!m && last === '印象' && /^[^｜|：:]{1,12}[｜|][^｜|：:]{1,12}[｜|]/.test(line.trim())) m = [, '印象', line.trim()];
+    if (!m) { if (line.trim()) last = ''; continue; }
+    last = m[1];
     const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
@@ -471,7 +476,7 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const cut = opt ? Object.keys(CUT).filter(k => !opt.want.includes(k)) : [];
       const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '' })
         .split('\n').filter(l => !cut.some(k => CUT[k].test(l))).join('\n').replace('\u0001', () => src);
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, stop: job.ac.signal }); }
+      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, temperature: .3, stop: job.ac.signal }); }   // 读原文记事一直是 0.3：守规矩，从头按顺序写（v0.8.403 放开过，结果它挑着写一段就收工）
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
