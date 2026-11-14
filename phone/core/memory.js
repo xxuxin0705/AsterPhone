@@ -395,27 +395,29 @@ export async function refill(want, signal, redo, source = '') {
     if (want.includes('places')) { x.at = y.at; x.places = y.places; }
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
     const n = { rel: 0, places: 0, grow: x.grow.length, facts: x.facts.length, said: x.rel.filter(r => r.sa || r.sb).length, cut };
-    if (x.facts.length) { if (redo) D.facts = []; merge({ ppl: [], ev: [], rel: [], places: [], days: [], todo: [], done: [], grow: [], facts: x.facts }, '重新填'); }
+    // 重新生成但没写完：旧的不清，写到的换成新的，没写到的留着（不然没写到的那些人就全没了）
+    const wipe = redo && !cut;
+    if (x.facts.length) { if (wipe) D.facts = []; merge({ ppl: [], ev: [], rel: [], places: [], days: [], todo: [], done: [], grow: [], facts: x.facts }, '重新填'); }
     if (n.grow) {
-      if (redo) D.grow = D.grow.filter(g => g.src === '手动');
+      if (wipe) D.grow = D.grow.filter(g => g.src === '手动');
       for (const g of x.grow) { const who = canon(g.who); if (!D.grow.some(o => o.who === who && alike(o.text, g.text) > .6)) D.grow.push({ id: uid('g'), ...g, who, src: '重新填' }); }
     }
     if (want.includes('rel') && x.rel.length) {
-      if (redo) D.rel = [];
+      if (wipe) D.rel = [];
       for (const r of x.rel) {
         const a = canon(r.a), b = canon(r.b); if (a === b) continue;
         let o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
         if (!o) D.rel.push(o = { id: uid('r'), a, b, kind: r.kind || '其他', hist: [], src: '重新填' });
-        if (r.kind && o.kind === '其他') o.kind = r.kind;
+        if (r.kind && (redo || o.kind === '其他')) o.kind = r.kind;
         const v = o.a === a ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa };
-        for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) if (v[k] != null && v[k] !== '' && (o[k] == null || o[k] === '')) o[k] = v[k];
+        for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) if (v[k] != null && v[k] !== '' && (redo || o[k] == null || o[k] === '')) o[k] = v[k];
         n.rel++;
       }
     }
     // 地点：先给每件事重新写「在哪」（补充只填空着的，重新生成全换），再归类
     if (want.includes('places')) for (const [i, at] of x.at) { const e = evs[i - 1]; if (e && (redo || !e.place)) e.place = at; }
     const spots = new Set(D.ev.map(e => e.place));
-    if (want.includes('places') && redo && x.at.length) D.places = D.places.filter(q => spots.has(q.name));
+    if (want.includes('places') && wipe && x.at.length) D.places = D.places.filter(q => spots.has(q.name));
     const tops = new Set(x.places.map(q => q.area));
     if (want.includes('places')) for (const q of x.places) {
       if (!spots.has(q.name) && !tops.has(q.name)) continue;   // 只归类事里有的、和被写成上级的（东京咒术高专归东京），不让它添不相干的地点

@@ -264,6 +264,8 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
       if (resume > 0) throw Object.assign(new Error('字数到上限了'), { cut: String(out) });
       call.done(String(out || '').trim(), '字数到上限了'); return String(out || '').trim();
     }
+    // 边收边显示的回复，正常写完最后都会说为什么停；一个字没说线就结束了，多半是中转站中途掐了（作者：收到 3937 字卡了一分钟，结束了还标成功）
+    if (stream && !why && conn.type !== 'tavern' && conn.type !== 'tavern-profile') { call.done(String(out || '').trim(), '线中途结束了，可能没写完'); return String(out || '').trim(); }
     call.done(String(out || '').trim());
     return String(out || '').trim();
   } catch (e) {
