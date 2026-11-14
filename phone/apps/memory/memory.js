@@ -83,27 +83,53 @@ export function open() {
     } }, pic());
     return f;
   };
-  // 认识了多久：从两个人第一次一起出现的那件事（或关系最早的日期）算到故事里的今天
+  // 认识了多久：从两个人第一次一起出现的那件事（或关系最早的日期）算到故事里的今天。返回 [几年, 几个月, 几天, 一共几天, 从哪天起]
   const since = (a, b, r) => {
     const has = (e, n) => e.who.some(w => w === n || (M.isMe(n) && M.isMe(w)));
     const t0 = [...d.ev.filter(e => e.at && has(e, a) && has(e, b)).map(e => e.at), r.since, ...r.hist.map(x => x.since)].filter(x => /^\d{4}-\d\d-\d\d$/.test(x || '')).sort()[0];
-    if (!t0) return [null, ''];
-    const n = Math.max(0, Math.round(((time.isStory() && time.story().date || new Date()) - new Date(t0 + 'T00:00')) / 864e5));
-    return [n < 60 ? [[n, '天']] : n < 365 ? [[Math.floor(n / 30.4), '个月']] : [[Math.floor(n / 365), '年'], ...(n % 365 >= 30 ? [[Math.floor(n % 365 / 30.4), '个月']] : [])], dot(t0)];
+    if (!t0) return null;
+    const A = new Date(t0 + 'T00:00'), B = time.isStory() && time.story().date || new Date(); if (B < A) return [0, 0, 0, 0, t0];
+    let y = B.getFullYear() - A.getFullYear(), m = B.getMonth() - A.getMonth(), dd = B.getDate() - A.getDate();
+    if (dd < 0) { m--; dd += new Date(B.getFullYear(), B.getMonth(), 0).getDate(); }
+    if (m < 0) { y--; m += 12; }
+    return [y, m, dd, Math.round((new Date(B.getFullYear(), B.getMonth(), B.getDate()) - A) / 864e5), t0];
   };
+  /* 上面那幅画（作者给的参考：平面构成，点、线、面）：几圈同心的弧和一圈圆点（和星盘呼应），前后叠着四层平涂的云，云上贴一小块网点、一小块细条纹，几颗四角星。
+     最亮的那朵云里写那句话；左边的圆是头像，三个小点从头像飘向那朵云。颜色只用钴蓝的深浅和一点奶黄 */
+  const PIC = (() => {
+    const cloud = (cs, r) => cs.map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}"/>`).join('') + `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="9"/>`;
+    const C = [cloud([[40, 142, 24], [72, 118, 34], [112, 98, 40], [150, 114, 30]], [18, 132, 164, 44]), cloud([[182, 100, 30], [220, 68, 44], [266, 88, 40], [304, 116, 28]], [162, 108, 150, 68]),
+      cloud([[122, 150, 22], [156, 130, 34], [198, 108, 44], [248, 120, 38], [288, 140, 26]], [102, 142, 212, 40]), cloud([[30, 184, 13], [50, 176, 17], [74, 185, 12]], [18, 184, 68, 12]), cloud([[262, 182, 13], [284, 174, 18], [310, 184, 12]], [250, 182, 72, 12])];
+    const star = (x, y, r, c) => `<path class="tw" fill="${c}" d="M${x} ${y - r}Q${x + r * .16} ${y - r * .16} ${x + r} ${y}Q${x + r * .16} ${y + r * .16} ${x} ${y + r}Q${x - r * .16} ${y + r * .16} ${x - r} ${y}Q${x - r * .16} ${y - r * .16} ${x} ${y - r}Z"/>`;
+    const put = (i, fill, tex) => `<use href="#as-ss-c${i}" class="o"/><use href="#as-ss-c${i}" fill="${fill}"/>` + (tex ? `<rect clip-path="url(#as-ss-k${i})" ${tex}/>` : '');
+    return '<svg viewBox="0 0 342 200" aria-hidden="true"><defs>'
+      + '<pattern id="as-ss-dot" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1"/></pattern><pattern id="as-ss-dot2" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" class="b"/></pattern><pattern id="as-ss-bar" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1.3"/></pattern>'
+      + C.map((c, i) => `<g id="as-ss-c${i}">${c}</g><clipPath id="as-ss-k${i}">${c}</clipPath>`).join('') + '</defs>'
+      + '<g fill="none"><circle cx="118" cy="112" r="98" stroke="var(--soft)" stroke-width=".7"/><circle cx="118" cy="112" r="86" stroke="var(--b2)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="0 13.5"/>'
+      + '<circle cx="118" cy="112" r="72" stroke="var(--blue)" stroke-width="2.2"/><circle cx="118" cy="112" r="62" stroke="var(--cream)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0 5"/><circle cx="118" cy="112" r="54" stroke="var(--soft)" stroke-width=".6"/>'
+      + '<path d="M196 22H318M210 30H300" stroke="var(--soft)" stroke-width=".6"/><ellipse cx="262" cy="58" rx="78" ry="20" transform="rotate(-16 262 58)" stroke="var(--blue)" stroke-width=".8" stroke-dasharray="1.5 4"/></g>'
+      + put(0, 'var(--blue)', 'x="84" y="62" width="74" height="52" fill="url(#as-ss-dot)" class="t1"') + put(1, 'var(--b2)', 'x="244" y="60" width="70" height="46" fill="url(#as-ss-bar)" class="t2"')
+      + put(2, 'var(--b4)', 'x="252" y="136" width="64" height="46" fill="url(#as-ss-dot2)" class="t3"') + put(3, 'var(--b3)') + put(4, 'var(--b3)', 'x="250" y="170" width="40" height="24" fill="url(#as-ss-bar)" class="t2"')
+      + '<circle cx="62" cy="128" r="35" class="o"/><ellipse cx="62" cy="128" rx="50" ry="15" transform="rotate(-24 62 128)" fill="none" stroke="var(--cream)" stroke-width="1.1"/><circle cx="17" cy="148" r="3.2" fill="var(--cream)"/>'
+      + '<g fill="var(--b4)" stroke="var(--card)" stroke-width="1.5"><circle cx="103" cy="110" r="3.6"/><circle cx="116" cy="101" r="5.2"/><circle cx="133" cy="97" r="7"/></g>'
+      + '<g fill="var(--blue)"><rect x="322" y="38" width="5" height="5"/><rect x="330" y="46" width="3" height="3"/><rect x="8" y="80" width="4" height="4"/></g>'
+      + star(238, 40, 13, 'var(--cream)') + star(304, 62, 6, 'var(--b4)') + star(170, 30, 6, 'var(--blue)') + star(28, 104, 5, 'var(--cream)') + star(322, 150, 7, 'var(--cream)') + star(204, 186, 5, 'var(--blue)') + '</svg>';
+  })();
   function openRel(i) {
     const lk = link[ctr][i], me = names[ctr], who = names[i], cs = ctr ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (i ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
-    const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), [long, from] = since(me, who, r);
-    // 一朵鼓鼓的云（十个圆球叠出来的），云里是那句话；云底下用细线吊着三张小牌子，长短不一、轻轻晃：现在的关系、认识了多久、看法。头像在左下，三个小泡飘上去
-    const tag = (cls, l, ...kids) => h('div.hang.' + cls, { style: { '--l': l + 'px' } }, h('div', kids));
-    show(h('div.as-ss-rel',
-      h('div.cloud', [...Array(10)].map(() => h('i')), h('s'), h('s'), h('s'), h('p', h('small', `对${who}`), lk.say ? `「${lk.say}」` : h('em', '……'))),
-      h('div.row',
-        h('div.me', h('u'), h('u'), h('u'), face(me), h('b', me)),
-        tag('kin', 26, h('small', '现在'), h('b', path[path.length - 1] || '—'), path.length > 1 && h('span', path.join('→'))),
-        tag('long', 58, h('small', '认识了'), h('b', long ? long.map(([n, u]) => h('span', String(n), h('i', u))) : '—'), from && h('span', from)),
-        tag('view', 38, h('small', '看法'), h('p', lk.q[0] || h('em', '还没写')))),
+    const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), t = since(me, who, r);
+    // 认识了多久：点一下在「几年几个月几天」和「一共多少天」之间换（记在设置里），只换这几个字
+    const long = h('button.long', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
+    const num = (n, u) => h('span', String(n), h('i', u));
+    const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? num(t[3], '天') : [t[0] && num(t[0], '年'), (t[0] || t[1]) && num(t[1], '个月'), num(t[2], '天')].filter(Boolean)), t && h('em', dot(t[4]) + ' 起'));
+    fillLong();
+    const pic = h('div.pic', { html: PIC }); pic.append(face(me), h('p', h('small', `${me} 对 ${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
+    show(h('div.as-ss-rel', pic,
+      h('div.cells',
+        h('div.kin', h('div', h('small', '现在'), h('b', path[path.length - 1] || '—')), path.length > 1 && h('span', path.join(' → '))),
+        long,
+        h('div.view', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写')), h('i'), h('i'), h('i'), h('i'))),
       r.now && h('p.now', r.now)), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);

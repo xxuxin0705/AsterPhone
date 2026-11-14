@@ -157,68 +157,48 @@
 .as-ss-cat button { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; padding: 10px 12px; border-radius: 4px; border-left: 2px solid var(--blue); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }
 
-/* 关系那张纸（作者给的参考：鼓鼓的白云、云下面用线吊着星星）：一朵云里是对 TA 说的一句话，云底下吊着三张小牌子 */
-.as-ss-rel { --puff: #e4e7f3; --glow: rgba(31,47,196,.2); padding-top: 22px; }
-.as-phone[data-mode="night"] .as-ss-rel { --puff: #cfd4ea; --glow: rgba(140,155,255,.45); }
-.as-ss-rel .cloud { position: relative; z-index: 1; margin: 0 4px; padding: 30px 38px 34px; min-height: 104px; display: grid; place-items: center; filter: drop-shadow(0 8px 12px var(--glow)); }
-.as-ss-rel .cloud::before { content: ''; position: absolute; inset: 26px 5% 22px; border-radius: 40px; background: linear-gradient(#fff 45%, var(--puff)); }
-.as-ss-rel .cloud i { position: absolute; width: var(--d); height: var(--d); border-radius: 50%; background: radial-gradient(circle at 42% 30%, #fff 0 58%, var(--puff) 100%); }
-.as-ss-rel .cloud i:nth-child(1) { --d: 72px; left: 0; top: 14px; }
-.as-ss-rel .cloud i:nth-child(2) { --d: 94px; left: 15%; top: -14px; }
-.as-ss-rel .cloud i:nth-child(3) { --d: 88px; left: 40%; top: -20px; }
-.as-ss-rel .cloud i:nth-child(4) { --d: 76px; left: 62%; top: -4px; }
-.as-ss-rel .cloud i:nth-child(5) { --d: 64px; right: 0; top: 18px; }
-.as-ss-rel .cloud i:nth-child(6) { --d: 62px; left: 4%; bottom: 2px; }
-.as-ss-rel .cloud i:nth-child(7) { --d: 72px; left: 21%; bottom: -12px; }
-.as-ss-rel .cloud i:nth-child(8) { --d: 68px; left: 43%; bottom: -10px; }
-.as-ss-rel .cloud i:nth-child(9) { --d: 66px; left: 63%; bottom: -4px; }
-.as-ss-rel .cloud i:nth-child(10) { --d: 60px; right: 3%; bottom: 8px; }
-.as-ss-rel .cloud p { position: relative; margin: 0; font: 600 15px/1.55 var(--han); letter-spacing: 1px; text-align: center; color: #17171c; }
-.as-ss-rel .cloud small { display: block; margin-bottom: 3px; font: 400 11px/1.4 var(--han); letter-spacing: 2px; color: #8d8c88; }
-.as-ss-rel em { font-style: normal; color: var(--soft); font-weight: 400; }
-/* 云边上三颗小星 */
-.as-ss-rel .cloud s { position: absolute; width: var(--d); height: var(--d); background: var(--blue); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
-.as-ss-rel .cloud s:nth-of-type(1) { --d: 13px; right: 15%; top: -22px; }
-.as-ss-rel .cloud s:nth-of-type(2) { --d: 8px; right: 23%; top: -30px; opacity: .6; }
-.as-ss-rel .cloud s:nth-of-type(3) { --d: 10px; left: 0; top: 0; opacity: .75; }
-.as-ss-rel .row { display: grid; grid-template-columns: 74px 68px 68px 1fr; gap: 9px; align-items: start; margin-top: -16px; }
-/* 头像在云的左下，三个小球飘上去（越靠近云越大） */
-.as-ss-rel .me { position: relative; padding-top: 58px; text-align: center; }
-.as-ss-rel .me u { position: absolute; border-radius: 50%; background: radial-gradient(circle at 38% 30%, #fff 0 45%, var(--puff) 100%); filter: drop-shadow(0 2px 3px var(--glow)); }
-.as-ss-rel .me u:nth-of-type(1) { width: 8px; height: 8px; left: 46px; top: 50px; }
-.as-ss-rel .me u:nth-of-type(2) { width: 12px; height: 12px; left: 36px; top: 34px; }
-.as-ss-rel .me u:nth-of-type(3) { width: 17px; height: 17px; left: 42px; top: 13px; }
-.as-ss-rel .me b { display: block; margin-top: 9px; font: 600 12px/1.2 var(--han); letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-ss-rel .face { display: block; width: 60px; height: 60px; margin: 0 auto; padding: 0; border: 3px solid #fff; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 5px 12px var(--glow); }
+/* 关系那张纸（作者给的参考：平面构成）：上面一幅平涂的画（云、同心弧、网点、四角星），最亮的那朵云里是对 TA 说的一句话；下面是现在的关系、认识了多久、看法 */
+.as-ss-rel { --b2: #8f9df0; --b3: #5b78ee; --b4: #e3e7fc; --cream: #efcf7a; padding-top: 8px; }
+.as-phone[data-mode="night"] .as-ss-rel { --b2: #7c8bea; --b3: #5570e8; --b4: #dfe3fb; }
+.as-ss-rel .pic { position: relative; aspect-ratio: 342 / 200; }
+.as-ss-rel .pic svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.as-ss-rel .pic .o { fill: var(--card); stroke: var(--card); stroke-width: 5; }
+.as-ss-rel .pic pattern circle, .as-ss-rel .pic pattern rect { fill: #fff; } .as-ss-rel .pic pattern circle.b { fill: var(--b2); }
+.as-ss-rel .pic .t1 { opacity: .5; } .as-ss-rel .pic .t2 { opacity: .55; } .as-ss-rel .pic .t3 { opacity: .9; }
+.as-ss-rel .pic .tw { transform-box: fill-box; transform-origin: center; }
+.as-ss-rel .face { position: absolute; left: 9.35%; top: 49%; width: 17.55%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 .as-ss-rel .face img, .as-ss-rel .face i { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; color: #fff; font: 600 24px/1 var(--han); font-style: normal; }
-/* 吊着的牌子：一根细线（长短不一），线头穿过牌子顶上的小孔；整个绕着线头轻轻晃 */
-.as-ss-rel .hang { position: relative; padding-top: var(--l); transform-origin: 50% 0; }
-.as-ss-rel .hang::before { content: ''; position: absolute; left: 50%; top: 0; width: 1px; height: calc(var(--l) + 9px); background: var(--soft); }
-.as-ss-rel .hang > div { position: relative; padding: 18px 9px 11px; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 12px var(--glow); }
-.as-ss-rel .hang > div::before { content: ''; position: absolute; left: 50%; top: 6px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--card); box-shadow: inset 0 1px 1.5px rgba(0,0,0,.35); }
-.as-ss-rel .hang small { display: block; font: 400 10px/1 var(--han); letter-spacing: 2px; opacity: .7; }
-.as-ss-rel .hang b { display: block; margin-top: 9px; font: 600 19px/1.15 var(--han); letter-spacing: 1px; }
-.as-ss-rel .hang span { display: block; margin-top: 6px; font: 400 10px/1.4 var(--han); opacity: .75; white-space: nowrap; }
-.as-ss-rel .kin > div { background: linear-gradient(160deg, #3d4ff0, var(--blue) 60%); color: #f4f3ee; min-height: 84px; }
-.as-ss-rel .kin > div::after { content: ''; position: absolute; inset: 0; background: repeating-radial-gradient(circle at 100% 100%, transparent 0 8px, rgba(255,255,255,.2) 8px 9px); -webkit-mask: radial-gradient(circle at 100% 100%, #000 0 46px, transparent 47px); mask: radial-gradient(circle at 100% 100%, #000 0 46px, transparent 47px); }
-.as-ss-rel .long > div { background: #fff; color: #17171c; padding-bottom: 20px; }
-.as-ss-rel .long > div::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 16px; background: radial-gradient(var(--blue) .8px, transparent 1.1px) 0 0 / 4px 4px; -webkit-mask: linear-gradient(transparent, #000); mask: linear-gradient(transparent, #000); }
-.as-ss-rel .long b { font: italic 500 25px/1.1 var(--latin); letter-spacing: 0; }
-.as-ss-rel .long b span { margin: 0; font: inherit; opacity: 1; white-space: nowrap; }
-.as-ss-rel .long b i { margin-left: 3px; font: 400 10px/1 var(--han); font-style: normal; }
-.as-ss-rel .view > div { background: #fffdf4; color: #17171c; }
-.as-ss-rel .view > div::after { content: '\201C'; position: absolute; right: 6px; top: 2px; font: 700 44px/1 Georgia, serif; color: var(--blue); opacity: .2; }
-.as-ss-rel .view p { position: relative; margin: 8px 0 0; font: 400 13px/1.65 var(--han); color: inherit; }
+.as-ss-rel .pic p { position: absolute; left: 40%; top: 46%; width: 45%; height: 40%; margin: 0; display: flex; flex-direction: column; justify-content: center; font: 600 14px/1.45 var(--han); letter-spacing: .5px; text-align: center; color: #17171c; }
+.as-ss-rel .pic p small { margin-bottom: 3px; font: 400 10px/1.3 var(--han); letter-spacing: 1px; color: var(--blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-ss-rel em { font-style: normal; color: var(--soft); font-weight: 400; }
+.as-ss-rel .cells { display: grid; grid-template-columns: 86px auto 1fr; gap: 16px; align-items: start; margin-top: 18px; }
+.as-ss-rel .cells small { display: block; font: 400 10px/1 var(--han); letter-spacing: 3px; }
+/* 现在的关系：一个钴蓝的圆，右半边压一层网点 */
+.as-ss-rel .kin { text-align: center; }
+.as-ss-rel .kin > div { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 7px; width: 86px; height: 86px; border-radius: 50%; overflow: hidden; background: var(--blue); color: #f4f3ee; }
+.as-ss-rel .kin > div::before { content: ''; position: absolute; inset: 0 0 0 52%; background: radial-gradient(rgba(255,255,255,.4) 1px, transparent 1.3px) 0 0 / 5px 5px; }
+.as-ss-rel .kin b { position: relative; font: 600 20px/1 var(--han); letter-spacing: 2px; text-indent: 2px; }
+.as-ss-rel .kin small { position: relative; opacity: .75; }
+.as-ss-rel .kin span { display: block; margin-top: 7px; font: 400 10px/1.4 var(--han); color: var(--soft); }
+/* 认识了多久：大号斜体数字，左边一根刻度线 */
+.as-ss-rel .long { min-width: 64px; padding: 4px 0 4px 11px; border: 0; border-left: 2px solid var(--blue); background: none; color: var(--ink); text-align: left; cursor: pointer; }
+.as-ss-rel .long small { color: var(--soft); }
+.as-ss-rel .long b { display: block; margin-top: 8px; font: italic 500 27px/1.08 var(--latin); color: var(--blue); }
+.as-ss-rel .long b span { display: block; white-space: nowrap; }
+.as-ss-rel .long b i { margin-left: 3px; font: 400 10px/1 var(--han); font-style: normal; color: var(--soft); }
+.as-ss-rel .long em { display: block; margin-top: 7px; font: italic 400 11px/1 var(--latin); white-space: nowrap; }
+/* 看法：一圈细线框，四个角各一个小方块，「看法」两个字骑在上边线上 */
+.as-ss-rel .view { position: relative; min-height: 86px; padding: 14px 12px 10px; border: 1px solid var(--ink); }
+.as-ss-rel .view small { position: absolute; left: 10px; top: -5px; padding: 0 5px; background: var(--card); color: var(--blue); }
+.as-ss-rel .view p { margin: 0; font: 400 13px/1.7 var(--han); }
+.as-ss-rel .view i { position: absolute; width: 5px; height: 5px; background: var(--blue); }
+.as-ss-rel .view i:nth-of-type(1) { left: -3px; top: -3px; } .as-ss-rel .view i:nth-of-type(2) { right: -3px; top: -3px; }
+.as-ss-rel .view i:nth-of-type(3) { left: -3px; bottom: -3px; } .as-ss-rel .view i:nth-of-type(4) { right: -3px; bottom: -3px; background: var(--cream); }
 .as-ss-rel p.now { margin: 16px 0 0; padding-left: 10px; border-left: 2px solid var(--blue); font: 400 12px/1.7 var(--han); color: var(--soft); }
 @media (prefers-reduced-motion: no-preference) {
-  .as-ss-rel .hang { animation: as-ss-sway 5s ease-in-out infinite alternate; }
-  .as-ss-rel .long { animation-duration: 6.4s; animation-delay: -2s; } .as-ss-rel .view { animation-duration: 7.3s; animation-delay: -4s; }
-  .as-ss-rel .cloud { animation: as-ss-float 6s ease-in-out infinite alternate; }
-  .as-ss-rel .cloud s { animation: as-ss-wink 2.6s ease-in-out infinite alternate; } .as-ss-rel .cloud s:nth-of-type(2) { animation-delay: -1.2s; }
+  .as-ss-rel .pic .tw { animation: as-ss-wink 2.8s ease-in-out infinite alternate; } .as-ss-rel .pic .tw:nth-of-type(odd) { animation-delay: -1.4s; }
 }
-@keyframes as-ss-sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.2deg); } }
-@keyframes as-ss-float { from { transform: translateY(0); } to { transform: translateY(-4px); } }
-@keyframes as-ss-wink { from { transform: scale(.55) rotate(0); } to { transform: scale(1) rotate(45deg); } }
+@keyframes as-ss-wink { from { transform: scale(.6); } to { transform: scale(1); } }
 /* 地点：一颗彩色图钉，下面是名字（太长的截短，点开纸上是全名） */
 .as-ss-names button { display: block; max-width: 8em; overflow: hidden; text-overflow: ellipsis; text-align: center; --c: #d8493f; }
 .as-ss-names button.area { max-width: 9em; }
