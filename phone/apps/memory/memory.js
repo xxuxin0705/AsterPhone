@@ -55,8 +55,9 @@ export function open() {
   const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null, loose = [];
+  const book = h('button.as-ss-book', { onclick: () => openSelf() }, '人物簿');   // 正中这个人名字下面：TA 的人物簿从这里进（以前只能点名字，看不出能点）
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
-  stage.append(more);
+  stage.append(more, book);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
   const A = art(stage, { blank: shut, rel: openRel, self: openSelf, center: i => setCtr(i), place: openPlace });
   const sig = () => M.ver + ':' + state.contacts.length;
@@ -115,9 +116,10 @@ export function open() {
       + '<g fill="var(--blue)"><rect x="322" y="38" width="5" height="5"/><rect x="330" y="46" width="3" height="3"/><rect x="8" y="80" width="4" height="4"/></g>'
       + star(238, 40, 13, 'var(--cream)') + star(304, 62, 6, 'var(--b4)') + star(170, 30, 6, 'var(--blue)') + star(28, 104, 5, 'var(--cream)') + star(322, 150, 7, 'var(--cream)') + star(204, 186, 5, 'var(--blue)') + '</svg>';
   })();
+  // 两面（作者定的）：默认「TA 对正中这个人」（TA 怎么看我、对我说的话、知道我什么：手机里的 AI 演 TA 时脑子里装的就是这些），点「翻面」换成「正中这个人对 TA」，记住上次看的哪一面
   function openRel(i) {
-    const lk = link[ctr][i], me = names[ctr], who = names[i], cs = ctr ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
-    const facts = d.facts.filter(f => (i ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
+    const out = !!S().relOut, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
+    const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
     const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), t = since(me, who, r);
     // 认识了多久：点一下在「几年几个月几天」和「一共多少天」之间换（记在设置里），只换这几个字
     const long = h('button.long', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
@@ -125,7 +127,7 @@ export function open() {
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? num(t[3], '天') : [t[0] && num(t[0], '年'), (t[0] || t[1]) && num(t[1], '个月'), num(t[2], '天')].filter(Boolean)), t && h('em', dot(t[4]) + ' 起'));
     fillLong();
     const pic = h('div.pic', { html: PIC }); pic.append(face(me), h('p', h('small', `${me} 对 ${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
-    show(h('div.as-ss-rel', pic,
+    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relOut = !out; commit('apps'); openRel(i); } }, '⇄ 翻面'), pic,
       h('div.cells',
         h('div.kin', h('div', h('small', '现在'), h('b', path[path.length - 1] || '—')), path.length > 1 && h('span', path.join(' → '))),
         long,
@@ -214,7 +216,7 @@ export function open() {
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); book.classList.toggle('on', i === 1); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }

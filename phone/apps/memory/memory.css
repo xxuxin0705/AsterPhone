@@ -216,3 +216,8 @@
 .as-ss-names button { font-size: 11px; letter-spacing: .5px; }
 .as-ss-names button.area { font-size: 14px; letter-spacing: 2px; text-indent: 2px; }
 .as-ss-names.zoom > button.cur { font-size: 18px; }
+/* 关系页：正中那个人名字下面的「人物簿」入口；关系纸左上角的「翻面」 */
+.as-ss-book { position: absolute; left: 50%; top: 284px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; border: 1px solid var(--blue); border-radius: 12px; background: var(--paper); color: var(--blue); font: 400 11px/1 var(--han); letter-spacing: 2px; text-indent: 2px; padding: 6px 10px; cursor: pointer; }
+.as-ss-book.on { opacity: 1; pointer-events: auto; transition: opacity .6s .9s; }
+.as-ss-rel { padding-top: 24px; }
+.as-ss-rel .flip { position: absolute; left: 14px; top: 10px; z-index: 2; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
