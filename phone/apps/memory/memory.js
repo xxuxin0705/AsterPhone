@@ -95,18 +95,26 @@ export function open() {
     if (m < 0) { y--; m += 12; }
     return [y, m, dd, Math.round((new Date(B.getFullYear(), B.getMonth(), B.getDate()) - A) / 864e5), t0];
   };
-  /* 上面那幅画（作者：要简约）：一个圆是头像，外面绕一圈细轨道，三个小点飘向一朵浅色的云（云里写那句话），云后面垫一朵钴蓝的、贴一小块网点，两颗奶黄的四角星。别的都不要 */
+  /* 上面那幅画（作者：平涂的那两版都不好看，重做）。和上面的星盘、沙漏一个画法：纸、墨线、钴蓝、点刻。
+     左边一颗点刻的蓝球，头像是它的瞳孔；几根细的墨线和弧穿过它；三个越来越大的小圈飘向右边一团用点撒出来的云，那句话写在云里；两只燕子。只用纸色、墨色、钴蓝 */
   const PIC = (() => {
-    const cloud = (cs, r) => cs.map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}"/>`).join('') + `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="9"/>`;
-    const C = [cloud([[236, 46, 36], [282, 62, 32], [312, 92, 22]], [206, 84, 128, 44]), cloud([[126, 112, 20], [152, 94, 30], [194, 72, 42], [246, 86, 36], [286, 106, 26]], [106, 106, 206, 36])];
-    const star = (x, y, r, c) => `<path class="tw" fill="${c}" d="M${x} ${y - r}Q${x + r * .16} ${y - r * .16} ${x + r} ${y}Q${x + r * .16} ${y + r * .16} ${x} ${y + r}Q${x - r * .16} ${y + r * .16} ${x - r} ${y}Q${x - r * .16} ${y - r * .16} ${x} ${y - r}Z"/>`;
-    return '<svg viewBox="0 0 342 160" aria-hidden="true"><defs><pattern id="as-ss-dot" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1"/></pattern>'
-      + `<clipPath id="as-ss-k0">${C[0]}</clipPath></defs>`
-      + `<g fill="var(--blue)">${C[0]}</g><rect clip-path="url(#as-ss-k0)" x="262" y="22" width="70" height="70" fill="url(#as-ss-dot)" class="t1"/>`
-      + `<g class="o">${C[1]}</g><g fill="var(--b4)">${C[1]}</g>`
-      + '<circle cx="62" cy="92" r="35" class="o"/><ellipse cx="62" cy="92" rx="50" ry="15" transform="rotate(-24 62 92)" fill="none" stroke="var(--cream)" stroke-width="1.1"/><circle cx="17" cy="112" r="3.2" fill="var(--cream)"/>'
-      + '<g fill="var(--b4)" stroke="var(--blue)" stroke-width="1"><circle cx="101" cy="76" r="3.4"/><circle cx="112" cy="66" r="5"/><circle cx="127" cy="60" r="6.6"/></g>'
-      + star(318, 30, 10, 'var(--cream)') + star(30, 34, 5, 'var(--blue)') + '</svg>';
+    let q = 7; const rnd = () => (q = q * 16807 % 2147483647) / 2147483647;   // 点的位置每次都一样（定了种子），一块 56 见方、撒 240 个点，铺开看不出重复
+    const tile = Array.from({ length: 240 }, () => `<circle cx="${(rnd() * 56).toFixed(1)}" cy="${(rnd() * 56).toFixed(1)}" r="${(.5 + rnd() * .45).toFixed(2)}"/>`).join('');
+    const puff = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#as-ss-g)"/>`, bird = (x, y, a, k) => `<path class="fly" transform="translate(${x} ${y}) rotate(${a}) scale(${k})" d="M0 0Q7 1 13-4Q9 3 14 9Q6 5 0 0Z"/>`;
+    return '<svg viewBox="0 0 342 170" aria-hidden="true"><defs>'
+      + `<g id="as-ss-t">${tile}</g>` + ['blue', 'ink', 'card'].map(c => `<pattern id="as-ss-${c}" width="56" height="56" patternUnits="userSpaceOnUse"><use href="#as-ss-t" fill="var(--${c})"/></pattern>`).join('')
+      + '<radialGradient id="as-ss-g"><stop offset=".25" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+      + '<linearGradient id="as-ss-l" x1="0" y1="0" x2="1" y2="1"><stop offset=".1" stop-color="#fff"/><stop offset=".75" stop-color="#fff" stop-opacity="0"/></linearGradient>'
+      + `<mask id="as-ss-mc">${puff(176, 100, 52) + puff(214, 74, 56) + puff(262, 86, 56) + puff(300, 108, 44) + puff(238, 116, 62)}</mask>`
+      + '<mask id="as-ss-ms"><circle cx="64" cy="92" r="44" fill="url(#as-ss-l)"/></mask>'
+      + `<mask id="as-ss-mk">${puff(104, 132, 46)}</mask></defs>`
+      + '<g fill="none" stroke="var(--soft)" stroke-width=".6"><path d="M0 92H150M64 14V166"/><circle cx="64" cy="92" r="66" stroke-dasharray="2 5"/><path d="M196 18L132 164" opacity=".7"/></g>'
+      + '<path d="M26 34A70 70 0 0 1 126 60" fill="none" stroke="var(--ink)" stroke-width="1.2"/>'
+      + '<rect x="50" y="90" width="110" height="80" fill="url(#as-ss-ink)" mask="url(#as-ss-mk)" opacity=".8"/>'
+      + '<rect x="120" y="14" width="222" height="156" fill="url(#as-ss-blue)" mask="url(#as-ss-mc)"/>'
+      + '<circle cx="64" cy="92" r="44" fill="var(--blue)"/><rect x="20" y="48" width="88" height="88" fill="url(#as-ss-card)" mask="url(#as-ss-ms)"/><circle cx="64" cy="92" r="31" fill="var(--card)"/>'
+      + '<g fill="var(--card)" stroke="var(--blue)" stroke-width="1.2"><circle cx="116" cy="66" r="3"/><circle cx="128" cy="56" r="4.6"/><circle cx="144" cy="50" r="6.6"/></g>'
+      + `<g fill="var(--blue)">${bird(300, 32, 20, 1) + bird(318, 52, -8, .6) + bird(18, 150, 160, .7)}</g></svg>`;
   })();
   function openRel(i) {
     const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;

@@ -96,17 +96,26 @@ export function art(host, on) {
     }
   }
 
-  /* 换页（作者给的参考：一个圆从一处长出来盖住整页，再收到另一处）：钴蓝的圆从这一页的「眼」里长出来 —— 时间是沙漏的腰，关系是正中那个人，地点是指南针 ——
-     盖满以后底下换成新的一页，圆再收进新一页的「眼」里，新的一页跟着展开。圆里撒着纸色的点（和正中那颗星一个画法），边上散着一圈墨点 */
+  /* 换页（作者定的）：三页是同一把沙。时间页它装在沙漏里，关系页它聚成正中那个人，地点页它散成满图的雾。
+     换页时每粒沙从这一页的位置飞到下一页的位置：各自晚一点出发、路上拐个弯；飞进地图的由蓝变墨，飞回来的由墨变蓝。两页别的线条一淡一显 */
   const SC = [(P, t) => glass(P, t), orbit, fog];
   const show = (i, a, P, t, b, f) => { if (a <= 0) return; g.globalAlpha = a; SC[i](P, t, b, f); g.globalAlpha = 1; };
-  const EYE = [() => [NX, NY, 3], () => [W / 2, OC, 16], () => [38, H - 44, 3]];
-  function wipe(P, t, p) {
-    const out = p < .5, k = out ? ease(p * 2) : 1 - ease(p * 2 - 1), [x, y, r0] = EYE[out ? from : cur](), r = mix(r0, Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 24, k);
-    show(out ? from : cur, 1, P, t, out ? 1 : ease(cl(p * 2.4 - 1.2)));
-    disc(x, y, r, P.blue);
-    g.save(); g.beginPath(); g.arc(x, y, r, 0, 7); g.clip(); stipple(x, y, r, P.paper, -.7, -.6, 900, 2.4); g.restore();
-    g.fillStyle = P.blue; for (let i = 0; i < 220; i++) { const a = dots[i][0] * 6.283 + t * .2, rr = r + 2 + dots[i][1] * dots[i][1] * (10 + r * .14); g.fillRect(x + Math.cos(a) * rr, y + Math.sin(a) * rr, 1.6, 1.6); }
+  const N = 900; let sand = [], sandW = 0;
+  const home = [i => sand[i % sand.length], i => { const a = dots[i][0] * 6.283, r = Math.sqrt(dots[i][1]) * 15; return [W / 2 + Math.cos(a) * r, OC + Math.sin(a) * r]; }, i => [dots[i + N][0] * W, dots[i + N][1] * H]];
+  function flow(P, t, p) {
+    if (sandW !== W) {   // 沙漏里那兜沙的位置：在瓶身里、沙面以下随手撒，落在瓶外的不要
+      sandW = W; sand = []; const q = new Path2D(), d = devicePixelRatio || 1;
+      q.moveTo(NX - R, 35); q.lineTo(NX + R, 35); q.bezierCurveTo(NX + R, 215, NX + 16, 250, NX + 5, NY); q.lineTo(NX - 5, NY); q.bezierCurveTo(NX - 16, 250, NX - R, 215, NX - R, 35);
+      for (let i = 0; i < 2800 && sand.length < N; i++) { const x = dots[i][2] * Math.min(W, NX + R), y = 190 + dots[(i * 7) % 2800][0] * (NY - 192); if (g.isPointInPath(q, x * d, y * d)) sand.push([x, y]); }
+    }
+    show(from, 1 - cl(p * 2.6), P, t, 1); show(cur, cl(p * 2.6 - 1.6), P, t, ease(cl(p * 2.6 - 1.6)));
+    g.globalAlpha = Math.min(1, (1 - p) / .12);
+    for (let i = 0; i < N; i++) {
+      const d = dots[i], q = ease(cl(p * 1.5 - d[2] * .5)), a = home[from](i), b = home[cur](i), dx = b[0] - a[0], dy = b[1] - a[1], bend = Math.sin(q * Math.PI) * (d[1] - .5) * .5;
+      g.fillStyle = (cur === 2 ? q > .55 : from === 2 && q < .45) ? P.ink : P.blue;
+      g.fillRect(mix(a[0], b[0], q) - dy * bend, mix(a[1], b[1], q) + dx * bend, 1.7, 1.7);
+    }
+    g.globalAlpha = 1;
   }
   function draw(now) {
     if (page.classList.contains('is-behind') || !page.isConnected) { raf = 0; return; }   // 被别的页面盖住、离开了：停
@@ -117,7 +126,7 @@ export function art(host, on) {
     if (fresh && W) { fresh = false; fillNames(); }   // 名字要知道画多宽才摆得了
     g.clearRect(0, 0, W, H);
     if (p >= 1 || from === cur) show(cur, 1, P, t, 1);
-    else wipe(P, t, p);
+    else flow(P, t, p);
   }
 
   /* 地点的名字：大地方点一下钻进去；里面的小地方、不属于哪片的地方点一下出纸 */
