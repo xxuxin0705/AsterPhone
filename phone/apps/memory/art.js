@@ -72,10 +72,10 @@ export function art(host, on) {
 
   /* 迷雾地图：先只看到大地方；点一个，别处的雾合上，这一片的雾散开，里面的小地方才出来 */
   const BIG = () => [W / 2, 258, W / 2 - 22, 196];
-  const spot = () => { const s = W / 400, k = AREAS.findIndex(a => a.name === here || a.list.includes(here)), l = LONE.find(o => o.name === here), o = k >= 0 ? AREAS[k] : l || AREAS[0] || LONE[0]; return o ? [o.x * s, o.y] : [W / 2, 200]; };
+  const spot = () => { const s = W / 400, k = AREAS.findIndex(a => a.name === here || a.all.includes(here)), l = LONE.find(o => o.name === here), o = k >= 0 ? AREAS[k] : l || AREAS[0] || LONE[0]; return o ? [o.x * s, o.y] : [W / 2, 200]; };
   function fog(P, t, b, fall = 0) {
     const s = W / 400, z = ease(cl((performance.now() - zT0) / 600)), zz = zin ? z : 1 - z, B = BIG();
-    const holes = AREAS.map((a, k) => { const r = 38 + a.list.length * 4, o = [a.x * s, a.y, r, r]; return k === zk ? o.map((v, j) => mix(v, B[j], zz)) : [o[0], o[1], r * (1 - zz), r * (1 - zz)]; }).concat(LONE.map(l => [l.x * s, l.y, 27 * (1 - zz), 27 * (1 - zz)])).concat([[38, H - 44, 24, 24]]);
+    const holes = AREAS.map((a, k) => { const r = Math.min(70, 38 + a.list.length * 4), o = [a.x * s, a.y, r, r]; return k === zk ? o.map((v, j) => mix(v, B[j], zz)) : [o[0], o[1], r * (1 - zz), r * (1 - zz)]; }).concat(LONE.map(l => [l.x * s, l.y, 27 * (1 - zz), 27 * (1 - zz)])).concat([[38, H - 44, 24, 24]]);
     for (let q = 0; q < W; q += 34) line([[q, 0], [q, H]], P.pencil, .35); for (let q = 0; q < H; q += 34) line([[0, q], [W, q]], P.pencil, .35);
     if (zz < 1 && AREAS.length > 1) { const A = g.globalAlpha; g.globalAlpha = A * (1 - zz); line(AREAS.map(a => [a.x * s, a.y]), P.blue, 1.3, [1.5, 5]); g.globalAlpha = A; }
     holes.slice(0, -1).forEach(o => { if (o[2] < 2) return; g.beginPath(); g.setLineDash([2, 4]); g.ellipse(o[0], o[1], o[2] * b, o[3] * b, 0, 0, 7); g.strokeStyle = P.pencil; g.lineWidth = .7; g.stroke(); g.setLineDash([]); });
@@ -136,7 +136,7 @@ export function art(host, on) {
         const ang = -Math.PI / 2 + (i + .5) / a.list.length * 6.283, rr = a.list.length > 5 && i % 2 ? .6 : 1, px = B[0] + Math.cos(ang) * (B[2] - 50) * rr, py = B[1] + Math.sin(ang) * (B[3] - 44) * rr;
         const c = h('button', { dataset: { n }, onclick: () => tapPlace(c, { name: n }, px, py) }, n); at(c, px, py); return c;
       }));
-      at(b, a.x * s, a.y); movable(b, a, () => zin ? tapPlace(b, a, B[0], B[1], a.list) : zoom(k));
+      at(b, a.x * s, a.y); movable(b, a, () => zin ? tapPlace(b, a, B[0], B[1], a.all) : zoom(k));
       return [b, sub];
     }), ...LONE.map(l => { const b = h('button', { dataset: { n: l.name } }, l.name); at(b, l.x * s, l.y); movable(b, l, () => tapPlace(b, l, l.x * s, l.y)); return b; }));
   }
@@ -155,7 +155,7 @@ export function art(host, on) {
 
   return {
     mark,
-    /** names：所有人（第 0 个是你）；link[a][b] = { kind, st: [[日期, 是什么, 离多远]…]（第 0 条是现在）}；areas：[{ name, x, y, list: 里面的小地点 }]；lone：[{ name, x, y }]；here：现在在哪 */
+    /** names：所有人（第 0 个是你）；link[a][b] = { kind, st: [[日期, 是什么, 离多远]…]（第 0 条是现在）}；areas：[{ name, x, y, list: 摆出来的小地点, all: 里面所有的小地点 }]；lone：[{ name, x, y }]；here：现在在哪 */
     set(d) {
       const same = d.names.join('|') === NAMES.join('|');
       ({ names: NAMES, link: LINK, areas: AREAS, lone: LONE, here } = d);

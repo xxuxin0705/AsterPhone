@@ -98,7 +98,7 @@ export function parse(raw) {
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: list(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
         after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: list(f[12]), from: f[13] || '', to: f[14] || '' });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: f[0], b: f[1], kind: KINDS.includes(f[2]) ? f[2] : '其他', since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: f[6] || '', vb: f[7] || '' });
-    else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] ? '' : f[1] || '', intro: f[2] || '' });
+    else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: f[0], alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
       const [kind, at, what, who] = DAY_KINDS.includes(f[0]) ? f : ['其他', ...f], d = /(?:(\d{4})\D+)?(\d{1,2})\D+(\d{1,2})/.exec(at || ''), p = x => x.padStart(2, '0');
@@ -303,8 +303,9 @@ function known() {
   const ppl = D.ppl.map(p => `${p.name}${p.alias.length ? `（${p.alias.join('、')}）` : ''}`).join('、');
   const rel = D.rel.map(r => `${r.a}—${r.b}：${r.kind}`).join('；');
   const ev = D.ev.slice(-40).map(e => `${e.at || '不知道'} ${e.title}`).join('\n');
+  const spots = [...new Set([...D.places.flatMap(q => [q.area, q.name]), ...D.ev.map(e => e.place)].filter(Boolean))].slice(-80).join('、');
   const facts = D.facts.slice(-60).map(f => `${f.about}：${f.text}（${f.know.join('、')}知道）`).join('；'), lines = lineSet();
-  return [ppl && '人物：' + ppl, rel && '关系：' + rel, facts && '已经了解的：' + facts, lines && '已有的小标签：' + lines, ev && '已经记下的事：\n' + ev].filter(Boolean).join('\n') || '（还没有）';
+  return [ppl && '人物：' + ppl, rel && '关系：' + rel, facts && '已经了解的：' + facts, lines && '已有的小标签：' + lines, spots && '已有的地点：' + spots, ev && '已经记下的事：\n' + ev].filter(Boolean).join('\n') || '（还没有）';
 }
 /** list：一批批文字。从第 done 批的第 at 个字接着跑。
  *  回复写到一半断了（没写结束那行）：已经写出来的先记下，看最后一件事剪到了原文的哪儿，从那儿接着；

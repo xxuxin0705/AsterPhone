@@ -139,3 +139,10 @@
 .as-mem-entry:first-child { border-top: 0; }
 .as-mem-entry summary small { margin-left: 0; }
 .as-mem-entry summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 12px; }
+/* 时间那页的四块：时间轴 / 分类 / 日子 / 没完的事 */
+.as-ss-modes { position: relative; z-index: 1; display: flex; gap: 6px; padding: 0 0 8px 108px; }
+.as-ss-modes button { flex: none; border: 1px solid var(--line); background: var(--paper); color: var(--soft); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 7px 9px; border-radius: 13px; cursor: pointer; transition: color .3s, background .3s; }
+.as-ss-modes button.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+.as-ss-axis .yr button.txt { width: auto; height: 26px; padding: 0 10px; border-radius: 13px; color: var(--soft); font: 400 12px/1 var(--han); letter-spacing: 1px; }
+.as-ss-axis .yr.fold { cursor: pointer; } .as-ss-axis .yr.fold em { color: var(--ink); font-size: 14px; top: 9px; }
+.as-ss-names .sub button { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }   /* 名字太长的小地点截短，点开纸上是全名 */

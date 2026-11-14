@@ -88,7 +88,7 @@ export function open() {
   const kin = e => e.tags.filter(t => t !== '手机');
   function arcs() {
     axis.querySelectorAll('.arc').forEach(a => a.remove());
-    const l = opened ? [...axis.querySelectorAll('.ev.open, .ev.kin')] : [];
+    const l = opened ? [...axis.querySelectorAll('.ev.open, .ev.kin')].filter(b => !b.hidden) : [];
     if (l.length > 1) axis.append(h('div.arc', { style: { top: l[0].offsetTop + 22 + 'px', height: l[l.length - 1].offsetTop - l[0].offsetTop + 'px' } }));
   }
   function toggle(b, e) {
@@ -98,28 +98,48 @@ export function open() {
     arcs(); fit();
   }
   const row = (cls, t, title, small, onclick, more) => h('div.ev' + cls, { role: 'button', tabindex: 0, onclick }, h('time', t), h('i'), h('b', title), h('small', small), more);
+  // 时间那页分四块看，不挤在一起（作者定的）：时间轴（能换从新到旧 / 从旧到新）、分类（按大标签，点开才列）、日子、没完的事
+  let view = 'line';
+  const modes = h('div.as-ss-modes', [['line', '时间轴'], ['tag', '分类'], ['day', '日子'], ['todo', '没完的事']].map(([k, t]) => h('button' + (k === view ? '.on' : ''), { onclick: e => {
+    if (k === view) return; view = k; [...modes.children].forEach(x => x.classList.toggle('on', x === e.currentTarget)); fillAxis(); } }, t)));
+  const evRow = (e, t) => {
+    const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), t, e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
+      h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', ['参与的人：' + e.who.join('、'), (e.know || []).length && '后来听说：' + e.know.join('、'), ...e.big, ...kin(e)].filter(Boolean).join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
+    b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e;
+    return b;
+  };
   function fillAxis() {
-    const now = time.isStory() ? time.story().date : new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()), rows = [];
-    const left = x => { const [mm, dd] = x.md.split('-').map(Number); let t = new Date(t0.getFullYear(), mm - 1, dd); if (t < t0) t = new Date(t0.getFullYear() + 1, mm - 1, dd); return Math.round((t - t0) / 864e5); };
-    rows.push(h('div.yr.zh', h('em', '日子'), h('button', { 'aria-label': '加一个日子', onclick: () => editDay(null) }, icon('plus', 14, 2))),
-      ...d.days.map(x => [x, left(x)]).sort((a, b) => a[1] - b[1]).map(([x, n]) => row('.day', n ? `${n} 天后` : '今天', x.what, `${x.kind || '其他'} · ${x.date ? ymd(x.date) : x.md.replace(/^0?(\d+)-0?(\d+)$/, '每年$1月$2日')}`, () => editDay(x))));
-    const todo = d.todo.filter(t => !t.done);
-    if (todo.length) rows.push(h('div.yr.zh', h('em', '没完的事')), ...todo.map(t => row('.todo', '', t.text, t.who, async () => {
-      const v = await actionSheet(t.text, [{ value: 'done', label: '做完了' }, { value: 'del', label: '删除', danger: true }]);
-      if (v === 'done') t.done = true; else if (v === 'del') d.todo.splice(d.todo.indexOf(t), 1); else return;
-      await M.save(); draw();
-    })));
-    let yr = null;
-    for (const e of [...d.ev].reverse()) {
-      if (e.off) continue;
-      const y = e.at ? e.at.slice(0, 4) : '不知道哪年'; if (y !== yr) rows.push(h('div.yr' + (e.at ? '' : '.zh'), h('em', yr = y)));
-      const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), e.at ? dot(e.at.slice(5)) : '', e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
-        h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', [M.knows(e).join('、') + '知道', ...e.big, ...kin(e)].join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
-      b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e;
-      rows.push(b);
+    const rows = [], ev = d.ev.filter(e => !e.off), none = t => rows.push(h('div.none', t));
+    if (view === 'day') {
+      const now = time.isStory() ? time.story().date : new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const left = x => { const [mm, dd] = x.md.split('-').map(Number); let t = new Date(t0.getFullYear(), mm - 1, dd); if (t < t0) t = new Date(t0.getFullYear() + 1, mm - 1, dd); return Math.round((t - t0) / 864e5); };
+      rows.push(h('div.yr.zh', h('em', '快到的在前'), h('button', { 'aria-label': '加一个日子', onclick: () => editDay(null) }, icon('plus', 14, 2))),
+        ...d.days.map(x => [x, left(x)]).sort((a, b) => a[1] - b[1]).map(([x, n]) => row('.day', n ? `${n} 天后` : '今天', x.what, `${x.kind || '其他'} · ${x.date ? ymd(x.date) : x.md.replace(/^0?(\d+)-0?(\d+)$/, '每年$1月$2日')}`, () => editDay(x))));
+    } else if (view === 'todo') {
+      const todo = d.todo.filter(t => !t.done);
+      rows.push(...todo.map(t => row('.todo', '', t.text, t.who, async () => {
+        const v = await actionSheet(t.text, [{ value: 'done', label: '做完了' }, { value: 'del', label: '删除', danger: true }]);
+        if (v === 'done') t.done = true; else if (v === 'del') d.todo.splice(d.todo.indexOf(t), 1); else return;
+        await M.save(); draw();
+      })));
+      if (!todo.length) none('没有没完的事');
+    } else if (view === 'tag') {
+      for (const g of [...M.bigs(), '']) {   // 一个大标签一栏，点一下才列出里面的事
+        const l = ev.filter(e => g ? e.big.includes(g) : !e.big.length); if (!l.length) continue;
+        const rs = l.map(e => { const b = evRow(e, dot(e.at).slice(2)); b.hidden = true; return b; });
+        rows.push(h('div.yr.zh.fold', { role: 'button', tabindex: 0, onclick: () => { rs.forEach(r => { r.hidden = !r.hidden; }); arcs(); fit(); } }, h('em', `${g || '没分类'} · ${l.length} 件`)), ...rs);
+      }
+      if (!ev.length) none('还没有记下的事');
+    } else {
+      const asc = !!S().asc; let yr = null;
+      if (ev.length) rows.push(h('div.yr.zh', h('button.txt', { onclick: () => { S().asc = !asc; commit('apps'); fillAxis(); } }, asc ? '从旧到新' : '从新到旧')));
+      for (const e of asc ? ev : [...ev].reverse()) {
+        const y = e.at ? e.at.slice(0, 4) : '不知道哪年'; if (y !== yr) rows.push(h('div.yr' + (e.at ? '' : '.zh'), h('em', yr = y)));
+        rows.push(evRow(e, e.at ? dot(e.at.slice(5)) : ''));
+      }
+      if (!ev.length) rows.push(h('div.none', '还没有记下的事', btn('去整理', 'secondary', openSort)));
     }
-    if (!d.ev.length) rows.push(h('div.none', '还没有记下的事', btn('去整理', 'secondary', openSort)));
-    opened = null; axis.replaceChildren(...rows); fit();
+    opened = null; axis.replaceChildren(modes, ...rows); fit();
   }
   function setCtr(i, fx = true) {
     ctr = i; shut(); A.center(i);
@@ -146,13 +166,18 @@ export function open() {
       const mk = v => ({ kind: r.kind, r, st: st.map(x => [x.since || '', x.title, 5 - M.lvOf(x)]), q: st.map(x => x[v] || '') });
       link[i][j] = mk('va'); link[j][i] = mk('vb');
     }
-    // 地图：有「归哪」的小地点收在大地方里，别的单独放；没拖过的先按一圈圈摆开
-    const pl = new Map(d.places.map(q => [q.name, q])); for (const e of d.ev) if (e.place && !pl.has(e.place)) pl.set(e.place, { name: e.place });
-    const big = [...new Set([...pl.values()].map(q => q.area).filter(Boolean))], spots = [...big, ...[...pl.keys()].filter(n => !pl.get(n).area && !big.includes(n))];
-    const at = n => { const q = pl.get(n) || {}, k = spots.indexOf(n), a = k * 2.4, r = Math.min(150, 60 + k * 18); return q.x ? { x: q.x, y: q.y } : { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
+    // 地图：外面一层只放主要的（作者：次要的不要放首页）= 大地方，和发生过两件事以上的单独地点；只出过一次的零散地点收进「其他」。
+    // 每个大地方里最多摆 14 个小地点（事多的在前），其余的事点大地方的名字在纸上看。没拖过的按向日葵那样一圈圈摆开
+    const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a;   // AI 有时把「（空）」写进归属
+    const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
+    for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
+    const areaOf = q => junk(q.area) || (pl.size > 12 && (cnt.get(q.name) || 0) < 2 && !q.x ? '其他' : '');
+    const big = [...new Set([...pl.values()].map(areaOf).filter(Boolean))].sort((a, b) => (a === '其他') - (b === '其他')), spots = [...big, ...[...pl.values()].filter(q => !areaOf(q) && !big.includes(q.name)).map(q => q.name)];
+    const at = n => { const q = pl.get(n) || {}, k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return q.x ? { x: q.x, y: q.y } : { x: Math.round(200 + Math.cos(a) * r), y: Math.round(250 + Math.sin(a) * r * 1.15) }; };
     const last = [...d.ev].reverse().find(e => e.place);
     A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''),
-      areas: big.map(n => ({ name: n, ...at(n), list: [...pl.values()].filter(q => q.area === n).map(q => q.name) })), lone: spots.slice(big.length).map(n => ({ name: n, ...at(n) })) });
+      areas: big.map(n => { const all = [...pl.values()].filter(q => areaOf(q) === n).map(q => q.name).sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0)); return { name: n, ...at(n), all, list: all.slice(0, 14) }; }),
+      lone: spots.slice(big.length).map(n => ({ name: n, ...at(n) })) });
     bar.replaceChildren(...names.map((n, i) => h('button', { onclick: () => setCtr(i) }, n)), h('button.more', { onclick: openPeople }, '更多'));
     fillAxis(); setCtr(Math.max(0, names.indexOf(was)), false);
   }
