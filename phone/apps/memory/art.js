@@ -92,7 +92,9 @@ export function art(host, on) {
       if (lk && !(drag && drag.i === i)) { const at = q => [cx + Math.cos(a) * q * b, OC + Math.sin(a) * q * b]; ring(cx, OC, Math.hypot(px - cx, py - OC), P.pencil, .9, null, a - .8, a);
         if (lk.st.length > 1) { line([at(rad(lk.st[lk.st.length - 1][2]) + jt), [px, py]], P.blue, 1); lk.st.slice(1).forEach(s => { const q = at(rad(s[2]) + jt); disc(q[0], q[1], 2.6, P.paper); ring(q[0], q[1], 2.6, P.blue, 1.1); }); } }
       const kind = lk ? lk.kind : '';
-      disc(px, py, 4.8, kind === '对手' ? P.paper : kind === '恋人' || kind === '暧昧' ? P.blue : P.ink); if (kind === '对手') ring(px, py, 4.8, P.ink, 1.4);
+      // 恋人、暧昧、夫妻是蓝点，对手是空心，最好的朋友在白点外面套一圈细线（作者挑的），别的是白点
+      disc(px, py, 4.8, kind === '对手' ? P.paper : /^(恋人|暧昧|夫妻)$/.test(kind) ? P.blue : P.ink); if (kind === '对手') ring(px, py, 4.8, P.ink, 1.4);
+      if (/^(挚友|密友|闺蜜|死党)$/.test(kind)) ring(px, py, 8, P.ink, 1);
       if (i === selP) ring(px, py, 11, P.blue, 1.2);
       tag(i, px, py, 0, al);
     });
