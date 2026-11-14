@@ -68,7 +68,7 @@
 .as-ss-stage.up { margin-top: -22px; }   /* 时间页：沙漏顶上那条横杠贴着标题栏，不空一截（画布上面本来留了 26px） */
 .as-ss-art { display: block; width: 100%; height: 410px; }
 .as-ss-ov { position: absolute; left: 0; top: 0; width: 100%; opacity: 0; pointer-events: none; transition: opacity .3s; }
-.as-ss-ov.on { opacity: 1; pointer-events: auto; transition: opacity .6s .7s; }
+.as-ss-ov.on { opacity: 1; pointer-events: auto; transition: opacity .4s 1s; }   /* 等换页的那个圆收回去再出来 */
 .as-ss-ov button { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); border: 0; background: none; padding: 7px 4px; color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; white-space: nowrap; cursor: pointer; touch-action: none;
   transition: color .3s, opacity .4s, left .6s cubic-bezier(.3,.1,.2,1), top .6s cubic-bezier(.3,.1,.2,1), font-size .6s; }
 .as-ss-ov button.area { font-weight: 600; font-size: 18px; letter-spacing: 5px; text-indent: 5px; }
@@ -160,15 +160,15 @@
 /* 关系那张纸（作者给的参考：平面构成）：上面一幅平涂的画（云、同心弧、网点、四角星），最亮的那朵云里是对 TA 说的一句话；下面是现在的关系、认识了多久、看法 */
 .as-ss-rel { --b2: #8f9df0; --b3: #5b78ee; --b4: #e3e7fc; --cream: #efcf7a; padding-top: 8px; }
 .as-phone[data-mode="night"] .as-ss-rel { --b2: #7c8bea; --b3: #5570e8; --b4: #dfe3fb; }
-.as-ss-rel .pic { position: relative; aspect-ratio: 342 / 200; }
+.as-ss-rel .pic { position: relative; aspect-ratio: 342 / 160; }
 .as-ss-rel .pic svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .as-ss-rel .pic .o { fill: var(--card); stroke: var(--card); stroke-width: 5; }
 .as-ss-rel .pic pattern circle, .as-ss-rel .pic pattern rect { fill: #fff; } .as-ss-rel .pic pattern circle.b { fill: var(--b2); }
 .as-ss-rel .pic .t1 { opacity: .5; } .as-ss-rel .pic .t2 { opacity: .55; } .as-ss-rel .pic .t3 { opacity: .9; }
 .as-ss-rel .pic .tw { transform-box: fill-box; transform-origin: center; }
-.as-ss-rel .face { position: absolute; left: 9.35%; top: 49%; width: 17.55%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.as-ss-rel .face { position: absolute; left: 9.35%; top: 38.75%; width: 17.55%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 .as-ss-rel .face img, .as-ss-rel .face i { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; color: #fff; font: 600 24px/1 var(--han); font-style: normal; }
-.as-ss-rel .pic p { position: absolute; left: 40%; top: 46%; width: 45%; height: 40%; margin: 0; display: flex; flex-direction: column; justify-content: center; font: 600 14px/1.45 var(--han); letter-spacing: .5px; text-align: center; color: #17171c; }
+.as-ss-rel .pic p { position: absolute; left: 37%; top: 40%; width: 48%; height: 46%; margin: 0; display: flex; flex-direction: column; justify-content: center; font: 600 14px/1.45 var(--han); letter-spacing: .5px; text-align: center; color: #17171c; }
 .as-ss-rel .pic p small { margin-bottom: 3px; font: 400 10px/1.3 var(--han); letter-spacing: 1px; color: var(--blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-ss-rel em { font-style: normal; color: var(--soft); font-weight: 400; }
 .as-ss-rel .cells { display: grid; grid-template-columns: 86px auto 1fr; gap: 16px; align-items: start; margin-top: 18px; }

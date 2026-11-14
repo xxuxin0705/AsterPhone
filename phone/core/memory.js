@@ -101,7 +101,8 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
 // 人名后面 AI 顺手加的括号注解去掉（「天内理子（昏迷）」「孔时雨（新人物）」），不然一个人会变成好几个人
 const bare = n => norm(n).replace(/\s*[（(][^（()）]*[)）]$/, '');
-const folk = s => [...new Set(list(s).map(bare).filter(Boolean))];
+// 「九月七桃霁（不知道）」这种是 AI 在说这个人不知道，不能去掉括号当成知道的人
+const folk = s => [...new Set(list(s).filter(n => !/[（(][^（()）]*(不知|不清楚|无人|没人)[^（()）]*[)）]$/.test(n)).map(bare).filter(Boolean))];
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
 const NONE = /^[（(]?(空|无|没有|暂无|未知)[)）]?$/;
 /** 「2005年4月6日」「2005/4/6」「2005-04-06?」→ ['2005-04-06', 是不是推测] */
@@ -440,6 +441,15 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       throw new Error('回复写到一半断了，写出来的已经记下，点「接着整理」从断的地方接着');
     }
+    // 读原文时 AI 只写这一批里碰到的那几对人、那几个地方（作者：重新生成了关系，大多数人之间还是空的）。
+    // 原文读完，再照着记下的事把勾上的关系 / 地点整个补一遍：每一对一起经历过事的人都写，每件事在哪、每个地方归哪都写；只添没有的、填空着的
+    if (opt && D.ev.length) for (const k of ['rel', 'places']) if (opt.want.includes(k)) {
+      await kvSet('memjob:' + key, { label, list, done: job.done, at: 0, opt });
+      job.phase = k === 'rel' ? '补关系' : '补地点'; tell('step', job);
+      try { const n = await refill([k], job.ac.signal, false); job.grow += n.grow; job.places += n.places; }
+      catch (e) { if (job.ac.signal.aborted) throw e; log('warn', '岁岁砂', `${job.phase}没成：${e.message}`); }
+    }
+    job.rel = D.rel.length; job.said = D.rel.filter(r => r.sa || r.sb).length;
     await kvDel('memjob:' + key);
   } catch (e) {
     job = { ...job, ac: null, error: e.message }; tell('fail', job); return;

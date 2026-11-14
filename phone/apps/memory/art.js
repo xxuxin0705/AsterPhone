@@ -96,14 +96,18 @@ export function art(host, on) {
     }
   }
 
-  /* 三张画怎么接：一粒沙落到正中变成「你」；人散开成雾；雾聚回那道沙。反方向就是倒着放 */
+  /* 换页（作者给的参考：一个圆从一处长出来盖住整页，再收到另一处）：钴蓝的圆从这一页的「眼」里长出来 —— 时间是沙漏的腰，关系是正中那个人，地点是指南针 ——
+     盖满以后底下换成新的一页，圆再收进新一页的「眼」里，新的一页跟着展开。圆里撒着纸色的点（和正中那颗星一个画法），边上散着一圈墨点 */
   const SC = [(P, t) => glass(P, t), orbit, fog];
   const show = (i, a, P, t, b, f) => { if (a <= 0) return; g.globalAlpha = a; SC[i](P, t, b, f); g.globalAlpha = 1; };
-  const FWD = {
-    '01': (P, t, p) => { const e = ease(cl(p * 1.5)); show(0, 1 - cl(p * 2.2), P, t); show(1, cl(p * 2.5 - 1), P, t, ease(cl(p * 2 - .9))); if (p < .75) disc(mix(NX, W / 2, e), mix(NY + 10, OC, e * e), mix(2, 15, e), P.blue); },
-    '12': (P, t, p) => { show(1, 1 - cl(p * 2.2), P, t, 1); show(2, cl(p * 2 - .8), P, t, ease(cl(p * 2 - 1))); },
-    '20': (P, t, p) => { show(2, 1 - cl(p * 1.5), P, t, 1, ease(cl(p * 1.4))); show(0, cl(p * 2 - 1), P, t); },
-  };
+  const EYE = [() => [NX, NY, 3], () => [W / 2, OC, 16], () => [38, H - 44, 3]];
+  function wipe(P, t, p) {
+    const out = p < .5, k = out ? ease(p * 2) : 1 - ease(p * 2 - 1), [x, y, r0] = EYE[out ? from : cur](), r = mix(r0, Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 24, k);
+    show(out ? from : cur, 1, P, t, out ? 1 : ease(cl(p * 2.4 - 1.2)));
+    disc(x, y, r, P.blue);
+    g.save(); g.beginPath(); g.arc(x, y, r, 0, 7); g.clip(); stipple(x, y, r, P.paper, -.7, -.6, 900, 2.4); g.restore();
+    g.fillStyle = P.blue; for (let i = 0; i < 220; i++) { const a = dots[i][0] * 6.283 + t * .2, rr = r + 2 + dots[i][1] * dots[i][1] * (10 + r * .14); g.fillRect(x + Math.cos(a) * rr, y + Math.sin(a) * rr, 1.6, 1.6); }
+  }
   function draw(now) {
     if (page.classList.contains('is-behind') || !page.isConnected) { raf = 0; return; }   // 被别的页面盖住、离开了：停
     raf = requestAnimationFrame(draw);
@@ -113,8 +117,7 @@ export function art(host, on) {
     if (fresh && W) { fresh = false; fillNames(); }   // 名字要知道画多宽才摆得了
     g.clearRect(0, 0, W, H);
     if (p >= 1 || from === cur) show(cur, 1, P, t, 1);
-    else if (FWD['' + from + cur]) FWD['' + from + cur](P, t, p);
-    else FWD['' + cur + from](P, t, 1 - p);
+    else wipe(P, t, p);
   }
 
   /* 地点的名字：大地方点一下钻进去；里面的小地方、不属于哪片的地方点一下出纸 */

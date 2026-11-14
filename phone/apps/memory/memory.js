@@ -26,12 +26,12 @@ let refresh = () => {};   // 抽屉里改了东西：让首页照新的重画
 // 整理的时候一直挂着一条提示（作者要的）：第几批、这一批等了多久、收到多少字、已经记下几件，带「取消」；每秒换一次字
 let tick = 0;
 const busyTip = () => { const j = M.running(); if (!j) return; const s = Math.round((Date.now() - (j.t0 || Date.now())) / 1000);
-  toast(`正在整理 ${j.done + 1}/${j.list.length} 批 · ${s} 秒${j.added ? ` · 已记下 ${j.added} 件` : ''}`, { label: '取消', fn: () => M.cancelJob(), wait: true }); };
+  toast(`${j.phase ? '正在' + j.phase : `正在整理 ${j.done + 1}/${j.list.length} 批`} · ${s} 秒${j.added ? ` · 已记下 ${j.added} 件` : ''}`, { label: '取消', fn: () => M.cancelJob(), wait: true }); };
 M.onJob((how, j) => {
   if (j.label === '自动整理') { if (how === 'done' && j.added) log('info', '岁岁砂', `自动整理了一次，新记下 ${j.added} 件事`); if (how === 'fail') log('warn', '岁岁砂', '这次没自动整理成，下次一起补：' + j.error); return; }
   if (how === 'start') { clearInterval(tick); tick = setInterval(busyTip, 1000); busyTip(); }
   if (how === 'done' || how === 'fail') clearInterval(tick);
-  if (how === 'done') toast(`整理完了：事 ${j.added} 件 · 关系 ${j.rel} 条 · 地点 ${j.places} 处 · 成长 ${j.grow} 条`);   // 每样记了多少都说（作者：显示成功了其实没整理出关系）
+  if (how === 'done') toast(`整理完了：新记下事 ${j.added} 件 · 现在有关系 ${j.rel} 条（${j.said} 条有一句话）· 地点 ${j.places} 处 · 成长 ${j.grow} 条`);   // 每样记了多少都说（作者：显示成功了其实没整理出关系）
   if (how === 'fail') toast(j.error === '已中止' ? '已停下，可以接着整理' : '整理失败：' + j.error);
   if (how !== 'step') refresh();
 });
@@ -95,28 +95,19 @@ export function open() {
     if (m < 0) { y--; m += 12; }
     return [y, m, dd, Math.round((new Date(B.getFullYear(), B.getMonth(), B.getDate()) - A) / 864e5), t0];
   };
-  /* 上面那幅画（作者给的参考：平面构成，点、线、面）：几圈同心的弧和一圈圆点（和星盘呼应），前后叠着四层平涂的云，云上贴一小块网点、一小块细条纹，几颗四角星。
-     最亮的那朵云里写那句话；左边的圆是头像，三个小点从头像飘向那朵云。颜色只用钴蓝的深浅和一点奶黄 */
+  /* 上面那幅画（作者：要简约）：一个圆是头像，外面绕一圈细轨道，三个小点飘向一朵浅色的云（云里写那句话），云后面垫一朵钴蓝的、贴一小块网点，两颗奶黄的四角星。别的都不要 */
   const PIC = (() => {
     const cloud = (cs, r) => cs.map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}"/>`).join('') + `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="9"/>`;
-    const C = [cloud([[40, 142, 24], [72, 118, 34], [112, 98, 40], [150, 114, 30]], [18, 132, 164, 44]), cloud([[182, 100, 30], [220, 68, 44], [266, 88, 40], [304, 116, 28]], [162, 108, 150, 68]),
-      cloud([[122, 150, 22], [156, 130, 34], [198, 108, 44], [248, 120, 38], [288, 140, 26]], [102, 142, 212, 40]), cloud([[30, 184, 13], [50, 176, 17], [74, 185, 12]], [18, 184, 68, 12]), cloud([[262, 182, 13], [284, 174, 18], [310, 184, 12]], [250, 182, 72, 12])];
+    const C = [cloud([[236, 46, 36], [282, 62, 32], [312, 92, 22]], [206, 84, 128, 44]), cloud([[126, 112, 20], [152, 94, 30], [194, 72, 42], [246, 86, 36], [286, 106, 26]], [106, 106, 206, 36])];
     const star = (x, y, r, c) => `<path class="tw" fill="${c}" d="M${x} ${y - r}Q${x + r * .16} ${y - r * .16} ${x + r} ${y}Q${x + r * .16} ${y + r * .16} ${x} ${y + r}Q${x - r * .16} ${y + r * .16} ${x - r} ${y}Q${x - r * .16} ${y - r * .16} ${x} ${y - r}Z"/>`;
-    const put = (i, fill, tex) => `<use href="#as-ss-c${i}" class="o"/><use href="#as-ss-c${i}" fill="${fill}"/>` + (tex ? `<rect clip-path="url(#as-ss-k${i})" ${tex}/>` : '');
-    return '<svg viewBox="0 0 342 200" aria-hidden="true"><defs>'
-      + '<pattern id="as-ss-dot" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1"/></pattern><pattern id="as-ss-dot2" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" class="b"/></pattern><pattern id="as-ss-bar" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1.3"/></pattern>'
-      + C.map((c, i) => `<g id="as-ss-c${i}">${c}</g><clipPath id="as-ss-k${i}">${c}</clipPath>`).join('') + '</defs>'
-      + '<g fill="none"><circle cx="118" cy="112" r="98" stroke="var(--soft)" stroke-width=".7"/><circle cx="118" cy="112" r="86" stroke="var(--b2)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="0 13.5"/>'
-      + '<circle cx="118" cy="112" r="72" stroke="var(--blue)" stroke-width="2.2"/><circle cx="118" cy="112" r="62" stroke="var(--cream)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0 5"/><circle cx="118" cy="112" r="54" stroke="var(--soft)" stroke-width=".6"/>'
-      + '<path d="M196 22H318M210 30H300" stroke="var(--soft)" stroke-width=".6"/><ellipse cx="262" cy="58" rx="78" ry="20" transform="rotate(-16 262 58)" stroke="var(--blue)" stroke-width=".8" stroke-dasharray="1.5 4"/></g>'
-      + put(0, 'var(--blue)', 'x="84" y="62" width="74" height="52" fill="url(#as-ss-dot)" class="t1"') + put(1, 'var(--b2)', 'x="244" y="60" width="70" height="46" fill="url(#as-ss-bar)" class="t2"')
-      + put(2, 'var(--b4)', 'x="252" y="136" width="64" height="46" fill="url(#as-ss-dot2)" class="t3"') + put(3, 'var(--b3)') + put(4, 'var(--b3)', 'x="250" y="170" width="40" height="24" fill="url(#as-ss-bar)" class="t2"')
-      + '<circle cx="62" cy="128" r="35" class="o"/><ellipse cx="62" cy="128" rx="50" ry="15" transform="rotate(-24 62 128)" fill="none" stroke="var(--cream)" stroke-width="1.1"/><circle cx="17" cy="148" r="3.2" fill="var(--cream)"/>'
-      + '<g fill="var(--b4)" stroke="var(--card)" stroke-width="1.5"><circle cx="103" cy="110" r="3.6"/><circle cx="116" cy="101" r="5.2"/><circle cx="133" cy="97" r="7"/></g>'
-      + '<g fill="var(--blue)"><rect x="322" y="38" width="5" height="5"/><rect x="330" y="46" width="3" height="3"/><rect x="8" y="80" width="4" height="4"/></g>'
-      + star(238, 40, 13, 'var(--cream)') + star(304, 62, 6, 'var(--b4)') + star(170, 30, 6, 'var(--blue)') + star(28, 104, 5, 'var(--cream)') + star(322, 150, 7, 'var(--cream)') + star(204, 186, 5, 'var(--blue)') + '</svg>';
+    return '<svg viewBox="0 0 342 160" aria-hidden="true"><defs><pattern id="as-ss-dot" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1"/></pattern>'
+      + `<clipPath id="as-ss-k0">${C[0]}</clipPath></defs>`
+      + `<g fill="var(--blue)">${C[0]}</g><rect clip-path="url(#as-ss-k0)" x="262" y="22" width="70" height="70" fill="url(#as-ss-dot)" class="t1"/>`
+      + `<g class="o">${C[1]}</g><g fill="var(--b4)">${C[1]}</g>`
+      + '<circle cx="62" cy="92" r="35" class="o"/><ellipse cx="62" cy="92" rx="50" ry="15" transform="rotate(-24 62 92)" fill="none" stroke="var(--cream)" stroke-width="1.1"/><circle cx="17" cy="112" r="3.2" fill="var(--cream)"/>'
+      + '<g fill="var(--b4)" stroke="var(--blue)" stroke-width="1"><circle cx="101" cy="76" r="3.4"/><circle cx="112" cy="66" r="5"/><circle cx="127" cy="60" r="6.6"/></g>'
+      + star(318, 30, 10, 'var(--cream)') + star(30, 34, 5, 'var(--blue)') + '</svg>';
   })();
-  // 两面（作者定的）：默认「正中这个人对 TA」（对 TA 说的话、怎么看 TA、知道 TA 什么），点「翻面」换成「TA 对正中这个人」，记住上次看的哪一面。成长线只在点正中那个人自己时出（作者定的）
   function openRel(i) {
     const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
@@ -230,9 +221,12 @@ export function open() {
   let root = '', rooted = false, upOf = () => '';
   below = () => [];
   function setMap() {
-    const junk = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
+    const junk0 = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
     const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
     for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
+    // 归属写成简称的认成全名：「高专」→「东京咒术高专」（只有唯一一个地方的名字以它结尾时才认）
+    const full = a => { const l = [...new Set([...pl.keys(), ...d.places.map(q => q.area)])].filter(n => n && n !== a && n.endsWith(a)); return l.length === 1 ? l[0] : a; };
+    const junk = a => { const v = junk0(a); return v && full(v); };
     const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
     const set = [...pl.values()].map(q => junk(q.area)).filter(Boolean);
     const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
