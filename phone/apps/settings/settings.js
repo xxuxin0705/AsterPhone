@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.412';
+export const VERSION = '0.8.413';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -151,7 +151,14 @@ function openMusicApp() {
 // 岁岁砂：整理的回复写到一半断了自动接着整理（默认关）。没开时写出来的照样记下，点「接着整理」从断的地方接
 function openMemoryApp() {
   const m = state.apps.memory;
-  sub('app-memory', '岁岁砂', body => {
+  sub('app-memory', '岁岁砂', (body, re) => {
+    // 单独生成关系用的接口：默认跟着聊天；和岁岁砂自己设置页里的是同一个
+    const own = m.conn.rel && m.conn.rel !== 'follow' && state.connections.text.find(x => x.id === m.conn.rel);
+    body.append(group('使用的连接', [item({ title: '单独生成关系', value: own ? own.name : '跟随聊天 →', chevron: true, onClick: async () => {
+      const r = await actionSheet('单独生成关系用的文字连接', [{ value: 'follow', label: '跟随聊天', active: !own }, ...state.connections.text.map(x => ({ value: x.id, label: x.name, active: own && own.id === x.id })), { value: '__go', label: '去管理连接…', icon: 'link' }]);
+      if (r === '__go') { connKind = 'text'; openConnections(); return; }
+      if (r) { m.conn.rel = r; commit('apps'); re(); }
+    } })]));
     const moreF = sliderRow('最多补写', { min: 1, max: 10, step: 1, value: m.fillMax || 3, fmt: v => v + ' 次', onInput: v => { m.fillMax = v; commit('apps'); } }); moreF.hidden = !m.fill;
     body.append(group('', [
       toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, v => { m.fill = v; commit('apps'); moreF.hidden = !v; }),

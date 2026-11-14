@@ -368,8 +368,8 @@ const run = (ac, fn) => new Promise((ok, no) => {
   Promise.resolve().then(() => fn(ac.signal)).then(v => ac.signal.aborted || ok(v), e => ac.signal.aborted || no(e));
 });
 /** 提示条转圈 +「取消」 */
-export function waiting(msg, fn) {
-  const ac = new AbortController(), t0 = Date.now(), opt = { label: '取消', fn: () => ac.abort(), wait: true };
+export function waiting(msg, fn, ac = new AbortController()) {   // ac 可以从外面给：同一个按钮再点一下也能取消
+  const t0 = Date.now(), opt = { label: '取消', fn: () => ac.abort(), wait: true };
   const tick = setInterval(() => toast(`${msg.replace(/…$/, '')} · ${Math.round((Date.now() - t0) / 1000)} 秒`, opt), 1000);   // 每秒更新「几秒」，让人知道一直在动
   toast(msg, opt); return run(ac, fn).finally(() => clearInterval(tick));
 }

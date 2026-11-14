@@ -396,11 +396,13 @@ function pairs() {
   return co;
 }
 // 亲近度 0 = 不认识（只是在同一件事里出现过，比如镜头切过去的另一头）：不算缺，也不再催 AI 写
-const pairRel = (a, b) => D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
+// 你在记下的关系里可能写成名字、「我」或「{{user}}」：都算同一个人
+const same = (x, y) => x === y || (isMe(x) && isMe(y));
+const pairRel = (a, b) => D.rel.find(q => (same(q.a, a) && same(q.b, b)) || (same(q.a, b) && same(q.b, a)));
 const whole = k => { const [a, b] = k.split('—'), r = pairRel(a, b); return r && (r.lv === 0 || (r.kind !== '其他' && r.va && r.vb && r.sa && r.sb)); };
 const lacking = () => [...pairs()].filter(c => c[1] > 1 && !whole(c[0])).map(c => c[0]);
 // 还缺哪几行：程序拿已经记下的对出来，续写时发给 AI（只发回复末尾一段，它看不到前面写了哪些）
-const gaps = () => lacking().map(k => { const [a, b] = k.split('—'), r = pairRel(a, b), v = r && (r.a === a ? r : { kind: r.kind, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa });
+const gaps = () => lacking().map(k => { const [a, b] = k.split('—'), r = pairRel(a, b), v = r && (same(r.a, a) ? r : { kind: r.kind, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa });
   return [(!v || v.kind === '其他') && `关系 ${a}—${b}`, !(v && v.va && v.sa) && `印象 ${a}→${b}`, !(v && v.vb && v.sb) && `印象 ${b}→${a}`].filter(Boolean).join('、'); }).join('\n');
 export async function refill(want, signal, redo, source = '') {
   if (refilling) throw new Error('已经在重新填了');
@@ -463,6 +465,35 @@ export async function refill(want, signal, redo, source = '') {
     n.miss = want.includes('rel') ? lacking().length : 0;   // AI 写了「整理完了」但跳过了几对（作者：有的人没写，还显示成功）
     await save(); return n;
   } finally { refilling = false; }
+}
+/** 单独生成（作者要的：关系总对不上时，以一个人为中心或只挑一对重新写）：只找一次 AI，写出来的不存，交给页面让作者一行行挑用哪版。
+ *  用自己那根线（state.apps.memory.conn.rel），没选就跟着聊天 */
+export const relConn = () => { const v = state.apps.memory.conn.rel; return (v && v !== 'follow' && state.connections.text.find(c => c.id === v)) || resolveConn('text', 'chat'); };
+export async function regen(a, b, signal) {   // 回 [{ a, b, 新写的各格, old: 原来那条（摆成同一个方向）}]
+  await load(); const key = win.key, me = x => isMe(x) ? myName() : x, has = (l, n) => l.some(x => me(x) === n);
+  a = me(a); b = b && me(b);
+  const evs = D.ev.filter(e => !e.off && has(e.who, a) && (!b || has(e.who, b)));
+  const ks = b ? [a + '—' + b] : [...new Set([...[...pairs()].filter(c => c[1] > 1).map(c => c[0]), ...D.rel.filter(r => r.lv !== 0).map(r => [me(r.a), me(r.b)].sort().join('—'))])]
+    .filter(k => k.split('—').includes(a)).map(k => { const [x, y] = k.split('—'); return x === a ? k : y + '—' + x; });
+  if (!ks.length) throw new Error(`还没有和${a}一起经历过事的人`);
+  const names = [...new Set(ks.flatMap(k => k.split('—')))], m = state.apps.memory, most = m.fill ? m.fillMax || 3 : 0, end = t => t.includes(END);
+  const raw = await generateMore({ conn: relConn(), app: '岁岁砂', stop: signal, resume: most, prompt: compose('memPair', {
+    people: names.map(n => { const p = D.ppl.find(q => q.name === n); return n + (p && p.who ? `（${p.who}）` : ''); }).join('、'),
+    world: await worldText(names.join(' ')).catch(() => '') || '（没有）', pairs: ks.join('、'),
+    events: evs.map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }, end, most)
+    .catch(e => { if (!e.part || (signal && signal.aborted)) throw e; return e.part.slice(0, e.part.lastIndexOf('\n') + 1); });
+  if (key !== win.key) throw new Error('换了聊天窗口，先停下');
+  // 名字认回全名、两个人的顺序摆成要的那样（中心的人在前），只留要的那几对
+  return parse(raw).rel.map(r => { const x = me(canon(r.a)), y = me(canon(r.b)); return x === a ? { ...r, a: x, b: y } : { ...r, a: y, b: x, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa }; })
+    .filter(r => ks.includes(r.a + '—' + r.b)).map(r => { const o = pairRel(r.a, r.b); return { ...r, old: o && (same(o.a, r.a) ? o : { ...o, va: o.vb, vb: o.va, sa: o.sb, sb: o.sa }) }; });
+}
+/** 挑好的存下：pick[字段] = true 用新的 */
+export async function useRel(r, pick) {
+  await load(); let o = pairRel(r.a, r.b);
+  if (!o) D.rel.push(o = { id: uid('r'), a: r.a, b: r.b, kind: '其他', hist: [], src: '单独生成' });
+  const v = same(o.a, r.a) ? r : { ...r, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa };
+  if (pick.kind && v.kind && v.kind !== o.kind && o.kind !== '其他') o.hist.push({ kind: o.kind, since: o.since, lv: o.lv, va: o.va, vb: o.vb });
+  for (const k in pick) if (pick[k] && v[k] != null && v[k] !== '') o[k] = v[k];
 }
 /** 已经知道的人、关系和最近的事，告诉 AI 别重复、名字照这个写 */
 function known() {

@@ -208,10 +208,22 @@
 .as-ss-names button.area { font-size: 14px; letter-spacing: 2px; text-indent: 2px; }
 .as-ss-names.zoom > button.cur { font-size: 18px; }
 /* 关系纸左上角的「翻面」 */
-.as-ss-rel .flip { position: absolute; left: 14px; top: 10px; z-index: 2; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
+.as-ss-rel .tools { position: absolute; left: 14px; top: 10px; z-index: 2; display: flex; gap: 8px; }
+.as-ss-rel .tools button { display: inline-flex; align-items: center; border: 1px solid var(--blue); border-radius: 12px; background: none; color: var(--blue); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 6px 10px; cursor: pointer; }
+.as-ss-rel .tools .gen { padding: 5px 8px; }
 /* 地图能一层套一层：里面还有地方的小地点加粗；正上方写现在在哪一层 */
 .as-ss-names .sub button.deep { font-weight: 600; font-size: 13px; }
 .as-ss-at { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .3s; font: 600 14px/1 var(--han); letter-spacing: 3px; text-indent: 3px; white-space: nowrap; color: var(--ink); }
 .as-ss-at.on { opacity: 1; transition: opacity .5s .3s; }
 /* 蓝色的「成长线」：关系纸上是个按钮（在「翻面」右边），成长线那张纸的标题旁边是个蓝标 */
 .as-ss-paper h4 small.go { margin-left: 10px; padding: 4px 8px; border-radius: 10px; background: var(--blue); color: #f4f3ee; font: 400 11px/1 var(--han); letter-spacing: 2px; vertical-align: middle; }
+
+/* 单独生成关系：两版摆一起，点哪版用哪版 */
+.as-mem-pick { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.as-mem-pick small { color: var(--as-color-text-2); font-size: 12px; }
+.as-mem-pick p { margin: 0; font-size: 14px; line-height: 1.6; }
+.as-mem-pick button { text-align: left; border: 1px solid var(--as-color-glass-line); border-radius: 12px; padding: 8px 10px; background: none; color: inherit; font: 400 14px/1.6 var(--font-ui); opacity: .55; cursor: pointer; }
+.as-mem-pick button.on { opacity: 1; border-color: var(--as-color-accent); background: color-mix(in srgb, var(--as-color-accent) 10%, transparent); }
+.as-mem-pick button i { display: block; font-style: normal; font-size: 11px; color: var(--as-color-accent); }
+.as-ss-gen { display: inline-flex; align-items: center; padding: 8px 10px; }
+.as-mem-all { margin-bottom: 16px; }

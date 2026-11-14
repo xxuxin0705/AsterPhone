@@ -56,7 +56,9 @@ export function open() {
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null, loose = [];
   const more = h('button.as-ss-back.as-ss-loose', { hidden: true, onclick: () => show('没归类的地点', '', '只出现过一次、也不属于哪个大地方', '', loose.map(n => li('', n, '', '', () => openPlace(n))), '') });
-  stage.append(more);
+  // 关系页右上角：以正中这个人为中心，重新生成 TA 和所有人的关系
+  const gen = h('button.as-ss-back.as-ss-loose.as-ss-gen', { 'aria-label': '重新生成 TA 的关系', onclick: () => regenRel(names[ctr]) }, icon('sparkle', 16, 1.6));
+  stage.append(more, gen);
   const shut = () => { if (!paper.classList.contains('on')) return false; paper.classList.remove('on'); A.mark(); return true; };
   const A = art(stage, { blank: shut, rel: openRel, self: () => openSelf(), center: i => setCtr(i), place: openPlace,
     dive: (n, parent) => { root = parent; A.zoomTo(n); setMap(); }, up: () => { root = upOf(root); setMap(); } });
@@ -106,7 +108,9 @@ export function open() {
     const long = h('button', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? `${t[3]} 天` : [t[0] && `${t[0]} 年`, (t[0] || t[1]) && `${t[1]} 个月`, `${t[2]} 天`].filter(Boolean).join(' ')));
     fillLong();
-    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'),
+    // 顶上一排：翻面、编辑（作者：改放最下面要翻到底才发现）、单独重新生成这一对
+    show(h('div.as-ss-rel', h('div.tools', h('button', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), h('button', { onclick: () => editRel(r) }, '编辑'),
+      h('button.gen', { 'aria-label': '重新生成这一对', onclick: () => regenRel(names[ctr], names[i]) }, icon('sparkle', 14, 1.6))),
       duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
         h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), kind && h('i', kind), kind && h('u'), h('b', who)),
       !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 的一句话')),
@@ -114,7 +118,7 @@ export function open() {
       h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
       (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
-      [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
+      [btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
   // 成长线：这个人是怎么一步步变成现在这样的，按先后。点正中这个人自己进来
   function openSelf(i = ctr) {
@@ -196,7 +200,7 @@ export function open() {
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); stage.classList.toggle('up', !i); more.classList.toggle('on', i === 2); gen.classList.toggle('on', i === 1); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
@@ -273,6 +277,46 @@ export function open() {
   return p.el;
 }
 
+/* ---------- 单独生成关系：生成完不直接存，一行行挑用原来的还是新的 ---------- */
+let regenAc = null;   // 同一时间只跑一个：放在模块里，退出再进来、再点一下星星都是取消
+async function regenRel(a, b) {
+  if (regenAc) { regenAc.abort(); return; }
+  regenAc = new AbortController();
+  try {
+    const l = await waiting(`正在生成${b ? `${a}和${b}` : `${a}和大家`}的关系…`, sig => M.regen(a, b, sig), regenAc);
+    if (!l) return;
+    if (!l.length) { toast('没写出能用的关系，再点一次试试'); return; }
+    toast('写好了，挑一下用哪版'); pickRel(l);
+  } catch (e) { toast('没生成出来：' + e.message); }
+  finally { regenAc = null; }
+}
+function pickRel(l) {
+  const p = page({ app: 'memory', id: 'memory-pick', title: '挑一版', back: true }), all = [];
+  const F = r => [['kind', '关系'], ['since', '从什么时候起'], ['now', '现在怎样'], ['lv', '亲近度'], ['va', `${r.a}眼里的${r.b}`], ['sa', `${r.a}对${r.b}的一句话`], ['vb', `${r.b}眼里的${r.a}`], ['sb', `${r.b}对${r.a}的一句话`]];
+  const picks = l.map(r => {
+    const o = r.old || {};
+    const pick = {}, rows = [];
+    for (const [k, t] of F(r)) {
+      const nv = r[k] == null ? '' : String(r[k]), ov = k === 'lv' ? (r.old ? String(M.lvOf(o)) : '') : k === 'kind' && o.kind === '其他' ? '' : String(o[k] ?? '');
+      if (!nv) continue; pick[k] = true;
+      if (!ov || ov === nv) { rows.push(h('div.as-mem-pick', h('small', t), h('p', nv))); continue; }
+      // 两版都摆出来，点哪版用哪版（默认新的）
+      const old = h('button', h('i', '原来的'), ov), neu = h('button.on', h('i', '新的'), nv);
+      const set = v => { pick[k] = v; neu.classList.toggle('on', v); old.classList.toggle('on', !v); };
+      old.onclick = () => set(false); neu.onclick = () => set(true); all.push(set);
+      rows.push(h('div.as-mem-pick', h('small', t), old, neu));
+    }
+    p.body.append(group(`${r.a} 和 ${r.b}`, rows));
+    return pick;
+  });
+  if (all.length) p.body.prepend(h('div.as-mem-acts.as-mem-all', btn('全用原来的', 'secondary', () => all.forEach(f => f(false))), btn('全用新的', 'secondary', () => all.forEach(f => f(true)))));
+  p.body.append(h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', async () => {
+    for (const [i, r] of l.entries()) await M.useRel(r, picks[i]);
+    await M.save(); nav.pop(); refresh(); toast(`存好了 ${l.length} 对`);
+  })));
+  nav.push(p.el);
+}
+
 /* ---------- 抽屉：改关系、日子、了解、地点 ---------- */
 let below = () => [];   // 一个地点下面所有层的地方（首页算地图时给的）：改归属时不让它反过来归到自己下面的地方
 async function editRel(r) {
@@ -300,7 +344,7 @@ async function editRel(r) {
 async function editGrow(o, who = '') {
   const d = await M.load(), x = o ? { at: o.at, text: o.text, why: o.why } : { at: '', text: '', why: '' };
   const s = sheet({ title: o ? o.who : who, content: [
-    field('哪天', input({ value: x.at, placeholder: '年-月-日', onInput: v => { x.at = v.trim(); } })),
+    field('哪天', input({ type: 'date', value: M.day(x.at)[0], onInput: v => { x.at = v; } })),
     field(withInfo('变了什么', '写成「以前怎样 → 现在怎样」。TA 以后说话做事会照现在的样子来，和人设不一样的以这里为准。'), textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
     field('因为哪件事', input({ value: x.why, onInput: v => { x.why = v.trim(); } })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.grow.splice(d.grow.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
@@ -314,15 +358,18 @@ async function editGrow(o, who = '') {
 // 日子：类型、日期（年-月-日，不知道年份就写月-日）、是什么日子、和谁有关；照「日子」那一行的格式读，和 AI 记的一样
 async function editDay(o) {
   const d = await M.load(), x = o ? { kind: o.kind || '其他', at: o.date || o.md, what: o.what, who: o.who.join('、') } : { kind: '生日', at: '', what: '', who: '' };
+  let day = /^\d{4}/.test(x.at) ? x.at : x.at ? '2000-' + x.at : '', noYear = !!o && !o.date;
   const s = sheet({ title: o ? o.what : '加一个日子', content: [
     segmented(M.DAY_KINDS.map(k => [k, k]), x.kind, v => { x.kind = v; }),
     field('是什么日子', input({ value: x.what, onInput: v => { x.what = v.trim(); } })),
-    field('日期', input({ value: x.at, placeholder: '年-月-日', onInput: v => { x.at = v.trim(); } })),
+    // 点一下选日期；只知道哪天、不知道哪年（比如生日）就打开「不知道哪年」，存的时候只留月-日
+    field('日期', input({ type: 'date', value: /^\d{4}/.test(x.at) ? x.at : x.at ? '2000-' + x.at : '', onInput: v => { day = v; } })),
+    toggleItem({ title: '不知道哪年' }, noYear, v => { noYear = v; }),
     field('和谁有关', input({ value: x.who, onInput: v => { x.who = v; } })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
-      const y = M.parse(`日子：${x.kind}｜${x.at}｜${x.what}｜${x.who}`).days[0];
-      if (!y) { toast(x.what ? '日期写成 年-月-日 或 月-日' : '写上是什么日子'); return; }
+      const y = M.parse(`日子：${x.kind}｜${noYear ? day.slice(5) : day}｜${x.what}｜${x.who}`).days[0];
+      if (!y) { toast(x.what ? '选一下日期' : '写上是什么日子'); return; }
       if (o) Object.assign(o, y); else d.days.push(y);
       await M.save(); s.close(); refresh();
     })),
@@ -569,6 +616,12 @@ async function openSet() {
     const v = await actionSheet('整理用的接口', [{ value: 'follow', label: '跟随聊天线', active: m.conn.text === 'follow' }, ...state.connections.text.map(c => ({ value: c.id, label: c.name, active: m.conn.text === c.id }))]);
     if (!v) return; m.conn.text = v; commit('apps'); val(connItem, label());
   } });
+  // 单独生成关系用的接口（作者要的：另外一根线，默认跟着聊天）；和「设置 → 应用管理 → 岁岁砂」是同一个
+  const relLabel = () => m.conn.rel && m.conn.rel !== 'follow' ? connLabel(M.relConn()) : `跟随聊天（${connLabel(M.relConn())}）`;
+  const relItem = item({ title: '单独生成关系用的接口', value: relLabel(), chevron: true, onClick: async () => {
+    const v = await actionSheet('单独生成关系用的接口', [{ value: 'follow', label: '跟随聊天', active: !m.conn.rel || m.conn.rel === 'follow' }, ...state.connections.text.map(c => ({ value: c.id, label: c.name, active: m.conn.rel === c.id }))]);
+    if (!v) return; m.conn.rel = v; commit('apps'); val(relItem, relLabel());
+  } });
   // 写到一半断了自动补写：和「设置 → 应用管理 → 岁岁砂」是同一个开关
   const fillMax = pick('最多补写', 'fillMax', 3, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n]), ' 次'); fillMax.hidden = !m.fill;
   const fillOn = toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, on => { m.fill = on; commit('apps'); fillMax.hidden = !on; });
@@ -576,7 +629,7 @@ async function openSet() {
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
     fillOn, fillMax,
     toggleItem({ title: '手机聊天时顺手记' }, m.chat !== false, on => { m.chat = on; commit('apps'); }),
-    toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在「等你看」里，你点「留下」TA 才会记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem]);
+    toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在「等你看」里，你点「留下」TA 才会记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem, relItem]);
   // 回想：按意思找（向量）、再排一遍（重排）、最多想起几件、每件带多少原文、来时路
   const vecTxt = v => !v.conn ? '还没接好' : v.stale ? '要重新算' : `已算 ${v.done} / ${v.total}`;
   const vecRow = item({ title: '向量', value: '', chevron: true, onClick: async () => {

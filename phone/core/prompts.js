@@ -43,7 +43,8 @@ export const PROMPT_CATS = [
   ] },
   { app: '岁岁砂', items: [{ id: 'memSort', name: '整理记忆', vars: ['user', 'source', 'existing', 'bigs', 'only'] },
     { id: 'memMaybe', name: '跟着剧情记 · 有值得记的才记', vars: ['user', 'people', 'lines', 'bigs'] }, { id: 'memEvery', name: '跟着剧情记 · 每楼都记', vars: ['user', 'people', 'lines', 'bigs'] },
-    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'world', 'places', 'events', 'pairs', 'source'] }] },
+    { id: 'memChat', name: '手机聊天时顺手记', vars: ['user', 'lines', 'bigs'] }, { id: 'memFill', name: '重新填', vars: ['user', 'want', 'people', 'world', 'places', 'events', 'pairs', 'source'] },
+    { id: 'memPair', name: '单独生成关系', vars: ['user', 'people', 'world', 'events', 'pairs'] }] },
   { app: '日记', items: [{ id: 'diaryWrite', name: '写一篇', vars: ['char', 'user', 'persona', 'world', 'about', 'time', 'palettes'] },
     { id: 'diaryEvery', name: '跟着剧情写', vars: ['user', 'people', 'palettes'] }] },
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
@@ -483,6 +484,27 @@ ${REL_VOICE}
 - 地点：地点最多三层：城市（某座城市、某个镇）→ 大地方（学校、街区、一栋楼）→ 具体地点（教室、天台）。归哪个大地方写它直接在哪个地方里面（教室归学校，学校归它所在的城市），那个大地方自己也写一行、写它在哪个城市，城市自己那一行归属空着；最顶上一层只能是城市，一个地方只有一个上级，同一个地方每次归一样的，两个地方不能互相归。介绍写一句这是个什么样的地方。
 - 日子的类型只能是：生日、纪念日、祭日、节日、其他。日期写成「年-月-日」的数字，只知道月日就只写「月-日」。纪念日记值得纪念的第一次发生的那天（第一次见面、表白、开始交往、第一次约会、第一次接吻、求婚、结婚……），满一个月、100 天、半年、每满一年会自动算，不用另记；节日只记一起过、有意义的（情人节、白色情人节、七夕、生日会、圣诞节、跨年……）。和某个日子有关的事件，小标签里写上它的类型（例：生日）。
 - 日期写「今天」，地点空着（两个 ｜ 之间什么都不写）。` },
+  memPair: { name: '单独生成关系', cats: ['memPair'], on: true, main: true,
+    text: `下面是已经记下的事。根据它们，只把「要写的」那几对人的关系和印象重新写一遍，别的都不要写；只根据下面的内容写，不编造。
+
+【人物】（名字一律照这里的全名写，一个字都别省）
+{{people}}
+
+【已经记下的事】（日期｜地点｜标题：经过｜在场的人｜原话）
+{{events}}
+
+【要写的】（每一对写一行关系，再写两行印象，两个人各一行，一对都不能漏）
+{{pairs}}
+
+【设定】（世界书里和这些人有关的内容；每个人的性格、说话方式照这里）
+{{world}}
+
+一行一条，字段之间用 ｜ 隔开：
+关系：甲｜乙｜关系｜从什么时候起｜现在怎样｜亲近度
+印象：甲｜乙｜甲对乙的看法｜甲对乙的一句话
+
+${REL_VOICE}
+- 全部写完以后，最后单独一行写：【整理完了】` },
   memFill: { name: '重新填', cats: ['memFill'], on: true, main: true,
     text: `下面是已经记下的事。根据它们，把「{{want}}」重新写一遍。只写这几种行，别的都不要写；只根据下面的内容写，不编造。
 
