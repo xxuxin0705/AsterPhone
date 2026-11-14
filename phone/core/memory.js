@@ -395,8 +395,13 @@ function pairs() {
   for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
   return co;
 }
-const whole = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
+// 亲近度 0 = 不认识（只是在同一件事里出现过，比如镜头切过去的另一头）：不算缺，也不再催 AI 写
+const pairRel = (a, b) => D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
+const whole = k => { const [a, b] = k.split('—'), r = pairRel(a, b); return r && (r.lv === 0 || (r.kind !== '其他' && r.va && r.vb && r.sa && r.sb)); };
 const lacking = () => [...pairs()].filter(c => c[1] > 1 && !whole(c[0])).map(c => c[0]);
+// 还缺哪几行：程序拿已经记下的对出来，续写时发给 AI（只发回复末尾一段，它看不到前面写了哪些）
+const gaps = () => lacking().map(k => { const [a, b] = k.split('—'), r = pairRel(a, b), v = r && (r.a === a ? r : { kind: r.kind, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa });
+  return [(!v || v.kind === '其他') && `关系 ${a}—${b}`, !(v && v.va && v.sa) && `印象 ${a}→${b}`, !(v && v.vb && v.sb) && `印象 ${b}→${a}`].filter(Boolean).join('、'); }).join('\n');
 export async function refill(want, signal, redo, source = '') {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
@@ -473,7 +478,7 @@ function known() {
  *  开了「自动补写」就自己接着找 AI（最多 fillMax 次），没开就停下，等你点「接着整理」 */
 /** 设置里的「清空」：挑哪几样清哪几样；四样都勾就是整个清空（连向量、没跑完的整理一起） */
 export async function clearSome(want) { await load(); if (want.length > 2) return wipe(); clearParts(want); await save(); }
-const TAIL = t => `\n\n【补写】你对上面这条要求的回复写到一半断了。断之前写的都已经记下，不要重写。两条横线中间是那条回复的最后一段，最后一行没写完：从这一行的开头把它整行重新写一遍，再接着往下把还没写的写完（顺序照上面的要求），最后单独一行写${END}。只输出这些行，不要加解释。\n————\n${t}\n————`;
+const TAIL = (t, todo) => `\n\n【补写】你对上面这条要求的回复写到一半断了。断之前写的都已经记下，不要重写。两条横线中间是那条回复的最后一段，最后一行没写完：从这一行的开头把它整行重新写一遍。${todo ? `\n关系和印象还缺下面这些（按已经记下的对出来的，没列的都写好了），一行不漏地写完：\n${todo}` : ''}\n然后照上面的要求把还没写的接着写完，最后单独一行写${END}。只输出这些行，不要加解释。\n————\n${t}\n————`;
 export async function startJob(label, list, done = 0, at = 0, opt = null) {
   if (running()) throw new Error('已经在整理了');
   await load();
@@ -508,7 +513,7 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
         // （作者遇到的：断在半句话上，补的时候却从第一行关系重新写了一遍）
         while (half(raw) && more-- > 0) {
           job.phase = '接着写没写完的'; tell('step', job);
-          raw = await ask(TAIL(raw.slice(-2000).replace(/^[^\n]*\n/, '')));
+          raw = await ask(TAIL(raw.slice(-2000).replace(/^[^\n]*\n/, ''), opt && opt.want.includes('rel') ? gaps() : ''));
           if (key !== win.key) throw new Error('换了聊天窗口，先停下');
           take(raw); await save();
         }
