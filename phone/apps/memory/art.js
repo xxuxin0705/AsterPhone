@@ -12,7 +12,7 @@ const NX = 86, NY = 345, R = 220, OC = 250, tall = i => i ? 500 : 410;   // 沙�
 /** host：放画的元素。on：tap 到了什么 —— rel(第几个人)、center(第几个人被拖到了正中)、place(名字, 里面的小地点)、move(地点名, x, y)、blank()（点了空白，回 true 是收起了底下那张纸） */
 export function art(host, on) {
   const cv = h('canvas.as-ss-art'), men = h('div.as-ss-ov.as-ss-men'), names = h('div.as-ss-ov.as-ss-names'), back = h('button.as-ss-back', { onclick: () => zin ? zoom(-1) : on.up() }, '‹ 全部'), where = h('b.as-ss-at');
-  host.append(cv, names, men, back, where); men.dataset.noSwipe = names.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
+  host.append(cv, names, men, back, where); men.dataset.noSwipe = names.dataset.noSwipe = cv.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
   const g = cv.getContext('2d'), page = host.closest('.as-page');
   // 地点页画多高：一直铺到底下页签上面（作者：下面空一截）。页面还没摆出来量不到时先按 500
   let roomH = 0;
@@ -39,14 +39,15 @@ export function art(host, on) {
   const sink = (p, a) => p.hole ? (a < .12 ? 0 : a < .72 ? 1 - (1 - (a - .12) / .6) ** 2 : Math.max(0, 1 - (a - .72) / 1.6) ** 2) : a < .12 ? a / .12 : Math.max(0, 1 - (a - .12) / 1.6) ** 2;
   const dent = (x, now) => pokes.reduce((s, p) => s + p.d * sink(p, now - p.t) * Math.exp(-(((x - p.x) / p.w) ** 2)), 0);
   const surfY = x => { let y = 184; for (const q of SURF) for (let u = 0; u <= 1; u += .02) if (Math.abs(bz(q[0], q[1], q[2], q[3], u) - x) < 6) y = bz(q[4], q[5], q[6], q[7], u); return y; };
-  function poke(x, y) {
+  // s：按住划过去时每一下小一点，连起来像手指在沙里划出一道，后面的沙慢慢流回来填平（作者：要能一直滑）
+  function poke(x, y, s = 1) {
     const now = performance.now() / 1000;
     if (y > NY - 25) { rush = now; return; }   // 点下面：出沙口忽然漏得快，再慢慢缓回来（作者定的）
     if (y < 35 || y > NY || x < NX - R || x > NX + R) return;
     const sy = surfY(x);
-    if (y > sy + 14) { pokes.push({ x, y: Math.min(y, NY - 30), d: 18, w: 28, t: now, hole: true }); return; }   // 点在沙里面：那儿空一下，上面的塌下来
-    pokes.push({ x, d: 20, w: 26, t: now });
-    for (let i = 0; i < 16; i++) { const [a, b] = dots[(i * 37 + Math.round(x)) % 2800]; grains.push({ x: x + (a - .5) * 16, y: sy + 4, vx: (a - .5) * 120, vy: -90 - b * 110, t: now }); }
+    if (y > sy + 14) { pokes.push({ x, y: Math.min(y, NY - 30), d: 18 * s, w: 28, r: 17 * s, t: now, hole: true }); return; }   // 点在沙里面：那儿空一下，上面的塌下来
+    pokes.push({ x, d: 20 * s, w: 26, t: now });
+    for (let i = 0; i < 16 * s; i++) { const [a, b] = dots[(i * 37 + Math.round(x)) % 2800]; grains.push({ x: x + (a - .5) * 16, y: sy + 4, vx: (a - .5) * 120, vy: -90 - b * 110, t: now }); }
   }
   function glass(P, t) {
     line([[0, NY], [W, NY]], P.pencil, .7); ring(NX, NY, 96, P.pencil, .7, [2, 5]); line([[NX + R, 35], [NX - 70, NY + 99]], P.pencil, .6);
@@ -56,9 +57,9 @@ export function art(host, on) {
     g.lineTo(460, 400); g.lineTo(-200, 400); g.fillStyle = P.blue; g.fill();
     stipple(NX + 70, 262, 150, P.paper, .55, -.75, 1500, 2.6);
     // 沙里空出来的洞：一下张开，上面的沙一粒粒落进去，洞从上往下被填满
-    for (const p of pokes) { if (!p.hole) continue; const a = now - p.t, r = 17 * Math.min(1, a / .12) * (a < .12 ? 1 : Math.max(0, 1 - (a - .12) / .6)); if (r < 1) continue;
-      g.beginPath(); g.ellipse(p.x, p.y + (17 - r), r * 1.15, r, 0, 0, 7); g.fillStyle = P.paper; g.fill(); g.fillStyle = P.blue;
-      for (let i = 0; i < 8; i++) { const [u, v] = dots[i * 7 + 3]; g.fillRect(p.x + (u - .5) * r * 1.6, p.y + (17 - r) - r + ((a * 140 + v * 40) % (2 * r)), 1.8, 1.8); } }
+    for (const p of pokes) { if (!p.hole) continue; const a = now - p.t, r = p.r * Math.min(1, a / .12) * (a < .12 ? 1 : Math.max(0, 1 - (a - .12) / .6)); if (r < 1) continue;
+      g.beginPath(); g.ellipse(p.x, p.y + (p.r - r), r * 1.15, r, 0, 0, 7); g.fillStyle = P.paper; g.fill(); g.fillStyle = P.blue;
+      for (let i = 0; i < 8; i++) { const [u, v] = dots[i * 7 + 3]; g.fillRect(p.x + (u - .5) * r * 1.6, p.y + (p.r - r) - r + ((a * 140 + v * 40) % (2 * r)), 1.8, 1.8); } }
     g.fillStyle = P.blue; for (let i = 0; i < 300; i++) { const [a, b, p] = dots[i + 1500]; g.fillRect(NX - R + a * 2 * R, 182 - b * b * 80 - p * 6, 1.4, 1.4); }
     for (let i = grains.length - 1; i >= 0; i--) { const q = grains[i], a = now - q.t, x = q.x + q.vx * a, y = q.y + q.vy * a + 320 * a * a; if (a > .15 && y > surfY(x) + dent(x, now)) grains.splice(i, 1); else g.fillRect(x, y, 2, 2); }
     g.restore();
@@ -66,6 +67,7 @@ export function art(host, on) {
     g.fillStyle = P.ink; g.fillRect(NX - R - 12, 26, 2 * R + 24, 9); g.fillRect(NX - 9, NY - 3, 18, 6);
     g.beginPath(); g.moveTo(NX + 6, NY + 3); g.bezierCurveTo(NX + 20, NY + 44, 230, NY + 52, W + 20, NY + 58); g.moveTo(NX - 6, NY + 3); g.bezierCurveTo(NX - 18, NY + 40, 30, NY + 52, -10, NY + 56); g.strokeStyle = P.ink; g.lineWidth = 1.3; g.stroke();
     flowP += Math.min(.05, now - (flowT || now)) * 18 * (1 + 6 * Math.exp(-(now - rush) / .9)); flowT = now;
+    page.style.setProperty('--ss-fall', (flowP % 8).toFixed(1) + 'px');   // 下面时间轴那条虚线跟着一起快慢（作者：只有上面那一截变快）
     g.fillStyle = P.blue; for (let y = NY + 4 - 8 + flowP % 8; y < H; y += 8) g.fillRect(NX - 1, Math.max(NY + 4, y), 2, 4);
   }
 
@@ -220,7 +222,13 @@ export function art(host, on) {
     if (!d) { if (e.type === 'pointerup' && LINK[ctr][p.i]) { mark(null); selP = p.i; men.children[p.i].classList.add('sel'); on.rel(p.i); } return; }
     if (Math.hypot(d.x - W / 2, d.y - OC) < 44) on.center(p.i);
   };
-  cv.onclick = e => { if (cur === 0 && e) { const r = cv.getBoundingClientRect(); poke(e.clientX - r.left, e.clientY - r.top); return; } if (!on.blank() && cur === 2 && zin) zoom(-1); };
+  cv.onclick = () => { if (cur !== 0 && !on.blank() && cur === 2 && zin) zoom(-1); };
+  // 时间页的沙漏：按下戳一下，按住滑就一路划过去（隔几个像素戳一个小的）
+  let rake = null;
+  const at0 = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener('pointerdown', e => { if (cur) return; cv.setPointerCapture(e.pointerId); rake = at0(e); poke(...rake); });
+  cv.addEventListener('pointermove', e => { if (cur || !rake) return; const q = at0(e); if (Math.hypot(q[0] - rake[0], q[1] - rake[1]) < 9) return; rake = q; poke(...q, .55); });
+  cv.addEventListener('pointerup', () => { rake = null; }); cv.addEventListener('pointercancel', () => { rake = null; });
   /** 收起选中的（那圈蓝环、蓝字） */
   function mark() { host.querySelectorAll('.as-ss-ov .sel').forEach(b => b.classList.remove('sel')); sel = null; selP = -1; }
 
@@ -233,7 +241,7 @@ export function art(host, on) {
       if (!same) { POS = []; men.replaceChildren(...NAMES.map(n => h('button', n))); if (ctr >= NAMES.length) ctr = 0; }
       fresh = true;
     },
-    tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); host.classList.toggle('map', i === 2); if (i === 2) cv.dataset.noSwipe = ''; else delete cv.dataset.noSwipe;   // 在地图上横着拖是挪地图，不是「右滑返回」
+    tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); host.classList.toggle('map', i === 2); if (i !== 1) cv.dataset.noSwipe = ''; else delete cv.dataset.noSwipe;   // 在地图上横着拖是挪地图、在沙漏上滑是划沙，都不是「右滑返回」
       men.classList.toggle('on', i === 1); crumb(); },
     /** 下一次摆好名字以后直接钻进这一片（往下钻一层时用） */
     zoomTo(n) { want = n; },

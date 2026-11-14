@@ -107,9 +107,7 @@
 /* 时间：那道往下漏的沙就是轴 */
 .as-ss-axis { position: relative; flex: 1 0 auto; padding: 14px 0 70px; }   /* 事少的时候也撑到页面底：那道沙一直漏到底，沙堆落在页签上面 */
 .as-ss-axis.off { display: none; }
-.as-ss-axis::before { content: ""; position: absolute; left: 85px; top: 0; bottom: 30px; width: 2px; background: repeating-linear-gradient(var(--blue) 0 4px, transparent 4px 8px); animation: as-ss-fall .45s linear infinite; }
-.as-page.is-behind .as-ss-axis::before { animation-play-state: paused; }
-@keyframes as-ss-fall { to { background-position-y: 8px; } }
+.as-ss-axis::before { content: ""; position: absolute; left: 85px; top: 0; bottom: 30px; width: 2px; background: repeating-linear-gradient(var(--blue) 0 4px, transparent 4px 8px); background-position-y: var(--ss-fall, 0); }
 .as-ss-axis::after { content: ""; position: absolute; left: 60px; bottom: 16px; width: 52px; height: 15px; background: var(--blue); border-radius: 26px 26px 0 0 / 15px 15px 0 0; }
 .as-ss-axis .yr { position: relative; height: 34px; }
 .as-ss-axis .yr em { position: absolute; left: 22px; top: 6px; font: italic 500 20px/1 var(--latin); }
@@ -225,3 +223,4 @@
 .as-mem-pick button.on { opacity: 1; border-color: var(--as-color-accent); background: color-mix(in srgb, var(--as-color-accent) 10%, transparent); }
 .as-mem-pick button i { display: block; font-style: normal; font-size: 11px; color: var(--as-color-accent); }
 .as-mem-all { margin-bottom: 16px; }
+.as-ss-stage.up canvas { touch-action: none; }   /* 时间页：手指在沙漏上滑是划沙，不是拉页面 */
