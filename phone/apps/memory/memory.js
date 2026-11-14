@@ -1,6 +1,6 @@
 // 岁岁砂：TA 们记得的事（方案见 docs/pages-memory.md）。
 // 首页是一张画、三页：时间（沙漏，往下漏的那道沙是时间轴）/ 关系（轨道，谁都能当中心）/ 地点（迷雾地图，大地方里套小地点）。
-// 顶上一排名字三页共用：点谁，关系页谁到正中、时间页只看和 TA 有关的事、地图上 TA 没去过的地方变暗。
+// 关系那页顶上有一排名字：点谁（或把星拖到正中），谁就是中心。时间和地点对谁都一样，不分人看（作者定的）。
 // 右上角设置：人物、记录、导入整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
@@ -44,7 +44,7 @@ async function vecRun(tell) {
 
 export function open() {
   const p = page({ app: 'memory', id: 'memory-main', title: '岁岁砂', back: true, cls: 'as-ss', right: [navBtn('gear', '设置', openSet)] });
-  const bar = h('div.as-ss-who', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
+  const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
   const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
   let d = null, names = [], link = [], ctr = 0, tab = 0, seen = '', opened = null;
@@ -78,7 +78,7 @@ export function open() {
   const kin = e => e.tags.filter(t => t !== '手机');
   function arcs() {
     axis.querySelectorAll('.arc').forEach(a => a.remove());
-    const l = opened ? [...axis.querySelectorAll('.ev.open, .ev.kin')].filter(b => !b.hidden) : [];
+    const l = opened ? [...axis.querySelectorAll('.ev.open, .ev.kin')] : [];
     if (l.length > 1) axis.append(h('div.arc', { style: { top: l[0].offsetTop + 22 + 'px', height: l[l.length - 1].offsetTop - l[0].offsetTop + 'px' } }));
   }
   function toggle(b, e) {
@@ -105,32 +105,19 @@ export function open() {
       const y = e.at ? e.at.slice(0, 4) : '不知道哪年'; if (y !== yr) rows.push(h('div.yr' + (e.at ? '' : '.zh'), h('em', yr = y)));
       const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), e.at ? dot(e.at.slice(5)) : '', e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
         h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', [M.knows(e).join('、') + '知道', ...e.big, ...kin(e)].join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
-      b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e; b._who = M.knows(e);
+      b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e;
       rows.push(b);
     }
     if (!d.ev.length) rows.push(h('div.none', '还没有记下的事', btn('去整理', 'secondary', openSort)));
     opened = null; axis.replaceChildren(...rows);
   }
-  /** 只看和正中这个人有关的（正中是你就全看）；空了的年份也收起来 */
-  function filter() {
-    const n = ctr ? names[ctr] : '';
-    let head = null, any = false;
-    for (const b of axis.children) {
-      if (b.classList.contains('yr')) { if (head) head.hidden = !any; head = b; any = false; continue; }
-      b.hidden = !!n && !!b._who && !b._who.includes(n); any = any || !b.hidden;
-    }
-    if (head) head.hidden = !any;
-    arcs();
-    A.dim(n ? new Set(d.ev.filter(e => M.knows(e).includes(n)).map(e => e.place).filter(Boolean)) : null);
-  }
   function setCtr(i, fx = true) {
-    ctr = i; shut(); A.center(i, fx);
+    ctr = i; shut(); A.center(i);
     [...bar.children].forEach((b, k) => { b.classList.toggle('on', k === i); if (k === i && fx) b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); });
-    filter();
   }
   function go(i) {
     if (i === tab) return;
-    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); p.body.scrollTo({ top: 0, behavior: 'smooth' });
+    tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
   }
 

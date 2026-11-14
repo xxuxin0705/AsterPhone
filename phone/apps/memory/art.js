@@ -14,7 +14,7 @@ export function art(host, on) {
   const cv = h('canvas.as-ss-art'), men = h('div.as-ss-ov.as-ss-men'), names = h('div.as-ss-ov.as-ss-names'), back = h('button.as-ss-back', { onclick: () => zoom(-1) }, '‹ 全部');
   host.append(cv, names, men, back); men.dataset.noSwipe = names.dataset.noSwipe = '';   // 在名字上横着拖不是「右滑返回」
   const g = cv.getContext('2d'), page = host.closest('.as-page');
-  let W = 0, H = 410, cur = 0, from = 0, t0 = -1e9, swap = -1e9, raf = 0, phone = null, fresh = false;
+  let W = 0, H = 410, cur = 0, from = 0, t0 = -1e9, raf = 0, phone = null, fresh = false;
   let NAMES = [], LINK = [], POS = [], ctr = 0, selP = -1, drag = null, press = null;
   let AREAS = [], LONE = [], here = '', sel = null, zk = -1, zin = false, zT0 = -1e9, needle = 0;
   const size = () => { const d = devicePixelRatio || 1; W = cv.clientWidth; cv.style.height = H + 'px'; cv.width = W * d; cv.height = H * d; g.setTransform(d, 0, 0, d, 0, 0); };
@@ -25,15 +25,12 @@ export function art(host, on) {
   // 圆里撒一片点：越靠 (dx, dy) 那边越密，像版画的颗粒
   const stipple = (cx, cy, r, c, dx, dy, n, k) => { g.fillStyle = c; for (let i = 0; i < n; i++) { const [a, b, p] = dots[i], ang = a * 6.283, rr = Math.sqrt(b) * r, px = Math.cos(ang) * rr, py = Math.sin(ang) * rr; if (p < Math.pow((px * dx + py * dy) / r * .5 + .5, k)) g.fillRect(cx + px, cy + py, 1.3, 1.3); } };
 
-  /* 沙漏：只看得到上半只，沙从腰漏下去，一直漏到页面底 —— 下面整页就是下半只。换了看谁：沙漏翻一圈 */
+  /* 沙漏：只看得到上半只，沙从腰漏下去，一直漏到页面底 —— 下面整页就是下半只 */
   const bulb = () => { g.beginPath(); g.moveTo(NX - R, 35); g.lineTo(NX + R, 35); g.bezierCurveTo(NX + R, 215, NX + 16, 250, NX + 5, NY); g.lineTo(NX - 5, NY); g.bezierCurveTo(NX - 16, 250, NX - R, 215, NX - R, 35); g.closePath(); };
   function glass(P, t) {
-    const turn = 1 - ease(cl((performance.now() - swap) / 800));
     line([[0, NY], [W, NY]], P.pencil, .7); ring(NX, NY, 96, P.pencil, .7, [2, 5]); line([[NX + R, 35], [NX - 70, NY + 99]], P.pencil, .6);
     line([[NX + R + 28, 40], [NX + R + 28, NY]], P.pencil, .7); for (let i = 0; i <= 20; i++) line([[NX + R + 28, 40 + i * 15.25], [NX + R + (i % 5 ? 33 : 40), 40 + i * 15.25]], P.pencil, .8);
     g.fillStyle = P.ink; g.fillRect(W - 44, 0, 44, 200); for (let i = 0; i < 500; i++) { const [a, b, p] = dots[i + 900]; if (p > b * 1.1) g.fillRect(W - 44 + a * 44, 200 + b * b * 110, 1.5, 1.5); }
-    g.save();
-    if (turn) { g.translate(NX, 190); g.rotate(turn * Math.PI); g.translate(-NX, -190); }
     g.save(); bulb(); g.clip();
     g.beginPath(); g.moveTo(-200, 150); g.bezierCurveTo(NX - 70, 150, NX - 40, 184, NX, 184); g.bezierCurveTo(NX + 40, 184, NX + 70, 150, 460, 150); g.lineTo(460, 400); g.lineTo(-200, 400); g.fillStyle = P.blue; g.fill();
     stipple(NX + 70, 262, 150, P.paper, .55, -.75, 1500, 2.6);
@@ -41,8 +38,6 @@ export function art(host, on) {
     g.restore();
     bulb(); g.strokeStyle = P.ink; g.lineWidth = 1.5; g.stroke();
     g.fillStyle = P.ink; g.fillRect(NX - R - 12, 26, 2 * R + 24, 9); g.fillRect(NX - 9, NY - 3, 18, 6);
-    g.restore();
-    if (turn) return;
     g.beginPath(); g.moveTo(NX + 6, NY + 3); g.bezierCurveTo(NX + 20, NY + 44, 230, NY + 52, W + 20, NY + 58); g.moveTo(NX - 6, NY + 3); g.bezierCurveTo(NX - 18, NY + 40, 30, NY + 52, -10, NY + 56); g.strokeStyle = P.ink; g.lineWidth = 1.3; g.stroke();
     g.fillStyle = P.blue; for (let y = NY + 4 - 8 + (t * 18) % 8; y < H; y += 8) g.fillRect(NX - 1, Math.max(NY + 4, y), 2, 4);
   }
@@ -77,12 +72,11 @@ export function art(host, on) {
     g.globalAlpha = A0;
   }
 
-  /* 迷雾地图：先只看到大地方；点一个，别处的雾合上，这一片的雾散开，里面的小地方才出来。换了看谁：雾先合上再散开 */
+  /* 迷雾地图：先只看到大地方；点一个，别处的雾合上，这一片的雾散开，里面的小地方才出来 */
   const BIG = () => [W / 2, 258, W / 2 - 22, 196];
   const spot = () => { const s = W / 400, k = AREAS.findIndex(a => a.name === here || a.list.includes(here)), l = LONE.find(o => o.name === here), o = k >= 0 ? AREAS[k] : l || AREAS[0] || LONE[0]; return o ? [o.x * s, o.y] : [W / 2, 200]; };
   function fog(P, t, b, fall = 0) {
-    const s = W / 400, z = ease(cl((performance.now() - zT0) / 600)), zz = zin ? z : 1 - z, B = BIG(), sw = cl((performance.now() - swap) / 900);
-    b *= 1 - Math.sin(sw * Math.PI) * .9;
+    const s = W / 400, z = ease(cl((performance.now() - zT0) / 600)), zz = zin ? z : 1 - z, B = BIG();
     const holes = AREAS.map((a, k) => { const r = 38 + a.list.length * 4, o = [a.x * s, a.y, r, r]; return k === zk ? o.map((v, j) => mix(v, B[j], zz)) : [o[0], o[1], r * (1 - zz), r * (1 - zz)]; }).concat(LONE.map(l => [l.x * s, l.y, 27 * (1 - zz), 27 * (1 - zz)])).concat([[38, H - 44, 24, 24]]);
     for (let q = 0; q < W; q += 34) line([[q, 0], [q, H]], P.pencil, .35); for (let q = 0; q < H; q += 34) line([[0, q], [W, q]], P.pencil, .35);
     if (zz < 1 && AREAS.length > 1) { const A = g.globalAlpha; g.globalAlpha = A * (1 - zz); line(AREAS.map(a => [a.x * s, a.y]), P.blue, 1.3, [1.5, 5]); g.globalAlpha = A; }
@@ -171,10 +165,8 @@ export function art(host, on) {
       fresh = true;
     },
     tab(i) { if (i === cur) return; from = cur; cur = i; t0 = performance.now(); names.classList.toggle('on', i === 2); men.classList.toggle('on', i === 1); back.classList.toggle('on', i === 2 && zin); },
-    /** 换一个人到正中（fx：带上切换的动效） */
-    center(i, fx) { ctr = i; if (fx) swap = performance.now(); },
-    /** 只亮这几个地方（null = 全亮） */
-    dim(been) { names.querySelectorAll('button').forEach(b => { const k = b.dataset.k; b.classList.toggle('dim', !!been && !been.has(b.dataset.n) && !(b.classList.contains('area') && AREAS[k].list.some(n => been.has(n)))); }); },
+    /** 换一个人到正中（别的星会慢慢滑到新的位置） */
+    center(i) { ctr = i; },
     resume() { if (!raf) raf = requestAnimationFrame(draw); },
     stop() { cancelAnimationFrame(raf); raf = 0; },
   };

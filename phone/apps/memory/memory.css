@@ -54,16 +54,17 @@
 .as-ss .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: var(--ink); }
 .as-ss .as-navbar__back, .as-ss .as-navbar__btn { color: var(--ink); }
 .as-ss .as-navbar__title { font-family: var(--han); letter-spacing: 4px; }
-.as-ss .as-page__body { position: relative; padding: 0 0 96px; font-family: var(--han); }
+.as-ss .as-page__body { position: relative; display: flex; flex-direction: column; padding: 0 0 96px; font-family: var(--han); }
 .as-ss button:focus-visible, .as-ss .ev:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
-/* 顶上一排名字：三页共用，点谁看谁 */
-.as-ss-who { display: flex; gap: 6px; height: 46px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+/* 关系那页顶上的一排名字：点谁，谁到正中。别的页收起来 */
+.as-ss-who { flex: none; display: flex; gap: 6px; height: 46px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; transition: height .6s, padding .6s, opacity .5s; }
+.as-ss-who.off { height: 0; padding-top: 0; opacity: 0; pointer-events: none; }
 .as-ss-who::-webkit-scrollbar { display: none; }
 .as-ss-who button { flex: none; height: 28px; border: 1px solid var(--line); background: none; color: var(--soft); font: 400 13px/1 var(--han); letter-spacing: 2px; text-indent: 2px; padding: 0 11px; border-radius: 14px; cursor: pointer; transition: color .3s, background .3s; }
 .as-ss-who button.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 .as-ss-who button.more { border-style: dashed; }
 /* 画，和盖在画上的名字（真的字，能点能拖） */
-.as-ss-stage { position: relative; }
+.as-ss-stage { position: relative; flex: none; }
 .as-ss-art { display: block; width: 100%; height: 410px; }
 .as-ss-ov { position: absolute; left: 0; top: 0; width: 100%; opacity: 0; pointer-events: none; transition: opacity .3s; }
 .as-ss-ov.on { opacity: 1; pointer-events: auto; transition: opacity .6s .7s; }
@@ -76,7 +77,6 @@
 .as-ss-names.zoom > button:not(.cur) { opacity: 0; pointer-events: none; }
 .as-ss-names.zoom > button.cur { font-size: 24px; }
 .as-ss-names.zoom .sub.on { opacity: 1; pointer-events: auto; transition: opacity .5s .4s; }
-.as-ss-names button.dim { color: var(--soft); opacity: .32; }
 .as-ss-men button { font-size: 12px; padding: 24px 8px 3px; text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper), 0 0 2px var(--paper), 0 0 2px var(--paper); transition: color .3s; }
 .as-ss-back { position: absolute; left: 14px; top: 10px; opacity: 0; pointer-events: none; transition: opacity .3s; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 2px; padding: 9px 12px; border-radius: 18px; cursor: pointer; }
 .as-ss-back.on { opacity: 1; pointer-events: auto; transition: opacity .5s .5s; }
@@ -103,7 +103,7 @@
 .as-ss-acts { display: flex; gap: 10px; margin-top: 16px; }
 .as-ss-acts .as-btn, .as-ss-axis .as-btn { flex: none; min-height: 0; border: 1px solid var(--line); background: none; box-shadow: none; color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 2px; padding: 9px 14px; border-radius: 18px; }
 /* 时间：那道往下漏的沙就是轴 */
-.as-ss-axis { position: relative; padding: 14px 0 70px; }
+.as-ss-axis { position: relative; flex: 1 0 auto; padding: 14px 0 70px; }   /* 事少的时候也撑到页面底：那道沙一直漏到底，沙堆落在页签上面 */
 .as-ss-axis.off { display: none; }
 .as-ss-axis::before { content: ""; position: absolute; left: 85px; top: 0; bottom: 30px; width: 2px; background: repeating-linear-gradient(var(--blue) 0 4px, transparent 4px 8px); animation: as-ss-fall .45s linear infinite; }
 .as-page.is-behind .as-ss-axis::before { animation-play-state: paused; }
