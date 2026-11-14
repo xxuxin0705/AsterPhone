@@ -136,3 +136,6 @@
 .as-ss-axis .arc { position: absolute; left: 86px; width: 24px; border: 1px solid var(--blue); border-left: 0; border-radius: 0 40px 40px 0; pointer-events: none; }
 .as-ss-axis .none { display: grid; justify-items: start; gap: 12px; padding: 18px 22px 0 116px; color: var(--soft); font-size: 13px; letter-spacing: 1px; }
 @media (prefers-reduced-motion: reduce) { .as-ss *, .as-ss *::before { transition: none !important; animation: none !important; } }
+.as-mem-entry:first-child { border-top: 0; }
+.as-mem-entry summary small { margin-left: 0; }
+.as-mem-entry summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 12px; }

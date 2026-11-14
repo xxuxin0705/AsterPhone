@@ -253,6 +253,9 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         return readOut(res, parts, parts, part);
       });
     } else throw new Error('这个渠道还不能用来生成文字：' + conn.type);
+    // 走酒馆的：接口出错时酒馆不报错，而是把「[API 错误] … failed with status 502: <html>…」当回复交回来，要当失败（5xx 会照设置重试）
+    const bad = /^\s*\[API (?:错误|Error)\]/i.test(String(out || '')) && String(out);
+    if (bad) { call.part(bad); throw new Error(`${(/status (\d{3})/.exec(bad) || [])[1] || ''} 接口出错了${(/<title>([^<]*)<\/title>/i.exec(bad) || [])[1] ? `（${/<title>([^<]*)<\/title>/i.exec(bad)[1].trim()}）` : ''}`.trim()); }
     call.done(String(out || '').trim());
     return String(out || '').trim();
   } catch (e) {

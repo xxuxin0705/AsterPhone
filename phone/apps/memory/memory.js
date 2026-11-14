@@ -4,7 +4,7 @@
 // 右上角设置：人物、记录、导入整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, toast, empty, navBtn, sheet, withInfo, waiting, sortable } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
 import { loadBook, C as ctxCfg } from '../../core/context.js';
@@ -294,7 +294,9 @@ function openSort() {
   const file = { name: '', got: null, off: new Set() };
   // 要 / 不要哪些标签：记住上次在这里挑的；没挑过就照「上下文与世界书」
   const chat = { withUser: true, from: 0, to: Infinity, keep: (S().keep || ctxCfg().keep).slice(), drop: (S().drop || ctxCfg().drop || []).slice(), keepOff: (S().keepOff || ctxCfg().keepOff || []).slice() };
-  const entryRows = (list, off) => list.map((e, i) => toggleItem({ title: e.title, sub: `${e.content.length} 字` }, !off.has(i), on => { on ? off.delete(i) : off.add(i); count(); }));
+  // 每个条目点一下展开看内容（固定大小的框里上下滑），再点收起；右边的开关管整不整理它
+  const entryRows = (list, off) => list.map((e, i) => h('details.as-ctx-part.as-mem-entry', h('summary', h('span', e.title, h('small', ` · ${e.content.length} 字`)), switchEl(!off.has(i), on => { on ? off.delete(i) : off.add(i); count(); }, e.title)),
+    h('pre.as-ctx-preview', e.content)));
   const parts = () => {
     if (src === 'book') return book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content);
     if (src === 'chat') return M.floorsText(M.chatMsgs(), chat);
@@ -336,7 +338,7 @@ function openSort() {
       if (book.name && !book.entries.length) {
         try { book.entries = (await loadBook(book.name, true)).filter(e => e.content.trim()); } catch (e) { toast('读不到这本世界书'); }
       }
-      if (book.entries.length) nb.push(group('要整理的条目', entryRows(book.entries, book.off)));
+      if (book.entries.length) nb.push(group('要整理的条目', [h('div.as-field', entryRows(book.entries, book.off))]));
     } else if (src === 'file') {
       nb.push(group('', [item({ title: withInfo('文件', '能导入三种：酒馆导出的聊天记录（.jsonl）、酒馆导出的世界书（.json）、纯文字（.txt）。'), value: file.name || '选一个', chevron: true, onClick: async () => {
         const f = await pickFile('.json,.jsonl,.txt,text/plain,application/json'); if (!f) return;
@@ -344,7 +346,7 @@ function openSort() {
       } })]));
       const g = file.got;
       if (g && g.msgs) nb.push(...floors(g.msgs));
-      if (g && g.entries) nb.push(group('要整理的条目', entryRows(g.entries, file.off)));
+      if (g && g.entries) nb.push(group('要整理的条目', [h('div.as-field', entryRows(g.entries, file.off))]));
     } else if (M.chatMsgs().length) nb.push(...floors(M.chatMsgs())); else nb.push(empty('现在没有打开酒馆的聊天'));
     pick.replaceChildren(...nb.filter(Boolean)); count();
   }
