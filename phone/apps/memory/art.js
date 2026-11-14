@@ -31,19 +31,21 @@ export function art(host, on) {
 
   /* 沙漏：只看得到上半只，沙从腰漏下去，一直漏到页面底 —— 下面整页就是下半只 */
   const bulb = () => { g.beginPath(); g.moveTo(NX - R, 35); g.lineTo(NX + R, 35); g.bezierCurveTo(NX + R, 215, NX + 16, 250, NX + 5, NY); g.lineTo(NX - 5, NY); g.bezierCurveTo(NX - 16, 250, NX - R, 215, NX - R, 35); g.closePath(); };
-  // 点沙漏（作者要的）：点沙面就戳一个坑——一下陷下去，弹起几粒沙，再慢慢填平；点腰那儿就多漏下一串沙，顺着时间轴落下去，沙面往中间塌一点
-  const pokes = [], grains = [], drops = [], SURF = [[-200, NX - 70, NX - 40, NX, 150, 150, 184, 184], [NX, NX + 40, NX + 70, 460, 184, 184, 150, 150]];
+  // 点沙漏（作者要的）：点沙面戳一个坑，点进沙里那儿空一下、上面的塌下来，再慢慢填平；点下面出沙口一下子漏得快
+  let rush = -9, flowP = 0, flowT = 0;
+  const pokes = [], grains = [], SURF = [[-200, NX - 70, NX - 40, NX, 150, 150, 184, 184], [NX, NX + 40, NX + 70, 460, 184, 184, 150, 150]];
   const bz = (a, b, c, d, u) => (1 - u) ** 3 * a + 3 * (1 - u) ** 2 * u * b + 3 * (1 - u) * u * u * c + u ** 3 * d;
-  const dent = (x, now) => pokes.reduce((s, p) => { const a = now - p.t, e = a < .12 ? a / .12 : Math.max(0, 1 - (a - .12) / 1.6) ** 2; return s + p.d * e * Math.exp(-(((x - p.x) / p.w) ** 2)); }, 0);
+  // 坑有多深（0～1）：戳沙面的是一下陷下去再填平；戳进沙里的（hole）先空出一个洞，上面的沙往下塌（沙面跟着陷），再慢慢填平
+  const sink = (p, a) => p.hole ? (a < .12 ? 0 : a < .72 ? 1 - (1 - (a - .12) / .6) ** 2 : Math.max(0, 1 - (a - .72) / 1.6) ** 2) : a < .12 ? a / .12 : Math.max(0, 1 - (a - .12) / 1.6) ** 2;
+  const dent = (x, now) => pokes.reduce((s, p) => s + p.d * sink(p, now - p.t) * Math.exp(-(((x - p.x) / p.w) ** 2)), 0);
   const surfY = x => { let y = 184; for (const q of SURF) for (let u = 0; u <= 1; u += .02) if (Math.abs(bz(q[0], q[1], q[2], q[3], u) - x) < 6) y = bz(q[4], q[5], q[6], q[7], u); return y; };
   function poke(x, y) {
     const now = performance.now() / 1000;
-    if (Math.abs(x - NX) < 30 && y > 250 && y < NY + 40) {
-      for (let i = 0; i < 36; i++) drops.push({ t: now + i * .03, j: (dots[i][0] - .5) * 8, v: 140 + dots[i][1] * 140 });
-      pokes.push({ x: NX, d: 16, w: 70, t: now }); return;
-    }
+    if (y > NY - 25) { rush = now; return; }   // 点下面：出沙口忽然漏得快，再慢慢缓回来（作者定的）
     if (y < 35 || y > NY || x < NX - R || x > NX + R) return;
-    const sy = surfY(x); pokes.push({ x, d: 20, w: 26, t: now });
+    const sy = surfY(x);
+    if (y > sy + 14) { pokes.push({ x, y: Math.min(y, NY - 30), d: 18, w: 28, t: now, hole: true }); return; }   // 点在沙里面：那儿空一下，上面的塌下来
+    pokes.push({ x, d: 20, w: 26, t: now });
     for (let i = 0; i < 16; i++) { const [a, b] = dots[(i * 37 + Math.round(x)) % 2800]; grains.push({ x: x + (a - .5) * 16, y: sy + 4, vx: (a - .5) * 120, vy: -90 - b * 110, t: now }); }
   }
   function glass(P, t) {
@@ -53,14 +55,18 @@ export function art(host, on) {
     g.beginPath(); for (const q of SURF) for (let u = 0; u <= 1.001; u += .04) { const x = bz(q[0], q[1], q[2], q[3], u); g.lineTo(x, bz(q[4], q[5], q[6], q[7], u) + dent(x, now)); }
     g.lineTo(460, 400); g.lineTo(-200, 400); g.fillStyle = P.blue; g.fill();
     stipple(NX + 70, 262, 150, P.paper, .55, -.75, 1500, 2.6);
+    // 沙里空出来的洞：一下张开，上面的沙一粒粒落进去，洞从上往下被填满
+    for (const p of pokes) { if (!p.hole) continue; const a = now - p.t, r = 17 * Math.min(1, a / .12) * (a < .12 ? 1 : Math.max(0, 1 - (a - .12) / .6)); if (r < 1) continue;
+      g.beginPath(); g.ellipse(p.x, p.y + (17 - r), r * 1.15, r, 0, 0, 7); g.fillStyle = P.paper; g.fill(); g.fillStyle = P.blue;
+      for (let i = 0; i < 8; i++) { const [u, v] = dots[i * 7 + 3]; g.fillRect(p.x + (u - .5) * r * 1.6, p.y + (17 - r) - r + ((a * 140 + v * 40) % (2 * r)), 1.8, 1.8); } }
     g.fillStyle = P.blue; for (let i = 0; i < 300; i++) { const [a, b, p] = dots[i + 1500]; g.fillRect(NX - R + a * 2 * R, 182 - b * b * 80 - p * 6, 1.4, 1.4); }
     for (let i = grains.length - 1; i >= 0; i--) { const q = grains[i], a = now - q.t, x = q.x + q.vx * a, y = q.y + q.vy * a + 320 * a * a; if (a > .15 && y > surfY(x) + dent(x, now)) grains.splice(i, 1); else g.fillRect(x, y, 2, 2); }
     g.restore();
     bulb(); g.strokeStyle = P.ink; g.lineWidth = 1.5; g.stroke();
     g.fillStyle = P.ink; g.fillRect(NX - R - 12, 26, 2 * R + 24, 9); g.fillRect(NX - 9, NY - 3, 18, 6);
     g.beginPath(); g.moveTo(NX + 6, NY + 3); g.bezierCurveTo(NX + 20, NY + 44, 230, NY + 52, W + 20, NY + 58); g.moveTo(NX - 6, NY + 3); g.bezierCurveTo(NX - 18, NY + 40, 30, NY + 52, -10, NY + 56); g.strokeStyle = P.ink; g.lineWidth = 1.3; g.stroke();
-    g.fillStyle = P.blue; for (let y = NY + 4 - 8 + (t * 18) % 8; y < H; y += 8) g.fillRect(NX - 1, Math.max(NY + 4, y), 2, 4);
-    for (let i = drops.length - 1; i >= 0; i--) { const q = drops[i], a = now - q.t, y = NY + q.v * a + 220 * a * a; if (a < 0) continue; if (y > H) drops.splice(i, 1); else g.fillRect(NX - 1 + q.j * Math.min(1, a * 4), y, 2.4, 3.4); }
+    flowP += Math.min(.05, now - (flowT || now)) * 18 * (1 + 6 * Math.exp(-(now - rush) / .9)); flowT = now;
+    g.fillStyle = P.blue; for (let y = NY + 4 - 8 + flowP % 8; y < H; y += 8) g.fillRect(NX - 1, Math.max(NY + 4, y), 2, 4);
   }
 
   /* 轨道：正中是「现在看谁」，TA 认识的人各是一颗星，离得越近越亲；从星往外的那串小圈是以前待过的位置。整张图慢慢转 */
