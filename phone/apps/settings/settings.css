@@ -79,7 +79,7 @@
 .as-ctx-book { flex: none; width: 24px; height: 24px; margin-right: 12px; border-radius: 50%; border: 1.6px solid var(--as-color-text-3, #9aa0ab); background: none; display: grid; place-items: center; color: transparent; padding: 0; cursor: pointer; }
 .as-ctx-book.is-on { background: #30a46c; border-color: #30a46c; color: #fff; }
 .as-ctx-stat { margin: 8px 0 6px; font-size: 12px; text-align: right; }
-.as-ctx-preview { margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--as-color-surface-2); font: 12px/1.6 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
+.as-ctx-preview { max-height: 300px; overflow: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--as-color-surface-2); font: 12px/1.6 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
 .as-list-item.is-dragging { background: var(--as-color-surface-2); box-shadow: 0 8px 22px rgba(20,40,70,.18); position: relative; z-index: 2; }
 .as-prompt-view { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.65 ui-monospace, "SF Mono", Menlo, Consolas, var(--font-ui); color: var(--as-color-text); }
 .as-prompt-bar { position: sticky; bottom: 0; display: flex; gap: 12px; padding: 12px 2px 4px; }
