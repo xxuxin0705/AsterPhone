@@ -197,6 +197,11 @@ const cutOrig = (e, text, here) => {
 export function loops(name, area) { for (let p = area, k = 0; p && k < 50; k++) { if (p === name) return true; p = (D.places.find(q => q.name === p) || {}).area; } return false; }
 /** 合并进来，返回新加了几条事件。text：这批记的是哪段原文（拿来剪原文节选）；here：这段原文是现在这个聊天的楼层 */
 export function merge(x, src = '', text = '', here = false) {
+  // 补以前漏掉的楼层（作者：后面的已经记了，回头补中间那一段）：这一批的事都比两个人已经记下的最晚那件早，写出来的关系、了解就是那时候的样子，
+  // 不能盖掉现在的——只填空着的格子，不一样的放进「以前」；新的了解照样加
+  const old0 = D.ev.slice(), upto = x.ev.map(e => e.at).filter(Boolean).sort().pop() || '';
+  const lastOf = (...ns) => old0.filter(e => ns.every(n => e.who.some(w => same(canon(w), n)))).map(e => e.at).filter(Boolean).sort().pop() || '';
+  const older = (...ns) => { const l = upto && lastOf(...ns); return !!l && upto < l; };
   for (const p of x.ppl) {
     const o = D.ppl.find(q => q.name === p.name || q.alias.includes(p.name) || p.alias.includes(q.name));
     if (!o) D.ppl.push({ ...p, src });
@@ -218,6 +223,11 @@ export function merge(x, src = '', text = '', here = false) {
     const a = canon(r.a), b = canon(r.b), o = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a));
     const v = o && o.a !== a ? { va: r.vb, vb: r.va, sa: r.sb, sb: r.sa } : { va: r.va, vb: r.vb, sa: r.sa, sb: r.sb };   // 存着的那条甲乙是反过来的：两边的看法也对调
     if (!o) { D.rel.push({ id: uid('r'), a, b, kind: r.kind || '其他', since: r.since, now: r.now, lv: r.lv, ...v, hist: [], src }); continue; }
+    if (older(a, b)) {
+      if (r.kind && r.kind !== o.kind && !o.hist.some(h => h.kind === r.kind)) { o.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: v.va, vb: v.vb, src }); o.hist.sort((p, q) => (p.since || '').localeCompare(q.since || '')); }
+      for (const k of ['since', 'now', 'lv', 'va', 'vb', 'sa', 'sb']) { const n = k === 'since' || k === 'now' || k === 'lv' ? r[k] : v[k]; if ((o[k] == null || o[k] === '') && n != null && n !== '') o[k] = n; }
+      continue;
+    }
     // 关系变了：旧的（连同那时的亲近度和看法）留进 hist，以后能看出关系是怎么变过来的
     if (r.kind && o.kind !== r.kind) { o.hist.push({ kind: o.kind, since: o.since, lv: o.lv, va: o.va, vb: o.vb, src }); o.kind = r.kind; o.since = r.since || o.since; o.lv = undefined; }
     if (r.now) o.now = r.now;
@@ -243,6 +253,7 @@ export function merge(x, src = '', text = '', here = false) {
     const about = canon(f.about), know = f.know.map(canon), same = D.facts.filter(o => o.about === about);
     const o = same.find(o => f.old && alike(o.text, f.old) > .5) || same.find(o => alike(o.text, f.text) > .6);
     if (!o) { D.facts.push({ id: uid('f'), about, text: f.text, know, hist: [], src }); continue; }
+    if (alike(o.text, f.text) <= .6 && older(about)) { if (!o.hist.some(h => alike(h.text, f.text) > .6)) o.hist.unshift({ text: f.text, know, src }); continue; }   // 补以前的：是那时候的说法，留进「以前」
     if (alike(o.text, f.text) <= .6) { o.hist.push({ text: o.text, know: o.know, src }); o.text = f.text; o.know = know; continue; }   // 变了：只有这次知道的人知道新的，其他人还以为是旧的
     o.know = [...new Set([...o.know, ...know])];
   }
