@@ -617,7 +617,7 @@ export async function memoryFor(people, scan = '') {
   if (drift) fresh.push('忽然想起的（和现在有点关系，合适就顺口提一句，不合适就不提）：\n' + brief(drift));
   const out = [lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '', fresh.length ? `\n【TA 这会儿想起的】\n${fresh.join('\n')}\n` : ''];
   peeks.unshift({ at: Date.now(), who: people.map(c => c.name || c.nick).filter(Boolean), said: scan.slice(scan.lastIndexOf('\n') + 1), how, size: [out[0].length, out[1].length],
-    items: [...keep.map(e => [e, e.pin ? '总记得的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
+    items: [...keep.map(e => [e, e.pin ? '钉住的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
   peeks.length = Math.min(peeks.length, 20);
   return out;
 }

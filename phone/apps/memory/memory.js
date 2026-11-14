@@ -380,9 +380,9 @@ async function editEvent(e) {
     group(withInfo('标签', '大标签点一下选上或去掉，「重要」的事更容易被想起。小标签是这件事属于哪一类具体的事（拍照、喝酒），用、隔开；同一个小标签的事，想起一件会连着想起另外几件。'), [
       h('div.as-mem-imp', h('div.as-chips', M.bigs().map(t => { const c = h('button.as-chip' + (x.big.includes(t) ? '.is-active' : ''), { onclick: () => { x.big = x.big.includes(t) ? x.big.filter(q => q !== t) : [...x.big, t]; c.classList.toggle('is-active'); } }, t); return c; }))),
       field('小标签', input({ value: x.tags, onInput: v => { x.tags = v; } }))]),
-    group(withInfo('想起', '高光：聊到沾边的事时更容易想起来。噪声：留着，但不会自己想起来，只记得有过这件事。总记得：每次聊天都带上，聊什么都不会忘。先忘掉：留着，但 TA 先不记得这件事，再点一下就恢复。'), [h('div.as-mem-imp', segmented([['', '一般'], ['hi', '高光'], ['no', '噪声']], x.mark || '', v => { x.mark = v; }))]),
-    h('div.as-mem-acts', flag('pin', '✓ 总记得', '总记得'), flag('off', '✓ 先忘掉', '先忘掉'),
-      btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这件事？', confirm: '删除', danger: true }))) return; d.ev.splice(d.ev.indexOf(e), 1); await M.save(); nav.pop(); })),
+    group(withInfo('想起', '高光：聊到沾边的事时更容易想起来。噪声：留着，但不会自己想起来，只记得有过这件事。'), [h('div.as-mem-imp', segmented([['', '一般'], ['hi', '高光'], ['no', '噪声']], x.mark || '', v => { x.mark = v; }))]),
+    group(withInfo('钉住和撤回', '钉住：每次聊天都带上这件事，聊什么 TA 都不会忘。撤回：这件事留着，但 TA 先不记得，点「恢复」就又记得了。'), [h('div.as-mem-imp', h('div.as-mem-acts', flag('pin', '取消钉住', '钉住'), flag('off', '恢复', '撤回'),
+      btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这件事？', confirm: '删除', danger: true }))) return; d.ev.splice(d.ev.indexOf(e), 1); await M.save(); nav.pop(); })))]),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', async () => {
       if (!x.title) { toast('标题不能空着'); return; }
       Object.assign(e, { ...x, who: split(x.who), tags: split(x.tags), know: split(x.know), imp: x.big.includes('重要') ? Math.max(4, x.imp) : Math.min(3, x.imp) });
