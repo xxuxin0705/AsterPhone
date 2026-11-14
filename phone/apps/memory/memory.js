@@ -99,17 +99,18 @@ export function open() {
     const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
     const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), t = since(me, who, r);
-    // 版式（作者从六套里挑的：「双星」的上半截 + 「书页」的大引号）：两个人的头像，一道虚线弧从说话的人指向对方，关系挂在弧顶；
-    // 下面一个蓝色大引号、那句话当大标题，一道线，认识了多久、从哪天起，再下面是看法。不画别的
+    // 版式两套（作者从六套里挑的）：「引号」只靠字，那句话当大标题；「头像」是两个人一左一右，虚线弧从说话的人指向对方，关系挂在弧顶。
+    // 用哪套在资源库 → 应用 → 岁岁砂里定；没定就按这两个人的名字抽，同一对人每次都一样、翻面也不换
+    const duo = S().relLook ? S().relLook === 'b' : [...me + who].reduce((n, c) => n + c.charCodeAt(0), 0) % 2, kind = path[path.length - 1];
     // 认识了多久：点一下在「一共多少天」和「几年几个月几天」之间换（记在设置里），只换这几个字
     const long = h('button', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
     const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? `${t[3]} 天` : [t[0] && `${t[0]} 年`, (t[0] || t[1]) && `${t[1]} 个月`, `${t[2]} 天`].filter(Boolean).join(' ')));
     fillLong();
     show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'),
-      h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
-        h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), path.length > 0 && h('span', path[path.length - 1])),
-      h('div.q', '“'), h('h3', lk.say || h('em', '还没写对 TA 说的一句话')),
-      h('div.f', long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
+      duo ? h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
+        h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), kind && h('span', kind)) : h('div.who', face(me), h('b', me), h('u'), h('b', who)),
+      !duo && h('div.q', '“'), h('h3' + (duo && lk.say ? '.b' : ''), lk.say || h('em', '还没写对 TA 说的一句话')),
+      h('div.f', !duo && kind && h('div', h('small', '现在'), h('b', kind)), long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
       h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
       (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',

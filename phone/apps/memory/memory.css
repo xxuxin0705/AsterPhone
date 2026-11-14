@@ -157,7 +157,7 @@
 .as-ss-cat button { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 400 13px/1 var(--han); letter-spacing: 1px; padding: 10px 12px; border-radius: 4px; border-left: 2px solid var(--blue); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-ss-cat button small { margin-left: 8px; font: italic 400 13px/1 var(--latin); color: var(--soft); }
 
-/* 关系那张纸（作者挑的：「双星」的上半截 + 「书页」的大引号） */
+/* 关系那张纸：两套版式，「引号」（.who + .q）和「头像」（.duo） */
 .as-ss-rel { padding-top: 34px; }
 /* 两个人：头像一左一右，虚线弧从说话的人指向对方，关系挂在弧顶 */
 .as-ss-rel .duo { position: relative; }
@@ -169,7 +169,16 @@
 .as-ss-rel .face { display: block; width: 68%; aspect-ratio: 1; margin: 0 auto; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 0 0 3px var(--card), 0 0 0 4.5px var(--blue); }
 .as-ss-rel .duo > div + div .face { box-shadow: 0 0 0 3px var(--card), 0 0 0 4.5px var(--ink); }
 .as-ss-rel .face img, .as-ss-rel .face i { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; color: #fff; font: 600 20px/1 var(--han); font-style: normal; }
-.as-ss-rel .q { height: 38px; margin-top: 30px; font: 700 68px/.82 Georgia, serif; color: var(--blue); }
+.as-ss-rel .duo + h3 { margin-top: 22px; font-size: 19px; text-align: center; }
+.as-ss-rel h3.b::before { content: '\300C'; color: var(--blue); }
+.as-ss-rel h3.b::after { content: '\300D'; color: var(--blue); }
+.as-ss-rel .who { display: flex; align-items: center; gap: 10px; font: 400 12px/1 var(--han); letter-spacing: 2px; }
+.as-ss-rel .who .face { flex: none; width: 34px; margin: 0; box-shadow: none; }
+.as-ss-rel .who .face i { font-size: 14px; }
+.as-ss-rel .who b { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-ss-rel .who u { flex: 1; min-width: 24px; height: 1px; background: var(--ink); position: relative; }
+.as-ss-rel .who u::after { content: ''; position: absolute; right: 0; top: -3px; border-left: 7px solid var(--ink); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+.as-ss-rel .q { height: 38px; margin-top: 16px; font: 700 68px/.82 Georgia, serif; color: var(--blue); }
 .as-ss-rel h3 { margin: 0; font: 700 22px/1.5 var(--han); letter-spacing: 1px; }
 .as-ss-rel em { font-style: normal; font-weight: 400; color: var(--soft); }
 .as-ss-rel h3 em { font-size: 15px; }

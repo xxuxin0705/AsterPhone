@@ -223,6 +223,8 @@ function drawSkins(box, redraw) {
 const STYLE = {
   music: () => { const m = state.music;
     return group('样式', [field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); }))]); },
+  memory: () => { const m = state.apps.memory;
+    return group('样式', [field('关系纸', segmented([['', '随机'], ['a', '引号'], ['b', '头像']], m.relLook || '', v => { m.relLook = v; commit('apps'); }))]); },
 };
 function openAppSkins(a) {
   subPage('library-app', a.name, () => JSON.stringify(skinsOf(a).map(x => x.id)), (nb, draw) => {
