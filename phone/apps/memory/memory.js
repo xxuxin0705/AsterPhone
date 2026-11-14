@@ -446,10 +446,10 @@ function openSort() {
   const entryRows = (list, off) => list.map((e, i) => h('details.as-ctx-part.as-mem-entry', h('summary', h('span', e.title, h('small', ` · ${e.content.length} 字`)), switchEl(!off.has(i), on => { on ? off.delete(i) : off.add(i); count(); remember(); }, e.title)),
     h('pre.as-ctx-preview', e.content)));
   const parts = () => {
-    if (src === 'book') return book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content);
+    if (src === 'book') return M.byDate(book.entries.filter((e, i) => !book.off.has(i)).map(e => e.content));
     if (src === 'chat') return M.floorsText(M.chatMsgs(), chat);
     const g = file.got; if (!g) return [];
-    return g.msgs ? M.floorsText(g.msgs, chat) : g.entries ? g.entries.filter((e, i) => !file.off.has(i)).map(e => e.content) : g.text.split(/\n{2,}/);
+    return g.msgs ? M.floorsText(g.msgs, chat) : g.entries ? M.byDate(g.entries.filter((e, i) => !file.off.has(i)).map(e => e.content)) : g.text.split(/\n{2,}/);
   };
   let fresh = () => {};   // 楼层、标签一改，下面的预览和层数跟着换
   const count = () => { const ps = src === 'known' ? [] : parts(), n = ps.reduce((a, s) => a + s.length, 0); sum.textContent = n ? `约 ${n} 字` + (want.has('time') ? ` · 分 ${M.batches(ps).length} 批` : '') : ''; fresh(); paintRun(); };

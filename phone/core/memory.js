@@ -329,6 +329,12 @@ export function floorsText(msgs, { withUser = true, from = 0, to = Infinity, kee
   return out;
 }
 /** 一段段文字攒成一批批，每批不超过 BATCH 字（一段太长就自己成一批） */
+/** 一段段内容按里面最早出现的日期从早到晚排（作者：世界书条目的排列不一定按时间，名字也可能是乱的）；没写日期的留在原来的位置 */
+export function byDate(parts) {
+  const key = t => { const m = /(\d{4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})/.exec(t); return m ? m[1] * 10000 + m[2] * 100 + +m[3] : 0; };
+  const k = parts.map(key), dated = parts.filter((p, i) => k[i]).sort((a, b) => key(a) - key(b));
+  return parts.map((p, i) => k[i] ? dated.shift() : p);
+}
 export function batches(parts) {
   const out = []; let cur = '';
   for (const p of parts) {
@@ -482,7 +488,8 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
       // 断了：最后一件剪下来的原文在哪儿结束，下次从那儿接（离结尾不到 300 字也当写完了：自己改过的提示词可能没让 AI 写结束那行）
       const end = Math.max(0, ...x.ev.map(e => e.orig ? src.indexOf(e.orig) + e.orig.length : 0));
-      if (raw.includes(END) || (end && src.length - end < 300)) { job.done++; job.at = 0; tell('step', job); continue; }
+      // AI 写了「整理完了」也不全信（作者：记完一章就收工，后面一章一件没记）：最后一件事离这批内容的结尾还远，就当没写完、从那儿接着
+      if (end ? src.length - end < 300 : raw.includes(END)) { job.done++; job.at = 0; tell('step', job); continue; }
       if (!end && opt && !opt.want.includes('time')) throw new Error('回复写到一半断了，写出来的已经记下');
       if (!end) throw new Error(x.ev.length ? '回复写到一半断了，看不出写到了原文哪儿' : '回复写到一半断了，一件事都没记下');
       job.at = from + end; tell('step', job);
