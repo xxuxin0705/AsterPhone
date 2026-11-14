@@ -104,10 +104,10 @@ export function day(s) {
   return m ? [`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`, guess] : ['', false];
 }
 export function parse(raw) {
-  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [], grow: [] };
+  const out = { ev: [], rel: [], ppl: [], days: [], todo: [], done: [], facts: [], places: [], grow: [], at: [] };
   const text = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
   for (const line of text.split('\n')) {
-    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点|成长)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
+    const m = /^\s*[-*]?\s*(事件|关系|人物|日子|没完|完成|了解|地点|成长|在哪)\s*[:：]\s*(.+)$/.exec(line); if (!m) continue;
     const f = m[2].split(/[｜|]/).map(norm).map(x => NONE.test(x) ? '' : x);
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
@@ -122,6 +122,7 @@ export function parse(raw) {
     }
     else if (m[1] === '没完' && f[1]) out.todo.push({ who: f[0], text: f[1] });
     else if (m[1] === '完成' && f[1]) out.done.push({ who: f[0], text: f[1] });
+    else if (m[1] === '在哪' && f[1]) out.at.push([parseInt(f[0], 10), f[1]]);   // 第几件事｜发生在哪（「记下的事」重写地点时用）
     else if (m[1] === '成长' && f[2]) out.grow.push({ who: bare(f[0]), at: day(f[1])[0], text: f[2], why: f[3] || '' });   // 谁｜哪天｜变了什么（以前 → 现在）｜因为哪件事
     else if (m[1] === '了解' && f[1]) out.facts.push({ about: bare(f[0]), text: f[1], know: folk(f[2]), old: f[3] || '' });   // 谁｜是什么｜谁知道｜以前（变了才有）
   }
@@ -329,7 +330,7 @@ const only = (x, want) => { if (want) for (const k in LINES) if (!want.includes(
 function clearParts(want) {
   if (want.includes('time')) { D.ev = []; D.days = []; D.todo = []; D.wait = []; }
   if (want.includes('rel')) { D.rel = []; D.facts = []; }
-  if (want.includes('places')) D.places = [];
+  if (want.includes('places')) { D.places = []; for (const e of D.ev) e.place = ''; }   // 作者定的：清空地点就是连每件事的「在哪」一起清，图上一颗钉都不留
   if (want.includes('grow')) D.grow = D.grow.filter(g => g.src === '手动');
 }
 let refilling = false;
@@ -338,13 +339,13 @@ export async function refill(want, signal, redo) {
   refilling = true;
   try {
     await load(); const key = win.key;
-    const spots = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
+    const evs = D.ev.filter(e => !e.off), old = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
     // 一起经历过两件事以上的每一对人：明着列给 AI，不然它只爱写「谁和你」
     const co = new Map();
     for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
-    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）', want: want.map(k => k === 'grow' ? '成长' : PARTS[k]).join('、'),
-      people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: spots.join('、') || '（没有）',
-      events: D.ev.filter(e => !e.off).map(e => `${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
+    const x = parse(await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', temperature: .3, stop: signal, prompt: compose('memFill', { pairs: [...co].filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）', want: want.map(k => k === 'grow' ? '成长' : k === 'places' ? '在哪、地点' : PARTS[k]).join('、'),
+      people: D.ppl.map(p => `${p.name}${p.who ? `（${p.who}）` : ''}`).join('、') || '（没有）', places: old.join('、') || '（没有）',
+      events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' }) }));
     if (key !== win.key) throw new Error('换了聊天窗口，先停下');
     const n = { rel: 0, places: 0, grow: x.grow.length };
     if (want.includes('grow') && n.grow) {
@@ -362,8 +363,12 @@ export async function refill(want, signal, redo) {
         n.rel++;
       }
     }
+    // 地点：先给每件事重新写「在哪」（补充只填空着的，重新生成全换），再归类
+    if (want.includes('places')) for (const [i, at] of x.at) { const e = evs[i - 1]; if (e && (redo || !e.place)) e.place = at; }
+    const spots = new Set(D.ev.map(e => e.place));
+    if (want.includes('places') && redo && x.at.length) D.places = D.places.filter(q => spots.has(q.name));
     if (want.includes('places')) for (const q of x.places) {
-      if (!spots.includes(q.name)) continue;   // 只归类已有的，不让它添新地点
+      if (!spots.has(q.name)) continue;   // 只归类事里有的，不让它添没发生过事的地点
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
       if (redo || !o.area) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
