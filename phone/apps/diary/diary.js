@@ -306,11 +306,11 @@ function openBook(c, v, p, table, gone) {
   return { close };
 }
 
-/* ---------- 写一篇：最近的事 / 从念念铃挑几件事 / 选楼层；能先放几张自己的照片 ---------- */
+/* ---------- 写一篇：最近的事 / 从岁岁砂挑几件事 / 选楼层；能先放几张自己的照片 ---------- */
 function ping(id) {
   document.querySelectorAll(`[data-dy-write="${id}"]`).forEach(b => b.replaceChildren(...(jobs.has(id) ? [h('span.as-spin')] : b._idle)));
 }
-// 写什么：最近的（正文 + 手机聊天）/ 从念念铃挑几件事 / 挑几层正文；可以先放几张自己的照片（放了就不生图，照片贴进这一页）
+// 写什么：最近的（正文 + 手机聊天）/ 从岁岁砂挑几件事 / 挑几层正文；可以先放几张自己的照片（放了就不生图，照片贴进这一页）
 let src = 'recent';
 async function writeSheet(c) {
   if (jobs.has(c.id)) { jobs.get(c.id).abort(); return; }
@@ -318,14 +318,14 @@ async function writeSheet(c) {
   const evs = M.evOf(c).filter(e => !e.off).slice(-40).reverse(), pick = new Set(), total = M.chatMsgs().length, fl = [Math.max(0, total - 5), Math.max(0, total - 1)];
   let photos = [];
   const box = {
-    mem: evs.length ? group('', evs.map(e => toggleItem({ title: e.title, sub: ymd(e.at) }, false, on => { on ? pick.add(e) : pick.delete(e); }))) : empty('念念铃里还没有 TA 的事'),
+    mem: evs.length ? group('', evs.map(e => toggleItem({ title: e.title, sub: ymd(e.at) }, false, on => { on ? pick.add(e) : pick.delete(e); }))) : empty('岁岁砂里还没有 TA 的事'),
     floor: total ? field(`从第几层到第几层（一共 ${total} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(fl[0]), onInput: v => { fl[0] = Math.max(0, parseInt(v, 10) || 0); } }),
       h('span', '到'), input({ type: 'number', value: String(fl[1]), onInput: v => { fl[1] = parseInt(v, 10) || 0; } }))) : empty('现在没有打开酒馆的聊天'),
   };
   const show = () => Object.entries(box).forEach(([k, el]) => { el.hidden = k !== src; });
   const ph = btn('放几张照片', 'secondary', async () => { const got = await pickPhotos(); if (!got.length) return; photos = got; ph.textContent = `放了 ${got.length} 张照片`; });
   const s = sheet({ title: '写一篇', content: [
-    h('div.as-dy-src', segmented([['recent', '最近的事'], ['mem', '念念铃'], ['floor', '选楼层']], src, v => { src = v; show(); })), box.mem, box.floor,
+    h('div.as-dy-src', segmented([['recent', '最近的事'], ['mem', '岁岁砂'], ['floor', '选楼层']], src, v => { src = v; show(); })), box.mem, box.floor,
     h('div.as-dy-acts', ph),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('写', 'primary', () => {
       if (src === 'floor' && (!total || fl[1] < fl[0])) { toast('楼层没选对'); return; }

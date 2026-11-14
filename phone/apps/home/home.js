@@ -10,7 +10,7 @@ export const APPS = [
   { id: 'settings', name: '设置', icon: 'gear' },
   { id: 'library', name: '资源库', icon: 'box' },
   { id: 'music', name: '音乐', icon: 'music' },
-  { id: 'memory', name: '念念铃', icon: 'bell' },
+  { id: 'memory', name: '岁岁砂', icon: 'hourglass' },
   { id: 'diary', name: '日记', icon: 'note' },
   { id: 'interlude', name: '幕间', icon: 'search' },
   { id: 'street', name: '商业街', icon: 'shop' },

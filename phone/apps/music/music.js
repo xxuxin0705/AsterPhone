@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit, contact, kvGet, kvSet, kvDel, subscribe } from '../../core/store.js';
-import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting, sortable } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { shell } from '../../core/shell.js';
@@ -166,44 +166,6 @@ function openAllChars() {
   p.body.append(h('div.as-mu-story', label, h('span.as-mu-story__r', freq, h('button.as-mu-chip', { onclick: () => pick(!picked) }, '选择'))), grid);
   paintBar();
   nav.push(p.el);
-}
-/** 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的就让位，别的滑过去；松手落回空位，done 里存顺序。vert：上下排的一列（不是格子） */
-function sortable(el, done, vert) {
-  onLongPress(el, e0 => {
-    const grid = el.parentNode;
-    let x0 = e0.clientX, y0 = e0.clientY, px = x0, py = y0;
-    const place = () => { el.style.transform = `translate(${vert ? 0 : px - x0}px, ${py - y0}px) scale(${vert ? 1.03 : 1.08})`; };
-    el.classList.add('is-dragging'); el.style.transition = 'transform 150ms ease, box-shadow 150ms'; place();
-    setTimeout(() => { if (el.classList.contains('is-dragging')) el.style.transition = 'box-shadow 150ms'; }, 150);
-    navigator.vibrate && navigator.vibrate(10);
-    const move = e => {
-      e.stopPropagation();   // 别让「右滑返回」也收到
-      px = e.clientX; py = e.clientY; place();
-      const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return (vert || (px > r.left && px < r.right)) && py > r.top && py < r.bottom; });
-      if (!over) return;
-      const r = over.getBoundingClientRect(), ref = (vert ? py > r.top + r.height / 2 : px > r.left + r.width / 2) ? over.nextSibling : over;
-      if (ref === el || ref === el.nextSibling) return;   // 本来就在那儿
-      // 先记下每个的位置，挪完再让它们从旧位置滑到新位置
-      const kids = [...grid.children], was = new Map(kids.map(k => [k, k.getBoundingClientRect()]));
-      grid.insertBefore(el, ref);
-      kids.forEach(k => {
-        if (k === el) return;
-        const a = was.get(k), b = k.getBoundingClientRect(); if (a.left === b.left && a.top === b.top) return;
-        k.style.transition = 'none'; k.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
-        requestAnimationFrame(() => { k.style.transition = 'transform 220ms ease'; k.style.transform = ''; });
-      });
-      // 自己换了位置：起点跟着挪，还是在手指底下
-      const a = was.get(el), b = el.getBoundingClientRect(); x0 += b.left - a.left; y0 += b.top - a.top; place();
-    };
-    const noScroll = e => e.preventDefault();
-    const up = () => {
-      removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
-      el.style.transition = 'transform 200ms ease, box-shadow 200ms'; el.style.transform = ''; el.classList.remove('is-dragging');
-      setTimeout(() => { el.style.transition = ''; }, 220);
-      done([...grid.children]);
-    };
-    addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true); addEventListener('touchmove', noScroll, { passive: false });
-  });
 }
 async function heartMode() {
   try { const songs = await waiting('正在开启心动模式…', () => P.heartPick()); if (!songs) return; toast(`心动模式 · ${songs.length} 首`); play(songs, 0, '心动模式'); }

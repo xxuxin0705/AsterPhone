@@ -1,6 +1,6 @@
 // 公共积木：页面、顶栏、列表组、开关、分段选择、滑块、抽屉、弹窗、轻提示……
 // 类名都按设计规范的门牌号来（as-xxx），皮肤靠这些名字改样子。
-import { h, $, pickFile } from './util.js';
+import { h, $, pickFile, onLongPress } from './util.js';
 import { state } from './store.js';
 
 let root = null;
@@ -14,6 +14,7 @@ const P = {
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', note: 'M7 4h10l3 3v13H7zM10 10h7M10 14h7M10 18h4',
   palette: 'M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1.3-1.1-1.4-1.1-2.6 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z', bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
+  hourglass: 'M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3M12 11v2',
   phone: 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM11 18h2', db: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', eyeOff: 'M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.8M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2', chat: 'M4 5h16v11H9l-5 4z', user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
@@ -399,3 +400,41 @@ export function banner({ avatarEl, title, text, onClick }) {
   function hide() { clearTimeout(t); b.classList.remove('is-open'); setTimeout(() => b.remove(), 400); }
 }
 export { $ };
+/** 长按拿起来（轻轻放大、带影子），跟着手指走；经过别的就让位，别的滑过去；松手落回空位，done 里存顺序。vert：上下排的一列（不是格子） */
+export function sortable(el, done, vert) {
+  onLongPress(el, e0 => {
+    const grid = el.parentNode;
+    let x0 = e0.clientX, y0 = e0.clientY, px = x0, py = y0;
+    const place = () => { el.style.transform = `translate(${vert ? 0 : px - x0}px, ${py - y0}px) scale(${vert ? 1.03 : 1.08})`; };
+    el.classList.add('is-dragging'); el.style.transition = 'transform 150ms ease, box-shadow 150ms'; place();
+    setTimeout(() => { if (el.classList.contains('is-dragging')) el.style.transition = 'box-shadow 150ms'; }, 150);
+    navigator.vibrate && navigator.vibrate(10);
+    const move = e => {
+      e.stopPropagation();   // 别让「右滑返回」也收到
+      px = e.clientX; py = e.clientY; place();
+      const over = [...grid.children].find(x => { if (x === el) return false; const r = x.getBoundingClientRect(); return (vert || (px > r.left && px < r.right)) && py > r.top && py < r.bottom; });
+      if (!over) return;
+      const r = over.getBoundingClientRect(), ref = (vert ? py > r.top + r.height / 2 : px > r.left + r.width / 2) ? over.nextSibling : over;
+      if (ref === el || ref === el.nextSibling) return;   // 本来就在那儿
+      // 先记下每个的位置，挪完再让它们从旧位置滑到新位置
+      const kids = [...grid.children], was = new Map(kids.map(k => [k, k.getBoundingClientRect()]));
+      grid.insertBefore(el, ref);
+      kids.forEach(k => {
+        if (k === el) return;
+        const a = was.get(k), b = k.getBoundingClientRect(); if (a.left === b.left && a.top === b.top) return;
+        k.style.transition = 'none'; k.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
+        requestAnimationFrame(() => { k.style.transition = 'transform 220ms ease'; k.style.transform = ''; });
+      });
+      // 自己换了位置：起点跟着挪，还是在手指底下
+      const a = was.get(el), b = el.getBoundingClientRect(); x0 += b.left - a.left; y0 += b.top - a.top; place();
+    };
+    const noScroll = e => e.preventDefault();
+    const up = () => {
+      removeEventListener('pointermove', move, true); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); removeEventListener('touchmove', noScroll);
+      el.style.transition = 'transform 200ms ease, box-shadow 200ms'; el.style.transform = ''; el.classList.remove('is-dragging');
+      setTimeout(() => { el.style.transition = ''; }, 220);
+      done([...grid.children]);
+    };
+    addEventListener('pointermove', move, true); addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true); addEventListener('touchmove', noScroll, { passive: false });
+  });
+}

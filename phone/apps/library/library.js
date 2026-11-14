@@ -30,7 +30,7 @@ const GUIDE = {
   'chat-me': { cls: [['.as-chat-me-head', '头像和名字那一块'], ['.as-chat-me-head__name', '名字'], ['.as-chat-me-head__sign', '签名'], ['.as-chat-me-stats', '下面的几个数字']] },
   music: { cls: [['[class*="as-mu-"]', '音乐的东西都以 .as-mu- 开头'], ['.as-mp', '播放页'], ['.as-mp__lrc', '播放页的歌词']] },
   interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头'], ['.as-int-splash', '片头']] },
-  memory: { cls: [['[class*="as-mem-"]', '念念铃的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
+  memory: { cls: [['[class*="as-mem-"]', '岁岁砂的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
   diary: { cls: [['[class*="as-dy-"]', '日记的东西都以 .as-dy- 开头']] },
   street: { cls: [['.as-street', '商业街'], ['.as-studio', '照相馆']] },
   settings: { cls: [['[class*="as-settings-"]', '设置的东西都以 .as-settings- 开头'], ['.as-list-item__icon', '每行前面的小图标']] },

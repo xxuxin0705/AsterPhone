@@ -69,8 +69,9 @@ export function defaults() {
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },
         injectPos: 'chat', injectDepth: 3, injectCount: 12,
       },
-      // 念念铃：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off / maybe 有值得记的才记 / every 每楼都记）、手机聊天时顺手记
-      memory: { conn: { text: 'follow' }, on: true, story: 'maybe', chat: true },
+      // 岁岁砂：整理用哪个接口（默认跟聊天那根线）、聊天时带不带记忆、跟着剧情自动记（off 只手动 / maybe、every 每轮顺手记：有值得记的才记、每楼都记 / n 每隔 n 轮整理一次）、手机聊天时顺手记
+      // 另外按需才有：vec、rerank 按意思找和重排（没写就是开）、slots 最多想起几件（3）、origMax 每件原文带多少字（500，0 不限）、road 来时路、big 大标签
+      memory: { conn: { text: 'follow' }, on: true, story: 'n', n: 10, chat: true },
       // 幕间（跑团）：用哪个接口、打开 App 放不放片头、语音默认怎么合成（tap 点了才合成 / next 提前合成下两句 / all 全部合成；每局开局时还能改）、大成功大失败用哪一档（局本身存在 kv 的 int:窗口 里）
       interlude: { conn: { text: 'follow' }, splash: true, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
     },
@@ -189,7 +190,7 @@ export function saveMsgs(chatId) {
 }
 export async function clearMsgs(chatId) {
   msgCache.set(chatId, []); await kvDel('msgs:' + chatId); saveMsgs(chatId);
-  (await import('./memory.js')).dropChatAll(chatId).catch(e => console.warn('[AsterPhone] 念念铃没收回这个聊天记下的', e));   // 聊天删了，念念铃里从这个聊天记下的也删
+  (await import('./memory.js')).dropChatAll(chatId).catch(e => console.warn('[AsterPhone] 岁岁砂没收回这个聊天记下的', e));   // 聊天删了，岁岁砂里从这个聊天记下的也删
   for (const k of await kvKeys()) if (String(k).startsWith(`tts:${chatId}:`)) await kvDel(k);   // 合成好存着的语音
 }
 

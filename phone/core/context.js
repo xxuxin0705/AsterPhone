@@ -44,7 +44,7 @@ export const tagsOutside = (keep = keepNow(), list = rawStory(30)) => detectTags
 export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
 /** 按设置清洗一条正文（注释 <!-- --> 当成一个叫「!--」的标签，规矩一样）：「给手机看」的标签整段留着（去掉记号留下字，里面套着的别的标签也留着），「不给手机看」的在哪都连内容去掉；
  *  不在「给手机看」里面的没分类标签也连内容去掉；没被标签包着的字照常留着。
- *  keep：要留哪些标签，不给就按「给手机看」（念念铃整理时自己挑） */
+ *  keep：要留哪些标签，不给就按「给手机看」（岁岁砂整理时自己挑） */
 export function cleanText(text, keep = keepNow(), drop = C().drop || []) {
   const tt = (state.timeTagName || 'astertime').replace(/[^\w-]/g, '');
   let t = String(text).replace(new RegExp(`<(astertime|asterphone|astermem|asterdiary|${tt})[^>]*>[\\s\\S]*?<\\/\\1>`, 'gi'), '');

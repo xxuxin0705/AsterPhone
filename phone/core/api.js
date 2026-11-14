@@ -838,21 +838,24 @@ export async function testCompat(conn) {
   const models = await pullModels(conn);
   return conn.model && models.length && !models.includes(conn.model) ? `没找到模型「${conn.model}」` : '';
 }
-/** 测向量接口：把「你好」变成一串数字 */
-export async function testEmbed(conn) {
-  const key = keysOf(conn)[0] || '';
-  const res = await xf(oaiBase(conn.base) + '/embeddings', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, input: '你好' }) });
-  if (!res.ok) throw new Error(await readErr(res));
-  const j = await res.json(), v = j.data?.[0]?.embedding;
-  if (!Array.isArray(v)) throw new Error('接口没有返回向量');
-  return v.length;
+/** 把几段话变成向量：回一组数组，顺序和 inputs 一样 */
+export async function embed(conn, inputs, signal) {
+  const l = (await aux(conn, '/embeddings', { model: conn.model, input: inputs }, signal)).data;
+  if (!Array.isArray(l) || !Array.isArray(l[0]?.embedding)) throw new Error('接口没有返回向量');
+  return l.sort((x, y) => x.index - y.index).map(x => x.embedding);
 }
+/** 「其他」线的一次请求（向量、重排）：网络出错、服务器忙时照这根线「断线了怎么办」里定的再试 */
+const aux = (conn, path, body, signal) => withRetry('embed', '连接', async () => {
+  const key = keysOf(conn)[0] || '';
+  const res = await xf(oaiBase(conn.base) + path, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await readErr(res));
+  return res.json();
+});
+/** 测向量接口：把「你好」变成一串数字 */
+export const testEmbed = async conn => (await embed(conn, ['你好']))[0].length;
 /** 重排：docs 里哪几条和 query 最对得上。回 [[第几条, 分数]…]，分高的在前 */
 export async function rerank(conn, query, docs, signal) {
-  const key = keysOf(conn)[0] || '';
-  const res = await xf(oaiBase(conn.base) + '/rerank', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) }, body: JSON.stringify({ model: conn.model, query, documents: docs }) });
-  if (!res.ok) throw new Error(await readErr(res));
-  const r = (await res.json()).results;
+  const r = (await aux(conn, '/rerank', { model: conn.model, query, documents: docs }, signal)).results;
   if (!Array.isArray(r)) throw new Error('接口没有返回排序');
   return r.map(x => [x.index, x.relevance_score]);
 }

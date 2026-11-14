@@ -59,7 +59,7 @@ export async function fromStory(floor, found) {
   await save();
 }
 
-/** 手动写一篇：挑了念念铃里的事就写那几件；挑了楼层就写那几层正文；都没挑就按最近的正文和手机聊天写。photos：自己放的照片（放了就不生图） */
+/** 手动写一篇：挑了岁岁砂里的事就写那几件；挑了楼层就写那几层正文；都没挑就按最近的正文和手机聊天写。photos：自己放的照片（放了就不生图） */
 export async function write(c, { events = [], floors = null, photos = [] }, stop) {
   const name = c.name || c.nick || c.remark, story = storyText() || '（暂无）';
   let about;

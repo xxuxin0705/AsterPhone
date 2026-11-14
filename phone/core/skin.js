@@ -17,7 +17,7 @@ export const THEMES = {
 // 资源库「应用」里能美化的 App 和页面。皮肤的 scope：'all'（整部手机）、App 编号（data-as-app）或页面编号（data-as-page，带「-」的）
 export const SKIN_APPS = [
   { id: 'chat', name: '聊天', icon: 'chat', pages: [['chat-messages', '聊天列表'], ['chat-contacts', '联系人'], ['chat-room', '聊天界面'], ['chat-moments', '动态'], ['chat-me', '我的主页']] },
-  { id: 'music', name: '音乐', icon: 'music' }, { id: 'interlude', name: '幕间', icon: 'search' }, { id: 'memory', name: '念念铃', icon: 'bell' },
+  { id: 'music', name: '音乐', icon: 'music' }, { id: 'interlude', name: '幕间', icon: 'search' }, { id: 'memory', name: '岁岁砂', icon: 'hourglass' },
   { id: 'diary', name: '日记', icon: 'note' }, { id: 'street', name: '商业街', icon: 'shop' }, { id: 'settings', name: '设置', icon: 'gear' },
   { id: 'library', name: '资源库', icon: 'box' }, { id: 'log', name: '日志', icon: 'list' }, { id: 'home', name: '桌面', icon: 'grid' }, { id: 'lock', name: '锁屏', icon: 'lock' },
 ];

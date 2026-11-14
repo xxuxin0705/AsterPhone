@@ -110,7 +110,7 @@ function openBook(name, sub) {
   });
 }
 
-/** 预览：照发给 AI 的顺序一段段排下来，每段写多少字，点开在固定大小的框里滚着看（聊天记录、念念铃想起的事、时间要进了聊天才有）。
+/** 预览：照发给 AI 的顺序一段段排下来，每段写多少字，点开在固定大小的框里滚着看（聊天记录、岁岁砂想起的事、时间要进了聊天才有）。
  *  返回 [这一组, 重新算一遍]：重新算只换字数和内容，展开着的不会合上 */
 function previewGroup() {
   const total = h('div.as-muted.as-ctx-stat', '正在读…');
@@ -124,5 +124,5 @@ function previewGroup() {
     total.textContent = `一共 ${list.reduce((n, p) => n + (p[1] || '').length, 0)} 字`;
   };
   fresh();
-  return [group('预览手机看到的内容', [h('div.as-field', total, ...parts.map(p => p.el), h('div.as-muted.as-ctx-stat', '聊天记录、念念铃、时间：进聊天后接在后面'))]), fresh];
+  return [group('预览手机看到的内容', [h('div.as-field', total, ...parts.map(p => p.el), h('div.as-muted.as-ctx-stat', '聊天记录、岁岁砂、时间：进聊天后接在后面'))]), fresh];
 }

@@ -655,7 +655,7 @@ export function openBoard({ list }) {
 export async function connMenu({ mode, kind, schemes, add, switchMode }) {
   const v = await actionSheet('连接', [
     { value: 'scheme', label: '接线方案' },
-    ...(kind === 'embed' ? [] : [{ value: 'retry', label: '断线了怎么办' }]),   // 「其他」线（向量）还没有要重试、换接口的地方
+    { value: 'retry', label: '断线了怎么办' },
     { value: 'add', label: '添加接口' },
     { value: 'mode', label: mode === 'board' ? '列表模式' : '插线板模式' }]);
   if (v === 'scheme') schemes();
@@ -680,12 +680,13 @@ function retrySheet(kind = 'text') {
     F.id = v; save(); bkName.textContent = bkOf().name;
     return true;
   };
-  const label = { text: '聊天', image: '生图', tts: '语音' }[kind];
+  const label = { text: '聊天', image: '生图', tts: '语音', embed: '其他' }[kind];
   const maxRow = h('div.as-pbd__row', { hidden: F.retry === false }, h('span.as-pbd__label', '最多重试'), h('div.as-pbd__ctrl', segmented([['1', '1 次（建议）'], ['2', '2 次'], ['3', '3 次']], String(F.max || 1), v => { F.max = +v; save(); })));
   const box = h('div.as-pbd__wrap',
     h('div.as-pbd__row.is-inline', h('span.as-pbd__label', withInfo(`${label}失败了自动重试`, '付费接口按次数或字数算钱，重试也算。只在网络出错、服务器忙的时候重试，密钥不对不会白白重试。')), switchEl(F.retry !== false, v => { F.retry = v; save(); maxRow.hidden = !v; }, '失败自动重试')),
     maxRow,
-    h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}线断了，改用副 API`), sw), bkRow);
+    // 「其他」线不能改用副 API（作者定的）：换了向量模型，岁岁砂以前算好的向量就对不上了；断了它自己退回按词找
+    kind === 'embed' ? null : [h('div.as-pbd__row.is-inline', h('span.as-pbd__label', `${label}线断了，改用副 API`), sw), bkRow]);
   sheet({ title: '断线了怎么办', cls: 'as-pbd', content: box });
 }
 const isWire = k => ['text', 'image', 'tts'].includes(k) || k.startsWith('aux:');   // defaults 里哪些是线（每股一个）

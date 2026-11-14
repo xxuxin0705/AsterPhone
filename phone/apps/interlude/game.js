@@ -102,7 +102,7 @@ export async function dropCard(c) { D.cards = D.cards.filter(x => x !== c); if (
 const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerPersona = o => o === 'me' ? myPersona() : personaOf(contact(o));
 /** 一次给好几个人车卡（owners：'me' / 联系人 id）。AI 照正文和人设定档位、分属性、写身份背景技能 */
-// 世界书、念念铃（没有就空）：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
+// 世界书、岁岁砂（没有就空）：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
 const memoryText = async (ids, story) => [await worldText(story).catch(() => ''), await memoryFor(ids.map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
 // 车卡方式（知道在跑团时才能选）：照自己 / 捏 OC / 随机（属性照规则书掷，身份随机）
 export const MODES = [['self', '照自己'], ['oc', '捏 OC'], ['random', '随机']];
@@ -161,7 +161,7 @@ export async function makeCards(owners, all = owners, s = {}, part = {}) {
   const m = meeting(s), story = storyText(), memory = await memoryText(all, story), rolled = rollFor(owners, s.mode);
   const others = all.filter(o => !owners.includes(o)).map(o => { const c = lastCard(o); return ownerName(o) + (c ? `（这局扮演 ${c.name}，${c.job}）` : ''); });
   const out = await ask('intCards', {
-    story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、念念铃）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
+    story: story || '（正文里还没发生什么）', memory: memory && `\n【记着的事】（世界书、岁岁砂）\n${memory}\n`, jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
     mode: (MODE_TEXT[s.mode] || '') + noteText(s.note) + (s.free ? FREE_TEXT : ''), scenario: scText(s), notice: m ? `【这局的团公告（已经定好，照着车；JSON 里不要再写 hint 和 rules，只写 cards）】\n${noticeText(m)}` : '（这局还没有团公告：先替 KP 写一张，写在 hint 和 rules 里）',
     roster: (others.length ? `同桌的还有：${others.join('、')}（他们的卡已经车好了，不要写他们的卡；只在背景里写到和他们的关系）\n下面这 ${owners.length} 个人要车卡，cards 里正好 ${owners.length} 张：\n` : '') + owners.map(o => rosterLine(o, rolled[o]) + (part[o] ? `；已经自己填了一部分（填了的照抄、不改，只补空着的）：${partText(part[o])}` : '')).join('\n'),
   });
@@ -197,7 +197,7 @@ export async function meet(s) {
   const g = { kp: s.kp, lang: s.lang, speak: s.speak }, story = storyText(), mem = await memoryText([s.kp, ...s.party], story), rolled = rollFor(news, s.mode);
   const old = o => fresh[o] ? '' : `；用旧卡：${cardText(lastCard(o))}`;
   const out = await ask('intMeet', {
-    kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`, scenario: scText(s),
+    kp: kpText(g), mood: R.MOOD_TEXT[s.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、岁岁砂）\n${mem}\n`, scenario: scText(s),
     roster: [`${myName()}（玩家本人）：人设：${(myPersona() || '').slice(0, 300) || '（没有更多资料）'}${fresh.me ? '；这局车新卡' : old('me')}`, ...s.party.map(o => rosterLine(o, rolled[o]) + (fresh[o] && self ? '；这局会后自己车新卡' : old(o)) + `；${speakLine(g, o)}`)].join('\n'),
     mode: (self ? '' : MODE_TEXT[s.mode] || '') + noteText(s.note) + FILL_TEXT[self ? 'self' : 'ai'] + (s.free ? FREE_TEXT : ''), jobs: R.JOBS.map(j => j[0]).join('、'), skills: skillsText(),
   });
@@ -267,7 +267,7 @@ export async function start(setup) {
     act: 0, round: 0, roundIn: 0, log: [], req: { type: 'free' }, pc: fromCard(setup.me), party: party.map(fromCard), rel: relsFrom([setup.me, ...party]), npcs: [] };
   const story = storyText(), mem = await memoryText([g.kp, ...party.map(c => c.owner)], story);
   const out = await ask('intStart', {
-    kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、念念铃）\n${mem}\n`,
+    kp: kpText(g), know: knowText(), mood: R.MOOD_TEXT[g.mood], story: story || '（正文里还没发生什么）', memory: mem && `\n【记着的事】（世界书、岁岁砂）\n${mem}\n`,
     pc: '你：' + cardText(setup.me), cast: party.map(c => `${ownerName(c.owner)} 扮演 ${cardText(c)}；${speakLine(g, c.owner)}`).join('\n') + (setup.note ? `\n（车卡前玩家补充过：${setup.note}）` : ''),
     scenario: scText(setup), places: placesText(), rels: relsText(g), run: g.run === 'script' ? RUN : '',
     meet: setup.meet ? `【团公告】开局前 KP 发过团公告${setup.meet.lines ? '，大家还一起开了车卡会' : ''}：\n${noticeText(setup.meet)}\n（这局要和公告对得上）\n` : '',
