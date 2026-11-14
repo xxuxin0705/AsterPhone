@@ -386,6 +386,14 @@ function clearParts(want) {
   if (want.includes('places')) { D.places = []; for (const e of D.ev) e.place = ''; }   // 作者定的：清空地点就是连每件事的「在哪」一起清，图上一颗钉都不留
 }
 let refilling = false;
+// 一起经历过两件事以上的每一对人；whole = 这一对的关系、两边的看法和一句话都有了；lacking = 还没写全的那几对
+function pairs() {
+  const co = new Map();
+  for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
+  return co;
+}
+const whole = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
+const lacking = () => [...pairs()].filter(c => c[1] > 1 && !whole(c[0])).map(c => c[0]);
 export async function refill(want, signal, redo, source = '') {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
@@ -393,12 +401,10 @@ export async function refill(want, signal, redo, source = '') {
     await load(); const key = win.key;
     const evs = D.ev.filter(e => !e.off), old = [...new Set([...D.places.map(q => q.name), ...D.ev.map(e => e.place)].filter(Boolean))];
     // 一起经历过两件事以上的每一对人：明着列给 AI，不然它只爱写「谁和你」
-    const co = new Map();
-    for (const e of D.ev) { const l = [...new Set(e.who.map(n => isMe(n) ? myName() : n))].sort(); for (const a of l) for (const b of l) if (a < b) co.set(a + '—' + b, (co.get(a + '—' + b) || 0) + 1); }
+    const co = pairs();
     // 勾了几样都只找一次 AI（作者定的：点一次就调一次，不准自己拆成好几次）。写到一半断了：设置里开了自动补写才接着要；
     // 没开或补够了，写出来的先记下（最后半行不要），让作者自己再点一次补充
     // 补充时只列还没写全的那几对（写到一半断了再点补充，就接着写剩下的，不会每次都从头写、每次断在同一个地方）
-    const whole = k => { const [a, b] = k.split('—'), r = D.rel.find(q => (q.a === a && q.b === b) || (q.a === b && q.b === a)); return r && r.kind !== '其他' && r.va && r.vb && r.sa && r.sb; };
     // 人设多半写在世界书里（作者的人设栏是空的）：拿所有人的名字去世界书里找，和聊天时发的是同一套
     const base = { world: await worldText([myName(), ...D.ppl.flatMap(p => [p.name, ...p.alias])].join(' ')).catch(() => '') || '（没有）',
       pairs: [...co].filter(c => c[1] > 1 && (redo || !whole(c[0]))).sort((a, b) => b[1] - a[1]).slice(0, 60).map(c => c[0]).join('、') || '（没有）',
@@ -446,7 +452,7 @@ export async function refill(want, signal, redo, source = '') {
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
       if ((redo || !o.area) && !loops(q.name, q.area)) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
-    n.miss = want.includes('rel') ? [...co].filter(c => c[1] > 1 && !whole(c[0])).length : 0;   // AI 写了「整理完了」但跳过了几对（作者：有的人没写，还显示成功）
+    n.miss = want.includes('rel') ? lacking().length : 0;   // AI 写了「整理完了」但跳过了几对（作者：有的人没写，还显示成功）
     await save(); return n;
   } finally { refilling = false; }
 }
@@ -480,7 +486,7 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       job.t0 = Date.now();
       // 原文先用记号占着位置，筛完提示词再放回去，免得原文里的行被误删
       const cut = opt ? Object.keys(CUT).filter(k => !opt.want.includes(k)) : [];
-      const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '' })
+      const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '这次三样都要交齐，缺一样都不算写完：① 时间——事件、日子、没完、完成；② 关系——每一对有来往的人一行关系，再加两个人各一行印象（看法和一句话都要写），还有了解、成长；③ 地点。' })
         .split('\n').filter(l => !cut.some(k => CUT[k].test(l))).join('\n').replace('\u0001', () => src);
       try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, temperature: .3, stop: job.ac.signal }); }   // 读原文记事一直是 0.3：守规矩，从头按顺序写（v0.8.403 放开过，结果它挑着写一段就收工）
       catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
@@ -497,6 +503,12 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       await kvSet('memjob:' + key, { label, list, done: job.done, at: job.at, opt });
       throw new Error('回复写到一半断了，写出来的已经记下，点「接着整理」从断的地方接着');
     }
+    // 事都记完了，可印象排在最后、常常轮不到（作者：总是漏看法和一句话）：还有没写全的几对，就当没写完，接着把它们写完（算一次补写）
+    if (opt && opt.want.includes('rel') && lacking().length && more-- > 0) {
+      job.phase = '接着写关系和印象'; tell('step', job);
+      try { await refill(['rel'], job.ac.signal, false); } catch (e) { if (job.ac.signal.aborted) throw e; log('warn', '岁岁砂', '接着写印象没成：' + e.message); }
+    }
+    job.miss = opt && opt.want.includes('rel') ? lacking().length : 0;
     job.rel = D.rel.length; job.said = D.rel.filter(r => r.sa || r.sb).length;
     await kvDel('memjob:' + key);
   } catch (e) {
