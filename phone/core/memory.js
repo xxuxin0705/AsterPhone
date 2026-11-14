@@ -107,14 +107,14 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 // 谁知道（know）= 不在场、后来听说的人；原文从 / 到 = 这件事在原文里从哪句到哪句（各抄开头几个字），照着从原文里剪下来存成 orig
 // 影响（after）= 这件事过去后留下了什么（伤、心结、还留着的东西），没有就空着；以前存的 now 是事情刚结束时的样子，只在 TA 最近那件事上当「现在」用
 // 关系：甲｜乙｜关系｜从何时起｜现在｜亲近度（后面再跟 甲眼里的乙｜乙眼里的甲｜甲的一句话｜乙的一句话 是旧格式，照认）
-// 印象：谁｜对谁｜看法｜一句话（一个人对另一个人的，一行一个方向）
+// 印象：甲｜乙｜甲对乙的看法｜甲对乙的一句话（一个人对另一个人的，一行一个方向）
 // 人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 // 地点：名字｜归哪个大地方｜一句介绍
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
 // 人名后面 AI 顺手加的括号注解去掉（「天内理子（昏迷）」「孔时雨（新人物）」），不然一个人会变成好几个人
 const bare = n => norm(n).replace(/\s*[（(][^（()）]*[)）]$/, '');
-// 印象那行第二格写的是「对谁」，AI 有时真把「对」字写进去（「对某某」），名字就对不上、整行印象丢了：不是真有人叫这个名字就去掉
-const whom = n => { n = bare(n); return /^对./.test(n) && !(D && D.ppl.some(p => p.name === n)) ? n.slice(1) : n; };
+// 印象那行第二格 AI 有时写成「对某某」「→某某」「某某的印象」，名字就对不上、整行印象丢了（作者遇到过）：不是真有人叫这个名字就把多的字去掉
+const whom = n => { n = bare(n); return D && D.ppl.some(p => p.name === n) ? n : n.replace(/^(对|→|->)\s*(?=.)/, '').replace(/(?<=.)的?(印象|看法)$/, ''); };
 // 「九月七桃霁（不知道）」这种是 AI 在说这个人不知道，不能去掉括号当成知道的人
 const folk = s => [...new Set(list(s).filter(n => !/[（(][^（()）]*(不知|不清楚|无人|没人)[^（()）]*[)）]$/.test(n)).map(bare).filter(Boolean))];
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
@@ -143,7 +143,8 @@ export function parse(raw) {
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: folk(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
         after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: folk(f[12]), from: f[13] || '', to: f[14] || '' });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: bare(f[0]), b: bare(f[1]), kind: (f[2] || '').replace(/(.)关系$/, '$1'), since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: unq(f[6]), vb: unq(f[7]), sa: unq(f[8]), sb: unq(f[9]) });   // 后四格是旧格式（两个人挤一行），照认
-    else if (m[1] === '印象' && f[1]) imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]);
+    else if (m[1] === '印象' && f[1]) { const t = f[3] ? null : /^(.{2,}?)对(.{2,})$/.exec(f[0]); if (t) f.splice(0, 1, t[1], t[2]);   // 两个名字挤在一格（「甲对乙｜看法｜一句话」）
+      imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]); }
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
     else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '' });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
@@ -472,6 +473,7 @@ function known() {
  *  开了「自动补写」就自己接着找 AI（最多 fillMax 次），没开就停下，等你点「接着整理」 */
 /** 设置里的「清空」：挑哪几样清哪几样；四样都勾就是整个清空（连向量、没跑完的整理一起） */
 export async function clearSome(want) { await load(); if (want.length > 2) return wipe(); clearParts(want); await save(); }
+const TAIL = t => `\n\n【补写】你对上面这条要求的回复写到一半断了。断之前写的都已经记下，不要重写。两条横线中间是那条回复的最后一段，最后一行没写完：从这一行的开头把它整行重新写一遍，再接着往下把还没写的写完（顺序照上面的要求），最后单独一行写${END}。只输出这些行，不要加解释。\n————\n${t}\n————`;
 export async function startJob(label, list, done = 0, at = 0, opt = null) {
   if (running()) throw new Error('已经在整理了');
   await load();
@@ -490,14 +492,29 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const cut = opt ? Object.keys(CUT).filter(k => !opt.want.includes(k)) : [];
       const prompt = compose('memSort', { source: '\u0001', existing: known(), bigs: bigNames(), only: cut.length ? `这次只写这几种行：${opt.want.map(k => NAMES[k]).join('、')}、人物，别的行一行都不要写（别的已经记好了）。` : '这次三样都要交齐，缺一样都不算写完：① 时间——事件、日子、没完、完成；② 关系——每一对有来往的人一行关系，再加两个人各一行印象（看法和一句话都要写），还有了解、成长；③ 地点。' })
         .split('\n').filter(l => !cut.some(k => CUT[k].test(l))).join('\n').replace('\u0001', () => src);
-      try { raw = await generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt, temperature: .3, stop: job.ac.signal }); }   // 读原文记事一直是 0.3：守规矩，从头按顺序写（v0.8.403 放开过，结果它挑着写一段就收工）
-      catch (e) { if (!e.part) throw e; raw = e.part; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); }
+      // 线断了：收到的照样用。没写结束那行就是写到一半停的（中转站掐了也常说「正常写完」，日志还标成功）：最后半行不记，等补写时整行重写
+      const ask = more => generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: prompt + more, temperature: .3, stop: job.ac.signal })   // 读原文记事一直是 0.3：守规矩，从头按顺序写（v0.8.403 放开过，结果它挑着写一段就收工）
+        .catch(e => { if (!e.part) throw e; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); return e.part; });
+      const half = t => prompt.includes(END) && !t.includes(END);
+      const take = t => { const x = only(parse(half(t) ? t.slice(0, t.lastIndexOf('\n') + 1) : t), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; return x; };
+      raw = await ask('');
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
-      const x = only(parse(raw), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; await save();
+      const x = take(raw); await save();
       // 断了：最后一件剪下来的原文在哪儿结束，下次从那儿接（离结尾不到 300 字也当写完了：自己改过的提示词可能没让 AI 写结束那行）
       const end = Math.max(0, ...x.ev.map(e => e.orig ? src.indexOf(e.orig) + e.orig.length : 0));
       // AI 写了「整理完了」也不全信（作者：记完一章就收工，后面一章一件没记）：最后一件事离这批内容的结尾还远，就当没写完、从那儿接着
-      if (end ? src.length - end < 300 : raw.includes(END)) { job.done++; job.at = 0; tell('step', job); continue; }
+      if (end ? src.length - end < 300 : raw.includes(END)) {
+        // 事记完了，后面的关系、印象、地点写到一半断了：只把回复的最后一段发回去，让它把没写完的那行整行重写、接着写完
+        // （作者遇到的：断在半句话上，补的时候却从第一行关系重新写了一遍）
+        while (half(raw) && more-- > 0) {
+          job.phase = '接着写没写完的'; tell('step', job);
+          raw = await ask(TAIL(raw.slice(-2000).replace(/^[^\n]*\n/, '')));
+          if (key !== win.key) throw new Error('换了聊天窗口，先停下');
+          take(raw); await save();
+        }
+        if (half(raw)) log('warn', '岁岁砂', '关系、印象或地点没写完就停了，写出来的已经记下');
+        job.phase = ''; job.done++; job.at = 0; tell('step', job); continue;
+      }
       if (!end && opt && !opt.want.includes('time')) throw new Error('回复写到一半断了，写出来的已经记下');
       if (!end) throw new Error(x.ev.length ? '回复写到一半断了，看不出写到了原文哪儿' : '回复写到一半断了，一件事都没记下');
       job.at = from + end; tell('step', job);
