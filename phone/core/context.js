@@ -12,7 +12,7 @@ export function rawStory(n = C().count) {
 }
 
 // 排版用的 HTML 标签（加粗、换行…）不算「标签」：永远只去掉记号、留下里面的字
-const FORMAT = new Set('b i u s em strong br p span div small big font del ins sub sup code pre blockquote a img hr ul ol li h1 h2 h3 h4 h5 h6 center q mark ruby rt'.split(' '));
+const FORMAT = new Set('b i u s em strong br p span div small big font del ins sub sup code pre blockquote a img hr ul ol li h1 h2 h3 h4 h5 h6 center q mark ruby rt table thead tbody tfoot tr td th caption col colgroup title marquee button label details summary section article header footer nav aside main figure figcaption'.split(' '));
 const tagsIn = text => [...String(text).matchAll(/<([\p{L}_][\p{L}\p{N}_:-]*)[\s>]/gu)].map(m => m[1].toLowerCase()).filter(t => !FORMAT.has(t));   // 中文标签（<草稿>）也算
 /** 最近正文里出现过的标签和次数（<!-- --> 记作「!--」）。多扫一些，免得漏掉 */
 export function detectTags(list = rawStory(30)) {
