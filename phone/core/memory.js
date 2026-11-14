@@ -59,9 +59,18 @@ export async function load() {
   for (const f of D.facts) { f.about = canon(f.about); f.know = [...new Set(f.know.map(canon))]; }
   for (const g of D.grow) g.who = canon(g.who);
   for (const r of [...D.rel, ...D.rel.flatMap(r => r.hist)]) for (const k of ['va', 'vb', 'now']) if (NONE.test(r[k] || '')) r[k] = '';   // 关系里的「（空）」也一样
+  if (!D.neat) { D.ev.forEach(neat); D.neat = 1; }   // 以前记下的收拾一次（只一次：之后自己手写的长标签不动）
   return D;
 }
 export const save = () => { ver++; return kvSet('mem:' + Dkey, D); };
+// AI 把一件事的十五格写错位时，关键词、原文里的句子会落进小标签和「后来听说的人」，小标签还会被当成「已有的小标签」再喂给 AI、越滚越多（作者看到的）。
+// 记下来时收拾：小标签去掉括号里的话，太长的、和地点同名的、带人名的不要，最多三个（两个类别 + 一个日子的类型）；后来听说的人只认认识的人
+function neat(e) {
+  const ns = [myName(), ...D.ppl.flatMap(p => [p.name, ...p.alias])].filter(n => n && n.length > 1), seen = new Set([...ns, ...D.ev.flatMap(o => o.who)]);
+  const ps = new Set([e.place, ...D.places.map(q => q.name), ...D.ev.map(o => o.place)]);
+  e.tags = [...new Set(e.tags.map(bare))].filter(t => t && !NONE.test(t) && t.length <= 6 && !ps.has(t) && !ns.some(n => t.includes(n))).slice(0, 3);
+  if (e.know) e.know = e.know.filter(n => isMe(n) || seen.has(n));
+}
 /** 以前记的事（存着的、还在「等你看」里的）没有大标签：重要度 4 以上的算「重要」；以前的「故事线」并进小标签 */
 const upgrade = e => { if (e.big && e.big.includes('特殊日')) e.big = [...new Set(e.big.map(t => t === '特殊日' ? '纪念日' : t))];   // v0.8.368 前这个大标签叫「特殊日」
   if (!e.big) { e.big = e.imp >= 4 ? ['重要'] : []; if (e.line && !e.tags.includes(e.line)) e.tags.push(e.line); } };
@@ -188,10 +197,10 @@ export function merge(x, src = '', text = '', here = false) {
   let added = 0;
   for (const e of x.ev) {
     upgrade(e); cutOrig(e, text, here);
-    e.who = [...new Set(e.who.map(canon))]; e.know = (e.know || []).map(canon);
+    e.who = [...new Set(e.who.map(canon))]; e.know = (e.know || []).map(canon); neat(e);
     const dup = D.ev.find(o => o.at === e.at && (o.title === e.title || alike(o.title + o.text, e.title + e.text) > .6));
     if (dup) {   // 重新整理：老记忆缺的格子补上，小标签并在一起
-      dup.imp = Math.max(dup.imp, e.imp); dup.tags = [...new Set([...dup.tags, ...e.tags])];
+      dup.imp = Math.max(dup.imp, e.imp); dup.tags = [...new Set([...dup.tags, ...e.tags])].slice(0, Math.max(3, dup.tags.length));
       for (const k of ['quote', 'after', 'keys', 'big', 'know', 'orig', 'fl', 'part']) if (!(dup[k] && dup[k].length) && e[k] && e[k].length) dup[k] = e[k];
       continue;
     }
@@ -608,7 +617,7 @@ export async function memoryFor(people, scan = '') {
   if (drift) fresh.push('忽然想起的（和现在有点关系，合适就顺口提一句，不合适就不提）：\n' + brief(drift));
   const out = [lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '', fresh.length ? `\n【TA 这会儿想起的】\n${fresh.join('\n')}\n` : ''];
   peeks.unshift({ at: Date.now(), who: people.map(c => c.name || c.nick).filter(Boolean), said: scan.slice(scan.lastIndexOf('\n') + 1), how, size: [out[0].length, out[1].length],
-    items: [...keep.map(e => [e, e.pin ? '钉住的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
+    items: [...keep.map(e => [e, e.pin ? '总记得的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
   peeks.length = Math.min(peeks.length, 20);
   return out;
 }
