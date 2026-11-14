@@ -29,8 +29,6 @@ export function art(host, on) {
   const bulb = () => { g.beginPath(); g.moveTo(NX - R, 35); g.lineTo(NX + R, 35); g.bezierCurveTo(NX + R, 215, NX + 16, 250, NX + 5, NY); g.lineTo(NX - 5, NY); g.bezierCurveTo(NX - 16, 250, NX - R, 215, NX - R, 35); g.closePath(); };
   function glass(P, t) {
     line([[0, NY], [W, NY]], P.pencil, .7); ring(NX, NY, 96, P.pencil, .7, [2, 5]); line([[NX + R, 35], [NX - 70, NY + 99]], P.pencil, .6);
-    line([[NX + R + 28, 40], [NX + R + 28, NY]], P.pencil, .7); for (let i = 0; i <= 20; i++) line([[NX + R + 28, 40 + i * 15.25], [NX + R + (i % 5 ? 33 : 40), 40 + i * 15.25]], P.pencil, .8);
-    g.fillStyle = P.ink; g.fillRect(W - 44, 0, 44, 200); for (let i = 0; i < 500; i++) { const [a, b, p] = dots[i + 900]; if (p > b * 1.1) g.fillRect(W - 44 + a * 44, 200 + b * b * 110, 1.5, 1.5); }
     g.save(); bulb(); g.clip();
     g.beginPath(); g.moveTo(-200, 150); g.bezierCurveTo(NX - 70, 150, NX - 40, 184, NX, 184); g.bezierCurveTo(NX + 40, 184, NX + 70, 150, 460, 150); g.lineTo(460, 400); g.lineTo(-200, 400); g.fillStyle = P.blue; g.fill();
     stipple(NX + 70, 262, 150, P.paper, .55, -.75, 1500, 2.6);
