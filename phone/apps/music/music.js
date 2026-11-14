@@ -980,7 +980,9 @@ export function openPlayer() {
   let tone = null, toneOf = '';
   // 自己的背景图太亮（白字看不清）：字和按钮换成深色；按钮自己挑了颜色就用挑的
   const paintInk = () => { p.el.classList.toggle('is-light', !!(tone && p.el.classList.contains('has-bg') && lum(tone) > .62));
-    M().btn ? p.el.style.setProperty('--mp-btn', M().btn) : p.el.style.removeProperty('--mp-btn'); };
+    M().btn ? p.el.style.setProperty('--mp-btn', M().btn) : p.el.style.removeProperty('--mp-btn');
+    const ink = M().ink && [1, 3, 5].map(k => parseInt(M().ink.slice(k, k + 2), 16)).join(',');   // 歌名那一块（歌名、歌手、喜欢、热评、进度条、时间）自己选的颜色
+    p.el.querySelectorAll('.as-mp__info, .as-mp__prog').forEach(n => ink ? n.style.setProperty('--mp-ink', ink) : n.style.removeProperty('--mp-ink')); };
   const blurSvg = h('div', { hidden: true }); blurSvg.innerHTML = '<svg width="0" height="0"><filter id="as-mp-blur" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0" edgeMode="duplicate"/></filter></svg>';
   const blurF = blurSvg.querySelector('feGaussianBlur'); p.el.append(blurSvg);
   // 以前只存一张（skin.bg 里直接是图）：挪进背景库
@@ -1113,28 +1115,28 @@ export function openPlayer() {
     }
     return out.map(c => hex(c, 0));
   };
-  // 按钮颜色（在样式里，挨着歌词设置）：上面一条预览垫着背景，放真的按钮；「自动」= 背景亮就黑、暗就白；背景里的五种颜色；下面色盘（带吸管）
-  function btnSheet() {
-    const pv = h('div.as-mu-btnpv', h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), ...[mode()[2], 'prev', P.playing() ? 'pause' : 'play', 'next', 'list'].map(n => icon(n, 22, 1.8)));
-    const set = c => { M().btn = c; commit('music'); paintInk(); paint(); };
+  // 歌名颜色（k = 'ink'：歌名、歌手、喜欢、热评、进度条、时间一起换）、按钮颜色（k = 'btn'：下面两排按钮和返回键），都在样式里挨着歌词设置：上面一条预览垫着背景，放真的按钮（歌名颜色放歌名）；「自动」= 背景亮就黑、暗就白；背景里的五种颜色；下面色盘（带吸管）
+  function btnSheet(k = 'btn') {
+    const pv = h('div.as-mu-btnpv' + (k === 'ink' ? '.is-ink' : ''), h('i', { style: { backgroundImage: bg.style.backgroundImage, filter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, '') } }), ...(k === 'ink' ? [h('span', P.current()?.name || '歌名'), icon('heart', 22, 1.8), icon('comment', 22, 1.8)] : [mode()[2], 'prev', P.playing() ? 'pause' : 'play', 'next', 'list'].map(n => icon(n, 22, 1.8))));
+    const set = c => { M()[k] = c; commit('music'); paintInk(); paint(); };
     const auto = h('button.as-mu-auto', { type: 'button', onclick: () => set('') }, '自动');
     const row = h('div.as-mu-bgsw', auto);
-    const mk = () => colorWheel(M().btn || '#ffffff', set);
+    const mk = () => colorWheel(M()[k] || '#ffffff', set);
     let wheel = mk();
-    const paint = () => { pv.style.color = M().btn || getComputedStyle(playBtn).color; auto.classList.toggle('is-on', !M().btn); [...row.querySelectorAll('.as-wheel__swatch')].forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M().btn)); };
+    const paint = () => { pv.style.color = M()[k] || getComputedStyle(k === 'ink' ? name : playBtn).color; auto.classList.toggle('is-on', !M()[k]); [...row.querySelectorAll('.as-wheel__swatch')].forEach(b => b.classList.toggle('is-on', b.getAttribute('aria-label') === M()[k])); };
     paint();
-    sheet({ title: '按钮颜色', content: h('div.as-mu-color', pv, row, wheel) });
+    sheet({ title: k === 'ink' ? '歌名颜色' : '按钮颜色', content: h('div.as-mu-color', pv, row, wheel) });
     shot().then(s => {   // 读背景图要一会儿：抽屉先打开，读好了再把背景里的颜色放进去
       if (s) { row.append(...palette(s).map(c => h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => { set(c); wheel.replaceWith(wheel = mk()); } }))); paint(); } });
   }
   async function skin() {
-    const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' }, btnC = { value: 'btn', label: '按钮颜色', icon: 'play' };
+    const tc = P.together(), rec = !/^(rain|cad|clock)$/.test(S.name), color = { value: 'color', label: '歌词设置', icon: 'palette' }, inkC = { value: 'ink', label: '歌名颜色', icon: 'heart' }, btnC = { value: 'btn', label: '按钮颜色', icon: 'play' };
     // 一起听时只换歌词是群唱还是普通的；平时换整个播放页
-    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, btnC, { value: 'look', label: '一起听的样子', icon: 'edit' }]
+    const v = await actionSheet(tc ? '一起听的歌词' : '样式', tc ? [{ value: 'choir', label: '对话式', active: S.tg !== 'plain' }, { value: 'plain', label: '普通歌词', active: S.tg === 'plain' }, color, inkC, btnC, { value: 'look', label: '一起听的样子', icon: 'edit' }]
       : [{ value: 'glass', label: '玻璃唱片', active: rec && S.disc !== 'vinyl' }, { value: 'vinyl', label: '黑胶唱片', active: rec && S.disc === 'vinyl' }, { value: 'rain', label: '下雨天', active: S.name === 'rain' },
-        { value: 'cad', label: '碎语', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, color, btnC]);
+        { value: 'cad', label: '碎语', active: S.name === 'cad' }, { value: 'clock', label: '时计', active: S.name === 'clock' }, color, inkC, btnC]);
     if (!v) return;
-    if (v === 'btn') { btnSheet(); return; }
+    if (v === 'btn' || v === 'ink') { btnSheet(v); return; }
     if (v === 'look') { (await import('./tglook.js')).openTgLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
     // 对话式才是每人一套；一起听选了普通歌词，就跟平时一样只有一个歌词颜色
     if (v === 'color' && tc && S.tg !== 'plain') { (await import('./tglook.js')).openChoirLook({ bgImage: bg.style.backgroundImage, bgFilter: getComputedStyle(bg).filter.replace(/url\([^)]*\)/, ''), c: tc, me: me() }); return; }
