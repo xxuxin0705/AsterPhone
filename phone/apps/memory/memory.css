@@ -54,7 +54,7 @@
 .as-ss .as-navbar { background: none !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: var(--ink); }
 .as-ss .as-navbar__back, .as-ss .as-navbar__btn { color: var(--ink); }
 .as-ss .as-navbar__title { font-family: var(--han); letter-spacing: 4px; }
-.as-ss .as-page__body { position: relative; display: flex; flex-direction: column; padding: 0 0 96px; font-family: var(--han); }
+.as-ss .as-page__body { position: relative; display: flex; flex-direction: column; padding: 0 0 96px; font-family: var(--han); overscroll-behavior: none; }
 .as-ss button:focus-visible, .as-ss .ev:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 /* 关系那页顶上的一排名字：点谁，谁到正中。别的页收起来 */
 .as-ss-who { flex: none; display: flex; gap: 6px; height: 46px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; transition: height .6s, padding .6s, opacity .5s; }

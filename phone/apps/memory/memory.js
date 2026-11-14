@@ -52,6 +52,8 @@ export function open() {
   const A = art(stage, { blank: shut, rel: openRel, center: i => setCtr(i), place: openPlace,
     move: async (n, x, y) => { let o = d.places.find(q => q.name === n); if (!o) d.places.push(o = { name: n, area: '', intro: '' }); o.x = x; o.y = y; await M.save(); seen = sig(); } });
   const sig = () => M.ver + ':' + state.contacts.length;
+  // 一页装得下就不让拉动（作者：没有别的内容，拉得动很怪）；事多了、点开一件变长了才能滑
+  const fit = () => { p.body.style.overflowY = p.body.scrollHeight > p.body.clientHeight + 1 ? '' : 'hidden'; };
 
   // 底下那张纸：地点和人共用
   const show = (title, small, lead, intro, rows, none, acts) => {
@@ -85,7 +87,7 @@ export function open() {
     axis.querySelectorAll('.ev.open, .ev.kin').forEach(x => x.classList.remove('open', 'kin'));
     opened = opened === e ? null : e;
     if (opened) { b.classList.add('open'); const t = kin(e); axis.querySelectorAll('.ev').forEach(x => { if (x !== b && x._e && kin(x._e).some(k => t.includes(k))) x.classList.add('kin'); }); }
-    arcs();
+    arcs(); fit();
   }
   const row = (cls, t, title, small, onclick, more) => h('div.ev' + cls, { role: 'button', tabindex: 0, onclick }, h('time', t), h('i'), h('b', title), h('small', small), more);
   function fillAxis() {
@@ -109,7 +111,7 @@ export function open() {
       rows.push(b);
     }
     if (!d.ev.length) rows.push(h('div.none', '还没有记下的事', btn('去整理', 'secondary', openSort)));
-    opened = null; axis.replaceChildren(...rows);
+    opened = null; axis.replaceChildren(...rows); fit();
   }
   function setCtr(i, fx = true) {
     ctr = i; shut(); A.center(i);
@@ -119,6 +121,7 @@ export function open() {
     if (i === tab) return;
     tab = i; shut(); A.tab(i); [...tabs.children].forEach((b, k) => b.classList.toggle('on', k === i)); axis.classList.toggle('off', i > 0); bar.classList.toggle('off', i !== 1); p.body.scrollTo({ top: 0, behavior: 'smooth' });
     if (!i) arcs();
+    setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
 
   async function draw() {

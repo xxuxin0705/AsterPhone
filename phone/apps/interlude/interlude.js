@@ -251,8 +251,8 @@ async function cardView(ps, start, rel = [], npcs = [], now = -1) {
   const tags = L.map(y => h('button.as-int-board__tag', { style: { left: (node(y.a).x + node(y.b).x) / 2 + '%', top: (node(y.a).y + node(y.b).y) / 2 + '%' },
     onclick: () => { said.replaceChildren(h('span', `${y.a} 眼里的 ${y.b}：${y.ab || '没说'}`), h('span', `${y.b} 眼里的 ${y.a}：${y.ba || '没说'}`)); } }, y.r === now ? h('i', '新') : null, y.ab || y.ba));
   const els = nodes.map((n, i) => h('button.as-int-board__n', { style: { left: n.x + '%', top: n.y + '%' }, onclick: () => focus(n.name) },
-    n.o ? h('div.as-int-pol', { style: { '--r': (i % 2 ? 3 : -3) + 'deg' } }, h('i.as-int-pin'), shot(n.o, 56), h('b', n.name), h('small', G.realName(n.o)))
-      : h('div.as-int-slip' + (n.gone ? '.is-gone' : ''), h('i.as-int-pin'), n.name)));
+    n.o ? h('div.as-int-pol', { style: { '--r': (i % 2 ? 3 : -3) + 'deg' } }, h('i.as-int-tack'), shot(n.o, 56), h('b', n.name), h('small', G.realName(n.o)))
+      : h('div.as-int-slip' + (n.gone ? '.is-gone' : ''), h('i.as-int-tack'), n.name)));
   three.append(h('div.as-int-board', lines, ...els, ...tags), said, L.length ? null : h('p.as-int-cv__none', '大家互不认识'));
   function focus(n) {
     on = on === n ? null : n; said.replaceChildren();
@@ -263,7 +263,7 @@ async function cardView(ps, start, rel = [], npcs = [], now = -1) {
     const { o, c } = ps[at], d = R.derived(c.attrs), base = R.baseSkills(c.attrs);
     [...who.children].forEach((b, k) => b.classList.toggle('is-on', k === at));
     one.replaceChildren(
-      h('div.as-int-cv__top', h('div.as-int-pol.is-big', h('i.as-int-pin'), shot(o, 110)), h('div',
+      h('div.as-int-cv__top', h('div.as-int-pol.is-big', h('i.as-int-tack'), shot(o, 110)), h('div',
         h('b.as-int-cv__name', c.name), h('small', `（${G.realName(o)}）`), h('p', [c.job, c.age && `${c.age} 岁`, c.sex, c.home].filter(Boolean).join(' · ')),
         h('div.as-int-cv__stats', [['血', c.hp ?? d.hp, c.hpMax], ['理智', c.san ?? d.san, c.sanMax], (c.abilities || []).length && ['魔法', c.mp ?? d.mp, c.mpMax]].filter(Boolean)
           .map(([k, v, m]) => h('span', h('small', k), `${v}${m ? '/' + m : ''}`))))),
