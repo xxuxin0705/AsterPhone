@@ -4,7 +4,7 @@ import { commit } from '../../core/store.js';
 import { group, item, toggleItem, segmented, input, empty, icon, dialog } from '../../core/ui.js';
 import { worldNames, currentCharacter, characters } from '../../core/bridge.js';
 import { myPersona } from '../../core/promptstore.js';
-import { C, rawStory, detectTags, tagsInside, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
+import { C, rawStory, detectTags, tagsInside, tagsOutside, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
 
 const label = t => t === '!--' ? '<!-- -->' : t;
 const save = () => commit('settings');
@@ -27,7 +27,7 @@ export function openContext({ sub, sliderRow, withInfo }) {
 }
 
 /** 正文筛选：两排标签，每排下面是正文里扫到、还没分类的标签（点一下就进这一排）。「给手机看」的点一下能暂时关掉。
- *  「不给手机看」下面只列套在「给手机看」的标签里面的；先收成两行，「更多」展开；能按次数 / 字母排；扫不到的用「自己输入」 */
+ *  「不给手机看」下面只列套在「给手机看」的标签里面的，「给手机看」下面只列在它们外面的；先收成两行，「更多」展开；能按次数 / 字母排；扫不到的用「自己输入」 */
 function tagGroup(s, withInfo) {
   s.keepOff = s.keepOff || []; s.drop = (s.drop || []).filter(t => !s.keep.includes(t));   // 以前只有「要」：已经在「要」里的不再放进「不要」
   const lists = { keep: s.keep, drop: s.drop }, boxes = {}, pools = {}, open = {};
@@ -49,7 +49,7 @@ function tagGroup(s, withInfo) {
       } }, icon('close', 11, 2.4)));
   })); };
   const paintPool = k => {
-    const found = k === 'drop' && s.keep.length ? tagsInside() : detectTags();
+    const found = !s.keep.length ? detectTags() : k === 'drop' ? tagsInside() : tagsOutside();
     const fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t)).sort((a, b) => az ? a.localeCompare(b) : found[b] - found[a] || a.localeCompare(b));
     const chips = h('div.as-chips.as-ctx-pool' + (open[k] ? '.is-open' : ''), ...fresh.map(t => h('button.as-chip', { onclick: () => put(k, t) }, label(t), h('small', String(found[t])))),
       h('button.as-chip.as-ctx-add', { onclick: async () => put(k, await dialog({ title: '加标签', input: { placeholder: '标签名' } })) }, icon('plus', 12, 2.4), '自己输入'));

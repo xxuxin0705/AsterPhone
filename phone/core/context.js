@@ -37,6 +37,9 @@ export function tagsInside(keep = keepNow(), list = rawStory(30)) {
   return count;
 }
 
+/** 在「给手机看」的标签外面的标签、各几次（「给手机看」下面只列这些：里面的已经给了） */
+export const tagsOutside = (keep = keepNow(), list = rawStory(30)) => detectTags(list.map(m => ({ text: keep.reduce((t, k) => t.replace(block(k), ''), m.text) })));
+
 /** 现在真正给手机看的标签：「给手机看」里没被暂时关掉的 */
 export const keepNow = () => C().keep.filter(t => !(C().keepOff || []).includes(t));
 /** 按设置清洗一条正文（注释 <!-- --> 当成一个叫「!--」的标签，规矩一样）：「给手机看」的标签整段留着（去掉记号留下字，里面套着的别的标签也留着），「不给手机看」的在哪都连内容去掉；
