@@ -95,43 +95,23 @@ export function open() {
     if (m < 0) { y--; m += 12; }
     return [y, m, dd, Math.round((new Date(B.getFullYear(), B.getMonth(), B.getDate()) - A) / 864e5), t0];
   };
-  /* 上面那幅画（作者：平涂的那两版都不好看，重做）。和上面的星盘、沙漏一个画法：纸、墨线、钴蓝、点刻。
-     左边一颗点刻的蓝球，头像是它的瞳孔；几根细的墨线和弧穿过它；三个越来越大的小圈飘向右边一团用点撒出来的云，那句话写在云里；两只燕子。只用纸色、墨色、钴蓝 */
-  const PIC = (() => {
-    let q = 7; const rnd = () => (q = q * 16807 % 2147483647) / 2147483647;   // 点的位置每次都一样（定了种子），一块 56 见方、撒 240 个点，铺开看不出重复
-    const tile = Array.from({ length: 240 }, () => `<circle cx="${(rnd() * 56).toFixed(1)}" cy="${(rnd() * 56).toFixed(1)}" r="${(.5 + rnd() * .45).toFixed(2)}"/>`).join('');
-    const puff = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#as-ss-g)"/>`, bird = (x, y, a, k) => `<path class="fly" transform="translate(${x} ${y}) rotate(${a}) scale(${k})" d="M0 0Q7 1 13-4Q9 3 14 9Q6 5 0 0Z"/>`;
-    return '<svg viewBox="0 0 342 170" aria-hidden="true"><defs>'
-      + `<g id="as-ss-t">${tile}</g>` + ['blue', 'ink', 'card'].map(c => `<pattern id="as-ss-${c}" width="56" height="56" patternUnits="userSpaceOnUse"><use href="#as-ss-t" fill="var(--${c})"/></pattern>`).join('')
-      + '<radialGradient id="as-ss-g"><stop offset=".25" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
-      + '<linearGradient id="as-ss-l" x1="0" y1="0" x2="1" y2="1"><stop offset=".1" stop-color="#fff"/><stop offset=".75" stop-color="#fff" stop-opacity="0"/></linearGradient>'
-      + `<mask id="as-ss-mc">${puff(176, 100, 52) + puff(214, 74, 56) + puff(262, 86, 56) + puff(300, 108, 44) + puff(238, 116, 62)}</mask>`
-      + '<mask id="as-ss-ms"><circle cx="64" cy="92" r="44" fill="url(#as-ss-l)"/></mask>'
-      + `<mask id="as-ss-mk">${puff(104, 132, 46)}</mask></defs>`
-      + '<g fill="none" stroke="var(--soft)" stroke-width=".6"><path d="M0 92H150M64 14V166"/><circle cx="64" cy="92" r="66" stroke-dasharray="2 5"/><path d="M196 18L132 164" opacity=".7"/></g>'
-      + '<path d="M26 34A70 70 0 0 1 126 60" fill="none" stroke="var(--ink)" stroke-width="1.2"/>'
-      + '<rect x="50" y="90" width="110" height="80" fill="url(#as-ss-ink)" mask="url(#as-ss-mk)" opacity=".8"/>'
-      + '<rect x="120" y="14" width="222" height="156" fill="url(#as-ss-blue)" mask="url(#as-ss-mc)"/>'
-      + '<circle cx="64" cy="92" r="44" fill="var(--blue)"/><rect x="20" y="48" width="88" height="88" fill="url(#as-ss-card)" mask="url(#as-ss-ms)"/><circle cx="64" cy="92" r="31" fill="var(--card)"/>'
-      + '<g fill="var(--card)" stroke="var(--blue)" stroke-width="1.2"><circle cx="116" cy="66" r="3"/><circle cx="128" cy="56" r="4.6"/><circle cx="144" cy="50" r="6.6"/></g>'
-      + `<g fill="var(--blue)">${bird(300, 32, 20, 1) + bird(318, 52, -8, .6) + bird(18, 150, 160, .7)}</g></svg>`;
-  })();
   function openRel(i) {
     const out = !S().relIn, [x, y] = out ? [ctr, i] : [i, ctr], lk = link[x][y], me = names[x], who = names[y], cs = x ? new Set([me]) : new Set([names[0], '我']), r = lk.r;
     const facts = d.facts.filter(f => (y ? f.about === who : M.isMe(f.about)) && M.knownOf(f, cs) != null);
     const path = [...r.hist.map(x => x.kind), r.kind].filter((k, j, l) => k !== '其他' && k !== l[j - 1]), t = since(me, who, r);
-    // 认识了多久：点一下在「几年几个月几天」和「一共多少天」之间换（记在设置里），只换这几个字
-    const long = h('button.long', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
-    const num = (n, u) => h('span', String(n), h('i', u));
-    const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? num(t[3], '天') : [t[0] && num(t[0], '年'), (t[0] || t[1]) && num(t[1], '个月'), num(t[2], '天')].filter(Boolean)), t && h('em', dot(t[4]) + ' 起'));
+    // 版式（作者从六套里挑的：「双星」的上半截 + 「书页」的大引号）：两个人的头像，一道虚线弧从说话的人指向对方，关系挂在弧顶；
+    // 下面一个蓝色大引号、那句话当大标题，一道线，认识了多久、从哪天起，再下面是看法。不画别的
+    // 认识了多久：点一下在「一共多少天」和「几年几个月几天」之间换（记在设置里），只换这几个字
+    const long = h('button', { disabled: !t, onclick: () => { S().days = !S().days; commit('apps'); fillLong(); } });
+    const fillLong = () => long.replaceChildren(h('small', '认识了'), h('b', !t ? '—' : S().days ? `${t[3]} 天` : [t[0] && `${t[0]} 年`, (t[0] || t[1]) && `${t[1]} 个月`, `${t[2]} 天`].filter(Boolean).join(' ')));
     fillLong();
-    const pic = h('div.pic', { html: PIC }); pic.append(face(me), h('p', h('small', `${me} 对 ${who}`), lk.say ? `「${lk.say}」` : h('em', '……')));
-    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'), pic,
-      h('div.cells',
-        h('div.kin', h('div', h('small', '现在'), h('b', path[path.length - 1] || '—')), path.length > 1 && h('span', path.join(' → '))),
-        long,
-        h('div.view', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写')), h('i'), h('i'), h('i'), h('i'))),
-      r.now && h('p.now', r.now)), '', '', '',
+    show(h('div.as-ss-rel', h('button.flip', { onclick: () => { S().relIn = out; commit('apps'); openRel(i); } }, '⇄ 翻面'),
+      h('div.duo', { html: '<svg viewBox="0 0 342 112" aria-hidden="true"><path d="M50 60C106 -8 236 -8 292 60" fill="none" stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="2 5"/><path transform="translate(262 34) rotate(32)" d="M7 0L-6-5L-6 5Z" fill="var(--blue)"/></svg>' },
+        h('div', face(me), h('b', me)), h('div', face(who), h('b', who)), path.length > 0 && h('span', path[path.length - 1])),
+      h('div.q', '“'), h('h3', lk.say || h('em', '还没写对 TA 说的一句话')),
+      h('div.f', long, t && h('div', h('small', '起'), h('b', dot(t[4])))),
+      h('div.v', h('small', '看法'), h('p', lk.q[0] || h('em', '还没写'))),
+      (path.length > 1 || r.now) && h('p.now', [path.length > 1 && path.join(' → '), r.now].filter(Boolean).join(' · '))), '', '', '',
       facts.map(f => li('了解', M.knownOf(f, cs), '', f.know.join('、') + '知道', () => editFact(f))), '',
       [btn('改', 'secondary', () => editRel(r)), btn('加一条了解', 'secondary', () => editFact(null, who))]);
   }
