@@ -20,6 +20,16 @@ const S = () => state.apps.memory;
 const ymd = at => at ? at.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日') : '不知道哪天';
 const dot = at => (at || '').split('-').map(Number).join('·');   // 2026-05-03 → 2026·5·3（画下面那几页用，窄）
 const split = s => String(s).split(/[、,，]/).map(t => t.trim()).filter(Boolean);
+// 选人（作者：能选就别让人打字）：你和记下的所有人排成一片，点一下选上 / 去掉；one = 只能选一个。交回去的还是「、」隔开的一串
+const whoPick = (d, val, set, one) => {
+  const me = n => M.isMe(n) ? myName() : n; let v = split(val).map(me);
+  const all = [...new Set([myName(), ...M.cast(d).map(c => c[0]), ...v])];
+  const cs = all.map(n => h('button.as-chip' + (v.includes(n) ? '.is-active' : ''), { onclick: () => {
+    v = one ? (v.includes(n) ? [] : [n]) : v.includes(n) ? v.filter(q => q !== n) : [...v, n];
+    cs.forEach((c, i) => c.classList.toggle('is-active', v.includes(all[i]))); set(v.join('、'));
+  } }, n));
+  return h('div.as-chips', cs);
+};
 let refresh = () => {};   // 抽屉里改了东西：让首页照新的重画
 
 // 整理完了不管在哪一页都说一声（每隔几轮自动整理的只进日志，不打扰）
@@ -322,7 +332,7 @@ let below = () => [], upAt = () => '', areasAll = () => [];   // 一个地点下
 async function editRel(r) {
   const d = await M.load(), x = { kind: r.kind, since: r.since, now: r.now, lv: M.lvOf(r), va: r.va || '', vb: r.vb || '', sa: r.sa || '', sb: r.sb || '' };
   if (x.kind === '其他') x.kind = '';
-  const kind = input({ value: x.kind, onInput: v => pick(v.trim(), true) });
+  const kind = input({ value: x.kind, onInput: v => pick(v.trim(), true) }); kind.maxLength = 4;   // 上面的词不合适就自己写，四个字以内（作者定的）
   const pick = (k, typed) => { x.kind = k; if (!typed) kind.value = k; chips.forEach(c => c.classList.toggle('is-active', c.textContent === k)); };
   const chips = [...new Set([...M.KINDS, ...d.rel.map(q => q.kind)])].filter(k => k !== '其他').map(k => h('button.as-chip' + (k === x.kind ? '.is-active' : ''), { onclick: () => pick(k === x.kind ? '' : k) }, k));
   const s = sheet({ title: `${r.a} 和 ${r.b}`, content: [
@@ -334,7 +344,9 @@ async function editRel(r) {
     field(`${r.a}对${r.b}的一句话`, input({ value: x.sa, onInput: v => { x.sa = v.trim(); } })),
     field(`${r.b}眼里的${r.a}`, textarea({ value: x.vb, rows: 2, onInput: v => { x.vb = v.trim(); } })),
     field(`${r.b}对${r.a}的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
-    d.rel.includes(r) && h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return; d.rel.splice(d.rel.indexOf(r), 1); await M.save(); s.close(); refresh(); })),
+    // 删除（作者：删不掉）：以前是拿掉这一条，可两个人一起经历过事，关系页又按「认识」摆回来。现在记成不认识（亲近度 0）：关系页不显示，整理也不再催
+    h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return;
+      Object.assign(r, { kind: '不认识', lv: 0, since: '', now: '', va: '', vb: '', sa: '', sb: '', hist: [] }); if (!d.rel.includes(r)) d.rel.push(r); await M.save(); s.close(); refresh(); })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       x.kind = x.kind || '其他'; if (!d.rel.includes(r)) d.rel.push(r); else if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
       Object.assign(r, x); await M.save(); s.close(); refresh();
@@ -365,7 +377,7 @@ async function editDay(o) {
     // 点一下选日期；只知道哪天、不知道哪年（比如生日）就打开「不知道哪年」，存的时候只留月-日
     field('日期', input({ type: 'date', value: /^\d{4}/.test(x.at) ? x.at : x.at ? '2000-' + x.at : '', onInput: v => { day = v; } })),
     toggleItem({ title: '不知道哪年' }, noYear, v => { noYear = v; }),
-    field('和谁有关', input({ value: x.who, onInput: v => { x.who = v; } })),
+    field('和谁有关', whoPick(d, x.who, v => { x.who = v; })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       const y = M.parse(`日子：${x.kind}｜${noYear ? day.slice(5) : day}｜${x.what}｜${x.who}`).days[0];
@@ -379,9 +391,9 @@ async function editDay(o) {
 async function editFact(o, about = '') {
   const d = await M.load(), x = o ? { about: o.about, text: o.text, know: o.know.join('、') } : { about, text: '', know: '' };
   const s = sheet({ title: o ? '这一条' : '加一条', content: [
-    field('关于谁', input({ value: x.about, onInput: v => { x.about = v.trim(); } })),
+    field('关于谁', whoPick(d, x.about, v => { x.about = v; }, true)),
     field('是什么', textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
-    field('谁知道', input({ value: x.know, onInput: v => { x.know = v; } })),
+    field('谁知道', whoPick(d, x.know, v => { x.know = v; })),
     o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.facts.splice(d.facts.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (!x.about || !x.text) { toast(x.about ? '写上是什么' : '写上关于谁'); return; }
@@ -437,8 +449,8 @@ async function editEvent(e) {
       field('时间', input({ value: x.part, onInput: v => { x.part = v.trim(); } })),
       field('地点', input({ value: x.place, onInput: v => { x.place = v.trim(); } })),
       field('经过', textarea({ value: x.text, rows: 3, onInput: v => { x.text = v.trim(); } })),
-      field('在场的人', input({ value: x.who, onInput: v => { x.who = v; } })),
-      field('后来听说的人', input({ value: x.know, onInput: v => { x.know = v; } })),
+      field('在场的人', whoPick(d, x.who, v => { x.who = v; })),
+      field('后来听说的人', whoPick(d, x.know, v => { x.know = v; })),
       field('影响', input({ value: x.after || '', onInput: v => { x.after = v.trim(); } })),
       field('原话', textarea({ value: x.quote || '', rows: 2, onInput: v => { x.quote = v.trim(); } })),
       field('原文', textarea({ value: x.orig || '', rows: 4, onInput: v => { x.orig = v.trim(); } }))]),
