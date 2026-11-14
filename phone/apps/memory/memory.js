@@ -349,7 +349,7 @@ async function editPlace(n) {
   const pick = (a, typed) => { x.area = a; if (!typed) area.value = a; chips.forEach(c => c.classList.toggle('is-active', c.textContent === a)); };
   const chips = bigs.map(a => h('button.as-chip' + (a === x.area ? '.is-active' : ''), { onclick: () => pick(a === x.area ? '' : a) }, a));
   const s = sheet({ title: n, content: [
-    field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。能一层套一层（医务室归高专，高专归东京）。不属于哪里就都不选；要新的大地方就自己写。'), area),
+    field(withInfo('归哪个大地方', '选了就收进那个大地方里：地图上先看到大地方，点进去才看到它。能一层套一层（教室归学校，学校归城市）。不属于哪里就都不选；要新的大地方就自己写。'), area),
     h('div.as-mem-imp', h('div.as-chips', chips)),
     field('介绍', textarea({ value: x.intro, rows: 2, onInput: v => { x.intro = v.trim(); } })),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
