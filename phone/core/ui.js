@@ -2,6 +2,7 @@
 // 类名都按设计规范的门牌号来（as-xxx），皮肤靠这些名字改样子。
 import { h, $, pickFile, onLongPress } from './util.js';
 import { state } from './store.js';
+import * as time from './time.js';
 
 let root = null;
 export function mountUI(phoneEl) { root = phoneEl; }
@@ -249,8 +250,8 @@ export function dateField(value, onChange = () => {}, noYear = false) {
   return b;
 }
 function pickDate(value, noYear) {
-  return new Promise(res => {
-    const now = new Date(), m = /^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/.exec(value || ''), p2 = n => String(n).padStart(2, '0');
+  return new Promise(res => {   // 还没填日期时停在故事里的今天
+    const now = (time.isStory() && time.story().date) || new Date(), m = /^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/.exec(value || ''), p2 = n => String(n).padStart(2, '0');
     let y = m ? +(m[1] || 0) : now.getFullYear(), mo = m ? +m[2] : now.getMonth() + 1, d = m ? +m[3] : now.getDate(), done = false;
     if (!y && !noYear) y = now.getFullYear();
     // 一列滚轮：停下来时正中那一格就是选中的；只换那一格的颜色，不重画

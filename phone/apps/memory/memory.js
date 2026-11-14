@@ -103,7 +103,9 @@ export function open() {
     const has = (e, n) => e.who.some(w => w === n || (M.isMe(n) && M.isMe(w)));
     const t0 = [...d.ev.filter(e => e.at && has(e, a) && has(e, b)).map(e => e.at), r.since, ...r.hist.map(x => x.since)].filter(x => /^\d{4}-\d\d-\d\d$/.test(x || '')).sort()[0];
     if (!t0) return null;
-    const A = new Date(t0 + 'T00:00'), B = time.isStory() && time.story().date || new Date(); if (B < A) return [0, 0, 0, 0, t0];
+    // 有一个已经不在了：停在走的那天，不再往上涨
+    const end = [a, b].map(n => (d.ppl.find(q => q.name === n) || {}).died).filter(Boolean).sort()[0], now = time.isStory() && time.story().date || new Date();
+    const A = new Date(t0 + 'T00:00'), B = end && new Date(end + 'T00:00') < now ? new Date(end + 'T00:00') : now; if (B < A) return [0, 0, 0, 0, t0];
     let y = B.getFullYear() - A.getFullYear(), m = B.getMonth() - A.getMonth(), dd = B.getDate() - A.getDate();
     if (dd < 0) { m--; dd += new Date(B.getFullYear(), B.getMonth(), 0).getDate(); }
     if (m < 0) { y--; m += 12; }
@@ -135,7 +137,8 @@ export function open() {
   // 成长线：这个人是怎么一步步变成现在这样的，按先后。点正中这个人自己进来
   function openSelf(i = ctr) {
     const who = names[i], l = d.grow.filter(g => i ? g.who === who : M.isMe(g.who)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
-    show(h('h4', who, h('small.go', '成长线')), '', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
+    const died = i && (d.ppl.find(q => q.name === who) || {}).died;
+    show(h('h4', who, h('small.go', '成长线'), i ? h('small.go', { onclick: () => editGone(who) }, died ? '已故 · ' + dot(died) : '标记已故') : ''), '', '', '', l.map(g => li(dot(g.at), g.text, g.why && '因为：' + g.why, '', () => editGrow(g))), '还没有记下 TA 的变化', [btn('加一条', 'secondary', () => editGrow(null, who))]);
   }
   // 地点：一句介绍、在这里发生过的事（大地方连里面小地点的一起）
   function openPlace(n, subs = []) {
@@ -253,7 +256,7 @@ export function open() {
     const areas = level.filter(n => kids(n).length), spots = [...areas, ...level.filter(n => !kids(n).length && !loose.includes(n))];
     const at = n => { const k = spots.indexOf(n), a = k * 2.4, r = 165 * Math.sqrt((k + .5) / spots.length); return { x: Math.round(200 + Math.cos(a) * r), y: Math.round(A.mid() * (1 + Math.sin(a) * r * 1.15 / 250)) }; };   // 上下跟着画的高度摊开、居中
     const last = [...d.ev].reverse().find(e => e.place);
-    A.set({ names, link, here: (time.isStory() && time.story().place) || (last ? last.place : ''), root, up: upOf(root), deep: new Set(nodes.filter(n => kids(n).length)),
+    A.set({ names, link, gone: new Set(names.map((n, i) => (d.ppl.find(q => q.name === n) || {}).died ? i : -1)), here: (time.isStory() && time.story().place) || (last ? last.place : ''), root, up: upOf(root), deep: new Set(nodes.filter(n => kids(n).length)),
       areas: areas.map(n => ({ name: n, ...at(n), all: desc(n), list: kids(n).sort((a, b) => sum(b) - sum(a)).slice(0, 14) })),
       lone: spots.slice(areas.length).map(n => ({ name: n, ...at(n) })) });
   }
@@ -289,10 +292,26 @@ export function open() {
   return p.el;
 }
 
+// 已故：哪天走的。关系页上留在原位、淡下去；认识多久停在那天；自动记一个祭日（作者要的）
+async function editGone(who) {
+  const d = await M.load(); let p = d.ppl.find(q => q.name === who), at = (p && p.died) || '';
+  const set = async v => {
+    if (!p) d.ppl.push(p = { name: who, alias: [], who: '' });
+    if (v) p.died = v; else delete p.died;
+    d.days = d.days.filter(x => !(x.src === 'gone' && x.who[0] === who));
+    if (v) d.days.push({ kind: '祭日', date: v, md: v.slice(5), what: who + '的祭日', who: [who], src: 'gone' });
+    await M.save(); s.close(); refresh();
+  };
+  const s = sheet({ title: who, content: [field('哪天走的', dateField(at, v => { at = v; })),
+    h('div.as-prompt-bar', p && p.died && btn('撤销', 'danger', () => set('')), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => at ? set(at) : toast('选一下日期')))] });
+}
+
 /* ---------- 单独生成关系：生成完不直接存，一行行挑用原来的还是新的 ---------- */
 let regenAc = null;   // 同一时间只跑一个：放在模块里，退出再进来、再点一下星星都是取消
 async function regenRel(a, b) {
   if (regenAc) { regenAc.abort(); return; }
+  // 先说清楚要做什么（作者：别人看不懂观星、问缘是什么），确认了才找 AI
+  if (!(await dialog({ title: b ? '问缘' : '观星', text: `${b ? `重新写${a}和${b}之间` : `重新写${a}和大家`}的关系、看法和一句话。写好后先给你看，一行行挑用原来的还是新的，不会直接盖掉。`, confirm: '生成' }))) return;
   regenAc = new AbortController();
   try {
     const l = await waiting(`正在生成${b ? `${a}和${b}` : `${a}和大家`}的关系…`, sig => M.regen(a, b, sig), regenAc);
@@ -347,9 +366,8 @@ async function editRel(r) {
     field(`${r.b}眼里的${r.a}`, textarea({ value: x.vb, rows: 2, onInput: v => { x.vb = v.trim(); } })),
     field(`${r.b}对${r.a}的一句话`, input({ value: x.sb, onInput: v => { x.sb = v.trim(); } })),
     // 删除（作者：删不掉）：以前是拿掉这一条，可两个人一起经历过事，关系页又按「认识」摆回来。现在记成不认识（亲近度 0）：关系页不显示，整理也不再催
-    h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return;
-      Object.assign(r, { kind: '不认识', lv: 0, since: '', now: '', va: '', vb: '', sa: '', sb: '', hist: [] }); if (!d.rel.includes(r)) d.rel.push(r); await M.save(); s.close(); refresh(); })),
-    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+    h('div.as-prompt-bar', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这段关系？', confirm: '删除', danger: true }))) return;
+      Object.assign(r, { kind: '不认识', lv: 0, since: '', now: '', va: '', vb: '', sa: '', sb: '', hist: [] }); if (!d.rel.includes(r)) d.rel.push(r); await M.save(); s.close(); refresh(); }), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       x.kind = x.kind || '其他'; if (!d.rel.includes(r)) d.rel.push(r); else if (x.kind !== r.kind) r.hist.push({ kind: r.kind, since: r.since, lv: r.lv, va: r.va, vb: r.vb });
       Object.assign(r, x); await M.save(); s.close(); refresh();
     })),
@@ -361,8 +379,7 @@ async function editGrow(o, who = '') {
     field('哪天', dateField(M.day(x.at)[0], v => { x.at = v; })),
     field(withInfo('变了什么', '写成「以前怎样 → 现在怎样」。TA 以后说话做事会照现在的样子来，和人设不一样的以这里为准。'), textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
     field('因为哪件事', input({ value: x.why, onInput: v => { x.why = v.trim(); } })),
-    o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.grow.splice(d.grow.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
-    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+    h('div.as-prompt-bar', o && btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.grow.splice(d.grow.indexOf(o), 1); await M.save(); s.close(); refresh(); }), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (!x.text) { toast('写上变了什么'); return; }
       if (o) Object.assign(o, x); else d.grow.push({ id: uid('g'), who, ...x, src: '手动' });
       await M.save(); s.close(); refresh();
@@ -378,8 +395,7 @@ async function editDay(o) {
     // 只知道哪天、不知道哪年（比如生日）：年份那列最上面选「不知道哪年」，只存月-日
     field('日期', dateField(x.at, v => { x.at = v; }, true)),
     field('和谁有关', whoPick(d, x.who, v => { x.who = v; })),
-    o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
-    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+    h('div.as-prompt-bar', o && btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这个日子？', confirm: '删除', danger: true }))) return; d.days.splice(d.days.indexOf(o), 1); await M.save(); s.close(); refresh(); }), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       const y = M.parse(`日子：${x.kind}｜${x.at}｜${x.what}｜${x.who}`).days[0];
       if (!y) { toast(x.what ? '选一下日期' : '写上是什么日子'); return; }
       if (o) Object.assign(o, y); else d.days.push(y);
@@ -394,8 +410,7 @@ async function editFact(o, about = '') {
     field('关于谁', whoPick(d, x.about, v => { x.about = v; }, true)),
     field('是什么', textarea({ value: x.text, rows: 2, onInput: v => { x.text = v.trim(); } })),
     field('谁知道', whoPick(d, x.know, v => { x.know = v; })),
-    o ? h('div.as-mem-acts', btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.facts.splice(d.facts.indexOf(o), 1); await M.save(); s.close(); refresh(); })) : null,
-    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
+    h('div.as-prompt-bar', o && btn('删除', 'danger', async () => { if (!(await dialog({ title: '删除这一条？', confirm: '删除', danger: true }))) return; d.facts.splice(d.facts.indexOf(o), 1); await M.save(); s.close(); refresh(); }), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', async () => {
       if (!x.about || !x.text) { toast(x.about ? '写上是什么' : '写上关于谁'); return; }
       if (o) Object.assign(o, { about: x.about, text: x.text, know: split(x.know) }); else d.facts.push({ id: uid('f'), about: x.about, text: x.text, know: split(x.know), hist: [] });
       await M.save(); s.close(); refresh();

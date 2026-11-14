@@ -19,7 +19,7 @@ export function art(host, on) {
   const room = () => { if (!roomH) { const v = page.getBoundingClientRect().bottom - host.getBoundingClientRect().top - 96; if (v > 300) roomH = Math.max(500, Math.round(v)); } return roomH || 500; };
   const tallOf = i => i === 2 ? room() : tall(i);
   let W = 0, H = 410, cur = 0, from = 0, t0 = -1e9, raf = 0, phone = null, fresh = false;
-  let NAMES = [], LINK = [], POS = [], ctr = 0, selP = -1, drag = null, press = null;
+  let GONE = new Set(), NAMES = [], LINK = [], POS = [], ctr = 0, selP = -1, drag = null, press = null;
   let AREAS = [], LONE = [], here = '', sel = null, zk = -1, zin = false, zT0 = -1e9, needle = 0;
   const size = () => { const d = devicePixelRatio || 1; W = cv.clientWidth; cv.style.height = H + 'px'; cv.width = W * d; cv.height = H * d; g.setTransform(d, 0, 0, d, 0, 0); };
 
@@ -70,7 +70,7 @@ export function art(host, on) {
   }
 
   /* 轨道：正中是「现在看谁」，TA 认识的人各是一颗星，离得越近越亲；从星往外的那串小圈是以前待过的位置。整张图慢慢转 */
-  const tag = (i, px, py, dy = 0, al = 1) => { const b = men.children[i]; if (!b) return; b.style.transform = `translate(${Math.max(22, Math.min(W - 22, px)).toFixed(1)}px, ${(py + dy).toFixed(1)}px) translate(-50%, -18px)`; b.style.opacity = al.toFixed(2); b.style.pointerEvents = al > .5 ? '' : 'none'; };
+  const tag = (i, px, py, dy = 0, al = 1) => { const b = men.children[i]; if (!b) return; b.style.transform = `translate(${Math.max(22, Math.min(W - 22, px)).toFixed(1)}px, ${(py + dy).toFixed(1)}px) translate(-50%, -18px)`; b.style.opacity = (al * (GONE.has(i) ? .5 : 1)).toFixed(2); b.style.pointerEvents = al > .5 ? '' : 'none'; };
   const rad = r => mix(46, Math.min(W / 2 - 16, 184), (r + .5) / 6);
   function orbit(P, t, b) {
     const cx = W / 2, rot = t * .025, Rm = rad(5.5);
@@ -87,7 +87,7 @@ export function art(host, on) {
       if (drag && drag.i === i) { S[0] = drag.x; S[1] = drag.y; S[2] = 1; } else for (let k = 0; k < 3; k++) S[k] += (T[k] - S[k]) * .13;
       const px = mix(cx, S[0], b), py = mix(OC, S[1], b), al = S[2];
       if (al < .02) return tag(i, px, py, 0, 0);
-      g.globalAlpha = A0 * al;
+      g.globalAlpha = A0 * al * (GONE.has(i) && !me ? .45 : 1);   // 不在了的人：留在原位，淡下去，外面一圈虚线（作者挑的）
       if (me) { disc(px, py, 16, P.blue); g.save(); g.beginPath(); g.arc(px, py, 16, 0, 7); g.clip(); stipple(px, py, 16, P.paper, -.7, -.6, 50, 2); g.restore(); return tag(i, px, py, 13, al); }
       if (lk && !(drag && drag.i === i)) { const at = q => [cx + Math.cos(a) * q * b, OC + Math.sin(a) * q * b]; ring(cx, OC, Math.hypot(px - cx, py - OC), P.pencil, .9, null, a - .8, a);
         if (lk.st.length > 1) { line([at(rad(lk.st[lk.st.length - 1][2]) + jt), [px, py]], P.blue, 1); lk.st.slice(1).forEach(s => { const q = at(rad(s[2]) + jt); disc(q[0], q[1], 2.6, P.paper); ring(q[0], q[1], 2.6, P.blue, 1.1); }); } }
@@ -95,6 +95,7 @@ export function art(host, on) {
       // 恋人、暧昧、夫妻是蓝点，对手是空心，最好的朋友在白点外面套一圈细线（作者挑的），别的是白点
       disc(px, py, 4.8, kind === '对手' ? P.paper : /^(恋人|暧昧|夫妻)$/.test(kind) ? P.blue : P.ink); if (kind === '对手') ring(px, py, 4.8, P.ink, 1.4);
       if (/^(挚友|密友|闺蜜|死党)$/.test(kind)) ring(px, py, 8, P.ink, 1);
+      if (GONE.has(i)) ring(px, py, 11, P.ink, 1, [2, 3]);
       if (i === selP) ring(px, py, 11, P.blue, 1.2);
       tag(i, px, py, 0, al);
     });
@@ -228,7 +229,7 @@ export function art(host, on) {
     /** names：所有人（第 0 个是你）；link[a][b] = { kind, st: [[日期, 是什么, 离多远]…]（第 0 条是现在）}；areas：[{ name, x, y, list: 摆出来的小地点, all: 里面所有的小地点 }]；lone：[{ name, x, y }]；here：现在在哪 */
     set(d) {
       const same = d.names.join('|') === NAMES.join('|');
-      ({ names: NAMES, link: LINK, areas: AREAS, lone: LONE, here, root: ROOT, up: UP, deep: DEEP } = d);
+      ({ names: NAMES, link: LINK, areas: AREAS, lone: LONE, here, root: ROOT, up: UP, deep: DEEP } = d); GONE = d.gone || new Set();
       if (!same) { POS = []; men.replaceChildren(...NAMES.map(n => h('button', n))); if (ctr >= NAMES.length) ctr = 0; }
       fresh = true;
     },
