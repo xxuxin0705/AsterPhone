@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.359';
+export const VERSION = '0.8.360';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -125,6 +125,7 @@ function openApps() {
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
         item({ icon: 'sparkle', color: 'gold', title: '幕间', sub: '文字：' + (state.apps.interlude.conn.text === 'follow' ? '跟随全局' : (state.connections.text.find(x => x.id === state.apps.interlude.conn.text) || {}).name || '跟随全局'), chevron: true, onClick: openInterludeApp }),
         item({ icon: 'music', color: 'red', title: '音乐', chevron: true, onClick: openMusicApp }),
+        item({ icon: 'hourglass', color: 'blue', title: '岁岁砂', chevron: true, onClick: openMemoryApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
         item({ icon: 'list', color: 'teal', title: '日志', chevron: true, onClick: () => shell.openApp('log') }),
       ]),
@@ -144,6 +145,16 @@ function openMusicApp() {
     const moreF = sliderRow('最多补写', { min: 1, max: 10, step: 1, value: m.fillMax || 3, fmt: v => v + ' 次', onInput: v => { m.fillMax = v; commit('music'); } }); moreF.hidden = !m.fill;
     body.append(group('', [
       toggleItem({ title: withInfo('写到一半断了自动补写', '回复写到一半断了（比如切到后台），把写出来的给 AI，让它接着写完。每补一次多找一次 AI。') }, !!m.fill, v => { m.fill = v; commit('music'); moreF.hidden = !v; }),
+      moreF]));
+  });
+}
+// 岁岁砂：整理的回复写到一半断了自动接着整理（默认关）。没开时写出来的照样记下，点「接着整理」从断的地方接
+function openMemoryApp() {
+  const m = state.apps.memory;
+  sub('app-memory', '岁岁砂', body => {
+    const moreF = sliderRow('最多补写', { min: 1, max: 10, step: 1, value: m.fillMax || 3, fmt: v => v + ' 次', onInput: v => { m.fillMax = v; commit('apps'); } }); moreF.hidden = !m.fill;
+    body.append(group('', [
+      toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, v => { m.fill = v; commit('apps'); moreF.hidden = !v; }),
       moreF]));
   });
 }

@@ -354,16 +354,16 @@ function openSort() {
   async function paintRun() {
     const j = M.running(), left = j ? null : await M.leftover();
     if (j) act.replaceChildren(h('div.as-mem-sum', `正在整理「${j.label}」第 ${j.done + 1}/${j.list.length} 批…`), h('div.as-prompt-bar', btn('取消', 'secondary', () => M.cancelJob())));
-    else if (left) act.replaceChildren(h('div.as-mem-sum', `「${left.label}」还剩 ${left.list.length - left.done} 批没整理`),
-      h('div.as-prompt-bar', btn('放弃', 'secondary', async () => { await M.dropJob(); paintRun(); }), btn('接着整理', 'primary', () => go(left.label, left.list, left.done))));
+    else if (left) act.replaceChildren(h('div.as-mem-sum', `「${left.label}」还剩 ${left.list.length - left.done} 批没整理${left.at ? '（这一批写到一半）' : ''}`),
+      h('div.as-prompt-bar', btn('放弃', 'secondary', async () => { await M.dropJob(); paintRun(); }), btn('接着整理', 'primary', () => go(left.label, left.list, left.done, left.at))));
     else act.replaceChildren(h('div.as-prompt-bar', btn('开始整理', 'primary', () => {
       const ps = parts(); if (!ps.length) { toast('没有要整理的内容'); return; }
       go(src === 'book' ? book.name : src === 'file' ? file.name : '当前聊天', M.batches(ps));
     })));
   }
-  function go(label, list, done) {
+  function go(label, list, done, at) {
     toast(`开始整理，一共 ${list.length} 批`);
-    M.startJob(label, list, done).catch(e => toast(e.message));
+    M.startJob(label, list, done, at).catch(e => toast(e.message));
   }
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
@@ -396,6 +396,9 @@ async function openSet() {
     const v = await actionSheet('整理用的接口', [{ value: 'follow', label: '跟随聊天线', active: m.conn.text === 'follow' }, ...state.connections.text.map(c => ({ value: c.id, label: c.name, active: m.conn.text === c.id }))]);
     if (!v) return; m.conn.text = v; commit('apps'); val(connItem, label());
   } });
+  // 写到一半断了自动补写：和「设置 → 应用管理 → 岁岁砂」是同一个开关
+  const fillMax = pick('最多补写', 'fillMax', 3, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n]), ' 次'); fillMax.hidden = !m.fill;
+  const fillOn = toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, on => { m.fill = on; commit('apps'); fillMax.hidden = !on; });
   const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己点「现在整理」或去「导入整理」。'), [
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
     item({ title: '现在整理', chevron: true, onClick: async () => {
@@ -403,6 +406,7 @@ async function openSet() {
       toast('正在整理…', { label: '取消', fn: () => M.cancelJob(), wait: true });
       try { if (!(await M.autoSort(true))) toast('没有新的可整理'); } catch (e) { toast('整理失败：' + e.message); }
     } }),
+    fillOn, fillMax,
     toggleItem({ title: '手机聊天时顺手记' }, m.chat !== false, on => { m.chat = on; commit('apps'); }),
     toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在「等你看」里，你点「留下」TA 才会记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem]);
   // 回想：按意思找（向量）、再排一遍（重排）、最多想起几件、每件带多少原文、来时路
