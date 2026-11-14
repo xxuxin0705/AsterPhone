@@ -39,15 +39,15 @@ function tagGroup(s, withInfo) {
     if (!lists[k].includes(t)) lists[k].push(t);
     save(); paint();
   };
-  const paintList = k => boxes[k].replaceChildren(...lists[k].map(t => {
-    const off = k === 'keep' && s.keepOff.includes(t);
-    return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : ''), { onclick: k === 'keep' ? () => {
+  const paintList = k => { const inside = k === 'drop' ? tagsInside() : null; boxes[k].replaceChildren(...lists[k].map(t => {
+    const off = k === 'keep' && s.keepOff.includes(t), idle = inside && !inside[t];   // idle：不在「给手机看」的标签里面，本来就看不到，放不放都一样（变灰，不自动删）
+    return h('span.as-chip' + (k === 'keep' && !off ? '.is-active' : '') + (off ? '.is-off' : '') + (idle ? '.is-idle' : ''), { onclick: k === 'keep' ? () => {
       s.keepOff = off ? s.keepOff.filter(x => x !== t) : [...s.keepOff, t]; save(); paint();
     } : null }, label(t),
       h('button.as-pbd__chipx', { 'aria-label': `删掉「${label(t)}」`, onclick: e => {
         e.stopPropagation(); lists[k].splice(lists[k].indexOf(t), 1); s.keepOff = s.keepOff.filter(x => x !== t); save(); paint();
       } }, icon('close', 11, 2.4)));
-  }));
+  })); };
   const paintPool = k => {
     const found = k === 'drop' && s.keep.length ? tagsInside() : detectTags();
     const fresh = Object.keys(found).filter(t => !s.keep.includes(t) && !s.drop.includes(t)).sort((a, b) => az ? a.localeCompare(b) : found[b] - found[a] || a.localeCompare(b));

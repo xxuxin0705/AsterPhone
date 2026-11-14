@@ -107,6 +107,7 @@
 .as-settings-now .as-list-item__value { max-width: 80%; }   /* 「现在」后面的日期时间要写全 */
 .as-chip.is-off { opacity: .45; text-decoration: line-through; }   /* 「给手机看」里暂时关掉的标签 */
 .as-ctx-add { color: var(--as-color-accent); border-style: dashed; }
+.as-chip.is-idle { opacity: .4; }   /* 「不给手机看」里现在用不上的 */
 .as-ctx-poolhead { display: flex; align-items: center; gap: 12px; margin: 12px 0 6px; font-size: 12px; color: var(--as-color-text-3, #9aa0ab); }
 .as-ctx-poolhead span { flex: 1; }
 .as-ctx-more { border: 0; padding: 4px 0; background: none; color: var(--as-color-accent); font: 500 12px/1 var(--font-ui); }
