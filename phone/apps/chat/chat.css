@@ -443,6 +443,8 @@
 .as-chat-tr { max-width: 100%; margin-top: 2px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,.32); border: 1px dashed var(--as-color-glass-line); font: 400 .86em/1.5 var(--font-ui); color: var(--as-color-text); white-space: pre-wrap; word-break: break-word; }
 .as-chat-tr span { margin-right: 6px; font-size: .78em; padding: 1px 5px; border-radius: 6px; background: color-mix(in srgb, var(--as-color-accent) 16%, transparent); color: var(--as-color-accent); }
 .as-chat-tr.is-orig { color: var(--as-color-text-2); }
+.as-chat-moment__tr { margin-top: 3px; font: 400 13px/1.45 var(--font-ui); color: var(--as-color-text-2); }
+small.as-chat-moment__tr { display: block; margin: 1px 0 0; font-size: 12px; }
 .as-phone[data-mode="night"] .as-chat-tr { background: rgba(255,255,255,.06); }
 
 /* AI 智能加载：预览勾选页 */

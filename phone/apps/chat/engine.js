@@ -11,7 +11,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
-import { translate } from '../../core/translate.js';
+import { translate, langName } from '../../core/translate.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -104,7 +104,7 @@ export async function translateMsg(chat, m, to) {
   return true;
 }
 async function autoTranslate(chat, m) {
-  if (!chat.cfg.autoTr || !canTr(m)) return;
+  if (!chat.cfg.autoTr || !canTr(m) || m.tr) return;
   try { await translateMsg(chat, m); } catch (e) { /* 日志里有 */ }
 }
 /** 回复设置：这个聊天自己改过就用自己的，没改过跟「设置 → 应用 → 聊天」里的默认。
@@ -115,7 +115,12 @@ export function replyCfg(chat) {
 }
 export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
 /** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
-function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text } : p; }
+function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text, tr: p.tr } : p; }
+/* 说外语的 TA（照作者二改的 phonetest）：私聊设置里「TA 说的语言」选了外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
+   拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
+const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = ch && ch.cfg.theirLang; return l && l !== 'zh-CN' ? l : ''; };
+const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
+const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}直接用自己的语言写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
 /** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
 const roundNote = rc => `\n\n【这一轮】${rc.group ? '大家加起来' : ''}回复 ${rc.lines[0]}–${rc.lines[1]} 条独立消息，每条单独一行；${rc.voice[1] ? `语音 ${rc.voice[0]}–${rc.voice[1]} 条` : '不发语音'}。`;
 /** 条数不够下限：把长的话按句子拆成几条（括号、引号里的不拆，太短的并回去），拆到够数或拆不动为止；不多调一次 AI。head：每条前面要留着的（群聊的「名字：」），给 null 的那行不拆 */
@@ -125,7 +130,7 @@ function toMin(lines, [min, max], head = () => '') {
     let room = max - lines.length;
     lines = lines.flatMap(l => {
       const hd = head(l);
-      if (room <= 0 || hd == null || /^\s*\[/.test(l.slice(hd.length))) return [l];
+      if (room <= 0 || hd == null || /^\s*\[/.test(l.slice(hd.length)) || /[\[【]\s*翻译/.test(l)) return [l];
       const body = l.slice(hd.length);
       const ps = []; let buf = '', d = 0;
       for (let i = 0; i < body.length; i++) {
@@ -284,7 +289,7 @@ export async function buildReplyPrompt(chat, msgs, lite) {
   const history = historyText(msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid, lite === 'min');
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
-    story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs),
+    story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs), lang: c && speakOf(c.id) ? `\n- 每条文字和语音都直接用「${langName(speakOf(c.id))}」写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。` : '',
   }, sid);
   return { system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t) };
 }
@@ -330,7 +335,8 @@ export async function requestReply(chat, opts = {}) {
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
-      let p = parseLine(line);
+      const [ln, tr] = takeTr(line);
+      let p = parseLine(ln); if (tr) p.tr = tr;
       if (p.type === 'voice') p = voiceLimit(rc, p, ++nv);
       // 收下 / 退还我刚发的转账、红包
       if (p.type === 'accept' || p.type === 'return') { await settleMine(chat, msgs, c, p.type === 'accept'); continue; }
@@ -390,7 +396,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const t = time.forPrompt(), sid = chatScheme('group', chat.cfg.prompt), wb = await worldBlock(story + '\n' + history, members, 'group', sid);
     const rc = replyCfg(chat);
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
-      time: t, history, max: chat.cfg.maxSpeakers || 3, voice: `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，${voiceNote(rc)}` }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat) + roundNote(rc);
+      time: t, history, max: chat.cfg.maxSpeakers || 3, voice: `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，${voiceNote(rc)}`, lang: langRule(chat.members, '说话') }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat) + roundNote(rc);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
@@ -409,7 +415,8 @@ export async function requestGroupReply(chat, opts = {}) {
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
       const mm = /^([^:：]{1,16})[:：]\s*(.+)$/.exec(raw); if (!mm) continue;
       const p = find(mm[1]); if (!p) continue;
-      let parsed = parseLine(mm[2].trim());
+      const [ln, tr] = takeTr(mm[2].trim());
+      let parsed = parseLine(ln); if (tr) parsed.tr = tr;
       if (parsed.type === 'voice') parsed = voiceLimit(rc, parsed, ++nv);
       if (['accept', 'return', 'poke-them'].includes(parsed.type)) {
         if (parsed.type === 'poke-them' && rc.poke) await addSystem(chat, `「${nameOf(p)}」拍了拍你${state.me.pokeSuffix || ''}`);
@@ -591,7 +598,7 @@ export async function genMoments({ count, must = [], only = false }, stop) {
   const pool = only ? must.map(contact).filter(Boolean) : [...must.map(contact).filter(Boolean), ...[...state.contacts].filter(c => !must.includes(c.id)).sort(() => Math.random() - .5)].slice(0, Math.max(15, must.length));
   const story = storyText(Math.min(4, ctxCfg().count)) || '（暂无）';
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop,
-    prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}`).join('\n'), story, world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
+    prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}`).join('\n'), story, lang: langRule(pool.map(c => c.id), '的动态正文'), world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
       pick: must.length ? `\n【这次】${only ? '只能由这些人发' : '这些人每人至少发一条'}：${must.map(id => nameOf(contact(id))).join('、')}` : '' }) });
   const find = n => pool.find(c => [c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).includes(n.trim()));
   const out = []; let cur = null;
@@ -604,6 +611,7 @@ export async function genMoments({ count, must = [], only = false }, stop) {
     else if (cur) cur.text += ' ' + l;
   }
   if (!out.length) throw new Error('AI 没有按格式写动态');
+  out.forEach(mo => { const [t, tr] = takeTr(mo.text); mo.text = t; if (tr) mo.tr = tr; });
   state.moments.unshift(...out.slice(0, count)); commit('moments');
   return Math.min(out.length, count);
 }
@@ -615,14 +623,14 @@ export async function genComments(mo, stop) {
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),
     mo.likes.length ? `已点赞：${mo.likes.map(who).join('、')}` : ''].filter(Boolean).join('\n');
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
-  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt() }) });
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt(), lang: langRule(people.map(p => p.id), '评论和回复') }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
   let added = 0;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {
     const parts = l.split(/[|｜]/).map(s => s.trim());
     if (parts[0] === '赞') { const id = find(parts[1]); if (id && id !== 'me' && !mo.likes.includes(id)) { mo.likes.push(id); added++; } }
-    else if (parts[0] === '评论' && parts.length >= 3) { const id = find(parts[1]); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, text: parts.slice(2).join('|'), at: Date.now() }); added++; } }
-    else if (parts[0] === '回复' && parts.length >= 4) { const id = find(parts[1]), to = find(parts[2]); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, to: to || null, text: parts.slice(3).join('|'), at: Date.now() }); added++; } }
+    else if (parts[0] === '评论' && parts.length >= 3) { const id = find(parts[1]), [text, tr] = takeTr(parts.slice(2).join('|')); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, text, ...(tr ? { tr } : {}), at: Date.now() }); added++; } }
+    else if (parts[0] === '回复' && parts.length >= 4) { const id = find(parts[1]), to = find(parts[2]), [text, tr] = takeTr(parts.slice(3).join('|')); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, to: to || null, text, ...(tr ? { tr } : {}), at: Date.now() }); added++; } }
   });
   commit('moments');
   return added;

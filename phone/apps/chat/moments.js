@@ -52,10 +52,10 @@ function card(m, redraw) {
   const box = (m.likes.length || m.comments.length) ? h('div.as-chat-moment__box',
     m.likes.length ? h('div.as-chat-moment__likes', icon('heart', 14, 2), h('span', m.likes.map(who).join('，'))) : null,
     m.comments.length ? h('div.as-chat-moment__comments', m.comments.map(cm => h('div.as-chat-moment__comment', { onclick: () => commentOn(m, cm.who === 'me' ? null : cm.who, redraw) },
-      h('span.as-chat-moment__who', who(cm.who)), cm.to ? [' 回复 ', h('span.as-chat-moment__who', who(cm.to))] : null, '：', cm.text))) : null) : null;
+      h('span.as-chat-moment__who', who(cm.who)), cm.to ? [' 回复 ', h('span.as-chat-moment__who', who(cm.to))] : null, '：', cm.text, cm.tr ? h('small.as-chat-moment__tr', cm.tr) : null))) : null) : null;
   return h('article.as-chat-moment', avatar(authorAvatar(m.author), authorName(m.author), 42, 'square'),
     h('div', h('div.as-chat-moment__name', { onclick: () => m.author === 'me' ? null : openProfile(m.author) }, authorName(m.author)),
-      m.text && h('div.as-chat-moment__text', m.text), imgs, desc,
+      m.text && h('div.as-chat-moment__text', m.text), m.tr ? h('div.as-chat-moment__tr', m.tr) : null, imgs, desc,
       h('div.as-chat-moment__meta', h('span', time.shortLabel(m)), m.location && h('span', '· ' + m.location), m.author === 'me' && m.vis && m.vis !== 'public' ? h('span.as-chat-moment__vis', { title: '不是所有人都能看' }, icon(m.vis === 'private' ? 'lock' : 'users', 12, 2)) : null, h('span.as-spacer'), ops),
       box));
 }

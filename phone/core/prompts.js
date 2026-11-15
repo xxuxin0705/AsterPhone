@@ -8,7 +8,7 @@
 /** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
 export const VAR_INFO = {
   char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上岁岁砂里 TA 记得的事（没有就是空的）', memory: '岁岁砂里 TA 这会儿想起的事（每次不一样，放在后面；提示词里没写它的话，会放进 {{world}}）', lines: '岁岁砂里已经有的故事线',
-  story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
+  story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', lang: '谁说外语：用自己的语言写、后面附中文（按各人私聊里「TA 说的语言」自动填，都说中文就是空的）', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
   group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
   entries: '世界书条目', count: '要几个（挑几首歌、发几条动态）', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
@@ -23,10 +23,10 @@ export const VAR_INFO = {
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
   { app: '聊天', items: [
-    { id: 'dm', name: '私聊', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'history', 'memory', 'last', 'min', 'max', 'voice'] },
-    { id: 'group', name: '群聊', vars: ['group', 'user', 'members', 'intro', 'world', 'story', 'time', 'history', 'memory', 'max', 'voice'] },
-    { id: 'moment', name: '发动态', vars: ['count', 'posters', 'pick', 'user', 'world', 'story', 'time'] },
-    { id: 'comment', name: '动态评论', vars: ['post', 'people', 'time', 'user'] },
+    { id: 'dm', name: '私聊', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'history', 'memory', 'last', 'min', 'max', 'voice', 'lang'] },
+    { id: 'group', name: '群聊', vars: ['group', 'user', 'members', 'intro', 'world', 'story', 'time', 'history', 'memory', 'max', 'voice', 'lang'] },
+    { id: 'moment', name: '发动态', vars: ['count', 'posters', 'pick', 'user', 'world', 'story', 'time', 'lang'] },
+    { id: 'comment', name: '动态评论', vars: ['post', 'people', 'time', 'user', 'lang'] },
     { id: 'proactive', name: '主动消息', vars: ['char', 'user'] },
     { id: 'catchup', name: '离开期间补发', vars: ['char', 'user', 'gap'] },
     { id: 'verify', name: '好友验证', vars: ['char', 'user', 'persona', 'story', 'text'] },
@@ -122,7 +122,7 @@ export const DEFAULT_PROMPTS = {
 - 先看正文最后：{{char}} 这会儿在哪、在做什么、和 {{user}} 在不在一起。回的话和配图都要和这个对得上。
 - 人就在 {{user}} 旁边时，可以笑 TA 有话不当面说，也可以陪 TA 在手机上聊，随剧情来；这种话聊天记录里说过就别再提。
 - 回复 {{min}}–{{max}} 条独立的消息，每条单独占一行（文字、图片、语音各算一条），像真人一样一句一句地发，不要把几句话挤在一行；{{voice}}。条数随聊天的节奏来，但必须落在这个区间内。不要编号、不要引号、不要写名字。
-- 给 {{user}} 刚发的话贴一个表情：单独一行写 [表情回应:表情]，表情要符合你此刻对这句话的真实态度、和你回的语气一致，别总用 👍；这行不算条数。
+- 给 {{user}} 刚发的话贴一个表情：单独一行写 [表情回应:表情]，表情要符合你此刻对这句话的真实态度、和你回的语气一致，别总用 👍；这行不算条数。{{lang}}
 - 想表达心里话但不说出口的，可以在第一行用 <inner>……</inner> 写出来（不会发给对方）。
 - 只输出消息本身。` },
   group: { name: '群聊回复', cats: ['group'], on: true, main: true,
@@ -142,7 +142,7 @@ export const DEFAULT_PROMPTS = {
 请决定接下来谁在群里说话：最多 {{max}} 个人，不是每个人都要说；剧情里在忙、没看手机的人就不说。
 每个人这会儿在哪、在做什么、和 {{user}} 在不在一起，看正文最后来定，说的话和配图都要对得上；和 {{user}} 就在一起的人，可以笑 TA 有话不当面说，也可以接着在群里聊，随剧情来，这种话说过就别再提。
 被 @ 的人优先回复。每人可以连发几条，像真人一样一句一句地发，不要把几句话挤在一行；{{voice}}，必须落在这个区间内。
-可以给 {{user}} 或别人说的话贴表情：在贴的那个人自己那行末尾写 [表情回应:表情|那句话里的几个字]，一轮最多 3 个，表情要符合这个人此刻的态度，别总用 👍。按下面格式输出，每行一条消息：
+可以给 {{user}} 或别人说的话贴表情：在贴的那个人自己那行末尾写 [表情回应:表情|那句话里的几个字]，一轮最多 3 个，表情要符合这个人此刻的态度，别总用 👍。{{lang}}按下面格式输出，每行一条消息：
 名字：消息内容
 如果有人想私下单独找 {{user}}（比如不好意思在群里说、想吐槽群里的人），写成：
 私聊|名字：消息内容
@@ -326,7 +326,7 @@ export const DEFAULT_PROMPTS = {
 【现在】{{time}}
 {{pick}}
 每条写的事和配图，要和这个人在正文最后在哪、在做什么对得上；不同的人语气各不相同。一个人可以发不止一条，但别都让同一个人发。
-像真人一样，很多动态只发文字，确实拍了照片才配图。
+像真人一样，很多动态只发文字，确实拍了照片才配图。{{lang}}
 按下面格式输出，每条之间空一行：
 名字：动态正文（1~4 句，可带表情）
 [图片：画面描述]（想配图才写，单独一行）
@@ -343,7 +343,7 @@ export const DEFAULT_PROMPTS = {
 赞|名字
 评论|名字|内容
 回复|名字|被回复的人|内容
-不需要每个人都出现；只输出这些行。` },
+不需要每个人都出现；只输出这些行。{{lang}}` },
   proactive: { name: '主动消息', cats: ['proactive'], on: true, main: true,
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
   verify: { name: '好友验证', cats: ['verify'], on: true, main: true,
