@@ -5,7 +5,7 @@
 // 小脸：平时呆呆的 ·_·，拎着线靠近会好奇地看过来，插中先「≧▽≦」，连上了 ^‿^，连不上 T_T 还会掉眼泪。
 import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
-import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar } from '../../core/ui.js';
+import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, rerank, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
 import { tavernProfiles } from '../../core/bridge.js';
@@ -949,7 +949,9 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
       const sizeIn = input({ value: I.size, placeholder: '宽x高', onInput: v => { I.size = v.replace(/[×*X ]/g, 'x'); touch(); re(); paintSz(); } });
       const szBox = h('div.as-pbd__chips'), paintSz = () => szBox.replaceChildren(...SIZES.map(v => h('button' + (I.size === v ? '.is-on' : ''), { onclick: () => { I.size = sizeIn.value = v; touch(); re(); paintSz(); } }, v.replace('x', '×'))));
       paintSz();
-      const num = (k, ph) => input({ value: I[k] ?? '', type: 'number', placeholder: ph, onInput: v => { I[k] = v === '' ? undefined : +v; touch(); } });
+      // 步数 1–150、CFG 1–30（每格 0.5）；最上面一格「默认」= 不传，照这家的默认
+      const num = (k, ph) => { const l = k === 'steps' ? Array.from({ length: 150 }, (_, i) => i + 1) : Array.from({ length: 59 }, (_, i) => 1 + i / 2);
+        return wheelField([[undefined, `默认 ${ph}`], ...(I[k] == null || l.includes(I[k]) ? [] : [I[k]]), ...l].map(v => Array.isArray(v) ? v : [v, String(v)]), I[k], v => { I[k] = v; touch(); }, k === 'steps' ? '步数' : 'CFG'); };
       const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
       const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' };
       // 采样器：从这家支持的里面挑，不用手打（本地 SD / ComfyUI 先问它装了哪些）

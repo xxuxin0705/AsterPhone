@@ -4,7 +4,7 @@
 // 写日记、配图在 core/diary.js 里跑，退出这页也接着跑；同一个人同一时间只写一篇，回来按钮还是「取消」。
 import { h, fileToDataURL, debounce } from '../../core/util.js';
 import { state, contact, commit, subscribe } from '../../core/store.js';
-import { page, navBtn, sheet, actionSheet, dialog, toast, btn, segmented, textarea, input, field, group, item, toggleItem, icon, empty, pickImage, colorWheel } from '../../core/ui.js';
+import { page, navBtn, sheet, actionSheet, dialog, toast, btn, segmented, textarea, input, field, group, item, toggleItem, icon, empty, pickImage, colorWheel, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as Dy from '../../core/diary.js';
 import * as M from '../../core/memory.js';
@@ -132,7 +132,7 @@ export function open() {
 /** 新的一本 / 改一本：封面、什么时候写；改的时候能删 */
 function bookSheet(b, who, done) {
   const x = b ? { ...b, mode: b.mode === 'hand' ? 'hand' : 'every' } : { who, cover: COVERS[books().length % COVERS.length], mode: 'every', n: 3 };
-  const every = field('每几楼写一篇', input({ type: 'number', value: String(x.n || 1), onInput: v => { x.n = Math.max(1, parseInt(v, 10) || 1); } }));
+  const every = field('每几楼写一篇', wheelField(Array.from({ length: 50 }, (_, i) => [i + 1, `${i + 1} 楼`]), x.n || 1, v => { x.n = v; }, '每几楼写一篇'));
   every.hidden = x.mode === 'hand';
   const fontRow = item({ title: '字体', value: fontOf(x.font)[0], chevron: true, onClick: async () => {
     const v = await actionSheet('字体', [...FONTS.map(f => ({ value: f[0], label: f[1], active: (x.font || 'xiaolai') === f[0] })),
@@ -319,8 +319,7 @@ async function writeSheet(c) {
   let photos = [];
   const box = {
     mem: evs.length ? group('', evs.map(e => toggleItem({ title: e.title, sub: ymd(e.at) }, false, on => { on ? pick.add(e) : pick.delete(e); }))) : empty('岁岁砂里还没有 TA 的事'),
-    floor: total ? field(`从第几层到第几层（一共 ${total} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(fl[0]), onInput: v => { fl[0] = Math.max(0, parseInt(v, 10) || 0); } }),
-      h('span', '到'), input({ type: 'number', value: String(fl[1]), onInput: v => { fl[1] = parseInt(v, 10) || 0; } }))) : empty('现在没有打开酒馆的聊天'),
+    floor: total ? field(`从第几层到第几层（一共 ${total} 层，从 0 数）`, h('div.as-mem-range', ...fl.map((v, i) => wheelField(Array.from({ length: total }, (_, k) => [k, `第 ${k} 层`]), v, x => { fl[i] = x; }, i ? '到第几层' : '从第几层')).flatMap((b, i) => i ? [h('span', '到'), b] : [b]))) : empty('现在没有打开酒馆的聊天'),
   };
   const show = () => Object.entries(box).forEach(([k, el]) => { el.hidden = k !== src; });
   const ph = btn('放几张照片', 'secondary', async () => { const got = await pickPhotos(); if (!got.length) return; photos = got; ph.textContent = `放了 ${got.length} 张照片`; });

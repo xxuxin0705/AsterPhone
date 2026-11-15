@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit, contact, kvGet, kvSet, kvDel, subscribe } from '../../core/store.js';
-import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting, sortable } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting, sortable, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { shell } from '../../core/shell.js';
@@ -612,11 +612,13 @@ function editMe(after) {
   const paintImgs = () => { av.replaceChildren(avatar(d.avatar || myAvatar(), d.nick || myNick(), 40)); bgThumb.style.backgroundImage = bgUrl(d.bg); };
   paintImgs();
   const img = (k, title, opt) => async () => { const v = await pickImage(title, { ...opt, has: !!d[k] }); if (v != null) { d[k] = v; paintImgs(); } };
-  const num = (k, label, v) => field(label, input({ type: 'number', value: String(v), onInput: x => { d[k] = Math.max(0, parseInt(x, 10) || 0); } }));
+  // 粉丝数可以很大：小的一个个挑，越大一档越宽（到几千万）
+  const FANS = [...Array.from({ length: 100 }, (_, i) => i), ...Array.from({ length: 90 }, (_, i) => 100 + i * 10), ...Array.from({ length: 90 }, (_, i) => 1000 + i * 100), ...Array.from({ length: 99 }, (_, i) => (i + 1) * 1e4), ...Array.from({ length: 99 }, (_, i) => (i + 1) * 1e6)];
+  const num = (k, label, v, l) => field(label, wheelField(l.includes(v) ? l.map(n => [n, String(n)]) : [[v, String(v)], ...l.map(n => [n, String(n)])], v, x => { d[k] = x; }, label));
   p.body.append(
     group('', [item({ title: '头像', right: av, chevron: true, onClick: img('avatar', '头像', { ratio: 1, size: 320 }) }), item({ title: '背景', right: bgThumb, chevron: true, onClick: img('bg', '背景', { ratio: 1, size: 900 }) })]),
     group('', [field('昵称', input({ value: d.nick || '', placeholder: myNick(), onInput: v => { d.nick = v.trim(); } })), field('个性签名', input({ value: d.sign || '', placeholder: '个性签名', onInput: v => { d.sign = v.trim(); } }))]),
-    group('', [num('fans', '粉丝', d.fans || 0), num('lv', '等级', d.lv || 1)]),
+    group('', [num('fans', '粉丝', d.fans || 0, FANS), num('lv', '等级', d.lv || 1, Array.from({ length: 100 }, (_, i) => i + 1))]),
     h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
       M().profile = d;
       commit('music'); nav.pop(); after();

@@ -269,6 +269,23 @@ export function pickWheels(title, cols) {
       onClose: () => { if (!done) res(null); } });
   });
 }
+/** 点一下用滚轮挑一个（作者：能选就别让人打字）。items = [[值, 显示]…]；返回的按钮 .value 能读能写 */
+export function wheelField(items, value, onChange = () => {}, title = '') {
+  const show = v => (items.find(x => x[0] === v) || [, v])[1];
+  const b = h('button.as-input.as-date', { type: 'button', onclick: async () => { const v = await pickWheels(title, [[items, value]]); if (!v) return; b.value = v[0]; onChange(v[0]); } }, show(value));
+  Object.defineProperty(b, 'value', { get: () => value, set: v => { value = v; b.textContent = show(v); } });
+  return b;
+}
+/** 选时间：时、分两列滚轮，值是「HH:MM」 */
+export function timeField(value, onChange = () => {}) {
+  const p2 = n => String(n).padStart(2, '0'), col = (n, u) => Array.from({ length: n }, (_, i) => [i, p2(i) + u]);
+  const b = h('button.as-input.as-date', { type: 'button', onclick: async () => {
+    const [hh, mm] = value.split(':').map(Number), v = await pickWheels('选时间', [[col(24, ' 时'), hh], [col(60, ' 分'), mm]]); if (!v) return;
+    b.value = `${p2(v[0])}:${p2(v[1])}`; onChange(b.value);
+  } }, value);
+  Object.defineProperty(b, 'value', { get: () => value, set: v => { value = v; b.textContent = v; } });
+  return b;
+}
 function pickDate(value, noYear) {
   return new Promise(res => {   // 还没填日期时停在故事里的今天
     const now = (time.isStory() && time.story().date) || new Date(), m = /^(?:(\d{4})-)?(\d{1,2})-(\d{1,2})$/.exec(value || ''), p2 = n => String(n).padStart(2, '0');

@@ -4,7 +4,7 @@
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
 import { h, debounce, onLongPress } from '../../core/util.js';
 import { state, contact, commit } from '../../core/store.js';
-import { page, navBtn, navText, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty } from '../../core/ui.js';
+import { page, navBtn, navText, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty, wheelField } from '../../core/ui.js';
 import { LANGS, langName } from '../../core/translate.js';
 import * as nav from '../../core/nav.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
@@ -439,7 +439,7 @@ function cardPage(back, resume) {
     photo.replaceChildren(ownerFace(sel, 96));
     if (!c) { head.replaceChildren(); sheetEl.replaceChildren(h('p.as-int-sheet-empty', `${shownName(sel)}还没有卡`), h('button.as-int-sheet-new', { onclick: () => blank(sel) }, fillLabel(sel))); return; }
     const set = (k, v) => { c[k] = v; saveLater(); };
-    const line = (label, key, opts = {}) => field(label, input({ value: String(c[key] ?? ''), type: opts.type || 'text', onInput: v => set(key, opts.type ? +v : v) }));
+    const line = (label, key) => field(label, input({ value: String(c[key] ?? ''), onInput: v => set(key, v) }));
     const jobB = h('button.as-int-job', { onclick: async () => {
       const v = await actionSheet('职业', [...R.JOBS.map(([j]) => ({ value: j, label: j, active: c.job === j })), { value: '__own', label: '自己写' }]);
       if (!v) return;
@@ -543,7 +543,7 @@ function cardPage(back, resume) {
     paintW(); paintO();
     head.replaceChildren(input({ value: c.name, placeholder: '名字', onInput: v => set('name', v) }), jobB);
     sheetEl.replaceChildren(
-      h('div.as-int-grid2', line('年龄', 'age', { type: 'number' }), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
+      h('div.as-int-grid2', field('年龄', wheelField([['', '不写'], ...Array.from({ length: 120 }, (_, i) => [i + 1, `${i + 1} 岁`])], c.age ?? '', v => set('age', v), '年龄')), field('性别', segmented(SEXES, G.sexOf(c.sex), v => set('sex', v))), line('住地', 'home')),
       h('h3', '属性'), apts, attrBox, hint, derivedEl, h('div.as-int-row', reroll, five), pendB,
       h('h3', withInfo('技能', '名字标色的是本职技能，点名字能切换。本职点只加在本职技能上，兴趣点只加在其他技能上。')), pts, skillBox, restB, restBox, h('div.as-int-row', btn('预览', 'secondary', () => preview(c)), btn('成卡', 'secondary', () => showCards(sel))),
       h('h3', '背景'), ...G.BG.map(([k, n]) => bg(n, k)),
