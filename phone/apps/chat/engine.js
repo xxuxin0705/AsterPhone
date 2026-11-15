@@ -143,6 +143,28 @@ function toMin(lines, [min, max], head = () => '') {
   }
   return lines;
 }
+/* 角色给消息贴表情（照作者二改的 phonetest）：AI 写 [表情回应:😂] 或 [表情回应:😂|那句话里的几个字]；
+   没写就按你说的话和 TA 这轮的语气补一个。贴在 m.reactions[谁]（你自己贴的是 m.reactions.me） */
+const RX = /\[表情回应[:：]\s*([^\]|｜]+?)\s*(?:[|｜]\s*([^\]]+?))?\s*\]/g;
+function reactTo(msgs, by, raw, frag) {
+  const e = (/\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*/u.exec(raw) || [])[0];
+  const t = e && ((frag && [...msgs].reverse().find(m => m.from !== 'sys' && String(m.text || '').includes(frag.trim()))) || [...msgs].reverse().find(m => m.from === 'me' && m.text));
+  if (!t) return false;
+  (t.reactions = t.reactions || {})[by] = e; return true;
+}
+function toneEmoji(said, reply) {
+  const pick = l => l[Math.floor(Math.random() * l.length)], own = reply.match(/\p{Extended_Pictographic}/gu);
+  if (own && Math.random() < .6) return pick(own);
+  const tone = /嘿嘿|嘻嘻|哈哈|笑死|乖|宝贝|宝宝|亲亲|么么|可爱|撒娇|吃醋|😝|😜|😘|😏|🤪/.test(reply) ? 'playful' : /哼|你才|闭嘴|别烦|走开|讨厌|生气|气死|烦死|不理你|😤|😠|💢|🙄/.test(reply) ? 'annoyed'
+    : /呜|委屈|哭|难过|伤心|对不起|抱歉|😭|🥺|😢/.test(reply) ? 'hurt' : /害羞|脸红|才没有|不要说了|🫣|😳/.test(reply) ? 'shy' : /想你|爱你|喜欢你|抱抱|心疼|乖乖|🥰|❤️|😍/.test(reply) ? 'tender' : '';
+  const byTone = { playful: ['😏', '😝', '🤭'], annoyed: ['🙄', '😑'], hurt: ['🥺'], shy: ['😳', '🫣'], tender: ['🥰', '❤️', '🤗'] };
+  if (/猪|笨蛋|傻|蠢|白痴|有病|神经|滚|讨厌|烦死|闭嘴|垃圾|丑|呆子|憨/.test(said)) return pick({ playful: ['😘', '😝', '😜', '😏'], annoyed: ['😤', '🙄', '💢', '😑'], hurt: ['🥺', '😭'], shy: ['😳', '🫣'], tender: ['🥰', '🤗'] }[tone] || ['🙄', '😤', '😑']);
+  const rules = [[/哈哈|笑死|hhh|233|绷不住|好好笑/i, ['😂', '🤣', '😆']], [/晚安|睡了|睡觉|困/, ['😴', '🌙', '🥱']], [/早安|早上好|早啊|起床/, ['☀️', '🥰']], [/谢谢|多谢|感谢|辛苦/, ['🥰', '🙏', '🤗']],
+    [/爱你|喜欢你|想你|亲亲|抱抱|么么/, tone === 'shy' ? ['😳', '🫣'] : tone === 'annoyed' ? ['🙄', '😏'] : ['❤️', '🥰', '😘']], [/难过|伤心|哭|呜|委屈|不开心/, ['🥺', '🤗']], [/生气|气死|烦/, tone === 'playful' ? ['😝', '😘'] : ['😳', '🥺']],
+    [/好耶|太棒|成功|过了|赢|恭喜|生日/, ['🎉', '👏', '🥳']], [/真的|天哪|居然|竟然|!{2,}|！{2,}/, ['😮', '😳', '🤯']], [/[?？]$|吗[?？]?$|什么|为什么|怎么/, tone === 'playful' ? ['😏', '🤭'] : ['🤔', '👀']], [/好的|行|可以|嗯|ok|收到/i, ['👌', '👍']]];
+  for (const [re, l] of rules) if (re.test(said)) return pick(l);
+  return pick(byTone[tone] || ['👀', '🤔', '👍', '😌']);
+}
 async function preVoice(chat, m, rc) {
   if (m.type !== 'voice' || !rc.autoVoice) return;
   const { speakAs } = await import('../../core/voice.js');
@@ -295,7 +317,11 @@ export async function requestReply(chat, opts = {}) {
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
-    const [said, mem] = takeMem(raw), { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
+    const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
+    let reacted = 0;
+    const [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; });
+    const { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
+    if (fresh && !reacted && c) reactTo(msgs, c.id, toneEmoji(msgs[msgs.length - 1].text || '', lines.join(' ')));
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     saveMsgs(chat.id); emit('read', chat.id);
@@ -366,9 +392,15 @@ export async function requestGroupReply(chat, opts = {}) {
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
       time: t, history, max: chat.cfg.maxSpeakers || 3, voice: `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，${voiceNote(rc)}` }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat) + roundNote(rc);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
-    const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
-    msgs.forEach(m => { if (m.from === 'me') m.read = true; });
+    const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
+    // 贴表情：写在说话那人自己的那行里，一轮最多 3 个；一个都没贴就让第一个说话的人按语气补一个
+    let reacted = 0;
+    const clean = stripTags(said).split('\n').map(l => { const p = find((/^([^:：]{1,16})[:：]/.exec(l) || [])[1]); return l.replace(RX, (_, e, f) => { if (fresh && p && reacted < 3 && reactTo(msgs, p.id, e, f)) reacted++; return ''; }); }).filter(l => !/^[^:：]{1,16}[:：]\s*$/.test(l.trim())).join('\n');
+    const first = find((/^([^:：|｜]{1,16})[:：]/m.exec(clean) || [])[1]);
+    if (fresh && !reacted && first) reactTo(msgs, first.id, toneEmoji(msgs[msgs.length - 1].text || '', clean));
+    msgs.forEach(m => { if (m.from === 'me') m.read = true; });
+    if (reacted || fresh) emit('read', chat.id);
     const batch = uid('b'); let shown = 0, nv = 0;
     keepMem(chat, batch, mem, members);
     for (const raw of toMin(clean.split('\n').map(l => l.trim()).filter(Boolean), rc.lines, l => /^私聊\s*[|｜]/.test(l) ? null : (/^[^:：]{1,16}[:：]\s*/.exec(l) || [null])[0])) {
