@@ -1,10 +1,10 @@
 // 动态页：封面 + 动态流；发动态；生成角色动态；点赞 / 评论 / 生成评论；某个人的动态空间。
 import { h, uid, onLongPress, fileToDataURL, pickFile, $ } from '../../core/util.js';
 import { state, commit, contact, subscribe } from '../../core/store.js';
-import { page, group, item, field, textarea, input, segmented, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, slider, sheet, pickImage } from '../../core/ui.js';
+import { page, group, item, field, textarea, input, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, sheet, pickImage, switchEl, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
-import { nameOf, who, genMoment, genComments, relinkMoments } from './engine.js';
+import { nameOf, who, genMoments, genComments, relinkMoments } from './engine.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { openProfile, pickMany, sorted } from './people.js';
 
@@ -132,33 +132,35 @@ function openPost() {
 function openGenerate() {
   if (genJob) { genJob.abort(); return; }
   if (!state.contacts.length) { toast('先添加几个联系人'); return; }
-  let mode = 'random', count = 1, picked = [];
-  const who2 = h('div.as-muted', { style: { padding: '0 4px' } });
-  const pickBtn = btn('选择角色', 'secondary', async () => {
-    const sel = await pickMany('谁来发', sorted().map(c => ({ key: c.id, name: nameOf(c), avatar: c.avatar })), { preselect: picked });
-    if (sel) { picked = sel; who2.textContent = sel.map(id => nameOf(contact(id))).join('、') || '还没选'; }
-  });
-  pickBtn.hidden = true;
-  const cnt = h('output', '1');
-  const go = btn('开始生成', 'primary', async () => {
-    const pool = mode === 'random' ? [...state.contacts].sort(() => Math.random() - .5) : picked.map(contact).filter(Boolean);
-    if (!pool.length) { toast('先选角色'); return; }
+  let count = 3, only = false; const picked = new Set(), N = [1, 2, 3, 4, 5, 6, 8, 10];
+  const nums = h('div.as-mo-gen__nums', N.map(n => h('button', { dataset: { n }, onclick: () => { count = n; paint(); } }, String(n))));
+  const people = h('div.as-mo-gen__people', sorted().map(c => h('button', { dataset: { id: c.id }, onclick: () => {
+    picked.has(c.id) ? picked.delete(c.id) : picked.add(c.id);
+    if (picked.size > count) count = N.find(n => n >= picked.size) || 10;
+    paint();
+  } }, avatar(c.avatar, nameOf(c), 44), h('span', nameOf(c)))));
+  const onlyRow = h('div.as-mo-gen__only', h('span', '只让选中的人发'), switchEl(false, v => { only = v; paint(); }, '只让选中的人发'));
+  const sum = h('p.as-mo-gen__sum');
+  // 点选只换勾选和那一行字，不重画
+  function paint() {
+    nums.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', +b.dataset.n === count));
+    people.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', picked.has(b.dataset.id)));
+    onlyRow.hidden = !picked.size;
+    const who2 = [...picked].map(id => nameOf(contact(id))).join('、');
+    sum.textContent = picked.size ? `${count} 条，${only ? '只由' : '一定有'}：${who2}` : `${count} 条，随机挑人发`;
+  }
+  const go = btn('生成', 'primary', () => {
     s.close();
-    let ok = 0; const ac = genJob = new AbortController();
-    for (let i = 0; i < count && !ac.signal.aborted; i++) {
-      const c = pool[i % pool.length];
-      toast(`${nameOf(c)} 正在发动态…（${i + 1}/${count}）`, { label: '取消', fn: () => ac.abort(), wait: true });
-      try { await genMoment(c, ac.signal); ok++; } catch (e) { if (!ac.signal.aborted) toast('生成失败：' + e.message); break; }
-    }
-    genJob = null;
-    if (ac.signal.aborted) toast(ok ? `已取消，新增 ${ok} 条动态` : '已取消'); else if (ok) toast(`新增 ${ok} 条动态`);
+    const ac = genJob = new AbortController(), must = [...picked];
+    waiting('正在生成动态…', signal => genMoments({ count, must, only: only && must.length > 0 }, signal), ac)
+      .then(n => { if (n) toast(`新增 ${n} 条动态`); }, e => toast('生成失败：' + e.message))
+      .finally(() => { genJob = null; });
   });
-  const s = sheet({ title: '生成角色动态', content: h('div.as-stack-gap',
-    segmented([['random', '随机角色'], ['pick', '指定角色']], mode, v => { mode = v; pickBtn.hidden = v !== 'pick'; who2.hidden = v !== 'pick'; }),
-    pickBtn, who2,
-    h('div.as-settings-slider-row', { style: { padding: '4px' } }, h('span', '数量'), slider({ min: 1, max: 5, step: 1, value: 1, onInput: v => { count = v; cnt.textContent = v; } }), cnt),
-    go) });
-  who2.hidden = true;
+  const s = sheet({ title: '生成角色动态', content: h('div.as-mo-gen',
+    h('div.as-mo-gen__label', '条数'), nums,
+    h('div.as-mo-gen__label', '一定会发的人', h('small', '不选就随机')), people,
+    onlyRow, sum, go) });
+  paint();
 }
 
 /* ---------- 某个人的动态空间 ---------- */

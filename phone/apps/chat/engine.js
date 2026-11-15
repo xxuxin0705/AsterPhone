@@ -554,17 +554,26 @@ export async function deliverFromStory(c, text, groupName = '') {
 }
 
 /* ---------- 动态 ---------- */
-export async function genMoment(c, stop) {
-  const conn = resolveConn('text', 'chat');
-  const raw = await generate({ conn, system: '', app: '动态', stop,
-    prompt: compose('moment', { char: c.name || nameOf(c), persona: charPersona(c), story: storyText(Math.min(4, ctxCfg().count)) || '（暂无）', world: (await worldBlock(storyText(Math.min(4, ctxCfg().count)), [c])).world, time: time.forPrompt() }) });
-  let text = stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).trim(), desc = '';
-  text = text.replace(/\[图片[:：]\s*([^\]]+)\]/g, (_, d) => { desc = d.trim(); return ''; }).trim();
-  let hiddenFromMe = false;
-  text = text.replace(/\[屏蔽[^\]]*\]/g, () => { hiddenFromMe = true; return ''; }).trim();
-  const mo = { id: uid('mo'), author: c.id, text, imageDesc: desc, images: [], ...time.stamp(), likes: [], comments: [], vis: 'public', hiddenFromMe };
-  state.moments.unshift(mo); commit('moments');
-  return mo;
+/** 一次找 AI 发几条动态（作者定的：点一下只调一次）。must：一定要发的人；only：只让他们发 */
+export async function genMoments({ count, must = [], only = false }, stop) {
+  const pool = only ? must.map(contact).filter(Boolean) : [...must.map(contact).filter(Boolean), ...[...state.contacts].filter(c => !must.includes(c.id)).sort(() => Math.random() - .5)].slice(0, Math.max(15, must.length));
+  const story = storyText(Math.min(4, ctxCfg().count)) || '（暂无）';
+  const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop,
+    prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}`).join('\n'), story, world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
+      pick: must.length ? `\n【这次】${only ? '只能由这些人发' : '这些人每人至少发一条'}：${must.map(id => nameOf(contact(id))).join('、')}` : '' }) });
+  const find = n => pool.find(c => [c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).includes(n.trim()));
+  const out = []; let cur = null;
+  for (const l of stripTags(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')).split('\n').map(x => x.trim()).filter(Boolean)) {
+    const pic = /^\[图片[:：]\s*([^\]]+)\]$/.exec(l), nm = /^([^:：[\]]{1,16})[:：]\s*(.+)$/.exec(l), c = nm && find(nm[1]);
+    if (pic) { if (cur) cur.imageDesc = pic[1].trim(); }
+    else if (/^\[屏蔽/.test(l)) { if (cur) cur.hiddenFromMe = true; }
+    else if (c) out.push(cur = { id: uid('mo'), author: c.id, text: nm[2].trim(), imageDesc: '', images: [], ...time.stamp(), likes: [], comments: [], vis: 'public', hiddenFromMe: false });
+    else if (nm) cur = null;   // 不在名单里的人（只让选中的人发时）：这条连同它的配图都不要
+    else if (cur) cur.text += ' ' + l;
+  }
+  if (!out.length) throw new Error('AI 没有按格式写动态');
+  state.moments.unshift(...out.slice(0, count)); commit('moments');
+  return Math.min(out.length, count);
 }
 export async function genComments(mo, stop) {
   const author = mo.author === 'me' ? myName() : nameOf(contact(mo.author));

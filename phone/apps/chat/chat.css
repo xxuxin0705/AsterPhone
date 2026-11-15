@@ -61,6 +61,21 @@
 
 /* ---------- 动态 ---------- */
 .as-chat-moments .as-page__body { padding: 0 0 30px; }
+/* 生成角色动态：条数一排数字、头像点着选 */
+.as-mo-gen { display: grid; gap: 10px; }
+.as-mo-gen__label { font: 600 13px/1.2 var(--font-ui); color: var(--as-color-text-2); padding: 0 4px; }
+.as-mo-gen__label small { font-weight: 400; margin-left: 6px; opacity: .7; }
+.as-mo-gen__nums { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.as-mo-gen__nums button { height: 34px; border-radius: 10px; border: 1px solid var(--as-color-border); background: var(--as-color-surface); color: var(--as-color-text); font: 500 14px/1 var(--font-ui); font-variant-numeric: tabular-nums; cursor: pointer; }
+.as-mo-gen__nums button.is-on { background: var(--as-color-accent); border-color: transparent; color: #fff; }
+.as-mo-gen__people { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px 4px; max-height: 220px; overflow-y: auto; padding: 4px 0; }
+.as-mo-gen__people button { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--as-color-text); font: 400 12px/1.2 var(--font-ui); cursor: pointer; min-width: 0; }
+.as-mo-gen__people button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-mo-gen__people .as-avatar { box-shadow: 0 0 0 2px transparent; transition: box-shadow var(--as-dur-fast), opacity var(--as-dur-fast); opacity: .55; }
+.as-mo-gen__people button.is-on .as-avatar { box-shadow: 0 0 0 2px var(--as-color-accent); opacity: 1; }
+.as-mo-gen__only { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; font: 400 15px/1.2 var(--font-ui); }
+.as-mo-gen__only[hidden] { display: none; }
+.as-mo-gen__sum { margin: 0; padding: 0 4px; font: 400 13px/1.4 var(--font-ui); color: var(--as-color-text-2); }
 .as-chat-moments-cover { position: relative; height: 230px; background: linear-gradient(160deg, color-mix(in srgb, var(--as-color-accent-2) 45%, #fff), var(--as-color-accent-2) 55%, var(--as-color-accent)); background-size: cover; background-position: center; margin-bottom: 44px; cursor: pointer; }
 .as-phone[data-mode="night"] .as-chat-moments-cover { background-image: linear-gradient(160deg, color-mix(in srgb, var(--as-color-accent) 45%, #000), color-mix(in srgb, var(--as-color-accent) 22%, #000)); }
 .as-chat-moments-cover__me { position: absolute; right: 16px; bottom: -30px; display: flex; align-items: flex-end; gap: 12px; }

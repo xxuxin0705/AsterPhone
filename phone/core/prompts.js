@@ -8,10 +8,10 @@
 /** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
 export const VAR_INFO = {
   char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上岁岁砂里 TA 记得的事（没有就是空的）', memory: '岁岁砂里 TA 这会儿想起的事（每次不一样，放在后面；提示词里没写它的话，会放进 {{world}}）', lines: '岁岁砂里已经有的故事线',
-  story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音',
+  story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
   group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
-  entries: '世界书条目', count: '要挑几首', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
+  entries: '世界书条目', count: '要几个（挑几首歌、发几条动态）', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从岁岁砂挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
@@ -23,9 +23,9 @@ export const VAR_INFO = {
 /** 分类：按应用分，应用里再细分。vars = 这一类能用的变量 */
 export const PROMPT_CATS = [
   { app: '聊天', items: [
-    { id: 'dm', name: '私聊', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'history', 'memory', 'min', 'max'] },
-    { id: 'group', name: '群聊', vars: ['group', 'user', 'members', 'intro', 'world', 'story', 'time', 'history', 'memory', 'max'] },
-    { id: 'moment', name: '发动态', vars: ['char', 'user', 'persona', 'world', 'story', 'time'] },
+    { id: 'dm', name: '私聊', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'history', 'memory', 'last', 'min', 'max', 'voice'] },
+    { id: 'group', name: '群聊', vars: ['group', 'user', 'members', 'intro', 'world', 'story', 'time', 'history', 'memory', 'max', 'voice'] },
+    { id: 'moment', name: '发动态', vars: ['count', 'posters', 'pick', 'user', 'world', 'story', 'time'] },
     { id: 'comment', name: '动态评论', vars: ['post', 'people', 'time', 'user'] },
     { id: 'proactive', name: '主动消息', vars: ['char', 'user'] },
     { id: 'catchup', name: '离开期间补发', vars: ['char', 'user', 'gap'] },
@@ -313,19 +313,23 @@ export const DEFAULT_PROMPTS = {
 只输出一个 JSON，不要别的文字，格式：
 {"people":[{"name":"真实姓名","nick":"网名","remark":"","gender":"","sign":"个性签名","pokeSuffix":"","persona":"根据条目写两三句人设","entry":"来自哪个条目（条目标题）"}]}` },
   moment: { name: '动态生成', cats: ['moment'], on: true, main: true,
-    text: `你是 {{char}}。根据人设和最近的经历，发一条朋友圈动态。
+    text: `根据下面这些人的人设和最近的经历，替他们发 {{count}} 条朋友圈动态。
 
-【人设】
-{{persona}}
+【可以发的人】
+{{posters}}
 {{world}}
 【最近的事】
 {{story}}
 
 【现在】{{time}}
-
-动态写的事和配图，要和 {{char}} 在正文最后在哪、在做什么对得上。
-只输出动态正文（1~4 句，可带表情）。如果想配图，在最后另起一行写 [图片：画面描述]。
-如果这条动态不想让 {{user}} 看到（比如在吐槽 TA、生 TA 的气），在最后另起一行写 [屏蔽]。` },
+{{pick}}
+每条写的事和配图，要和这个人在正文最后在哪、在做什么对得上；不同的人语气各不相同。一个人可以发不止一条，但别都让同一个人发。
+像真人一样，很多动态只发文字，确实拍了照片才配图。
+按下面格式输出，每条之间空一行：
+名字：动态正文（1~4 句，可带表情）
+[图片：画面描述]（想配图才写，单独一行）
+[屏蔽]（这条不想让 {{user}} 看到才写，比如在吐槽 TA、生 TA 的气）
+只输出这些，不要别的。` },
   comment: { name: '评论生成', cats: ['comment'], on: true, main: true,
     text: `这是一条朋友圈动态和它下面的评论：
 {{post}}
