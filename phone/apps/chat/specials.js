@@ -3,7 +3,7 @@ import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs, chatForContact } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { generateImage, stopSpeak, connOfTag, keysOf, transcribe } from '../../core/api.js';
+import { generateImage, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
 import { speakAs, soonAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { shell } from '../../core/shell.js';
@@ -241,6 +241,7 @@ export function ringIn(chat, c, mode) {
   shell.notify({ chatId: chat.id, title: E.nameOf(c), text: `邀请你${mode === 'video' ? '视频' : '语音'}通话`, avatarUrl: E.avatarOf(c, chat) });
   openCall(chat, c, mode, true);
 }
+let rtOff = false;   // 腾讯云这个月的免费时长用完了（它自己会停）：这次打开期间改用别的听写
 export function openCall(chat, c, mode = 'voice', incoming = false) {
   const host = document.querySelector('#phone');
   const lines = [];
@@ -249,6 +250,7 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
   const log = h('div.as-chat-call__log');
   const input = h('input.as-chat-call__input', { placeholder: '说点什么…', enterkeyhint: 'send' });
   const say = h('button.as-chat-call__say', { 'aria-label': '发送', onclick: () => talk() }, icon('send', 18, 2));
+  const tx = connOfTag('听写'), lang = tx && tx.type === 'tencent-asr' && h('button.as-chat-call__lang', { 'aria-label': '我说的语言', onclick: () => { chat.cfg.callJa = !chat.cfg.callJa; commit('chats'); lang.textContent = chat.cfg.callJa ? '日' : '中'; } }, chat.cfg.callJa ? '日' : '中');   // 腾讯云的日语是单独一个引擎，说之前点一下
   // 按住说话：录下来交给「听写」（设置 → 连接 → 其他）转成字再发。TA 在想、在说的时候按下去 = 打断 TA、听你说（要按住才收音，外放的声音录不进来）
   let stream = null, rec = null, held = false, hearing = null;
   const stat = h('div.as-chat-call__stat'), tell = (t, n) => stat.replaceChildren(t || '', n ? aiCount(k => ` · 已收到 ${k} 字`) : '');
@@ -257,12 +259,27 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     e.preventDefault(); if (rec || ended) return;
     if (hearing) { hearing.abort(); hearing = null; }   // 上一句还在转字（听写有时很慢）：不等了，重说
     if (busy) { busy.abort(); stopSpeak(); idle(); }   // 旧的那轮自己收尾慢（声音还在合成）：这里先放开，不然你这句发不出去
-    const conn = connOfTag('听写');
+    let conn = connOfTag('听写');
+    if (conn && conn.type === 'tencent-asr' && rtOff) { conn = state.connections.embed.find(x => tagOf(x) === '听写' && x.type !== 'tencent-asr' && keysOf(x).length); if (!conn) return toast('这个月的实时识别用完了'); }
     if (!conn || !keysOf(conn).length) return toast('还没接听写：设置 → 连接 → 其他');
     if (!navigator.mediaDevices || !window.MediaRecorder) return toast('这个页面用不了麦克风');
     held = true;
     try { stream = stream || await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (err) { held = false; return toast('没拿到麦克风权限'); }
     if (!held || ended) return;   // 第一次要先点「允许」，手已经松了：再按一次
+    if (conn.type === 'tencent-asr') {
+      const r = rec = { state: 'recording' }, t0 = Date.now(), lp = listen(conn, stream, chat.cfg.callJa ? '16k_ja' : conn.model, t => { if (r.state) input.value = t; });
+      r.stop = () => { r.state = ''; rec = null; mic.classList.remove('is-on'); tell(); lp.then(l => l.stop(), () => {}); };
+      mic.classList.add('is-on'); tell('正在听…松手发送');
+      lp.then(l => l.end).then(t => {
+        if (r.state) r.stop(); if (ended) return;
+        if (t) { input.value = t; talk(); } else if (Date.now() - t0 > 600) toast('没听清，再说一次');
+      }, err => {
+        if (r.state) r.stop(); if (ended) return;
+        const out = err.code === 4004 || err.code === 4005; if (out) rtOff = true;
+        toast(out ? '这个月的实时识别用完了，再按一次' : '听写失败：' + err.message); note('warn', '通话', `腾讯云听写：${err.code || ''} ${err.message}`);
+      });
+      return;
+    }
     const chunks = [], r = rec = new MediaRecorder(stream);
     // 边说边出字：每隔一秒多，把到目前为止录的先转一遍放进输入框（上一遍还没回来就跳过这次）；松手后再整段转一遍为准
     let peek = null;
@@ -289,7 +306,7 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     h('div.as-chat-call__bg', bgUrl ? { style: { backgroundImage: `url("${bgUrl}")` } } : null),
     h('div.as-chat-call__head', avatar(E.avatarOf(c, chat), E.nameOf(c), 96), h('b', E.nameOf(c)), timer, stat),
     log,
-    bar = h('div.as-chat-call__bar', { hidden: incoming }, input, say),
+    bar = h('div.as-chat-call__bar', { hidden: incoming }, lang, input, say),
     ring = h('div.as-chat-call__btns', { hidden: !incoming },
       h('button.is-hang', { 'aria-label': '拒绝', onclick: hang }, icon('phone', 24, 2)),
       h('button.is-pick', { 'aria-label': '接听', onclick: pick }, icon('phone', 24, 2))),

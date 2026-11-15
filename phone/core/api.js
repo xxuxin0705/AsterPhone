@@ -55,12 +55,13 @@ export const CHANNELS = {
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
-    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、一个重排、一个听写、两个实时通话，也可以自定义
+    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、一个重排、两个听写、两个实时通话，也可以自定义
     { v: 'siliconflow-embed', label: '硅基流动', tag: '向量', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
     { v: 'zhipu-embed', label: '智谱', tag: '向量', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
     { v: 'openai-embed', label: '第三方向量（OpenAI 兼容）', tag: '向量', base: '', model: 'text-embedding-3-small', site: '', custom: true },
     { v: 'siliconflow-rerank', label: '硅基流动', tag: '重排', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-reranker-v2-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '向量找到以后再排一遍，挑最对得上的。' },
     { v: 'siliconflow-stt', label: '硅基流动', tag: '听写', base: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', site: 'https://cloud.siliconflow.cn/account/ak', note: '通话时把你说的话转成字。' },
+    { v: 'tencent-asr', label: '腾讯云（边说边出字）', tag: '听写', base: 'wss://asr.cloud.tencent.com/asr/v2', model: '16k_zh_en', site: 'https://console.cloud.tencent.com/asr', fields: [['appId', 'AppID'], ['secretId', 'SecretId']], note: '在腾讯云「语音识别」控制台开通，密钥填 SecretKey。「后付费」别开：每月 5 小时用完会自动停，不扣钱。' },
     { v: 'openai-realtime', label: 'OpenAI 实时语音', tag: '通话', base: 'https://api.openai.com/v1', model: 'gpt-realtime-2.1', site: 'https://platform.openai.com/api-keys' },
     { v: 'gemini-live', label: 'Gemini Live', tag: '通话', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.8-live', site: 'https://aistudio.google.com/apikey' },
     { v: 'other-compat', label: '自定义（OpenAI 兼容）', tag: '', base: '', model: '', site: '', custom: true },
@@ -931,8 +932,45 @@ export const transcribe = (conn, blob, signal) => withRetry('embed', '连接', a
   if (typeof t !== 'string') throw new Error('接口没有返回文字');
   return t.replace(/<\|[^|]*\|>/g, '').trim();   // SenseVoice 有时带 <|zh|> 这类记号
 });
-/** 测听写接口：发 0.3 秒没声音的录音，能回就算通 */
+// 腾讯云实时识别：钥匙算成签名放在地址里（网页能直连，不用后端）
+async function txSocket(conn, engine) {
+  const t = Math.floor(Date.now() / 1000), [, sch, host] = conn.base.match(/^(wss?:\/\/)(.*)$/), E = new TextEncoder();
+  const q = { secretid: conn.secretId, timestamp: t, expired: t + 3600, nonce: t % 1e9, engine_model_type: engine, voice_id: crypto.randomUUID(), voice_format: 1, needvad: 1 };
+  const path = `${host}/${conn.appId}?${Object.keys(q).sort().map(k => `${k}=${q[k]}`).join('&')}`;
+  const key = await crypto.subtle.importKey('raw', E.encode(keysOf(conn)[0] || ''), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.sign('HMAC', key, E.encode(path)))));
+  return new WebSocket(`${sch}${path}&signature=${encodeURIComponent(sig)}`);
+}
+/** 实时听写：麦克风的声音边录边传，字跟着出（onText）。stop() = 说完了；end 给整段字，出错（钥匙不对、这个月用完了）带着 code 拒绝 */
+export async function listen(conn, stream, engine, onText) {
+  const ws = await txSocket(conn, engine), done = [], wait = []; let cur = '', fin, fail;
+  const end = new Promise((a, b) => { fin = a; fail = b; }), all = () => done.join('') + cur;
+  const ctx = new AudioContext({ sampleRate: 16000 }), src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(1024, 1, 1);
+  node.onaudioprocess = e => {
+    const f = e.inputBuffer.getChannelData(0), b = new Int16Array(f.length);
+    for (let i = 0; i < f.length; i++) b[i] = Math.max(-1, Math.min(1, f[i])) * 32767;
+    ws.readyState === 1 ? ws.send(b) : wait.push(b);   // 还没连上时说的先攒着，不然第一个字会丢
+  };
+  src.connect(node); node.connect(ctx.destination);
+  const quiet = () => { if (!node.onaudioprocess) return; node.onaudioprocess = null; src.disconnect(); ctx.close(); };
+  ws.onopen = () => wait.splice(0).forEach(b => ws.send(b));
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.code) return fail(Object.assign(new Error(m.message || '腾讯云拒绝了'), { code: m.code }));
+    if (m.result) { if (m.result.slice_type === 2) { done.push(m.result.voice_text_str); cur = ''; } else cur = m.result.voice_text_str; onText(all()); }
+    if (m.final) fin(all());
+  };
+  ws.onerror = () => fail(new Error('连不上腾讯云'));
+  ws.onclose = () => fin(all());
+  end.catch(() => {}).finally(() => { quiet(); ws.close(); });
+  return { end, stop() { quiet(); ws.readyState === 1 ? ws.send('{"type":"end"}') : ws.close(); setTimeout(() => fin(all()), 3000); } };   // 最后一句 3 秒还没定下来：就用已经出来的字
+}
+/** 测听写接口：发 0.3 秒没声音的录音，能回就算通（腾讯云：能握上手就算通） */
 export async function testStt(conn) {
+  if (conn.type === 'tencent-asr') {
+    const ws = await txSocket(conn, conn.model);
+    return new Promise((a, b) => { ws.onmessage = e => { const m = JSON.parse(e.data); ws.close(); m.code ? b(new Error(m.message)) : a(); }; ws.onerror = () => b(new Error('连不上腾讯云')); });
+  }
   const n = 4800, b = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
   w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
   b.setUint32(24, 16000, true); b.setUint32(28, 32000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
