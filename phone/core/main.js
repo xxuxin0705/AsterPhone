@@ -65,8 +65,8 @@ function applyLook() {
   const s = state.settings;
   phone.style.setProperty('--as-font-scale', s.fontScale || 1);
   phone.dataset.clock = s.clockColor || 'auto';
-  phone.dataset.chatSkin = state.apps.chat.skin || 'wechat';
-  phone.dataset.forumSkin = state.apps.forum.skin || 'weibo';   // 聊天界面：微信 / QQ / LINE / AsterPhone（资源库 → 应用 → 聊天）
+  phone.dataset.chatSkin = state.apps.chat.skin || 'wechat';   // 聊天界面：微信 / QQ / LINE / AsterPhone（资源库 → 应用 → 聊天）
+  import('../apps/forum/looks.js').then(m => m.applyLook());   // 论坛的样子：把正在用的那套 CSS 放进页面
   applyFonts();
   if (s.clockColor === 'custom') phone.style.setProperty('--clock-hex', s.clockHex || '#8fb4ff');
   if (wallpaper && wallpaper.gl !== undefined) { wallpaper.setLiveMode(s.walls.live); showWall(wallNow(), { glitch: true }); }

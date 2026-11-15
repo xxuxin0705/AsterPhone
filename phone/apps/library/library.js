@@ -10,6 +10,7 @@ import * as walls from '../../core/walls.js';
 import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
 import { desk, setDesk, cleanDesk } from '../home/home.js';
+import { lookTiles } from '../forum/looks.js';
 
 // 教程：每个能美化的地方（整部手机 / 某个 App / 某一页）一份：常用门牌号（类名）+ 例子
 const GUIDE = {
@@ -33,10 +34,14 @@ const GUIDE = {
   interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头'], ['.as-int-splash', '片头']] },
   memory: { cls: [['[class*="as-mem-"]', '岁岁砂的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
   diary: { cls: [['[class*="as-dy-"]', '日记的东西都以 .as-dy- 开头']] },
-  forum: { cls: [['.as-fo-root', '论坛（[data-forum-skin] 是选的样子）'], ['.as-fo-tabs', '顶上那排版块'], ['.as-fo-hot', '热榜'], ['.as-fo-post', '一条帖'], ['.as-fo-post__name', '名字'], ['.as-fo-post__v', '认证'],
-      ['.as-fo-post__title', '标题'], ['.as-fo-post__text', '正文'], ['.as-fo-post__tr', '翻译'], ['.as-fo-post__img', '配图'], ['.as-fo-post__acts', '转 · 评 · 赞'], ['.as-fo-floor', '一层楼（.is-sub 是回复别人的）'], ['.as-fo-user', '主页上面那块']],
-    vars: [['--fo-bg', '底色'], ['--fo-card', '帖子的底'], ['--fo-ink', '字'], ['--fo-ink-2', '淡的字'], ['--fo-line', '分隔线'], ['--fo-accent', '强调色'], ['--fo-v', '认证的颜色']],
-    ex: [{ name: '小红书', css: `/* @texts {"forum.platform":"小红书","forum.tab.global":"发现","forum.tab.local":"附近","forum.act.like":"点赞","forum.act.comment":"评论","forum.act.repost":"收藏"} */\n[data-as-app=\"forum\"] { --fo-bg: #f6f6f6; --fo-accent: #ff2442; --fo-v: #ff2442; }\n.as-fo-post { border-radius: 14px; margin: 6px 8px; }` }] },
+  forum: { cls: [['[data-as-app="forum"]', '论坛的每一页（[data-as-page] 是哪一页：forum-home / forum-post / forum-user / forum-board / forum-hot / forum-search）'], ['.as-fo-tabbar', '底部标签栏'], ['.as-fo-switch', '首页顶上的切换'],
+      ['.as-fo-search', '搜索框'], ['.as-fo-hot', '热榜块（__item 一条、__no 排名、__topic、__heat、__tag）'], ['.as-fo-boards', '小组格子（.as-fo-board 一个）'], ['.as-fo-chips', '正在讨论'],
+      ['.as-fo-post', '一条帖（.is-full 帖子页里那条）'], ['.as-fo-post__group', '小组名'], ['.as-fo-post__ava', '头像（__badge 头像角上的 V）'], ['.as-fo-post__name', '名字'], ['.as-fo-post__meta', '时间、来自'],
+      ['.as-fo-follow', '关注按钮'], ['.as-fo-post__title', '标题'], ['.as-fo-post__text', '正文（.as-fo-topic 话题）'], ['.as-fo-post__hotcmt', '热门回复'], ['.as-fo-post__count', '回应数'], ['.as-fo-post__acts', '转 · 评 · 赞'],
+      ['.as-fo-stat', '帖子页的数据标签'], ['.as-fo-floor', '一层楼（.is-sub 回别人的、.is-op 楼主；__quote 引用原话）'], ['.as-fo-dock', '帖子页底下那条'], ['.as-fo-user', '主页（__cover 背景、__nums 数字）'], ['.as-fo-ubar', '主页底下那条'],
+      ['.as-fo-fab', '右下角发帖圆钮（默认藏着）'], ['.as-fo-banner', '热榜页横幅']],
+    vars: [['--fo-bg', '底色'], ['--fo-card', '帖子的底'], ['--fo-head', '顶栏、底栏'], ['--fo-ink', '字'], ['--fo-ink-2', '淡的字'], ['--fo-line', '分隔线'], ['--fo-accent', '强调色'], ['--fo-v', '认证的颜色'], ['--fo-link', '话题、链接'], ['--fo-img-名字', '样子里放的图']],
+    ex: [{ name: '小红书（换叫法 + 颜色）', css: `/* @texts {"forum.platform":"小红书","forum.tab.global":"发现","forum.tab.local":"附近","forum.act.like":"点赞","forum.act.fav":"收藏"} */\n[data-as-app="forum"] { --fo-bg: #f6f6f6; --fo-accent: #ff2442; --fo-v: #ff2442; }\n[data-as-app="forum"] .as-fo-post { border-radius: 14px; margin: 6px 8px; }` }] },
   street: { cls: [['.as-street', '商业街'], ['.as-studio', '照相馆']] },
   settings: { cls: [['[class*="as-settings-"]', '设置的东西都以 .as-settings- 开头'], ['.as-list-item__icon', '每行前面的小图标']] },
   library: { cls: [['.as-lib-theme', '一张主题卡片']] },
@@ -229,8 +234,6 @@ function drawSkins(box, redraw) {
 // 聊天界面：微信 / QQ / LINE，或者原来的样子；小卡片照各自日间配色画一个缩略样子
 const CHAT_SKINS = [['wechat', '微信', ['#ededed', '#ededed', '#fff', '#95ec69', '#f7f7f7', '3px']], ['qq', 'QQ', ['#f1f2f6', '#f1f2f6', '#fff', '#0099ff', '#f6f6f9', '7px']],
   ['line', 'LINE', ['#f4f0ef', '#ebe3e1', '#fff', '#b3aba8', '#fbfafa', '9px']], ['aster', 'AsterPhone', null]];
-// 论坛：微博 / 豆瓣 / 推特（颜色同上：顶栏、底色、卡片、强调色、底栏、圆角）
-const FORUM_SKINS = [['weibo', '微博', ['#fff', '#f2f2f2', '#fff', '#ff8200', '#fff', '4px']], ['douban', '豆瓣', ['#fff', '#fff', '#f6f6f1', '#3ba94d', '#fff', '2px']], ['twitter', '推特', ['#fff', '#fff', '#f7f9f9', '#1d9bf0', '#fff', '9px']]];
 /** 一排样子小卡片：点了只换勾、换 #phone 上的 data-*，不重画 */
 function skinTiles(title, list, app, attr, def) {
   const cur = state.apps[app].skin || def;
@@ -243,7 +246,7 @@ function skinTiles(title, list, app, attr, def) {
 }
 const STYLE = {
   chat: () => skinTiles('聊天界面', CHAT_SKINS, 'chat', 'chatSkin', 'wechat'),
-  forum: () => skinTiles('论坛样子', FORUM_SKINS, 'forum', 'forumSkin', 'weibo'),
+  forum: () => lookTiles(),
   music: () => { const m = state.music;
     return group('样式', [field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); }))]); },
   memory: () => { const m = state.apps.memory;

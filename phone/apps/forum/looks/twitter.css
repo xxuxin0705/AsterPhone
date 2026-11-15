@@ -1,0 +1,99 @@
+/* 自带样子：推特（照真 App 的首页、探索、帖子、个人主页）。不放 logo，只用颜色、排版 */
+[data-as-app="forum"] { --fo-bg: #fff; --fo-head: #fff; --fo-card: #fff; --fo-ink: #0f1419; --fo-ink-2: #536471; --fo-line: #eff3f4; --fo-soft: #f7f9f9; --fo-accent: #1d9bf0; --fo-v: #1d9bf0; --fo-link: #1d9bf0; --fo-like: #f91880; --fo-gap: 0px; }
+.as-phone[data-mode="night"] [data-as-app="forum"] { --fo-bg: #000; --fo-head: #000; --fo-card: #000; --fo-ink: #e7e9ea; --fo-ink-2: #71767b; --fo-line: #2f3336; --fo-soft: #16181c; }
+
+/* 首页：顶上两个等宽标签，蓝色粗下划线；右下角蓝色圆钮发帖 */
+[data-as-page="forum-home"] .as-navbar__title .as-fo-switch { gap: 0; width: 100%; }
+[data-as-app="forum"] .as-fo-switch button { flex: 1; font-size: 15px; padding: 10px 0; }
+[data-as-app="forum"] .as-fo-switch button.is-on::after { width: 56px; margin-left: -28px; height: 4px; bottom: 0; background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-fab { display: grid; width: 56px; height: 56px; background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-navpost { display: none; }
+[data-as-app="forum"] .as-fo-tab span { display: none; }
+[data-as-app="forum"] .as-fo-tab { padding: 6px 0; color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-tab.is-on svg { stroke-width: 2.6; }
+
+/* 一条推：头像一整列，名字 + 蓝勾 + 时间一行，下面一排小图标带数字 */
+[data-as-app="forum"] .as-fo-list > .as-fo-post { box-shadow: inset 0 -1px 0 var(--fo-line); }
+[data-as-app="forum"] .as-fo-post { grid-template-columns: 40px 1fr; padding: 12px 16px 4px; }
+[data-as-app="forum"] .as-fo-post__ava { grid-row: 1 / span 9; }
+[data-as-app="forum"] .as-fo-post > :not(.as-fo-post__ava, .as-fo-post__head, .as-fo-follow) { grid-column: 2; }
+[data-as-app="forum"] .as-fo-post__head { flex-wrap: nowrap; }
+[data-as-app="forum"] .as-fo-post__name { font-weight: 700; }
+[data-as-app="forum"] .as-fo-post__v { width: 16px; height: 16px; }
+[data-as-app="forum"] .as-fo-post__meta { flex-basis: auto; font-size: 14px; color: var(--fo-ink-2); margin-left: 2px; }
+[data-as-app="forum"] .as-fo-post__time::before { content: '· '; }
+[data-as-app="forum"] .as-fo-post__from { display: none; }
+[data-as-app="forum"] .as-fo-follow { display: none; }
+[data-as-app="forum"] .as-fo-post__title { margin-top: 2px; font-size: 15px; }
+[data-as-app="forum"] .as-fo-post__text { margin-top: 2px; font-size: 15px; line-height: 1.45; }
+[data-as-app="forum"] .as-fo-post__pic { border-radius: 16px; border: 1px solid var(--fo-line); margin-top: 10px; }
+[data-as-app="forum"] .as-fo-post__img { border-radius: 16px; border: 1px solid var(--fo-line); background: none; margin-top: 10px; }
+[data-as-app="forum"] .as-fo-post__acts { display: flex; justify-content: space-between; max-width: 300px; margin: 4px 0 0 -8px; }
+[data-as-app="forum"] .as-fo-act { height: 34px; padding: 0 8px; font-size: 13px; }
+[data-as-app="forum"] .as-fo-act.is-comment { order: -1; }
+[data-as-app="forum"] .as-fo-act.is-repost:hover, [data-as-app="forum"] .as-fo-act.is-repost:active { color: #00ba7c; }
+
+/* 探索：灰色圆角搜索框 + 趋势（一列） + 社群 */
+[data-as-app="forum"] .as-fo-blocks { gap: 0; }
+[data-as-app="forum"] .as-fo-search { height: 40px; margin: 8px 16px; border-radius: 20px; background: #eff3f4; justify-content: center; }
+.as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-search { background: #202327; }
+[data-as-app="forum"] .as-fo-blockhead { font-size: 20px; font-weight: 800; padding-top: 12px; }
+[data-as-app="forum"] .as-fo-hot { box-shadow: inset 0 -1px 0 var(--fo-line); }
+[data-as-app="forum"] .as-fo-hot .as-fo-blockhead__more { display: none; }
+[data-as-app="forum"] .as-fo-hot__list { grid-template-columns: 1fr; gap: 0; padding: 0; }
+[data-as-app="forum"] .as-fo-hot__item { display: grid; grid-template-columns: 1fr; padding: 10px 16px; gap: 2px; }
+[data-as-app="forum"] .as-fo-hot__no { width: auto; font: 400 13px/1.3 var(--font-ui); color: var(--fo-ink-2) !important; }
+[data-as-app="forum"] .as-fo-hot__no::after { content: ' · 趋势'; }
+[data-as-app="forum"] .as-fo-hot__topic { font-weight: 700; font-size: 15px; }
+[data-as-app="forum"] .as-fo-hot__heat { display: block; font-size: 13px; color: var(--fo-ink-2); }
+[data-as-app="forum"] .as-fo-hot__heat::after { content: ' 帖子'; }
+[data-as-app="forum"] .as-fo-hot__tag { display: none; }
+[data-as-app="forum"] .as-fo-boards__list { grid-template-columns: 1fr; gap: 0; padding: 0; }
+[data-as-app="forum"] .as-fo-board { grid-template-columns: 48px 1fr; grid-template-rows: auto auto; justify-items: start; column-gap: 12px; padding: 10px 16px; text-align: left; }
+[data-as-app="forum"] .as-fo-board__icon { grid-row: 1 / span 2; width: 48px; height: 48px; border-radius: 12px; background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-board__name { font-weight: 700; font-size: 15px; }
+[data-as-app="forum"] .as-fo-board__tag { display: none; }
+[data-as-app="forum"] .as-fo-board__count:not(:empty)::after { content: ' 位成员'; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item { box-shadow: inset 0 -1px 0 var(--fo-line); }
+[data-as-app="forum"] .as-fo-banner { height: 110px; background: var(--fo-accent); font: 800 26px/1 var(--font-ui); text-shadow: none; }
+
+/* 帖子页：大字正文、数据一行、回复串（左边竖线连着）、底下「发布你的回复」 */
+[data-as-page="forum-post"] .as-fo-post { grid-template-columns: 40px 1fr; }
+[data-as-page="forum-post"] .as-fo-post__ava { grid-row: 1; }
+[data-as-page="forum-post"] .as-fo-post > :not(.as-fo-post__ava, .as-fo-post__head) { grid-column: 1 / -1; }
+[data-as-page="forum-post"] .as-fo-post__head { flex-wrap: wrap; }
+[data-as-page="forum-post"] .as-fo-post__meta { flex-basis: 100%; margin: 0; }
+[data-as-page="forum-post"] .as-fo-post__time::before { content: ''; }
+[data-as-page="forum-post"] .as-fo-post__text { font-size: 17px; line-height: 1.5; margin-top: 12px; }
+[data-as-page="forum-post"] .as-fo-post .as-fo-post__acts { display: none; }
+[data-as-page="forum-post"] .as-fo-stat { gap: 18px; margin: 0; padding: 12px 16px; box-shadow: inset 0 -1px 0 var(--fo-line), inset 0 1px 0 var(--fo-line); }
+[data-as-page="forum-post"] .as-fo-stat__item { flex-direction: row-reverse; padding: 0; font-size: 14px; color: var(--fo-ink-2); }
+[data-as-page="forum-post"] .as-fo-stat__item span:last-child { color: var(--fo-ink); font-weight: 700; }
+[data-as-page="forum-post"] .as-fo-stat__item.is-on::after { display: none; }
+[data-as-page="forum-post"] .as-fo-sort { display: none; }
+[data-as-app="forum"] .as-fo-floor { grid-template-columns: 40px 1fr; padding: 12px 16px; box-shadow: inset 0 -1px 0 var(--fo-line); }
+[data-as-app="forum"] .as-fo-floor .as-avatar { width: 40px !important; height: 40px !important; }
+[data-as-app="forum"] .as-fo-floor__name { font-weight: 700; font-size: 15px; color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-floor__to { flex-basis: 100%; font-size: 14px; }
+[data-as-app="forum"] .as-fo-floor__to::first-letter { color: var(--fo-ink-2); }
+[data-as-app="forum"] .as-fo-floor__op { background: none; color: var(--fo-ink-2); padding: 0; font-size: 13px; }
+[data-as-app="forum"] .as-fo-floor__text { font-size: 15px; }
+[data-as-app="forum"] .as-fo-floor__no { display: none; }
+[data-as-app="forum"] .as-fo-floor.is-sub { box-shadow: inset 35px 0 0 -33px var(--fo-line), inset 0 -1px 0 var(--fo-line); }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-act { display: none; }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-acc { display: inline-flex; padding: 0; background: none; }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-acc span:last-child { display: none; }
+[data-as-page="forum-post"] .as-fo-dock__pill { background: none; font-size: 15px; }
+
+/* 个人主页：横幅、头像压在下沿、关注者 / 正在关注 */
+[data-as-app="forum"] .as-fo-user__cover { height: 125px; background-image: linear-gradient(135deg, #cfd9de, #e6ecf0); }
+[data-as-app="forum"] .as-fo-user__ava { margin-top: -34px; box-shadow: 0 0 0 4px var(--fo-card); }
+[data-as-app="forum"] .as-fo-user__name { font-size: 20px; font-weight: 800; }
+[data-as-app="forum"] .as-fo-user__num:first-child { order: 2; }
+[data-as-app="forum"] .as-fo-user__num:last-child { display: none; }
+[data-as-app="forum"] .as-fo-user__num b { font-size: 14px; }
+[data-as-app="forum"] .as-fo-user__tabs { gap: 0; }
+[data-as-app="forum"] .as-fo-user__tabs span { flex: 1; text-align: center; }
+[data-as-app="forum"] .as-fo-user__tabs span::after { width: 56px; margin-left: -28px; height: 4px; background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-ubar > .as-fo-follow { display: block; background: var(--fo-ink); color: var(--fo-card); }
+[data-as-app="forum"] .as-fo-ubar > .as-fo-follow.is-on { background: none; color: var(--fo-ink); box-shadow: inset 0 0 0 1px #cfd9de; }

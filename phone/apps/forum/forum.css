@@ -1,94 +1,169 @@
-/* 论坛：三套样子共用的骨架，颜色全走 --fo-* 变量（在 skins.css 里按微博 / 豆瓣 / 推特给） */
+/* 论坛的底子：所有积木的默认样子（干净、能用就行）。真正的长相在样子的 CSS 里（looks/*.css 或用户自己的样子），
+   颜色都走 --fo-* 变量；样子可以把任何零件藏掉、挪位置、换图 */
+[data-as-app="forum"] { --fo-bg: #f4f4f4; --fo-head: #fff; --fo-card: #fff; --fo-ink: #222; --fo-ink-2: #8a8a8a; --fo-line: #ececec; --fo-soft: #f5f5f5; --fo-accent: #ff8200; --fo-v: #ff8200; --fo-link: #507daf; --fo-like: #ff8200; --fo-gap: 8px; }
+.as-phone[data-mode="night"] [data-as-app="forum"] { --fo-bg: #000; --fo-head: #141414; --fo-card: #141414; --fo-ink: #ddd; --fo-ink-2: #777; --fo-line: #262626; --fo-soft: #1f1f1f; }
 .as-page[data-as-app="forum"] { background: var(--fo-bg); color: var(--fo-ink); }
 .as-page[data-as-app="forum"] > .as-navbar { background: var(--fo-head); color: var(--fo-ink); box-shadow: 0 .5px 0 var(--fo-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .as-page[data-as-app="forum"] > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-navbar__title) { color: var(--fo-ink); text-shadow: none; }
 .as-page[data-as-app="forum"] .as-page__body { padding: 0 0 calc(28px + env(safe-area-inset-bottom, 0px)); }
 .as-page[data-as-app="forum"] .as-empty { color: var(--fo-ink-2); }
 .as-fo-job { width: auto; min-width: 36px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font: 500 11px/1 var(--font-ui); }
-.as-fo-job[hidden] { display: none; }
+[data-as-app="forum"] [hidden] { display: none !important; }
+.as-fo-refresh, .as-fo-navpost { display: contents; }
 
-/* 底部标签：平的一条 */
-.as-chat-tabbar.as-fo-bar { grid-template-columns: repeat(3, 1fr); margin: 0; border-radius: 0; border: 0; box-shadow: 0 -.5px 0 var(--fo-line); background: var(--fo-head); -webkit-backdrop-filter: none; backdrop-filter: none; padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); }
-.as-fo-bar .as-chat-tab { color: var(--fo-ink-2); }
-.as-fo-bar .as-chat-tab.is-active { color: var(--fo-accent); }
+/* 顶上切换（推荐 / 关注…）：放在顶栏标题的位置 */
+.as-fo-switch { display: flex; justify-content: center; gap: 22px; }
+.as-fo-switch button { position: relative; border: 0; background: none; padding: 6px 0; color: var(--fo-ink-2); font: 500 16px/1 var(--font-ui); cursor: pointer; }
+.as-fo-switch button.is-on { color: var(--fo-ink); font-weight: 700; }
+.as-fo-switch button.is-on::after { content: ''; position: absolute; left: 50%; bottom: -2px; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
 
-/* 顶上那排版块：滚动时钉在上面 */
-.as-fo-tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 20px; padding: 0 16px; height: 42px; align-items: stretch; background: var(--fo-head); box-shadow: 0 .5px 0 var(--fo-line); overflow-x: auto; scrollbar-width: none; }
-.as-fo-tabs button { position: relative; flex: none; border: 0; background: none; padding: 0; color: var(--fo-ink-2); font: 500 15px/1 var(--font-ui); cursor: pointer; }
-.as-fo-tabs button.is-on { color: var(--fo-ink); font-weight: 700; }
-.as-fo-tabs button.is-on::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
+/* 底部标签 */
+.as-fo-tabbar { flex: none; display: flex; justify-content: space-around; padding: 6px 0 max(6px, env(safe-area-inset-bottom, 0px)); background: var(--fo-head); box-shadow: 0 -.5px 0 var(--fo-line); }
+.as-fo-tab { flex: 1; display: grid; justify-items: center; gap: 2px; border: 0; background: none; color: var(--fo-ink-2); font: 500 10.5px/1.2 var(--font-ui); cursor: pointer; }
+.as-fo-tab.is-on { color: var(--fo-accent); }
+.as-fo-tab__img { display: block; width: 26px; height: 26px; background: center / contain no-repeat; }
+.as-fo-fab { display: none; position: absolute; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); z-index: 3; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--fo-accent); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.2); place-items: center; cursor: pointer; }
+.as-page[data-as-app="forum"]:not([data-tab="home"]) .as-fo-fab { display: none !important; }
 
-/* 热榜：横着滑的一条 */
-.as-fo-hot { padding: 12px 16px 10px; background: var(--fo-card); margin-bottom: var(--fo-gap); }
-.as-fo-hot__t { font: 700 14px/1 var(--font-ui); margin-bottom: 8px; color: var(--fo-ink); }
-.as-fo-hot__list { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 46%; gap: 6px 14px; overflow-x: auto; scrollbar-width: none; }
-.as-fo-hot__item { display: flex; align-items: baseline; gap: 6px; min-width: 0; border: 0; background: none; padding: 3px 0; text-align: left; color: var(--fo-ink); font: 400 13.5px/1.3 var(--font-ui); cursor: pointer; }
-.as-fo-hot__item b { flex: none; width: 14px; color: var(--fo-accent); font-weight: 700; }
-.as-fo-hot__item span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-fo-hot__item small { flex: none; color: var(--fo-ink-2); font-size: 11px; }
-
-/* 一条帖：头像 | 名字、时间；下面正文、翻译、配图、转评赞 */
+/* 一条帖：零件全在，默认排成「头像 | 名字、时间」，下面正文、配图、转评赞 */
 .as-fo-list { display: flex; flex-direction: column; gap: var(--fo-gap); }
-.as-fo-post { display: grid; grid-template-columns: 42px 1fr; column-gap: 10px; padding: 14px 16px 4px; background: var(--fo-card); color: var(--fo-ink); cursor: pointer; }
+.as-fo-post { position: relative; display: grid; grid-template-columns: 42px 1fr auto; column-gap: 10px; padding: 14px 16px 4px; background: var(--fo-card); color: var(--fo-ink); cursor: pointer; }
 .as-fo-post.is-full { cursor: default; }
-.as-fo-post__ava { grid-column: 1; grid-row: 1; cursor: pointer; }
-.as-fo-post__head { grid-column: 2; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 2px 4px; min-width: 0; }
-.as-fo-post__name { font: 600 15px/1.25 var(--font-ui); color: var(--fo-name, var(--fo-ink)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.as-fo-post__group, .as-fo-post__count, .as-fo-post__in, .as-fo-post__badge, .as-fo-post__hotcmt { display: none; }
+.as-fo-post > :not(.as-fo-post__ava, .as-fo-post__head, .as-fo-follow) { grid-column: 1 / -1; }
+.as-fo-post__ava { position: relative; grid-column: 1; grid-row: 1 / span 2; cursor: pointer; align-self: start; }
+.as-fo-post__head { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
+.as-fo-post__name { font: 600 15px/1.3 var(--font-ui); color: var(--fo-name, var(--fo-ink)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 75%; }
 .as-fo-post__v { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--fo-v); color: #fff; }
-.as-fo-post__time { flex-basis: 100%; font: 400 12px/1.2 var(--font-ui); color: var(--fo-ink-2); }
-.as-fo-post > :is(.as-fo-post__title, .as-fo-post__text, .as-fo-post__tr, .as-fo-trbtn, .as-fo-post__img, .as-fo-post__acts) { grid-column: 1 / -1; }
+.as-fo-post__meta { flex-basis: 100%; display: flex; gap: 8px; font: 400 12px/1.3 var(--font-ui); color: var(--fo-ink-2); min-width: 0; white-space: nowrap; overflow: hidden; }
+.as-fo-follow { grid-column: 3; grid-row: 1; align-self: start; border: 1px solid var(--fo-accent); border-radius: 14px; background: none; color: var(--fo-accent); padding: 4px 10px; font: 500 12px/1 var(--font-ui); cursor: pointer; white-space: nowrap; }
+.as-fo-follow.is-on { border-color: var(--fo-line); color: var(--fo-ink-2); }
 .as-fo-post__title { margin-top: 10px; font: 700 16px/1.4 var(--font-ui); }
 .as-fo-post__text { margin-top: 8px; font: 400 15px/1.6 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
-.as-fo-post__tr, .as-fo-floor .as-fo-post__tr { margin-top: 4px; font: 400 13.5px/1.55 var(--font-ui); color: var(--fo-ink-2); white-space: pre-wrap; }
-.as-fo-trbtn { justify-self: start; border: 0; background: none; padding: 4px 0 0; color: var(--fo-link, var(--fo-accent)); font: 400 13px/1.2 var(--font-ui); cursor: pointer; }
+.as-fo-topic { color: var(--fo-link); cursor: pointer; }
+.as-fo-post__tr { margin-top: 4px; font: 400 13.5px/1.55 var(--font-ui); color: var(--fo-ink-2); white-space: pre-wrap; }
+.as-fo-trbtn { justify-self: start; border: 0; background: none; padding: 4px 0 0; color: var(--fo-link); font: 400 13px/1.2 var(--font-ui); cursor: pointer; }
 .as-phone[data-forum-tr="tap"] .as-fo-post__tr, .as-phone:not([data-forum-tr="tap"]) .as-fo-trbtn { display: none; }
-.as-fo-post__img { width: 100%; border: 0; text-align: left; cursor: pointer; margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 13px/1.5 var(--font-ui); display: flex; gap: 8px; align-items: flex-start; }
+.as-fo-post__img { width: 100%; border: 0; text-align: left; margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 13px/1.5 var(--font-ui); display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
 .as-fo-post__img svg { flex: none; margin-top: 2px; }
+button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent); }
+.as-fo-post__pic { display: block; max-width: 100%; max-height: 420px; margin-top: 8px; border-radius: 6px; justify-self: start; }   /* 整张显示，不裁 */
+.as-fo-post__hotcmt { margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--fo-soft); font: 400 13px/1.5 var(--font-ui); color: var(--fo-ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.as-fo-post__hotcmt b { color: var(--fo-ink); font-weight: 500; }
 .as-fo-post__acts { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 6px; }
-.as-fo-act { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 36px; border: 0; background: none; color: var(--fo-ink-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-act { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 38px; border: 0; background: none; color: var(--fo-ink-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
 .as-fo-act__w { display: none; }
-.as-fo-like.is-on { color: var(--fo-like, var(--fo-accent)); }
-.as-fo-like.is-on svg { fill: currentColor; }
+.as-fo-act.is-like.is-on { color: var(--fo-like); }
+.as-fo-act.is-like.is-on svg { fill: currentColor; }
 .as-fo-anon { display: inline-grid; place-items: center; border-radius: 50%; background: var(--fo-soft); color: var(--fo-ink-2); }
 
-button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent); }
-.as-fo-post__pic { display: block; max-width: 100%; max-height: 420px; margin-top: 8px; border-radius: 10px; justify-self: start; }   /* 整张显示，不裁 */
-[data-forum-skin="twitter"] .as-fo-post__pic { border-radius: 16px; }
+/* 积木：搜索框、热榜、小组格子、正在讨论 */
+.as-fo-blocks { display: flex; flex-direction: column; gap: var(--fo-gap); padding-bottom: 12px; }
+.as-fo-blockhead { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; font: 700 16px/1.2 var(--font-ui); color: var(--fo-ink); }
+.as-fo-blockhead__more { border: 0; background: none; color: var(--fo-ink-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-search { display: flex; align-items: center; gap: 8px; margin: 10px 16px 0; height: 36px; padding: 0 12px; border: 0; border-radius: 18px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 14px/1 var(--font-ui); cursor: pointer; }
+.as-fo-hot, .as-fo-boards, .as-fo-chips { background: var(--fo-card); }
+.as-fo-hot__list { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; padding: 0 16px 12px; }
+.as-fo-hot__item { display: flex; align-items: center; gap: 6px; min-width: 0; border: 0; background: none; padding: 7px 0; text-align: left; color: var(--fo-ink); font: 400 14px/1.3 var(--font-ui); cursor: pointer; }
+.as-fo-hot__no { flex: none; width: 16px; color: var(--fo-ink-2); font-weight: 600; }
+.as-fo-hot__item:nth-child(-n+3) .as-fo-hot__no { color: var(--fo-accent); }
+.as-fo-hot__topic { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-fo-hot__heat { display: none; }
+.as-fo-hot__tag { flex: none; font: 600 10px/14px var(--font-ui); font-style: normal; color: #fff; width: 14px; text-align: center; border-radius: 3px; background: #ff9406; }
+.as-fo-hot__tag[data-t="沸"] { background: #f86400; } .as-fo-hot__tag[data-t="新"] { background: #ff3852; }
+.as-fo-hot__empty { padding: 0 16px 14px; }
+.as-fo-boards__list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 8px; padding: 0 16px 14px; }
+.as-fo-board { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--fo-ink); font: 400 12px/1.3 var(--font-ui); cursor: pointer; min-width: 0; }
+.as-fo-board__icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 12px; background: var(--fo-accent); color: #fff; font: 600 20px/1 var(--font-ui); }
+.as-fo-board__name { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-fo-board__tag, .as-fo-board__count { font-size: 10.5px; color: var(--fo-ink-2); }
+.as-fo-chips__row { display: flex; gap: 8px; padding: 0 16px 10px; overflow-x: auto; scrollbar-width: none; }
+.as-fo-chips__row button { flex: none; border: 0; border-radius: 14px; padding: 6px 12px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-chips__row button.is-on { background: color-mix(in srgb, var(--fo-accent) 14%, transparent); color: var(--fo-accent); font-weight: 600; }
 
-/* 帖子页：楼层 */
-.as-fo-floors { background: var(--fo-card); margin-top: var(--fo-gap); }
-.as-fo-floor { display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 12px 16px; box-shadow: inset 0 -.5px 0 var(--fo-line); }
-.as-fo-floor.is-sub { padding-left: 42px; }
+/* 消息、我 */
+.as-fo-mehead { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 12px; align-items: center; width: 100%; padding: 18px 16px; border: 0; background: var(--fo-card); color: var(--fo-ink); text-align: left; cursor: pointer; }
+.as-fo-mehead > .as-avatar { grid-row: 1 / span 2; }
+.as-fo-mehead__name { font: 700 18px/1.3 var(--font-ui); }
+.as-fo-mehead__sub { grid-column: 2; font: 400 12.5px/1.3 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-mehead > svg { grid-column: 3; grid-row: 1 / span 2; color: var(--fo-ink-2); }
+.as-fo-megrid { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: var(--fo-gap); padding: 14px 8px; background: var(--fo-card); }
+.as-fo-megrid__item { display: grid; justify-items: center; gap: 6px; border: 0; background: none; color: var(--fo-ink); font: 400 12px/1.2 var(--font-ui); cursor: pointer; }
+.as-fo-set { padding: 12px 16px; }
+
+/* 帖子页：数据标签、只看楼主、楼层、底下那条 */
+.as-fo-stat { display: flex; gap: 22px; padding: 12px 16px 0; margin-top: var(--fo-gap); background: var(--fo-card); box-shadow: inset 0 -.5px 0 var(--fo-line); }
+.as-fo-stat__item { position: relative; display: inline-flex; gap: 4px; border: 0; background: none; padding: 0 0 10px; color: var(--fo-ink-2); font: 400 14px/1 var(--font-ui); }
+.as-fo-stat__item.is-on { color: var(--fo-ink); font-weight: 600; }
+.as-fo-stat__item.is-on::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
+.as-fo-sort { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 4px; background: var(--fo-card); font: 500 13px/1 var(--font-ui); color: var(--fo-ink); }
+.as-fo-sort__op { border: 0; border-radius: 4px; padding: 4px 8px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 12px/1 var(--font-ui); cursor: pointer; }
+.as-fo-sort__op.is-on { color: var(--fo-accent); }
+.as-fo-floors { background: var(--fo-card); }
+.as-fo-floors.is-op-only .as-fo-floor:not(.is-op) { display: none; }
+.as-fo-floor { display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 12px 16px; box-shadow: inset 0 -.5px 0 var(--fo-line); cursor: pointer; }
 .as-fo-floor__ava { cursor: pointer; }
 .as-fo-floor__who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font: 500 13.5px/1.3 var(--font-ui); color: var(--fo-name, var(--fo-ink)); }
 .as-fo-floor__op { padding: 1px 5px; border-radius: 4px; background: var(--fo-accent); color: #fff; font-size: 10.5px; }
 .as-fo-floor__to { color: var(--fo-ink-2); font-weight: 400; }
+.as-fo-floor__quote { display: none; margin-top: 6px; padding: 8px 10px; border-radius: 4px; background: var(--fo-soft); font: 400 13px/1.5 var(--font-ui); color: var(--fo-ink-2); }
 .as-fo-floor__text { margin-top: 4px; font: 400 14.5px/1.55 var(--font-ui); color: var(--fo-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.as-fo-floor__meta { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; font: 400 12px/1 var(--font-ui); color: var(--fo-ink-2); }
-.as-fo-floor__meta .as-fo-act { height: 26px; justify-content: flex-end; }
+.as-fo-floor__meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font: 400 12px/1 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-floor__meta .as-fo-act { height: 26px; margin-left: auto; }
 .as-fo-morebtn { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 32px); margin: 14px 16px; }
+.as-fo-dock { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px 10px max(8px, env(safe-area-inset-bottom, 0px)); background: var(--fo-head); box-shadow: 0 -.5px 0 var(--fo-line); }
+.as-fo-dock__pill { flex: 1; min-width: 0; height: 34px; padding: 0 12px; border: 0; border-radius: 17px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 13.5px/1 var(--font-ui); text-align: left; cursor: pointer; }
+.as-fo-dock .as-fo-act { height: 34px; padding: 0 8px; }
+.as-fo-dock .as-fo-acc { display: none; }
 
-/* 帖子页底下的输入栏：号 · 输入框 · 发送 */
-.as-fo-input { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px max(8px, env(safe-area-inset-bottom, 0px)); background: var(--fo-head); box-shadow: 0 -.5px 0 var(--fo-line); }
-.as-fo-input .as-input { flex: 1; min-width: 0; height: 36px; border-radius: 18px; background: var(--fo-soft); border: 0; color: var(--fo-ink); }
-.as-fo-send { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--fo-accent); color: #fff; cursor: pointer; }
-.as-fo-acc { flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 108px; padding: 3px 9px 3px 3px; border: 0; border-radius: 16px; background: var(--fo-soft); color: var(--fo-ink); font: 500 12.5px/1 var(--font-ui); cursor: pointer; }
-.as-fo-acc span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.as-fo-input .as-fo-acc span:last-child { display: none; }   /* 输入栏里只放头像，省地方 */
-.as-fo-input .as-fo-acc { padding: 3px; }
+/* 主页 */
+.as-fo-user { background: var(--fo-card); }
+.as-fo-user__cover { height: 150px; background: linear-gradient(160deg, color-mix(in srgb, var(--fo-accent) 30%, #fff), color-mix(in srgb, var(--fo-accent) 8%, #fff)) center / cover; }
+.as-fo-user__main { position: relative; display: grid; gap: 6px; padding: 0 16px 12px; }
+.as-fo-user__ava { position: relative; justify-self: start; margin-top: -38px; border-radius: 50%; box-shadow: 0 0 0 3px var(--fo-card); }
+.as-fo-user__name { display: inline-flex; align-items: center; gap: 5px; font: 700 20px/1.3 var(--font-ui); }
+.as-fo-user__bio { font: 400 13px/1.5 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-user__nums { display: flex; gap: 18px; font: 400 13px/1 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-user__num b { margin-right: 4px; color: var(--fo-ink); font-size: 16px; }
+.as-fo-user__tabs { display: flex; gap: 24px; padding: 10px 16px 0; box-shadow: inset 0 -.5px 0 var(--fo-line); }
+.as-fo-user__tabs span { position: relative; padding-bottom: 10px; font: 600 15px/1 var(--font-ui); }
+.as-fo-user__tabs span::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
+.as-fo-ubar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 16px max(8px, env(safe-area-inset-bottom, 0px)); background: var(--fo-head) center / cover; box-shadow: 0 -.5px 0 var(--fo-line); }
+.as-fo-ubar__item { display: grid; justify-items: center; gap: 2px; border: 0; background: none; color: var(--fo-ink); font: 400 11px/1.2 var(--font-ui); cursor: pointer; }
+.as-fo-ubar > .as-fo-follow, .as-fo-ubar > .as-btn { flex: 1; height: 40px; border-radius: 20px; font-size: 15px; }
+.as-fo-ubar > .as-fo-follow { border: 0; background: var(--fo-accent); color: #fff; }
+.as-fo-ubar > .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
+.as-fo-ubar > .as-btn--primary { background: color-mix(in srgb, var(--fo-accent) 14%, var(--fo-card)); color: var(--fo-accent); box-shadow: none; }
 
-/* 发帖、投稿、编辑的面板 */
+/* 小组页、热榜页、搜索 */
+.as-fo-boardhead { display: flex; align-items: center; gap: 12px; padding: 18px 16px; background: var(--fo-card); margin-bottom: var(--fo-gap); }
+.as-fo-boardhead__main { flex: 1; display: grid; gap: 3px; min-width: 0; }
+.as-fo-boardhead__name { font: 700 18px/1.3 var(--font-ui); }
+.as-fo-boardhead__count, .as-fo-boardhead__intro { font: 400 12.5px/1.4 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-join { flex: none; border: 0; border-radius: 15px; padding: 7px 14px; background: var(--fo-accent); color: #fff; font: 500 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-join.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
+.as-fo-banner { display: grid; place-items: center; height: 120px; background: linear-gradient(135deg, var(--fo-accent), color-mix(in srgb, var(--fo-accent) 60%, #ffd000)) center / cover; color: #fff; font: 800 30px/1 var(--font-ui); letter-spacing: .06em; }
+.as-fo-hotlist { background: var(--fo-card); }
+.as-fo-hotlist .as-fo-hot__item { width: 100%; padding: 12px 16px; box-shadow: inset 0 -.5px 0 var(--fo-line); }
+.as-fo-hotlist .as-fo-hot__heat { display: inline; color: var(--fo-ink-2); font-size: 12px; }
+.as-fo-searchbar { display: flex; gap: 8px; padding: 10px 16px; background: var(--fo-head); }
+.as-fo-searchbar .as-input { flex: 1; }
+.as-fo-searchbar__go { flex: none; width: 40px; border: 0; border-radius: 10px; background: var(--fo-accent); color: #fff; display: grid; place-items: center; cursor: pointer; }
+
+/* 发帖、回帖、编辑的面板 */
 .as-fo-compose { display: grid; gap: 10px; }
 .as-fo-compose__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .as-fo-compose__pic { max-width: 100%; max-height: 220px; justify-self: start; border-radius: 10px; cursor: pointer; }
+.as-fo-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-fo-pick button { border: 1px solid var(--as-color-border); border-radius: 14px; padding: 5px 11px; background: none; color: var(--as-color-text-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-pick button.is-on { border-color: var(--as-color-accent); color: var(--as-color-accent); font-weight: 600; }
+.as-fo-acc { flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 120px; padding: 3px 9px 3px 3px; border: 0; border-radius: 16px; background: var(--as-color-surface-2); color: var(--as-color-text); font: 500 12.5px/1 var(--font-ui); cursor: pointer; }
+.as-fo-acc span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-fo-avapick { justify-self: center; border: 0; background: none; padding: 0; cursor: pointer; }
-
-/* 主页 */
-.as-fo-user { display: grid; justify-items: center; gap: 6px; padding: 22px 16px 16px; background: var(--fo-card); text-align: center; }
-.as-fo-user__name { display: inline-flex; align-items: center; gap: 5px; font: 700 19px/1.3 var(--font-ui); }
-.as-fo-user__acts { display: flex; gap: 10px; margin: 14px 16px; }
-.as-fo-user__acts > * { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; width: auto; }
-.as-fo-user__bio { font: 400 13px/1.5 var(--font-ui); color: var(--fo-ink-2); }
-
-/* 我 */
-.as-fo-me { padding: 12px 16px; }
+.as-fo-looktile { position: relative; }
+.as-fo-looktile i:nth-child(1) { left: 8px; right: 8px; top: 30px; height: 14px; border-radius: 4px; }
+.as-fo-looktile i:nth-child(2), .as-fo-looktile i:nth-child(3) { left: 8px; top: 50px; width: 60%; height: 6px; border-radius: 3px; background: rgba(0,0,0,.12); }
+.as-fo-looktile i:nth-child(3) { top: 60px; width: 40%; }
+.as-lib-chatskins > button { position: relative; }
+.as-fo-looktile__more { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.85); color: #333; }
+.as-fo-lookimg { width: 34px; height: 34px; object-fit: contain; border-radius: 6px; background: rgba(0,0,0,.05); }

@@ -6,7 +6,7 @@ import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
 import { LANGS, langName } from '../../core/translate.js';
-import { textOf } from '../../core/skin.js';
+import { word } from './looks.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { nameOf, personaOf, worldBlock, takeTr } from '../chat/engine.js';
@@ -32,16 +32,16 @@ function prune() {
   while (D.posts.length > 300) { const i = D.posts.findLastIndex(p => !keep.has(p.id)); if (i < 0) break; D.posts.splice(i, 1); }
 }
 
-/* ---------- 三套样子各自的叫法：皮肤里 @texts 能盖掉 ---------- */
-const WORDS = {
-  weibo: { 'forum.tab.follow': '关注', 'forum.tab.local': '同城', 'forum.tab.global': '热门', 'forum.tab.anon': '树洞', 'forum.hot': '热搜', 'forum.act.repost': '转发', 'forum.act.comment': '评论', 'forum.act.like': '赞', 'forum.post.new': '发微博', 'forum.platform': '微博' },
-  douban: { 'forum.tab.follow': '关注', 'forum.tab.local': '本地小组', 'forum.tab.global': '广场', 'forum.tab.anon': '匿名小组', 'forum.hot': '热门话题', 'forum.act.repost': '转发', 'forum.act.comment': '回应', 'forum.act.like': '赞', 'forum.post.new': '发帖', 'forum.platform': '豆瓣小组' },
-  twitter: { 'forum.tab.follow': '正在关注', 'forum.tab.local': '附近', 'forum.tab.global': '为你推荐', 'forum.tab.anon': '匿名投稿', 'forum.hot': '趋势', 'forum.act.repost': '转帖', 'forum.act.comment': '回复', 'forum.act.like': '喜欢', 'forum.post.new': '发帖', 'forum.platform': '推特' },
-};
-export const skin = () => (WORDS[A().skin] ? A().skin : 'weibo');
-export const defWord = k => WORDS[skin()][k];
-export const word = k => textOf(k, defWord(k));
-const platform = () => `这是一个像「${word('forum.platform')}」的平台，照那里的人说话的方式写。` + ({ douban: '每条帖子都要有标题。', twitter: '不用写标题。', weibo: '一般不写标题。' }[skin()]);
+const platform = () => `这是一个像「${word('forum.platform')}」的平台，照那里的人说话的方式写。` + ({ yes: '每条帖子都要有标题。', no: '不用写标题。' }[word('forum.title.need')] || '');
+
+/* ---------- 小组：本地、全球、匿名区三个版块各有个按世界观起的名字；另外还有 AI 起的小组（微博叫超话、推特叫社群） ---------- */
+const BASE = { local: '本地', global: '全球', anon: '匿名' };
+export function groupOf(id) {
+  const g = F().groups.find(x => x.id === id);
+  return BASE[id] ? { id, name: word('forum.tab.' + id), intro: '', ...g, base: true } : g || null;
+}
+export const boards = () => [...['local', 'global', 'anon'].map(groupOf), ...F().groups.filter(g => !BASE[g.id])];
+export const groupName = id => (groupOf(id) || {}).name || '';
 
 /* ---------- 谁是谁 ---------- */
 const P = id => F().people[id] || {};
@@ -49,6 +49,8 @@ export const onForum = () => state.contacts.filter(c => !P(c.id).off);
 export const netName = c => P(c.id).name || c.nick || c.name || nameOf(c);
 export const isV = c => !!P(c.id).v;
 export const botOf = id => F().bots.find(b => b.id === id);
+/** 主页装扮：背景图、头像框、底栏图（'b:id' / 'c:id' / 'me:号' / 'n:网名'） */
+export const decoOf = key => (F().decos || {})[key] || {};
 /* 我的号：main 是大号；name 空着就用手机里我的网名 */
 export const accOf = id => F().accounts.find(a => a.id === id);
 export const curAcc = () => accOf(F().cur) || F().accounts[0];
@@ -78,19 +80,22 @@ const localLang = () => (F().lang ? langName(F().lang) : '当地的语言');
 // tr：翻译附在哪（帖子另起一行，楼层同一行末尾）；what：一条里怎么用语言
 function langRule(board, tr, what) {
   if (board === 'anon') return '';
-  if (board === 'local') return F().lang && isZh(F().lang) ? '' : `\n- 用${localLang()}写；不是中文的，${tr}。`;
+  if (board !== 'global') return F().lang && isZh(F().lang) ? '' : `\n- 用${localLang()}写；不是中文的，${tr}。`;
   const l = F().lang;
   const mix = !l ? `大约三成中文、四成英文、三成${localLang()}` : isZh(l) ? '大约六成中文、四成英文' : l === 'en' ? '大约三成中文、七成英文' : `大约三成中文、四成英文、三成${langName(l)}`;
   return `\n- 语言混着来：${mix}，${what}；这个世界里没有的语言（比如古代、架空的世界没有英文）就不用，只用这个世界里有的。不是中文的，${tr}。`;
 }
 
 /* ---------- 刷帖 ---------- */
-const BOARD = {
-  local: () => `${F().region || '故事发生的地方'}本地版：当地人用${localLang()}聊当地的事，剧情里的熟人也可能出现`,
-  global: () => '全球版：各地的人都在看的大事、热门话题',
-  anon: () => '匿名区：没人知道谁是谁，爆料、吐槽、怪事、不敢实名说的话；作者一律写「匿名」',
-  follow: () => '关注：只由下面「可以发的号」里的人发',
-};
+function boardText(id) {
+  const g = groupOf(id), nm = g && g.intro ? `「${g.name}」（${g.intro}）` : '';
+  if (id === 'local') return `${F().region || '故事发生的地方'}本地版${nm}：当地人用${localLang()}聊当地的事，剧情里的熟人也可能出现`;
+  if (id === 'global') return `全球版${nm}：各地的人都在看的大事、热门话题`;
+  if (id === 'anon') return `匿名区${nm}：没人知道谁是谁，爆料、吐槽、怪事、不敢实名说的话；作者一律写「匿名」`;
+  if (id === 'follow') return '关注：只由下面「可以发的号」里的人发';
+  if (id === 'all') return `各个小组里的帖子：每条都发在下面这些小组之一，用「小组：名字」写明\n${boards().filter(x => x.id !== 'anon').map(x => `- ${x.name}${x.intro ? '：' + x.intro : ''}`).join('\n')}`;
+  return `「${g.name}」${word('forum.group')}${g.intro ? '：' + g.intro : ''}；发帖的是对这个感兴趣的人`;
+}
 const BOT_RULES = `
 营销号的名字要这样起：
 - 是一句话，不是一个词；像无意中听到的一句心里话，或者半句没说完的故事；多用「我」「你」「她」「他」，有个说话的人。
@@ -104,6 +109,8 @@ function setup(board) {
   if (!f.region) out.push(`地区：地名｜语言（按正文判断故事发生在哪；语言从这些里挑一个：${LANGS.map(l => l[1]).join('、')}）`);
   if (f.bots.length < 6 && board !== 'anon') { out.push(`号｜名字｜主题｜一句简介（再起 ${6 - f.bots.length} 个营销号，一行一个）`); rules.push(BOT_RULES); }
   if (board === 'global') out.push('热榜｜话题｜热度数字（最多 10 行，这个世界里现在大家在议论的事）');
+  const need = ['local', 'global', 'anon'].filter(id => !f.groups.some(g => g.id === id)), more = f.groups.filter(g => !BASE[g.id]).length < 3;
+  if (need.length || more) out.push(`小组｜${need.map(id => BASE[id]).concat(more ? ['新'] : []).join('/')}｜名字｜一句简介｜人数（${need.length ? `给${need.map(id => BASE[id] + '版').join('、')}各起一个这个世界里的名字` : ''}${need.length && more ? '；' : ''}${more ? '再按这个世界起 3～5 个大家会去的兴趣小组，写「小组｜新｜…」' : ''}）`);
   return out.length ? `\n\n先写下面这些行，写完单独一行 === 再写帖子：\n${out.join('\n')}${rules.join('')}` : '';
 }
 function posters(board, only) {
@@ -125,7 +132,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
   await load();
   const st = story();
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
-    prompt: compose('forumFeed', { board: BOARD[board](), platform: platform(), count, story: st, time: time.forPrompt(),
+    prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
       world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '',
       lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = []; let cur = null;
@@ -143,15 +150,23 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
       if (name && f.bots.length < 12 && !f.bots.some(b => b.name === name)) f.bots.push({ id: uid('fb'), name: name.slice(0, 20), topic: topic.slice(0, 12), bio: bio.slice(0, 40), fans: 2000 + rnd(400000) });
       continue;
     }
+    if ((m = /^小组\s*[|｜](.+)$/.exec(l))) {
+      const [kind, name, intro = '', n = ''] = m[1].split(/[|｜]/).map(x => x.trim()), id = Object.keys(BASE).find(k => kind.includes(BASE[k]));
+      if (name && (id ? !f.groups.some(g => g.id === id) : f.groups.filter(g => !BASE[g.id]).length < 8 && !f.groups.some(g => g.name === name)))
+        f.groups.push({ id: id || uid('fg'), name: name.slice(0, 16), intro: intro.slice(0, 40), members: num(n) || 500 + rnd(200000) });
+      continue;
+    }
     if ((m = /^热榜\s*[|｜]\s*(.+?)(?:\s*[|｜]\s*(.+))?$/.exec(l))) { if (hot.length < 10) hot.push({ topic: m[1].slice(0, 30), heat: num(m[2]) || 1e4 + rnd(9e5) }); continue; }
     if ((m = /^作者[:：]\s*(.+)$/.exec(l))) {
       end();
-      cur = { id: uid('fp'), board: board === 'follow' ? 'global' : board, by: byName(m[1], board), title: '', text: '', tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: null, ...time.stamp() };
+      cur = { id: uid('fp'), board: board === 'follow' || board === 'all' ? 'global' : board, by: byName(m[1], board), title: '', text: '', tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: null, ...time.stamp() };
       if (cur.by.anon) cur.by.no = 0;
       continue;
     }
     if (!cur) continue;
     if ((m = /^标题[:：]\s*(.*)$/.exec(l))) { cur.title = m[1].slice(0, 40); continue; }
+    if ((m = /^小组[:：]\s*(.+)$/.exec(l))) { const g = boards().find(x => x.name === strip(m[1])); if (g && board === 'all') cur.board = g.id; continue; }
+    if ((m = /^来自[:：]\s*(.+)$/.exec(l))) { cur.dev = m[1].slice(0, 16); continue; }
     if ((m = /^[[【]\s*图片[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.img = m[1]; continue; }
     if ((m = /^[[【]\s*翻译[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = m[1]; continue; }
     if ((m = /^数据[:：](.*)$/.exec(l))) { cur.likes = num((/赞\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.cmts = num((/评\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.reposts = num((/转\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); continue; }

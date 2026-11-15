@@ -1,0 +1,85 @@
+/* 自带样子：微博（照真 App 的首页、发现、热搜、正文页、个人主页）。不放 logo，只用颜色、排版 */
+[data-as-app="forum"] { --fo-bg: #f2f2f2; --fo-head: #fff; --fo-card: #fff; --fo-ink: #333; --fo-ink-2: #939393; --fo-line: #ededed; --fo-soft: #f7f7f7; --fo-accent: #ff8200; --fo-v: #ffb400; --fo-link: #507daf; --fo-like: #f86400; --fo-vip: #f86400; --fo-gap: 8px; }
+.as-phone[data-mode="night"] [data-as-app="forum"] { --fo-bg: #000; --fo-head: #161616; --fo-card: #161616; --fo-ink: #d8d8d8; --fo-ink-2: #7a7a7a; --fo-line: #262626; --fo-soft: #222; --fo-link: #6f9ad1; }
+
+/* 首页顶上：推荐 / 关注 居中的大字 */
+[data-as-app="forum"] .as-fo-switch { gap: 28px; }
+[data-as-app="forum"] .as-fo-switch button { font-size: 17px; }
+[data-as-app="forum"] .as-fo-switch button.is-on::after { width: 16px; margin-left: -8px; height: 3px; background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-tab.is-on { color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-tab.is-on svg { stroke-width: 2.2; }
+
+/* 一条微博：头像右下黄 V，会员名字橙色，「时间 来自 xx」，右上 +关注 */
+[data-as-app="forum"] .as-fo-post { grid-template-columns: 40px 1fr auto; padding: 14px 14px 0; }
+[data-as-app="forum"] .as-fo-post__badge { display: grid; place-items: center; position: absolute; right: -2px; bottom: -2px; width: 15px; height: 15px; border-radius: 50%; background: var(--fo-v); box-shadow: 0 0 0 1.5px var(--fo-card); }
+[data-as-app="forum"] .as-fo-post__badge::after { content: 'V'; font: italic 800 9px/1 Arial, sans-serif; color: #fff; }
+[data-as-app="forum"] .as-fo-post__v { display: none; }
+[data-as-app="forum"] .as-fo-post:has(.as-fo-post__badge) .as-fo-post__name { color: var(--fo-vip); }
+[data-as-app="forum"] .as-fo-post__name { font-size: 15px; font-weight: 500; }
+[data-as-app="forum"] .as-fo-post__meta { font-size: 11.5px; margin-top: 2px; }
+[data-as-app="forum"] .as-fo-follow { border: 0; border-radius: 13px; padding: 5px 9px; background: #fff3e9; color: var(--fo-accent); font-size: 12px; }
+[data-as-app="forum"] .as-fo-follow:not(.is-on)::before { content: '+'; margin-right: 1px; font-weight: 700; }
+[data-as-app="forum"] .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
+.as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-follow:not(.is-on) { background: #3a2410; }
+[data-as-app="forum"] .as-fo-post__title { font-size: 16px; margin-top: 10px; }
+[data-as-app="forum"] .as-fo-post__text { margin-top: 10px; font-size: 16px; line-height: 1.62; color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-list .as-fo-post__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+[data-as-app="forum"] .as-fo-post__pic { border-radius: 4px; max-height: 300px; }
+[data-as-app="forum"] .as-fo-post__acts { margin: 8px -14px 0; box-shadow: inset 0 .5px 0 var(--fo-line); }
+[data-as-app="forum"] .as-fo-act { height: 40px; font-size: 13px; color: #636363; }
+[data-as-app="forum"] .as-fo-act svg { width: 18px; height: 18px; }
+.as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-act { color: #9a9a9a; }
+
+/* 发现：带橙边的搜索框 + 「微博热搜」两列 + 超话 */
+[data-as-app="forum"] .as-fo-blocks { gap: 0; background: var(--fo-card); }
+[data-as-app="forum"] .as-fo-search { height: 36px; margin: 10px 14px 4px; border: 1.5px solid var(--fo-accent); background: var(--fo-card); border-radius: 19px; padding-right: 4px; }
+[data-as-app="forum"] .as-fo-search::after { content: '搜索'; margin-left: auto; padding: 6px 14px; border-radius: 15px; background: var(--fo-accent); color: #fff; font-size: 13px; font-weight: 600; }
+[data-as-app="forum"] .as-fo-hot .as-fo-blockhead b::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; border-radius: 50%; border: 2.5px solid #f04848; box-sizing: border-box; }
+[data-as-app="forum"] .as-fo-hot .as-fo-blockhead { padding-top: 10px; }
+[data-as-app="forum"] .as-fo-hot__list { gap: 0 16px; }
+[data-as-app="forum"] .as-fo-hot__no { display: none; }
+[data-as-app="forum"] .as-fo-hot__item { font-size: 14.5px; padding: 6px 0; }
+[data-as-app="forum"] .as-fo-hot .as-fo-blockhead__more { order: 2; color: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-boards { border-top: 8px solid var(--fo-bg); }
+[data-as-app="forum"] .as-fo-board__icon { border-radius: 50%; background: linear-gradient(135deg, #ffb54d, #ff7a00); }
+
+/* 热搜整页：橙色大横幅 + 排名列表 */
+[data-as-app="forum"] .as-fo-banner { height: 150px; background: linear-gradient(120deg, #ff9d00 0%, #ff5d00 60%, #ff3d3d 100%); font: italic 900 38px/1 var(--font-ui); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(180,40,0,.35); }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item { gap: 12px; padding: 13px 16px; box-shadow: none; font-size: 15px; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__no { width: 22px; text-align: center; color: #ff8200; font-style: italic; font-size: 16px; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item:nth-child(-n+3) .as-fo-hot__no { color: #f13e3e; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__topic { flex: 0 1 auto; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__heat { flex: 1; }
+
+/* 正文页：转发 · 评论 · 赞（赞靠右），第 N 楼，底下浮着的胶囊 */
+[data-as-page="forum-post"] .as-fo-stat { gap: 24px; padding-top: 14px; }
+[data-as-page="forum-post"] .as-fo-stat__item:nth-child(3) { margin-left: auto; }
+[data-as-page="forum-post"] .as-fo-stat__item:nth-child(4), [data-as-page="forum-post"] .as-fo-sort { display: none; }
+[data-as-page="forum-post"] .as-fo-post .as-fo-post__acts { display: none; }
+[data-as-app="forum"] .as-fo-floor { grid-template-columns: 34px 1fr; padding: 14px 14px 10px; box-shadow: none; }
+[data-as-app="forum"] .as-fo-floor__name { font-weight: 500; }
+[data-as-app="forum"] .as-fo-floor:has(.as-fo-post__v) .as-fo-floor__name { color: var(--fo-vip); }
+[data-as-app="forum"] .as-fo-floor .as-fo-post__v { display: none; }
+[data-as-app="forum"] .as-fo-floor__text { font-size: 15.5px; }
+[data-as-app="forum"] .as-fo-floor__meta { font-size: 11.5px; margin-top: 6px; }
+[data-as-app="forum"] .as-fo-floor.is-sub { margin: 0 14px 6px 58px; padding: 8px 10px; border-radius: 4px; background: var(--fo-soft); grid-template-columns: 24px 1fr; }
+[data-as-page="forum-post"] .as-fo-dock { position: absolute; left: 12px; right: 12px; bottom: max(10px, env(safe-area-inset-bottom, 0px)); padding: 4px 8px; border-radius: 28px; background: var(--fo-card); box-shadow: 0 4px 18px rgba(0,0,0,.12), 0 0 0 .5px var(--fo-line); }
+[data-as-page="forum-post"] .as-fo-dock__pill { flex: none; width: 40px; padding: 0; font-size: 0; background: none; }
+[data-as-page="forum-post"] .as-fo-dock__pill::before { content: '☺'; font-size: 22px; color: var(--fo-ink-2); }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-act { flex: 1; height: 44px; font-size: 14px; color: var(--fo-ink); }
+[data-as-page="forum-post"] .as-page__body { padding-bottom: 90px; }
+
+/* 个人主页：上半截背景图、头像压在下沿、粉丝 / 关注 / 转评赞，底下留言 +「+关注」 */
+[data-as-app="forum"] .as-fo-user__cover { height: 190px; background-image: linear-gradient(180deg, #d9c6a4, #efe3cc); }
+[data-as-app="forum"] .as-fo-user__main { padding-bottom: 14px; }
+[data-as-app="forum"] .as-fo-user__ava { margin-top: -44px; }
+[data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge { width: 20px; height: 20px; right: 0; bottom: 0; }
+[data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge::after { font-size: 12px; }
+[data-as-app="forum"] .as-fo-user__name .as-fo-post__v { display: none; }
+[data-as-app="forum"] .as-fo-user__nums { gap: 20px; }
+[data-as-app="forum"] .as-fo-user__tabs { justify-content: center; }
+[data-as-app="forum"] .as-fo-user__tabs span::after { background: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-ubar { gap: 18px; }
+[data-as-app="forum"] .as-fo-ubar > .as-fo-follow { flex: 1; height: 42px; border-radius: 21px; background: var(--fo-accent); color: #fff; font-size: 16px; }
+[data-as-app="forum"] .as-fo-ubar > .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
+[data-as-app="forum"] .as-fo-ubar > .as-btn--primary { background: #fff3e9; color: var(--fo-accent); box-shadow: none; }

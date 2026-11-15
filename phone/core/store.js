@@ -75,8 +75,8 @@ export function defaults() {
       memory: { conn: { text: 'follow' }, on: true, story: 'n', n: 10, chat: true },
       // 幕间（跑团）：用哪个接口、打开 App 放不放片头、语音默认怎么合成（tap 点了才合成 / next 提前合成下两句 / all 全部合成；每局开局时还能改）、大成功大失败用哪一档（局本身存在 kv 的 int:窗口 里）
       interlude: { conn: { text: 'follow' }, splash: true, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
-      // 论坛：样子（weibo / douban / twitter）、外语怎么显示（both 原文下面跟中文 / tap 点了才显示）、一次刷几条、点开帖子自动出评论
-      forum: { conn: { text: 'follow', image: 'follow' }, skin: 'weibo', tr: 'both', count: 6, autoOpen: true },
+      // 论坛：用哪套样子（自带的 weibo / douban / twitter，或者 looks 里自己的编号）、自己的样子文件、外语怎么显示（both 原文下面跟中文 / tap 点了才显示）、一次刷几条、点开帖子自动出评论
+      forum: { conn: { text: 'follow', image: 'follow' }, skin: 'weibo', looks: [], tr: 'both', count: 6, autoOpen: true },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',
@@ -87,7 +87,7 @@ export function defaults() {
     music: { queue: [], idx: 0, mode: 'list', pos: 0, liked: [], recent: [], lists: [], local: [], plays: {}, history: [], storySongs: false, skin: { name: 'record', disc: 'glass', bg: '' }, src: {} },
     musicNotes: [],   // 音乐笔记（歌词 + 感悟 + 乐评），跟着聊天窗口走
     // 论坛（帖子本身存在 kv 的 forum:窗口 里）：地区和语言、我的号（main 是大号，其余是小号）和现在用哪个、营销号、熟人在论坛上的网名 / 认证 / 上不上（people[联系人 id]）、关注、热榜、收藏
-    forum: { region: '', lang: '', accounts: [{ id: 'main', name: '', bio: '', avatar: '' }], cur: 'main', bots: [], people: {}, follows: [], hot: [], favs: [] },
+    forum: { region: '', lang: '', accounts: [{ id: 'main', name: '', bio: '', avatar: '' }], cur: 'main', bots: [], groups: [], decos: {}, people: {}, follows: [], hot: [], favs: [] },
     diary: { books: [] },   // 日记本：谁有一本、封面、什么时候写（日记本身存在 kv 的 diary:窗口 里）
   };
 }

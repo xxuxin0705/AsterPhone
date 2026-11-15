@@ -1,0 +1,91 @@
+/* 自带样子：豆瓣（照真 App 的首页「动态 / 推荐」、小组、讨论列表、帖子页）。不放 logo，只用颜色、排版 */
+[data-as-app="forum"] { --fo-bg: #fff; --fo-head: #fff; --fo-card: #fff; --fo-ink: #1f1f1f; --fo-ink-2: #a1a1a1; --fo-line: #efefef; --fo-soft: #f5f5f5; --fo-accent: #2bb24c; --fo-v: #2bb24c; --fo-link: #2bb24c; --fo-like: #2bb24c; --fo-gap: 0px; --fo-grouphead: #3b62a8; }
+.as-phone[data-mode="night"] [data-as-app="forum"] { --fo-bg: #121212; --fo-head: #121212; --fo-card: #121212; --fo-ink: #dedede; --fo-ink-2: #7b7b7b; --fo-line: #242424; --fo-soft: #1e1e1e; }
+
+/* 首页顶上：动态 / 推荐 靠左；右下角黑色铅笔 */
+[data-as-page="forum-home"] .as-navbar__title .as-fo-switch { justify-content: flex-start; gap: 24px; }
+[data-as-app="forum"] .as-fo-switch button { font-size: 16px; }
+[data-as-app="forum"] .as-fo-switch button.is-on::after { width: 20px; margin-left: -10px; height: 2.5px; background: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-fab { display: grid; background: #1f1f1f; }
+[data-as-app="forum"] .as-fo-navpost { display: none; }
+[data-as-app="forum"] .as-fo-tab.is-on { color: var(--fo-accent); }
+
+/* 推荐里的一条：小组名在最上面，加粗标题，正文，配图，热门回复，赞 · 回复 · 转发 */
+[data-as-app="forum"] .as-fo-list > .as-fo-post { box-shadow: inset 0 -8px 0 var(--fo-soft); padding: 14px 16px 18px; grid-template-columns: 1fr; }
+[data-as-app="forum"] .as-fo-list .as-fo-post__group { display: flex; align-items: center; gap: 8px; order: -3; font: 500 14px/1 var(--font-ui); color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-post__gicon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--fo-grouphead); color: #fff; font: 600 13px/1 var(--font-ui); }
+[data-as-app="forum"] .as-fo-list .as-fo-post :is(.as-fo-post__ava, .as-fo-post__head, .as-fo-follow) { display: none; }
+[data-as-app="forum"] .as-fo-post__title { margin-top: 10px; font-size: 17px; line-height: 1.45; }
+[data-as-app="forum"] .as-fo-list .as-fo-post__text { margin-top: 6px; font-size: 15px; line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: normal; }
+[data-as-app="forum"] .as-fo-post__pic { border-radius: 6px; max-width: 62%; }
+[data-as-app="forum"] .as-fo-list .as-fo-post__hotcmt { display: block; background: none; padding: 0; margin-top: 10px; font-size: 13px; -webkit-line-clamp: 1; }
+[data-as-app="forum"] .as-fo-list .as-fo-post__hotcmt::before { content: '● 热门回复：'; color: #e5483f; font-size: 12px; }
+[data-as-app="forum"] .as-fo-list .as-fo-post__hotcmt b { display: none; }
+[data-as-app="forum"] .as-fo-post__acts { display: flex; gap: 40px; margin-top: 10px; }
+[data-as-app="forum"] .as-fo-act { height: 30px; justify-content: flex-start; color: #6a6a6a; }
+[data-as-app="forum"] .as-fo-act.is-like { order: -1; }
+
+/* 小组页：我的小组格子 + 正在讨论（左回应数、中标题、右缩略图） */
+[data-as-app="forum"] .as-fo-blocks { gap: 0; }
+[data-as-app="forum"] .as-fo-boards__list { grid-template-columns: repeat(5, 1fr); gap: 14px 6px; }
+[data-as-app="forum"] .as-fo-board__icon { width: 54px; height: 54px; border-radius: 10px; background: var(--fo-grouphead); }
+[data-as-app="forum"] .as-fo-board__name { white-space: normal; text-align: center; font-size: 11.5px; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+[data-as-app="forum"] .as-fo-board__tag, [data-as-app="forum"] .as-fo-board__count { display: none; }
+[data-as-app="forum"] .as-fo-blockhead { font-size: 18px; }
+[data-as-app="forum"] .as-fo-chips__row button { border-radius: 4px; padding: 6px 10px; background: none; }
+[data-as-app="forum"] .as-fo-chips__row button.is-on { background: #e9f6ec; color: var(--fo-accent); }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list > .as-fo-post { grid-template-columns: 34px 1fr auto; grid-auto-flow: row dense; column-gap: 8px; padding: 14px 16px; box-shadow: inset 0 -.5px 0 var(--fo-line); }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post > * { display: none; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post > .as-fo-post__count { display: block; grid-column: 1; grid-row: 1 / span 2; font: 400 11px/1 var(--font-ui); color: var(--fo-ink-2); text-align: center; padding-top: 22px; position: relative; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__count::before { content: ''; position: absolute; top: 4px; left: 50%; margin-left: -7px; width: 14px; height: 12px; border-radius: 3px 3px 3px 0; background: #ef5a4c; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post > :is(.as-fo-post__title, .as-fo-post__text) { display: -webkit-box; grid-column: 2; grid-row: 1; margin: 0; font: 500 16px/1.45 var(--font-ui); color: var(--fo-ink); -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post.has-title > .as-fo-post__text { display: none; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post > .as-fo-post__head { display: flex; grid-column: 2; grid-row: 2; margin-top: 6px; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__head > :not(.as-fo-post__meta) { display: none; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__meta { flex-direction: row-reverse; justify-content: flex-end; font-size: 11.5px; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__in { display: inline; color: var(--fo-ink); }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__time::after { content: '更新'; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post__from { display: none; }
+:is(.as-fo-chips, .as-page[data-as-page="forum-board"]) .as-fo-list .as-fo-post > .as-fo-post__pic { display: block; grid-column: 3; grid-row: 1 / span 2; width: 64px; height: 64px; margin: 0 0 0 6px; object-fit: contain; background: var(--fo-soft); border-radius: 4px; }
+
+/* 小组页头：彩色头部、成员数、+ 加入 */
+[data-as-app="forum"] .as-fo-boardhead { background: var(--fo-grouphead); color: #fff; padding: 20px 16px 22px; }
+[data-as-app="forum"] .as-fo-boardhead .as-fo-board__icon { width: 58px; height: 58px; background: rgba(255,255,255,.2); }
+[data-as-app="forum"] .as-fo-boardhead :is(.as-fo-boardhead__count, .as-fo-boardhead__intro) { color: rgba(255,255,255,.8); }
+[data-as-app="forum"] .as-fo-join { border-radius: 4px; background: #fff; color: var(--fo-grouphead); }
+[data-as-app="forum"] .as-fo-join.is-on { background: rgba(255,255,255,.2); color: #fff; }
+
+/* 帖子页：作者一行、大标题；回复 · 赞 · 转发 · 收藏；只看楼主；引用原话的灰框；写回复 + 图标 */
+[data-as-page="forum-post"] .as-fo-post { grid-template-columns: 36px 1fr auto; padding-top: 16px; }
+[data-as-page="forum-post"] .as-fo-post__title { order: 0; font-size: 22px; line-height: 1.4; margin-top: 14px; }
+[data-as-page="forum-post"] .as-fo-post__text { font-size: 16px; line-height: 1.75; }
+[data-as-page="forum-post"] .as-fo-post .as-fo-post__acts { display: none; }
+[data-as-page="forum-post"] .as-fo-follow { border-radius: 4px; border-color: var(--fo-accent); color: var(--fo-accent); }
+[data-as-page="forum-post"] .as-fo-stat { gap: 22px; margin-top: 10px; box-shadow: inset 0 -.5px 0 var(--fo-line), inset 0 8px 0 var(--fo-soft); padding-top: 22px; }
+[data-as-page="forum-post"] .as-fo-stat__item.is-on::after { background: var(--fo-ink); }
+[data-as-page="forum-post"] .as-fo-sort__op { border-radius: 2px; background: none; box-shadow: inset 0 0 0 1px var(--fo-line); }
+[data-as-app="forum"] .as-fo-floor { grid-template-columns: 32px 1fr; padding: 14px 16px; box-shadow: none; }
+[data-as-app="forum"] .as-fo-floor__name { color: #6a6a6a; font-weight: 400; font-size: 13px; }
+[data-as-app="forum"] .as-fo-floor__op { border-radius: 2px; background: #e9f6ec; color: var(--fo-accent); }
+[data-as-app="forum"] .as-fo-floor__to { display: none; }
+[data-as-app="forum"] .as-fo-floor__quote { display: block; }
+[data-as-app="forum"] .as-fo-floor__quote b { font-weight: 400; color: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-floor__text { font-size: 15.5px; margin-top: 6px; }
+[data-as-app="forum"] .as-fo-floor__no { display: none; }
+[data-as-app="forum"] .as-fo-floor__main { display: grid; grid-template-columns: 1fr auto; align-items: center; }   /* 名字和「赞 · 时间」一行，下面引用、正文 */
+[data-as-app="forum"] .as-fo-floor__main > :not(.as-fo-floor__who, .as-fo-floor__meta) { grid-column: 1 / -1; }
+[data-as-app="forum"] .as-fo-floor__who { grid-row: 1; }
+[data-as-app="forum"] .as-fo-floor__meta { grid-column: 2; grid-row: 1; margin: 0; font-size: 11.5px; flex-direction: row-reverse; }
+[data-as-app="forum"] .as-fo-floor__meta .as-fo-act { margin: 0; }
+[data-as-page="forum-post"] .as-fo-dock { gap: 14px; padding-left: 16px; padding-right: 16px; }
+[data-as-page="forum-post"] .as-fo-dock__pill { height: 36px; border-radius: 4px; }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-act { padding: 0 2px; color: var(--fo-ink); }
+[data-as-page="forum-post"] .as-fo-dock .as-fo-act__n, [data-as-page="forum-post"] .as-fo-dock .as-fo-act.is-comment { display: none; }
+
+/* 个人主页：灰绿头部，关注 / 被关注 */
+[data-as-app="forum"] .as-fo-user__cover { height: 170px; background-image: linear-gradient(180deg, #8c9a8f, #c9d3cc); }
+[data-as-app="forum"] .as-fo-user__ava { margin-top: -40px; }
+[data-as-app="forum"] .as-fo-user__nums { order: 2; font-size: 12.5px; }
+[data-as-app="forum"] .as-fo-user__nums .as-fo-user__num:last-child { display: none; }
+[data-as-app="forum"] .as-fo-user__tabs span::after { background: var(--fo-ink); }
+[data-as-app="forum"] .as-fo-ubar > .as-fo-follow { border-radius: 4px; }
