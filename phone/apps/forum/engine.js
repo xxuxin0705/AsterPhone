@@ -214,6 +214,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   }
   if (!add.length) { log('error', '论坛', 'AI 没有按格式写评论', raw); throw new Error('AI 没有按格式写评论'); }
   p.floors = list.concat(add); p.cmts = Math.max(p.cmts, p.floors.length);
+  if (p.by.k === 'me') p.likes += rnd(add.length * 5);   // 我的帖子有人来看，也有人点赞（消息 → 赞）
   await save();
   return add;
 }

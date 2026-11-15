@@ -19,6 +19,15 @@ const phone = () => document.querySelector('#phone');
 const W = (k, tag = 'span') => h(tag, { dataset: { asText: k } }, defWord(k));   // 跟着样子、皮肤换字的一小段
 const keyOf = by => by.k === 'me' ? 'me:' + by.id : by.k === 'n' ? 'n:' + by.name : (by.k === 'bot' ? 'b:' : 'c:') + by.id;
 const hash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+const pad = n => String(n).padStart(2, '0');
+/** 今天的说「几分钟前」，昨天的「昨天 21:04」，今年的「10-28」 */
+function when(ts) {
+  const d = new Date(ts), n = new Date(), md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (d.toDateString() === n.toDateString()) return time.ago(ts);
+  if (d.toDateString() === new Date(n - 864e5).toDateString()) return `昨天 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return d.getFullYear() === n.getFullYear() ? md : `${d.getFullYear()}-${md}`;
+}
+const ICONS = { repost: 'send', comment: 'comment', like: 'heart' }, icOf = k => (look().layout.icons || {})[k] || ICONS[k];
 
 /* ---------- 要等的事：同一件事同时只跑一个。按钮转圈带字数，再点就取消；退出再进来还是转圈 ---------- */
 const jobs = {}, jbs = new Set();
@@ -74,39 +83,48 @@ function tx(o, cls) {
 }
 function likeBtn(o) {
   const n = h('span.as-fo-act__n', E.fmt(o.likes));
-  const b = h('button.as-fo-act.is-like' + (o.liked ? '.is-on' : ''), { 'aria-label': '赞', onclick: e => {
+  const b = h('button.as-fo-act.is-like' + (o.liked ? '.is-on' : ''), { 'aria-label': '赞', dataset: { n: o.likes || 0 }, onclick: e => {
     e.stopPropagation(); o.liked = !o.liked; o.likes = Math.max(0, (o.likes || 0) + (o.liked ? 1 : -1));
-    b.classList.toggle('is-on', o.liked); n.textContent = E.fmt(o.likes); E.save();
-  } }, icon('heart', 16, 1.8), n, W('forum.act.like', 'span.as-fo-act__w'));
+    b.classList.toggle('is-on', o.liked); n.textContent = E.fmt(o.likes); b.dataset.n = o.likes; E.save();
+  } }, icon(icOf('like'), 16, 1.8), n, W('forum.act.like', 'span.as-fo-act__w'));
   return b;
 }
-const act = (k, ic, n, onclick) => h('button.as-fo-act.is-' + k.split('.').pop(), { onclick }, icon(ic, 16, 1.8), h('span.as-fo-act__n', E.fmt(n)), W(k, 'span.as-fo-act__w'));
+const act = (k, n, onclick) => h('button.as-fo-act.is-' + k, { dataset: { n: n || 0 }, onclick }, icon(icOf(k), 16, 1.8), h('span.as-fo-act__n', E.fmt(n)), W('forum.act.' + k, 'span.as-fo-act__w'));
 /** +关注：点了只换这个人身上所有关注按钮的字 */
+const following = k => (state.forum.follows || []).includes(k);
+const paintFollow = b => { const on = following(b.dataset.key); b.classList.toggle('is-on', on); b.replaceChildren(W(on ? 'forum.followed' : 'forum.follow')); };
+function toggleFollow(k) {
+  const f = state.forum.follows; if (following(k)) f.splice(f.indexOf(k), 1); else f.push(k); commit('forum');
+  document.querySelectorAll(`.as-fo-follow[data-key="${CSS.escape(k)}"]`).forEach(paintFollow); applyTexts();
+}
 function followBtn(by) {
   if (by.anon || by.k === 'me') return null;
-  const k = keyOf(by), on = () => (state.forum.follows || []).includes(k);
-  const paint = b => { b.classList.toggle('is-on', on()); b.replaceChildren(W(on() ? 'forum.followed' : 'forum.follow')); };
-  const b = h('button.as-fo-follow', { dataset: { key: k }, onclick: e => {
-    e.stopPropagation(); const f = state.forum.follows; if (on()) f.splice(f.indexOf(k), 1); else f.push(k); commit('forum');
-    document.querySelectorAll(`.as-fo-follow[data-key="${CSS.escape(k)}"]`).forEach(paint); applyTexts();
-  } });
-  paint(b); return b;
+  const b = h('button.as-fo-follow', { dataset: { key: keyOf(by) }, onclick: e => { e.stopPropagation(); toggleFollow(b.dataset.key); } });
+  paintFollow(b); return b;
+}
+/** 帖子右上角的小箭头（微博那样）：现在能关注 / 取消关注 */
+function postMenu(by) {
+  if (by.anon || by.k === 'me') return null;
+  return h('button.as-fo-post__menu', { 'aria-label': '更多', onclick: async e => {
+    e.stopPropagation(); const k = keyOf(by);
+    if (await actionSheet(E.who(by).name, [{ value: 'f', label: following(k) ? '取消关注' : '关注', icon: 'user' }])) toggleFollow(k);
+  } }, icon('down', 16, 1.6));
 }
 function card(p, full) {
   const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); };
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
   return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''), { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
-    g ? h('div.as-fo-post__group', { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
+    g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge') : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null,
-      h('span.as-fo-post__meta', h('span.as-fo-post__time', time.ago(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ' + p.dev) : null, g ? h('span.as-fo-post__in', g.name) : null)),
-    followBtn(p.by),
+      h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
+    followBtn(p.by), postMenu(p.by),
     p.title ? h('div.as-fo-post__title', p.title) : null,
     ...tx(p, 'as-fo-post__text'),
     picEl(p),
     top ? h('div.as-fo-post__hotcmt', h('b', E.floorWho(p, top) + '：'), top.text) : null,
     h('span.as-fo-post__count', E.fmt(p.cmts)),
-    h('div.as-fo-post__acts', act('forum.act.repost', 'send', p.reposts), act('forum.act.comment', 'comment', p.cmts, full ? null : e => { e.stopPropagation(); openPost(p); }), likeBtn(p)));
+    h('div.as-fo-post__acts', act('repost', p.reposts), act('comment', p.cmts, full ? null : e => { e.stopPropagation(); openPost(p); }), likeBtn(p)));
 }
 /* 配图：有图就整张显示（不裁）；只有描述时是一张卡片，点了生图（再点取消） */
 function picEl(p) {
@@ -163,7 +181,7 @@ const BLOCK = {
     const draw = () => {
       const hot = state.forum.hot || [];
       box.replaceChildren(head('forum.hot', h('button.as-fo-blockhead__more', { onclick: openHot }, W('forum.hot.more'))),
-        hot.length ? h('div.as-fo-hot__list', hot.slice(0, 10).map(hotItem)) : h('div.as-fo-hot__empty', jobBtn('feed:global', () => ['刷新'], () => feedTo('global'), 'button.as-btn.as-btn--secondary')));
+        hot.length ? h('div.as-fo-hot__list', hot.slice(0, 11).map(hotItem), h('button.as-fo-hot__more', { onclick: openHot }, W('forum.hot.more'))) : h('div.as-fo-hot__empty', jobBtn('feed:global', () => ['刷新'], () => feedTo('global'), 'button.as-btn.as-btn--secondary')));
     };
     hots.add({ el: box, draw }); draw();
     return box;
@@ -187,7 +205,7 @@ const BLOCK = {
       }
       for (const [k, el] of Object.entries(made)) el.hidden = k !== id;
     };
-    row.append(h('button', { dataset: { b: 'all' }, onclick: () => show('all') }, '全部'), ...E.boards().filter(g => g.id !== 'anon').map(g => h('button', { dataset: { b: g.id }, onclick: () => show(g.id) }, g.name)));
+    row.append(h('button', { dataset: { b: 'all' }, onclick: () => show('all') }, W('forum.chips.all')), ...E.boards().filter(g => g.id !== 'anon').map(g => h('button', { dataset: { b: g.id }, onclick: () => show(g.id) }, g.name)));
     show('all');
     return h('div.as-fo-chips', head('forum.discuss'), row, body);
   },
@@ -196,8 +214,9 @@ const BLOCK = {
 /* ---------- 主页面：底部标签（样子定几个、是什么） ---------- */
 let R = null;   // 开着的主页面
 const feedOf = f => p => f === 'all' ? p.board !== 'anon' : f === 'follow' ? !p.by.anon && p.by.k !== 'me' && (state.forum.follows || []).includes(keyOf(p.by)) : p.board === f;
-function homePane() {
-  const feeds = look().layout.home, made = {};
+function homePane(feeds, isHome) {
+  const made = {};
+  let cur = feeds[0].feed;
   const sw = h('div.as-fo-switch', feeds.map(f => h('button', { dataset: { f: f.feed }, onclick: () => show(f.feed) }, f.text)));
   const box = h('div.as-fo-feeds');
   const refresh = h('span.as-fo-refresh', feeds.map(f => jobBtn('feed:' + f.feed, () => [icon('repeat', 20, 1.9)], () => {
@@ -205,52 +224,144 @@ function homePane() {
     feedTo(f.feed);
   })));
   function show(f) {
-    R.feed = f;
+    R.feed = cur = f;
     sw.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.dataset.f === f));
     refresh.querySelectorAll('[data-job]').forEach(b => { b.hidden = b.dataset.job !== 'feed:' + f; });
-    if (!made[f]) { made[f] = h('div'); box.append(made[f]); E.load().then(d => { made[f].append(liveList(feedOf(f), d.posts.filter(feedOf(f)))); applyTexts(); }); }
+    if (!made[f]) {
+      made[f] = h('div'); box.append(made[f]);
+      E.load().then(d => {
+        made[f].append(liveList(feedOf(f), d.posts.filter(feedOf(f))));
+        made[f].querySelector('.as-empty')?.append(h('div.as-fo-emptybtn', jobBtn('feed:' + f, () => ['刷新'], () => refresh.querySelector(`[data-job="feed:${f}"]`).click(), 'button.as-btn.as-btn--secondary')));
+        applyTexts();
+      });
+    }
     for (const [k, el] of Object.entries(made)) el.hidden = k !== f;
   }
-  return { el: box, title: sw, right: [navBtn('search', '搜索', () => openSearch('')), refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))], first: () => show(feeds[0].feed) };
+  return { el: box, title: sw, left: isHome ? [h('button.as-fo-navgroups', { onclick: openGroups }, W('forum.group'))] : [],
+    right: [navBtn('search', '搜索', () => openSearch('')), refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))],
+    first: () => show(cur), feed: () => cur, refresh: () => refresh.querySelector(`[data-job="feed:${cur}"]`).click() };
+}
+/* ---------- 消息：动态（关注的人新发的）/ 提醒（评论、赞）/ 私信；样子定有哪几栏 ---------- */
+const mine = by => by.k === 'me';
+const floorBy = (p, f) => (f.by.op ? p.by : f.by);
+/** 别人回我的：我帖子底下的直接评论、回我那一层的 */
+function received(d) {
+  const out = [];
+  for (const p of d.posts) for (const f of p.floors || []) {
+    if (mine(floorBy(p, f))) continue;
+    const up = f.to && f.to !== 'op' && p.floors.find(x => x.id === f.to);
+    if (up ? mine(floorBy(p, up)) : mine(p.by)) out.push({ p, f, up });
+  }
+  return out.sort((a, b) => b.f.at - a.f.at);
+}
+const sigOf = d => d.posts.length + ':' + d.posts.reduce((n, p) => n + (p.floors || []).length + (p.likes || 0), 0);
+const snip = (p, o) => (o.pic ? h('img.as-fo-cmt__pic', { src: o.pic, alt: '' }) : h('div.as-fo-cmt__snip', o.title || o.text));
+function dynRows(d) {
+  const ps = d.posts.filter(p => !p.by.anon && following(keyOf(p.by))).sort((a, b) => b.at - a.at).slice(0, 60);
+  return ps.length ? ps.map(p => {
+    const g = E.groupOf(p.board);
+    return h('div.as-fo-dyn', { onclick: () => openPost(p) }, h('span.as-fo-dyn__ava', { onclick: e => { e.stopPropagation(); openUser(p.by); } }, ava(p.by, 44, true)),
+      h('div.as-fo-dyn__main', h('div.as-fo-dyn__who', h('b', E.who(p.by).name), ' ', g && !g.base ? word('forum.dyn.in').replace('{g}', g.name) : word('forum.dyn.post')),
+        h('div.as-fo-dyn__text', p.text), p.pic ? h('img.as-fo-dyn__pic', { src: p.pic, alt: '' }) : null, h('div.as-fo-dyn__time', when(p.at))));
+  }) : [empty('还没有动态')];
 }
 function inboxPane() {
-  const panes = { notice: empty('还没有提醒'), dm: empty('还没有私信') };
-  const sw = h('div.as-fo-switch', ['notice', 'dm'].map(k => h('button' + (k === 'notice' ? '.is-on' : ''), { dataset: { k }, onclick: () => {
-    sw.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.dataset.k === k)); panes.notice.hidden = k !== 'notice'; panes.dm.hidden = k !== 'dm';
-  } }, W('forum.inbox.' + k))));
-  panes.dm.hidden = true;
-  return { el: h('div.as-fo-inbox', panes.notice, panes.dm), title: sw };
+  const kinds = look().layout.inbox?.length ? look().layout.inbox : ['notice', 'dm'];
+  const dyn = h('div.as-fo-dyns'), rows = (ic, k, fn) => h('button.as-fo-nrow', { dataset: { k }, onclick: fn }, h('span.as-fo-nrow__ic', icon(ic, 24, 1.8)), W('forum.inbox.' + k, 'span.as-fo-nrow__t'), icon('chevron', 16, 2));
+  const dms = () => h('div.as-fo-dms', kinds.includes('dm') ? empty('还没有私信') : null);   // 私信下一步做
+  const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('comment', 'cmts', openCmts), rows('thumb', 'likes', openLikes), kinds.includes('dm') ? null : dms()), dm: dms };
+  const panes = kinds.map(k => make[k]());
+  const sw = h('div.as-fo-switch', kinds.map((k, i) => h('button', { dataset: { k }, onclick: () => pick(i) }, W('forum.inbox.' + k))));
+  function pick(i) { sw.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i)); panes.forEach((x, j) => { x.hidden = j !== i; }); }
+  pick(Math.max(0, kinds.indexOf('notice')));
+  let sig = '';
+  const onShow = () => E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); });   // 有新东西才重画
+  return { el: h('div.as-fo-inbox', ...panes), title: sw, onShow };
+}
+/** 消息 → 评论：别人评论我、回我的，点了进帖子；「回复」直接回那一层 */
+function openCmts() {
+  const pg = page({ app: 'forum', id: 'forum-cmts', title: word('forum.inbox.cmts'), back: true }), list = h('div.as-fo-cmts');
+  E.load().then(d => {
+    const got = received(d);
+    list.replaceChildren(...(got.length ? got.map(({ p, f, up }) => h('div.as-fo-cmt', { onclick: () => openPost(p) },
+      h('span.as-fo-cmt__ava', { onclick: e => { e.stopPropagation(); if (!floorBy(p, f).anon) openUser(floorBy(p, f)); } }, ava(floorBy(p, f), 48, true)),
+      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', E.who(floorBy(p, f)).name), h('div.as-fo-cmt__sub', W(up ? 'forum.cmt.reply' : 'forum.cmt.post'), ' ', when(f.at)),
+        ...tx(f, 'as-fo-cmt__text'), up ? h('div.as-fo-cmt__quote', `@${E.floorWho(p, up)}：${up.text}`) : null,
+        h('div.as-fo-cmt__btns', h('button.as-fo-cmt__btn', { onclick: e => { e.stopPropagation(); replySheet(p, f.id, h('div')); } }, icon('comment', 14, 1.8), '回复'), likeBtn(f))),
+      snip(p, p))) : [empty('还没有评论')]));
+    applyTexts();
+  });
+  pg.body.append(list); nav.push(pg.el); applyTexts();
+}
+/** 消息 → 赞：我的帖子、我的评论被赞了多少（不知道是谁赞的，只说几个人） */
+function openLikes() {
+  const pg = page({ app: 'forum', id: 'forum-likes', title: word('forum.inbox.likes'), back: true }), list = h('div.as-fo-cmts');
+  E.load().then(d => {
+    const got = [];
+    for (const p of d.posts) {
+      if (mine(p.by) && p.likes) got.push({ p, o: p, k: 'forum.like.post' });
+      for (const f of p.floors || []) if (mine(floorBy(p, f)) && f.likes) got.push({ p, o: f, k: 'forum.like.cmt' });
+    }
+    got.sort((a, b) => b.o.at - a.o.at);
+    list.replaceChildren(...(got.length ? got.map(({ p, o, k }) => h('div.as-fo-cmt.is-like', { onclick: () => openPost(p) }, h('span.as-fo-cmt__ava.as-fo-likeava', icon('thumb', 24, 1.8)),
+      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', `${E.fmt(o.likes)} 人`), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at))), snip(p, o))) : [empty('还没有人赞')]));
+    applyTexts();
+  });
+  pg.body.append(list); nav.push(pg.el); applyTexts();
 }
 function mePane() {
   const a = E.curAcc(), me = { k: 'me', id: a.id }, w = E.who(me);
-  const tile = (ic, label, fn) => h('button.as-fo-megrid__item', { onclick: fn }, icon(ic, 22, 1.7), h('span', label));
+  const tile = (ic, label, fn) => h('button.as-fo-megrid__item', { onclick: fn }, icon(ic, 26, 1.6), h('span', label));
+  const num = (k, v, fn) => h('button.as-fo-menum', { onclick: fn }, h('b', v), W(k));
+  const posts = h('b', '0');
+  E.load().then(d => { posts.textContent = E.fmt(d.posts.filter(p => mine(p.by) && !p.by.anon).length); });
   return { el: h('div.as-fo-me',
-    h('button.as-fo-mehead', { onclick: () => openUser(me) }, ava(me, 56, true), h('span.as-fo-mehead__name', w.name), h('span.as-fo-mehead__sub', '我的主页'), icon('chevron', 16, 2)),
-    h('div.as-fo-megrid', tile('user', '我的号', openAccounts), tile('star', '营销号', openBots), tile('users', '熟人', openPeople), tile('gear', '设置', openSettings))), title: '我' };
+    h('button.as-fo-mehead', { onclick: () => openUser(me) }, ava(me, 80, true), h('span.as-fo-mehead__name', w.name), h('span.as-fo-mehead__sub', a.bio ? word('forum.bio') + a.bio : '我的主页'), icon('chevron', 16, 2)),
+    h('div.as-fo-menums', h('button.as-fo-menum', { onclick: () => openUser(me) }, posts, W('forum.user.tab')), num('forum.follows', String((state.forum.follows || []).length)), num('forum.fans', '0')),
+    h('div.as-fo-megrid', tile('user', '我的号', openAccounts), tile('star', '营销号', openBots), tile('users', '熟人', openPeople))),
+  title: '我', right: [navBtn('gear', '设置', openSettings)] };
 }
-const blocksPane = (kind, title) => ({ el: h('div.as-fo-blocks', (look().layout[kind] || []).map(b => BLOCK[b]())), title,
-  right: kind === 'discover' ? [jobBtn('feed:global', () => [icon('repeat', 20, 1.9)], () => feedTo('global'))] : [] });
+/** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
+function blocksPane(kind, title) {
+  const bl = look().layout[kind] || [], top = kind === 'discover' && bl[0] === 'search';
+  const right = kind === 'discover' ? [jobBtn('feed:global', () => [icon('repeat', 20, 1.9)], () => feedTo('global'))] : [];
+  return { el: h('div.as-fo-blocks', (top ? bl.slice(1) : bl).map(b => BLOCK[b]())), title: top ? BLOCK.search() : title, right, refresh: right[0] && (() => right[0].click()) };
+}
+/** 微博首页左上角「超话」：小组页单独打开 */
+function openGroups() {
+  const pg = page({ app: 'forum', id: 'forum-groups', title: word('forum.boards'), back: true });
+  pg.body.append(h('div.as-fo-blocks', (look().layout.groups || []).map(b => BLOCK[b]())));
+  nav.push(pg.el); applyTexts();
+}
 export function open() {
   applyLook();
   phone().dataset.forumTr = E.A().tr || 'both';
   const p = page({ app: 'forum', id: 'forum-home', title: '论坛', large: true, back: true, cls: 'as-fo-root' });
-  const titleEl = p.nav.querySelector('.as-navbar__title'), right = p.nav.querySelector('.as-navbar__right');
-  const tabs = look().layout.tabs, panes = {};
-  const make = { home: homePane, discover: () => blocksPane('discover', '发现'), groups: () => blocksPane('groups', word('forum.boards')), inbox: inboxPane, me: mePane };
-  const bar = h('nav.as-fo-tabbar', { role: 'tablist' }, tabs.map(t => h('button.as-fo-tab', { role: 'tab', dataset: { tab: t.page }, onclick: () => show(t.page) },
+  const titleEl = p.nav.querySelector('.as-navbar__title'), right = p.nav.querySelector('.as-navbar__right'), left = h('span.as-fo-navleft');
+  titleEl.before(left);
+  const tabs = look().layout.tabs, panes = [];
+  const make = { home: () => homePane(look().layout.home, true), feed: t => homePane([{ feed: t.feed, text: t.text }]), discover: () => blocksPane('discover', '发现'),
+    groups: () => blocksPane('groups', word('forum.boards')), inbox: inboxPane, me: mePane };
+  const bar = h('nav.as-fo-tabbar', { role: 'tablist' }, tabs.map((t, i) => h('button.as-fo-tab', { role: 'tab', dataset: { tab: t.page, i }, onclick: () => show(i) },
     /^img:/.test(t.icon) ? h('i.as-fo-tab__img', { style: { backgroundImage: `var(--fo-img-${t.icon.slice(4)})` } }) : icon(t.icon || 'grid', 24, 1.7), h('span', t.text))));
-  function show(pg) {
-    bar.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.dataset.tab === pg));
-    if (!panes[pg]) { panes[pg] = make[pg](); panes[pg].el.classList.add('as-fo-pane'); p.body.append(panes[pg].el); panes[pg].first?.(); }
-    for (const [k, x] of Object.entries(panes)) x.el.hidden = k !== pg;
-    const x = panes[pg];
+  let cur = -1;
+  function show(i) {
+    if (i === cur) { panes[i].refresh?.(); return; }   // 再点一下正在看的标签 = 刷新（再点取消）
+    cur = i;
+    bar.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i));
+    if (!panes[i]) { panes[i] = make[tabs[i].page](tabs[i]); panes[i].el.classList.add('as-fo-pane'); p.body.append(panes[i].el); panes[i].first?.(); }
+    panes.forEach((x, j) => { if (x) x.el.hidden = j !== i; });
+    const x = panes[i];
+    if (x.feed) R.feed = x.feed();
+    x.onShow?.();
     titleEl.replaceChildren(x.title || '');
+    left.replaceChildren(...(x.left || []));
     right.replaceChildren(...(x.right || []));
-    p.el.dataset.tab = pg; p.body.scrollTop = 0; applyTexts();
+    p.el.dataset.tab = tabs[i].page; p.body.scrollTop = 0; applyTexts();
   }
   p.el.append(h('button.as-fo-fab', { 'aria-label': word('forum.post.new'), onclick: () => compose(R.feed) }, icon('edit', 22, 2)), bar);
   R = { el: p.el, feed: 'global' };
-  show(tabs[0].page);
+  show(0);
   return p.el;
 }
 
@@ -265,12 +376,12 @@ function floorEl(p, f, i) {
       h('div.as-fo-floor__who', h('span.as-fo-floor__name', w.name), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
       up ? h('div.as-fo-floor__quote', h('b', E.floorWho(p, up) + '：'), up.text) : null,
       ...tx(f, 'as-fo-floor__text'),
-      h('div.as-fo-floor__meta', no ? h('span.as-fo-floor__no', no.replace('{n}', i + 1)) : null, h('span.as-fo-floor__time', time.ago(f.at)), likeBtn(f))));
+      h('div.as-fo-floor__meta', no ? h('span.as-fo-floor__no', no.replace('{n}', i + 1)) : null, h('span.as-fo-floor__time', when(f.at)), likeBtn(f))));
 }
 const runThread = (p, opts) => jobs['thread:' + p.id] ? null : go('thread:' + p.id, '正在出评论…', s => E.thread(p, s, opts)).then(add => {
   if (!add) return;
   const v = views.get(p.id); if (v && v.el.isConnected) v.add(add);
-  document.querySelectorAll(`[data-id="${p.id}"] .as-fo-post__count, [data-id="${p.id}"] .is-comment .as-fo-act__n, [data-post="${p.id}"] .is-comment .as-fo-act__n`).forEach(n => { n.textContent = E.fmt(p.cmts); });
+  document.querySelectorAll(`[data-id="${p.id}"] .as-fo-post__count, [data-id="${p.id}"] .is-comment .as-fo-act__n, [data-post="${p.id}"] .is-comment .as-fo-act__n`).forEach(n => { n.textContent = E.fmt(p.cmts); n.closest('.as-fo-act')?.setAttribute('data-n', p.cmts); });
   toast(`新增 ${add.length} 条${word('forum.act.comment')}`);
 });
 /** 回帖：点底下那条、或者点某一层弹出来；to = 回哪一楼（'' 回帖子） */
@@ -297,7 +408,7 @@ function openPost(p) {
   pg.body.append(card(p, true), h('div.as-fo-stat', stat('forum.act.repost', p.reposts), stat('forum.act.comment', p.cmts, true), stat('forum.act.like', p.likes), stat('forum.act.fav', 0)),
     h('div.as-fo-sort', W('forum.all.reply', 'span.as-fo-sort__all'), onlyOp), floors, more);
   pg.el.append(h('div.as-fo-dock', accChip(), h('button.as-fo-dock__pill', { onclick: () => replySheet(p, '', floors) }, W('forum.reply.ph')),
-    act('forum.act.repost', 'send', p.reposts), act('forum.act.comment', 'comment', p.cmts, () => replySheet(p, '', floors)), likeBtn(p)));
+    act('repost', p.reposts), act('comment', p.cmts, () => replySheet(p, '', floors)), likeBtn(p)));
   views.set(p.id, { el: pg.el, add: list => { const n = p.floors.length - list.length; floors.append(...list.map((f, i) => floorEl(p, f, n + i))); } });
   nav.push(pg.el); applyTexts();
   if (!(p.floors || []).length && E.A().autoOpen !== false && !jobs['thread:' + p.id]) runThread(p);
@@ -337,12 +448,13 @@ function openUser(by) {
     sub, mine ? null : followBtn(by));
   function paint() {
     cover.style.backgroundImage = dec().cover ? `url("${dec().cover}")` : ''; cover.classList.toggle('has-img', !!dec().cover);
-    avaBox.replaceChildren(ava(by, 76, true), w.v ? h('i.as-fo-post__badge') : null);
+    avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge') : null);
     ubar.style.backgroundImage = dec().bar ? `url("${dec().bar}")` : ''; ubar.classList.toggle('has-img', !!dec().bar);
   }
   pg.body.append(h('div.as-fo-user', cover,
     h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', w.name, w.v ? vMark() : null),
-      h('div.as-fo-user__bio', b ? `${b.topic}${b.bio ? ' · ' + b.bio : ''}` : mine ? E.curAcc().bio || '' : ''),
+      b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null,
+      h('div.as-fo-user__bio', b ? b.bio : mine ? E.curAcc().bio || '' : ''),
       h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes'))),
     h('div.as-fo-user__tabs', W('forum.user.tab', 'span.is-on'))), more, list);
   pg.el.append(ubar);
