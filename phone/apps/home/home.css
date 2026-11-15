@@ -40,11 +40,12 @@
 .as-desk-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); opacity: .3; transition: opacity 200ms; }
 .as-desk-dots i.is-on { opacity: .9; }
 .as-desk-bar > button { position: absolute; top: 0; height: 30px; border: 0; border-radius: 15px; background: var(--card); color: var(--card-ink); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font: 600 13px/1 var(--font-ui); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 200ms; }
-.as-desk-bar__add { left: 0; width: 30px; display: grid; place-items: center; padding: 0; }
+.as-desk-bar__add, .as-desk-bar__look { left: 0; width: 30px; display: grid; place-items: center; padding: 0; }
+.as-desk-bar__look { left: 38px; }
 .as-desk-bar__done { right: 0; padding: 0 14px; }
 .is-editing .as-desk-bar > button { opacity: 1; pointer-events: auto; }
 
-.as-home-dock { margin: 0 -10px; padding: 12px 10px; min-height: 58px; border-radius: 30px; background: var(--card); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3); display: flex; justify-content: center; gap: calc((100% - 4 * 58px) / 3); transition: box-shadow 200ms; }
+.as-home-dock { margin: 0 -10px; padding: 12px 10px; min-height: 58px; border-radius: 30px; background: var(--dock-bg, var(--card)); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(var(--dock-blur, 20px)) saturate(1.3); backdrop-filter: blur(var(--dock-blur, 20px)) saturate(1.3); display: flex; justify-content: center; gap: calc((100% - 4 * 58px) / 3); transition: box-shadow 200ms; }
 .as-home:not(.is-editing) .as-home-dock.is-empty { visibility: hidden; }   /* 空着也占着位置：进出编辑时图标不跳 */
 .as-home-dock.is-over { box-shadow: 0 0 0 2px var(--card-line), 0 0 0 5px rgba(255,255,255,.25); }
 .as-home-dock .as-home-app { width: 58px; }
@@ -63,19 +64,23 @@
 .as-home .as-desk-ghost { position: absolute; z-index: 30; margin: 0; pointer-events: none; animation: none !important; transition: none; filter: drop-shadow(0 12px 20px rgba(0,20,40,.25)); }
 .as-desk-ghost .as-desk-x, .as-desk-ghost .as-badge { display: none; }
 .as-desk-slot { border-radius: 20px; background: rgba(255,255,255,.22); border: 1.5px dashed rgba(255,255,255,.7); margin-bottom: 19px; pointer-events: none; }
-.as-desk-slot.is-swap { background: rgba(255,255,255,.4); }
+.as-desk-item.is-out { opacity: .3; }   /* 这页放不下、松手后会挤到下一页的 */
 @media (prefers-reduced-motion: reduce) { .is-editing .as-desk-item { animation: none; } }
 
 /* 添加组件、编辑自定义组件 */
 .as-desk-add__kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .as-desk-pv { margin: 4px auto 16px; border-radius: 22px; overflow: hidden; background: linear-gradient(135deg, rgba(120,160,200,.25), rgba(200,170,220,.25)); }
 .as-desk-edit .as-field { margin-bottom: 12px; }
+.as-desk-look .as-segmented { flex: 1; }
+.as-desk-look > .as-btn { width: 100%; margin-top: 4px; }
 .as-desk-edit .as-textarea { font: 12.5px/1.5 ui-monospace, Menlo, monospace; }
 .as-home-app { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink); width: 70px; -webkit-tap-highlight-color: transparent; }
-.as-home-app__icon { position: relative; overflow: hidden; width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; color: var(--card-ink); background: var(--card); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); box-shadow: 0 6px 16px rgba(20,50,90,.16), inset 0 2px 10px rgba(255,255,255,.3); transition: transform 220ms var(--as-ease-spring), filter 200ms; }
-.as-home-app__icon.has-img { background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.as-home-app__icon > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.as-home-app__icon { position: relative; overflow: hidden; width: 58px; height: 58px; border-radius: var(--desk-r, 18px); scale: var(--desk-k, 1); display: grid; place-items: center; color: var(--card-ink); background: var(--desk-plate, var(--card)); border: 1px solid var(--card-line); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); box-shadow: 0 6px 16px rgba(20,50,90,.16), inset 0 2px 10px rgba(255,255,255,.3); transition: transform 220ms var(--as-ease-spring), filter 200ms; }
+.as-home-app__icon.has-img { background: var(--desk-plate, none); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.as-home-app__icon > img { width: 100%; height: 100%; object-fit: var(--desk-fit, cover); display: block; }
 .as-home-app:active .as-home-app__icon { transform: scale(.9); filter: brightness(.9); }
-.as-home-app__name { font: 500 12px/1 var(--font-ui); letter-spacing: .04em; text-shadow: 0 1px 6px var(--card); white-space: nowrap; }
+.is-raw .as-home-app__icon { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }   /* 原图：不裁、不垫底板 */
+.no-names .as-home-app__name { visibility: hidden; }
+.as-home-app__name { color: var(--desk-label, inherit); font: 500 12px/1 var(--font-ui); letter-spacing: .04em; text-shadow: 0 1px 6px var(--card); white-space: nowrap; }
 .as-home-app .as-badge { position: absolute; top: -5px; right: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,.6); }
 

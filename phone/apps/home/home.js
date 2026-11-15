@@ -2,7 +2,7 @@
 // 布局、换过的图标、组件都存在 library.desk；存主题时一起存进主题，导出、导入整套带走。
 import { h, $, uid, clamp, debounce, pickFile, fileToDataURL, onLongPress } from '../../core/util.js';
 import { state, contact, commit, subscribe } from '../../core/store.js';
-import { icon, badge, actionSheet, dialog, sheet, toast, pickImage, input, textarea, field, btn, group, item } from '../../core/ui.js';
+import { icon, badge, actionSheet, dialog, sheet, toast, pickImage, input, textarea, field, btn, group, item, segmented, slider, toggleItem, colorWheel } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { load as loadMem } from '../../core/memory.js';
@@ -20,11 +20,13 @@ export const APPS = [
   { id: 'log', name: '日志', icon: 'list' },
 ];
 const COLS = 4, ROWS = 6, DOCK = 4, ICON = 58, PAD = 20;
+const SHAPES = [['round', '圆角'], ['circle', '圆形'], ['square', '方形'], ['raw', '原图']];
 const KINDS = { clock: '时钟', photo: '图片', text: '文字', html: '自定义' };
 const SIZES = { clock: ['4x2', '2x2'], photo: ['1x1', '2x1', '2x2', '4x1', '4x2', '2x4', '4x4'], text: ['2x1', '2x2', '4x1', '4x2'], html: ['1x1', '2x1', '2x2', '4x1', '4x2', '2x4', '4x3', '4x4'] };
 const wh = s => s.split('x').map(Number);
 const sizeOf = it => (it.a ? [1, 1] : wh(it.s));
 const appOf = id => APPS.find(a => a.id === id);
+const area = (el, p, it) => { const [w, hh] = sizeOf(it); el.style.gridArea = `${p.y + 1} / ${p.x + 1} / span ${hh} / span ${w}`; };
 
 /* ---------- 数据 ---------- */
 function fresh() {
@@ -61,14 +63,17 @@ export function cleanDesk(x) {
     if (it.w === 'html') Object.assign(o, { name: str(it.name).slice(0, 20), html: str(it.html), css: str(it.css), imgs: Object.fromEntries(Object.entries(it.imgs || {}).map(([k, v]) => [k, img(v)])) });
     return o;
   }).filter(Boolean));
-  const ids = v => (Array.isArray(v) ? v.filter(appOf) : []);
-  return { pages: pages.length ? pages : [[]], dock: ids(x.dock).slice(0, DOCK), hidden: ids(x.hidden), icons: Object.fromEntries(Object.entries(x.icons || {}).filter(([k, v]) => appOf(k) && img(v))) };
+  const ids = v => (Array.isArray(v) ? v.filter(appOf) : []), L = x.look || {};
+  const hex = v => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v) ? v : undefined), num = (v, a, b) => (typeof v === 'number' ? clamp(v, a, b) : undefined);
+  return { pages: pages.length ? pages : [[]], dock: ids(x.dock).slice(0, DOCK), hidden: ids(x.hidden), icons: Object.fromEntries(Object.entries(x.icons || {}).filter(([k, v]) => appOf(k) && img(v))),
+    look: { shape: SHAPES.some(([v]) => v === L.shape) ? L.shape : undefined, r: num(L.r, 0, 29), k: num(L.k, 70, 120), fit: L.fit === 'contain' ? 'contain' : undefined,
+      names: L.names === false ? false : undefined, label: hex(L.label), plate: hex(L.plate), dock: hex(L.dock), blur: num(L.blur, 0, 40) } };
 }
 /** 换主题时整个换上：桌面这时被资源库盖着，在下面重新摆好，回到桌面时图片已经解码完 */
 export function setDesk(d) {
   state.library.desk = d; tidy(d); commit('library');
   for (const el of els.values()) el.remove();
-  els.clear(); paint(); renderWidget(true); renderBadges();
+  els.clear(); paint(); dress(); renderWidget(true); renderBadges();
 }
 
 /* ---------- 画：每个图标 / 组件一个元素，按 id 认；挪位置只改这一个，不整页重画 ---------- */
@@ -79,10 +84,11 @@ export function initHome() {
   deskEl = h('div.as-desk', { onscroll: dots, onclick: e => { if (editing && Date.now() - dropAt > 300 && !e.target.closest('.as-desk-item')) edit(false); } });   // 点空白处退出编辑；刚松手那一下不算
   dockEl = h('div.as-home-dock');
   dotsEl = h('div.as-desk-dots');
-  homeEl.append(deskEl, h('div.as-desk-bar', h('button.as-desk-bar__add', { 'aria-label': '添加组件', onclick: addPanel }, icon('plus', 20, 2.2)), dotsEl,
+  homeEl.append(deskEl, h('div.as-desk-bar', h('button.as-desk-bar__add', { 'aria-label': '添加组件', onclick: addPanel }, icon('plus', 20, 2.2)),
+    h('button.as-desk-bar__look', { 'aria-label': '图标样式', onclick: lookPanel }, icon('palette', 18, 2)), dotsEl,
     h('button.as-desk-bar__done', { onclick: () => edit(false) }, '完成')), dockEl);
   for (const box of [deskEl, dockEl]) box.addEventListener('pointerdown', grab);
-  tidy(desk()); paint();
+  tidy(desk()); paint(); dress();
   subscribe(w => { if (w === 'all') setDesk(desk()); });   // 导入了整份备份：桌面跟着换
   setInterval(renderWidget, 1000);
   renderWidget(); renderBadges();
@@ -92,8 +98,7 @@ function paint() {
   d.pages.forEach((items, i) => {
     const pg = deskEl.children[i] || deskEl.appendChild(h('div.as-desk-page'));
     for (const it of items) {
-      const el = elOf(it), [w, hh] = sizeOf(it); keep.add(it.id);
-      el.style.gridArea = `${it.y + 1} / ${it.x + 1} / span ${hh} / span ${w}`;
+      const el = elOf(it); keep.add(it.id); area(el, it, it);
       if (el.parentNode !== pg) pg.appendChild(el);
     }
   });
@@ -205,6 +210,34 @@ async function resize(it) {
   commit('library'); els.get(it.id).dataset.s = s; paint();
 }
 
+/* ---------- 图标样式：形状、大小、名字、底板、底栏。改了只换桌面上的几个 CSS 变量，不重画 ---------- */
+function dress() {
+  const L = desk().look || {}, set = (k, v) => (v ? homeEl.style.setProperty(k, v) : homeEl.style.removeProperty(k));
+  set('--desk-r', { circle: '50%', square: '0px', raw: '0px' }[L.shape] || (L.r != null ? L.r + 'px' : ''));
+  set('--desk-k', L.k && L.k / 100); set('--desk-fit', L.fit); set('--desk-label', L.label); set('--desk-plate', L.plate);
+  set('--dock-bg', L.dock); set('--dock-blur', L.blur != null && L.blur + 'px');
+  homeEl.classList.toggle('is-raw', L.shape === 'raw'); homeEl.classList.toggle('no-names', L.names === false);
+}
+function lookPanel() {
+  const d = desk(), L = (d.look = d.look || {}), ch = () => { dress(); commit('library'); };
+  const color = (title, key, alpha) => {
+    const dot = h('span.as-lib-dot', { style: { background: L[key] || 'transparent' } });
+    return item({ title, right: dot, onClick: () => sheet({ title, content: h('div.as-mu-color', colorWheel(L[key] || '#ffffff', v => { L[key] = v; dot.style.background = v; ch(); }, alpha)) }) });
+  };
+  const row = (label, opt, fmt, key, def) => { const out = h('output', fmt(L[key] ?? def));
+    return h('div.as-settings-slider-row', h('span', label), slider({ ...opt, value: L[key] ?? def, onInput: v => { L[key] = v; out.textContent = fmt(v); ch(); } }), out); };
+  const rRow = row('圆角', { min: 0, max: 29, step: 1 }, v => v + 'px', 'r', 18);
+  rRow.hidden = !!L.shape && L.shape !== 'round';
+  const s = sheet({ title: '图标样式', content: h('div.as-desk-look',
+    group('图标', [h('div.as-settings-slider-row', h('span', '形状'), segmented(SHAPES, L.shape || 'round', v => { L.shape = v; rRow.hidden = v !== 'round'; ch(); })), rRow,
+      row('大小', { min: 70, max: 120, step: 5 }, v => v + '%', 'k', 100),
+      h('div.as-settings-slider-row', h('span', '换的图片'), segmented([['cover', '铺满'], ['contain', '完整']], L.fit || 'cover', v => { L.fit = v; ch(); })),
+      color('底板', 'plate', true)]),
+    group('名字', [toggleItem({ title: '显示名字' }, L.names !== false, v => { L.names = v; ch(); }), color('颜色', 'label')]),
+    group('底栏', [color('颜色', 'dock', true), row('模糊', { min: 0, max: 40, step: 1 }, v => v + 'px', 'blur', 20)]),
+    btn('恢复默认', 'secondary', () => { d.look = {}; ch(); s.close(); })) });
+}
+
 /* ---------- 添加组件 / 找回藏起来的 App ---------- */
 function addPanel() {
   const hid = desk().hidden;
@@ -260,7 +293,7 @@ function editHtml(it) {
   });
 }
 
-/* ---------- 拖动：编辑主屏幕时按住挪；放到空位上，或者和另一个 App 对调；拖到左右边上停一下翻页 ---------- */
+/* ---------- 拖动：编辑主屏幕时按住挪；压到的东西往后挤开（跟着手指实时让位）；拖到左右边上停一下翻页 ---------- */
 let drag = null, slot = null, flipT = 0, dropAt = 0;
 /** 当前这页的格子：第一列图标左边在哪、每列隔多远、每行多高（都是屏幕上的像素） */
 function cell(pg = deskEl.children[cur()]) {
@@ -288,6 +321,30 @@ function lift() {
   homeEl.appendChild(drag.ghost); el.classList.add('is-lifted'); drag.on = true;
   slot = slot || h('div.as-desk-slot');
 }
+/** 把 it 放到 (x, y)，其余的按原来的先后排：原位空着就不动；被占了就往后挪一格，后面的 App 跟着一个个往后让，
+ *  让到空格子（比如拖走的那个留下的坑）为止；组件不跟着让，绕过去（到底了从头找）；这页实在放不下的挤到下一页 */
+function squeeze(items, it, x, y) {
+  const placed = [{ ...it, x, y }], pos = new Map(), out = [], n = COLS * ROWS;
+  const rest = items.filter(o => o.id !== it.id).sort((a, b) => a.y - b.y || a.x - b.x);
+  rest.forEach((o, j) => {
+    const [w, hh] = sizeOf(o), find = obs => { for (let i = 0; i < n; i++) { const c = (o.y * COLS + o.x + i) % n; if (fits(obs, c % COLS, c / COLS | 0, w, hh)) return { x: c % COLS, y: c / COLS | 0 }; } };
+    const at = find(placed.concat(rest.slice(j + 1).filter(r => !r.a))) || find(placed);
+    if (at) { pos.set(o.id, at); placed.push({ ...o, ...at }); } else out.push(o);
+  });
+  return { pos, out };
+}
+/** 拖的时候这页的东西挪到预演的位置（pos 为空就回原位），从原来的地方滑过去；要挤到下一页的变淡 */
+function lay(pi, pos) {
+  const list = (desk().pages[pi] || []).filter(o => o.id !== drag.id).map(o => [o, els.get(o.id)]);
+  const was = list.map(([, el]) => el.getBoundingClientRect());
+  list.forEach(([o, el]) => { area(el, (pos && pos.get(o.id)) || o, o); el.classList.toggle('is-out', !!pos && !pos.has(o.id)); });
+  list.forEach(([, el], i) => {
+    const r = el.getBoundingClientRect(), dx = (was[i].left - r.left) / drag.k, dy = (was[i].top - r.top) / drag.k; if (!dx && !dy) return;
+    el.style.transition = 'none'; el.style.translate = `${dx}px ${dy}px`; el.getBoundingClientRect();
+    el.style.transition = 'translate 240ms var(--as-ease-standard)'; el.style.translate = '';
+  });
+}
+const unlay = () => { if (drag.pi != null) lay(drag.pi, null); drag.pi = null; drag.key = ''; };
 function aim(e) {
   const d = desk(), { it, p: from } = find(drag.id); drag.t = null; slot.remove(); dockEl.classList.remove('is-over');
   const dr = dockEl.getBoundingClientRect(), kr = deskEl.getBoundingClientRect();
@@ -301,6 +358,7 @@ function aim(e) {
   }, 520);
   if (it.a && e.clientY > dr.top - 10) {
     const kids = [...dockEl.children].filter(x => x !== drag.el), i = kids.filter(x => x.getBoundingClientRect().left + x.offsetWidth / 2 < e.clientX).length;
+    unlay();
     if (!from || d.dock.length < DOCK) { drag.t = { dock: i }; dockEl.classList.add('is-over'); }
     return;
   }
@@ -308,23 +366,26 @@ function aim(e) {
   const gr = drag.ghost.getBoundingClientRect();
   const x = it.a ? Math.round((e.clientX - g.left - ICON * g.k / 2) / g.cw) : Math.round((gr.left + (gr.width - drag.r.width) / 2 - g.left) / g.cw);
   const y = it.a ? Math.floor((e.clientY - g.top) / g.ch) : Math.round((gr.top + (gr.height - drag.r.height) / 2 - g.top) / g.ch);
-  const items = d.pages[pi], cx = clamp(x, 0, COLS - w), cy = clamp(y, 0, ROWS - hh);
-  if (fits(items, cx, cy, w, hh, drag.id)) drag.t = { p: pi, x: cx, y: cy };
-  else if (it.a && from) { const o = items.find(o => o.a && o.x === cx && o.y === cy); if (o) drag.t = { p: pi, x: cx, y: cy, swap: o }; }
-  if (!drag.t) return;
-  slot.style.gridArea = `${cy + 1} / ${cx + 1} / span ${hh} / span ${w}`; slot.classList.toggle('is-swap', !!drag.t.swap); pg.appendChild(slot);
+  const cx = clamp(x, 0, COLS - w), cy = clamp(y, 0, ROWS - hh), key = [pi, cx, cy].join();
+  if (drag.key !== key) { if (drag.pi !== pi) unlay(); drag.s = squeeze(d.pages[pi], it, cx, cy); drag.pi = pi; drag.key = key; lay(pi, drag.s.pos); }   // 换了格子才重新排，手指在同一格里晃不动
+  drag.t = { p: pi, x: cx, y: cy };
+  area(slot, drag.t, it); pg.appendChild(slot);
 }
 function land() {
-  const { el, id, t, ghost } = drag; drag = null; clearTimeout(flipT); flipT = 0;
-  if (!ghost) return;
+  const { el, id, t, ghost, s } = drag; clearTimeout(flipT); flipT = 0;
+  if (ghost && (!t || t.dock != null)) unlay();
+  drag = null; if (!ghost) return;
   dropAt = Date.now(); ghost.remove(); el.classList.remove('is-lifted'); slot.remove(); dockEl.classList.remove('is-over');
+  homeEl.querySelectorAll('.is-out').forEach(x => x.classList.remove('is-out'));
   if (!t) return;
   const d = desk(), { it, p: from } = find(id);
   if (from) from.splice(from.indexOf(it), 1); else d.dock.splice(d.dock.indexOf(it.a), 1);
   if (t.dock != null) d.dock.splice(t.dock, 0, it.a);
   else {
-    if (t.swap) { const to = d.pages[t.p]; to.splice(to.indexOf(t.swap), 1); Object.assign(t.swap, { x: it.x, y: it.y }); from.push(t.swap); }
-    d.pages[t.p].push(Object.assign(it, { x: t.x, y: t.y }));
+    const to = d.pages[t.p];
+    for (const o of s.out) { to.splice(to.indexOf(o), 1); const [w, hh] = sizeOf(o), n = spot(d, w, hh, o.id, t.p + 1); d.pages[n.p].push(Object.assign(o, { x: n.x, y: n.y })); }
+    to.forEach(o => Object.assign(o, s.pos.get(o.id)));
+    to.push(Object.assign(it, { x: t.x, y: t.y }));
   }
   commit('library'); paint();
 }
