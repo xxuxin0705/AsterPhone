@@ -198,3 +198,21 @@
 [data-as-app="forum"] .as-fo-ubar > .as-fo-follow { flex: none; width: 172px; height: 46px; margin-left: auto; border-radius: 12px; background: linear-gradient(90deg, #ff8200, #ffa02a); color: #fff; font-size: 19px; }
 [data-as-app="forum"] .as-fo-ubar > .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
 [data-as-app="forum"] .as-fo-ubar > .as-btn--primary { flex: none; height: 46px; border-radius: 12px; background: #fff3e9; color: var(--fo-accent); box-shadow: none; }
+
+/* 往下翻：背景图翻上去以后顶栏变白、显示名字；标签那排停在顶上 */
+.as-page[data-as-page="forum-user"].is-up > .as-navbar { background: var(--fo-head); box-shadow: 0 .5px 0 var(--fo-line); }
+[data-as-page="forum-user"].is-up > .as-navbar .as-navbar__title { visibility: visible; }
+[data-as-page="forum-user"].is-up > .as-navbar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--as-sb-h, 0px); background: var(--fo-head); }
+[data-as-page="forum-user"].is-up > .as-navbar .as-navbar__back { color: var(--fo-ink); filter: none; }
+[data-as-page="forum-user"].is-up > .as-navbar .as-navbar__btn { background: none; color: var(--fo-ink); }
+[data-as-page="forum-user"] .as-fo-user__tabs { position: sticky; top: calc(var(--as-sb-h, 0px) + 48px); z-index: 1; }
+
+/* 穿了套装的主页：背景图一直铺到标签那排，名字、粉丝数压在图上，图的下半截慢慢变白；橙色短条换成套装里的花边 */
+.is-dressed .as-fo-user__cover { position: relative; height: 420px; margin-bottom: -250px; }
+.is-dressed .as-fo-user__cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(255,255,255,0) 35%, rgba(255,255,255,.7) 62%, var(--fo-card) 92%); }
+.as-phone[data-mode="night"] .is-dressed .as-fo-user__cover::after { background: linear-gradient(rgba(0,0,0,0) 40%, rgba(22,22,22,.6) 70%, var(--fo-card)); }
+.is-dressed .as-fo-user__main { background: none; border-radius: 0; }
+.is-dressed .as-fo-user__ava { margin-top: 0; }
+.is-dressed .as-fo-user__name { margin-top: 0; align-self: center; }
+.is-dressed .as-fo-ubar.has-img { box-shadow: none; }
+.is-dressed .as-fo-ubar__item { text-shadow: 0 0 3px #fff; }

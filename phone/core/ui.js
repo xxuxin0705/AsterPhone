@@ -334,8 +334,8 @@ export function actionSheet(title, options) {
 }
 
 /** 设图片（头像、背景、封面）：从相册选（选完拖一拖、捏一捏框出要的那块）/ 填图片链接 / 恢复默认。
- *  ratio = 宽 ÷ 高（'screen' 就是手机屏幕的比例），size = 存下来的长边像素。返回图片（dataURL 或链接）；'' 是恢复默认；null 是没改 */
-export async function pickImage(title, { ratio = 1, size = 320, has = false } = {}) {
+ *  ratio = 宽 ÷ 高（'screen' 就是手机屏幕的比例），size = 存下来的长边像素，png = 留透明。返回图片（dataURL 或链接）；'' 是恢复默认；null 是没改 */
+export async function pickImage(title, { ratio = 1, size = 320, has = false, png = false } = {}) {
   const v = await actionSheet(title, [{ value: 'file', label: '从相册选择', icon: 'image' }, { value: 'url', label: '图片链接', icon: 'link' }, has && { value: '', label: '恢复默认', icon: 'close' }].filter(Boolean));
   if (v === '') return '';
   if (v === 'url') {
@@ -346,9 +346,9 @@ export async function pickImage(title, { ratio = 1, size = 320, has = false } = 
   }
   if (v !== 'file') return null;
   const f = await pickFile();
-  return f ? cropImage(f, ratio === 'screen' ? root.clientWidth / root.clientHeight : ratio, size) : null;
+  return f ? cropImage(f, ratio === 'screen' ? root.clientWidth / root.clientHeight : ratio, size, png) : null;
 }
-function cropImage(file, ratio, size) {
+function cropImage(file, ratio, size, png) {
   return new Promise(res => {
     // 相册原图动辄四千像素，直接拖着缩放手机会卡：先缩到最长边 2048（存下来最多 1100，够用）画在画布上，拖的是这张小的
     const url = URL.createObjectURL(file), pic = new Image(), img = h('canvas.as-crop__img');
@@ -378,7 +378,7 @@ function cropImage(file, ratio, size) {
       const k = size / Math.max(fw, fh), c = document.createElement('canvas');
       c.width = Math.round(fw * k); c.height = Math.round(fh * k);
       c.getContext('2d').drawImage(img, -x / s, -y / s, fw / s, fh / s, 0, 0, c.width, c.height);
-      done(c.toDataURL('image/jpeg', .86));
+      done(png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .86));
     })));
     function done(v) { URL.revokeObjectURL(url); box.remove(); root.classList.remove('is-cropping'); res(v); }
     root.classList.add('is-cropping'); root.append(box); pic.src = url;   // is-cropping：底下的动画（下雨天的雨和字）先停，不然拖图会卡

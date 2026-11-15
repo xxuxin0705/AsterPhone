@@ -5,9 +5,9 @@ import { uid } from './util.js';
 export const deco = () => (state.deco = state.deco || { frames: [], bubbles: [] });
 const find = (k, id) => id && deco()[k].find(x => x.id === id);
 
-/** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加 */
+/** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加。id 也可以直接是一张图（论坛装扮套装里的框） */
 export function addFrame(ava, id) {
-  const f = find('frames', id); if (!f) return ava;
+  const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id); if (!f) return ava;
   ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${f.src}")`);
   return ava;
 }

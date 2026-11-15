@@ -10,6 +10,7 @@ import { word } from './looks.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
 import { nameOf, personaOf, worldBlock, takeTr } from '../chat/engine.js';
+import { loadSets } from './dress.js';
 
 export const F = () => state.forum;
 export const A = () => state.apps.forum;
@@ -18,6 +19,7 @@ export const BOARDS = ['follow', 'local', 'global', 'anon'];
 /* ---------- 帖子存在 kv ---------- */
 let D = null, Dkey = null;
 export async function load() {
+  await loadSets();   // 列表画出来就要用到装扮（头像框、卡片背景）
   if (D && Dkey === win.key) return D;
   const k = win.key; let d = null;
   try { d = await kvGet('forum:' + k); } catch (e) { log('warn', '论坛', '读不到帖子：' + e.message); }
@@ -49,8 +51,6 @@ export const onForum = () => state.contacts.filter(c => !P(c.id).off);
 export const netName = c => P(c.id).name || c.nick || c.name || nameOf(c);
 export const isV = c => !!P(c.id).v;
 export const botOf = id => F().bots.find(b => b.id === id);
-/** 主页装扮：背景图、头像框、底栏图（'b:id' / 'c:id' / 'me:号' / 'n:网名'） */
-export const decoOf = key => (F().decos || {})[key] || {};
 /* 我的号：main 是大号；name 空着就用手机里我的网名 */
 export const accOf = id => F().accounts.find(a => a.id === id);
 export const curAcc = () => accOf(F().cur) || F().accounts[0];

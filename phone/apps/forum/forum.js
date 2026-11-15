@@ -6,13 +6,14 @@ import { state, commit } from '../../core/store.js';
 import { page, navBtn, icon, avatar, empty, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
-import { addFrame, pickDeco } from '../../core/deco.js';
+import { addFrame } from '../../core/deco.js';
 import { LANGS, langName } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
+import { dressOf, dressed, dressMenu, openDress } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -68,7 +69,7 @@ const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('ch
 function ava(by, size, framed) {
   if (by.anon) return h('span.as-avatar.as-fo-anon', { style: { width: size + 'px', height: size + 'px' } }, icon('user', Math.round(size * .5), 1.8));
   const w = E.who(by), a = avatar(w.avatar, w.name, size);
-  return framed ? addFrame(a, E.decoOf(keyOf(by)).frame) : a;
+  return framed ? addFrame(a, dressOf(keyOf(by)).frame) : a;
 }
 /** 正文里的 #话题#、@网名 标成蓝色：点话题搜这个话题，点 @ 进这个人的主页 */
 const AT = /@([^\s@#：:，,。！？!?、（）()]{1,20})/g;
@@ -100,6 +101,8 @@ function likeBtn(o) {
   const b = h('button.as-fo-act.is-like' + (o.liked ? '.is-on' : ''), { 'aria-label': '赞', dataset: { n: o.likes || 0 }, onclick: e => {
     e.stopPropagation(); o.liked = !o.liked; o.likes = Math.max(0, (o.likes || 0) + (o.liked ? 1 : -1));
     b.classList.toggle('is-on', o.liked); n.textContent = E.fmt(o.likes); b.dataset.n = o.likes; E.save();
+    const fx = o.liked && dressOf('me:' + E.F().cur).like;
+    if (fx) { const im = h('img.as-fo-likefx', { src: fx, alt: '' }); b.append(im); setTimeout(() => im.remove(), 900); }
   } }, icon(icOf('like'), 16, 1.8), n, W('forum.act.like', 'span.as-fo-act__w'));
   return b;
 }
@@ -125,12 +128,14 @@ function postMenu(by) {
   } }, icon('down', 16, 1.6));
 }
 function card(p, full) {
-  const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); };
+  const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); }, dr = p.by.anon ? {} : dressOf(keyOf(p.by));
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
-  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''), { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
+  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : '') + (dr.card ? '.has-cardimg' : ''),
+    { dataset: { id: p.id, board: p.board }, style: dr.card ? { '--fo-cardimg': `url("${dr.card}")` } : null, onclick: full ? null : () => openPost(p) },
+    dr.sticker ? h('img.as-fo-post__sticker', { src: dr.sticker, alt: '' }) : null,
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge') : null),
-    h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null,
+    h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null, dr.badge ? h('img.as-fo-dbadge', { src: dr.badge, alt: '' }) : null,
       h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p.by),
     p.title ? h('div.as-fo-post__title', p.title) : null,
@@ -252,7 +257,7 @@ function homePane(feeds, isHome) {
     for (const [k, el] of Object.entries(made)) el.hidden = k !== f;
   }
   return { el: box, title: sw, left: isHome ? [h('button.as-fo-navgroups', { onclick: openGroups }, W('forum.group'))] : [],
-    right: [navBtn('search', '搜索', () => openSearch('')), refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))],
+    right: [navBtn('search', '搜索', () => openSearch('')), isHome ? h('span.as-fo-navdress', navBtn('palette', '装扮', openDress)) : null, refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))].filter(Boolean),
     first: () => show(cur), feed: () => cur, refresh: () => refresh.querySelector(`[data-job="feed:${cur}"]`).click() };
 }
 /* ---------- 消息：动态（关注的人新发的）/ 提醒（评论、赞）/ 私信；样子定有哪几栏 ---------- */
@@ -390,7 +395,8 @@ const views = new Map();   // 帖子 id → 开着的帖子页（出完评论填
 function floorEl(p, f, i) {
   const w = f.by.op ? E.who(p.by) : E.who(f.by), up = f.to && f.to !== 'op' && p.floors.find(x => x.id === f.to);
   const to = f.to === 'op' ? word('forum.op') : up ? E.floorWho(p, up) : '', no = word('forum.floor');
-  return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : ''), { dataset: { id: f.id } },
+  const bub = !f.by.anon && dressOf(keyOf(f.by.op ? p.by : f.by)).bubble;
+  return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : '') + (bub ? '.has-bubble' : ''), { dataset: { id: f.id }, style: bub ? { '--fo-bubble': `url("${bub}")` } : null },
     h('span.as-fo-floor__ava', { onclick: e => { e.stopPropagation(); if (!f.by.op && !f.by.anon) openUser(f.by); } }, ava(f.by.op ? p.by : f.by, 32, true)),
     h('div.as-fo-floor__main',
       h('div.as-fo-floor__who', h('span.as-fo-floor__name', w.name), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
@@ -434,21 +440,15 @@ function openPost(p) {
   if (!(p.floors || []).length && E.A().autoOpen !== false && !jobs['thread:' + p.id]) runThread(p);
 }
 
-/* ---------- 主页：背景图、头像框、底栏图都能装扮（右上角「…」） ---------- */
+/* ---------- 主页：右上角「…」装扮（穿套装、单独换一样）；穿了套装主页换成装扮的样子（.is-dressed） ---------- */
 const same = (a, b) => !a.anon && a.k === b.k && (a.id ? a.id === b.id : a.name === b.name);
 function openUser(by) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
-  const dec = () => E.decoOf(key);
-  const pg = page({ app: 'forum', id: 'forum-user', title: w.name, back: true, right: [navBtn('more', '装扮', () => decorate())] });
-  const cover = h('div.as-fo-user__cover'), avaBox = h('span.as-fo-user__ava');
-  async function decorate() {
-    const v = await actionSheet('装扮', [{ value: 'cover', label: '背景图', icon: 'image' }, { value: 'frame', label: '头像框', icon: 'user' }, { value: 'bar', label: '底栏图', icon: 'image' }]);
-    if (!v) return;
-    const d = state.forum.decos[key] = state.forum.decos[key] || {};
-    if (v === 'frame') { const r = await pickDeco('frames', d.frame); if (r == null) return; d.frame = r === 'none' ? '' : r; }
-    else { const u = await pickImage(v === 'cover' ? '背景图' : '底栏图', { ratio: v === 'cover' ? 1.4 : 4, size: 1200, has: !!d[v] }); if (u == null) return; d[v] = u; }
-    commit('forum'); paint();
-  }
+  const decorate = () => dressMenu(key, paint);
+  const pg = page({ app: 'forum', id: 'forum-user', title: w.name, back: true, right: [navBtn('more', '装扮', decorate)] });
+  // 点背景图：整张大图铺满看
+  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); pg.el.append(v); } } });
+  const avaBox = h('span.as-fo-user__ava'), badge = h('img.as-fo-dbadge', { alt: '' }), tab = h('span.is-on', h('img.as-fo-user__tabimg', { alt: '' }), W('forum.user.tab'));
   const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list');
@@ -466,17 +466,26 @@ function openUser(by) {
   });
   const ubar = h('div.as-fo-ubar', mine ? h('button.as-fo-ubar__item', { onclick: decorate }, icon('palette', 20, 1.8), h('span', '装扮')) : h('button.as-fo-ubar__item', { onclick: () => toast('私信下一步做') }, icon('chat', 20, 1.8), W('forum.dm')),
     sub, mine ? null : followBtn(by));
+  // 只改图和几个开关，不重画整页
   function paint() {
-    cover.style.backgroundImage = dec().cover ? `url("${dec().cover}")` : ''; cover.classList.toggle('has-img', !!dec().cover);
+    const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
+    pg.el.classList.toggle('is-dressed', dressed(key));
+    cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover);
     avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge') : null);
-    ubar.style.backgroundImage = dec().bar ? `url("${dec().bar}")` : ''; ubar.classList.toggle('has-img', !!dec().bar);
+    img(badge, dr.badge); img(tab.firstChild, dr.tab);
+    tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);
+    ubar.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; ubar.classList.toggle('has-img', !!dr.bar);
+    ubar.querySelectorAll('.as-fo-ubar__item').forEach(x => x.classList.toggle('has-pic', !!dr.btn)); ubar.style.setProperty('--fo-btnimg', dr.btn ? `url("${dr.btn}")` : '');
+    ubar.style.setProperty('--fo-followimg', dr.follow ? `url("${dr.follow}")` : ''); ubar.classList.toggle('has-follow', !!dr.follow);
   }
+  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
+  const tabs = h('div.as-fo-user__tabs', tab);
   pg.body.append(h('div.as-fo-user', cover,
-    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', w.name, w.v ? vMark() : null),
+    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', w.name, w.v ? vMark() : null, badge),
       b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null,
       h('div.as-fo-user__bio', b ? b.bio : mine ? E.curAcc().bio || '' : ''),
-      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes'))),
-    h('div.as-fo-user__tabs', W('forum.user.tab', 'span.is-on'))), more, list);
+      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')))),
+    tabs, more, list);
   pg.el.append(ubar);
   paint();
   E.load().then(d => { list.append(...d.posts.filter(p => same(p.by, by)).map(p => card(p))); applyTexts(); });
