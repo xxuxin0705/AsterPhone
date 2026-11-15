@@ -1,7 +1,7 @@
 // 特殊消息的样子和操作：气泡长什么样、「+」面板里每个按钮做什么、表情包面板、语音 / 视频通话界面、表情包管理。
 import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs, chatForContact, kvDel } from '../../core/store.js';
-import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo } from '../../core/ui.js';
+import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, stopSpeak, connOfTag, keysOf, transcribe } from '../../core/api.js';
 import { speakAs } from '../../core/voice.js';
@@ -243,16 +243,18 @@ export function ringIn(chat, c, mode) {
 export function openCall(chat, c, mode = 'voice', incoming = false) {
   const host = document.querySelector('#phone');
   const lines = [];
-  let sec = 0, busy = null, ended = false, picked = !incoming;   // busy：TA 正在想说什么（AbortController），这时再点发送 / 让 TA 说 就取消
+  let sec = 0, on = false, busy = null, ended = false, picked = !incoming;   // busy：TA 正在想说什么（AbortController），这时再点发送 / 让 TA 说 就取消
   const timer = h('div.as-chat-call__time', incoming ? `邀请你${mode === 'video' ? '视频' : '语音'}通话…` : '正在呼叫…');
   const log = h('div.as-chat-call__log');
   const input = h('input.as-chat-call__input', { placeholder: '说点什么…', enterkeyhint: 'send' });
   const say = h('button.as-chat-call__say', { 'aria-label': '发送', onclick: () => talk() }, icon('send', 18, 2));
-  // 按住说话：录下来交给「听写」（设置 → 连接 → 其他）转成字再发。TA 在想、在说的时候不收音（外放的声音会被录进去）
+  // 按住说话：录下来交给「听写」（设置 → 连接 → 其他）转成字再发。TA 在想、在说的时候按下去 = 打断 TA、听你说（要按住才收音，外放的声音录不进来）
   let stream = null, rec = null, held = false, hearing = null;
-  const mic = h('button.as-chat-call__say.as-chat-call__mic', { 'aria-label': '按住说话' }, icon('mic', 18, 2));
+  const stat = h('div.as-chat-call__stat'), tell = (t, n) => stat.replaceChildren(t || '', n ? aiCount(k => ` · 已收到 ${k} 字`) : '');
+  const mic = h('button.as-chat-call__mic', { 'aria-label': '按住说话' }, icon('mic', 22, 1.8));
   mic.addEventListener('pointerdown', async e => {
-    e.preventDefault(); if (busy || rec || hearing || ended) return;
+    e.preventDefault(); if (rec || hearing || ended) return;
+    if (busy) { busy.abort(); stopSpeak(); idle(); }   // 旧的那轮自己收尾慢（声音还在合成）：这里先放开，不然你这句发不出去
     const conn = connOfTag('听写');
     if (!conn || !keysOf(conn).length) return toast('还没接听写：设置 → 连接 → 其他');
     if (!navigator.mediaDevices || !window.MediaRecorder) return toast('这个页面用不了麦克风');
@@ -262,14 +264,14 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     const chunks = [], r = rec = new MediaRecorder(stream);
     r.ondataavailable = x => chunks.push(x.data);
     r.onstop = async () => {
-      rec = null; mic.classList.remove('is-on');
+      rec = null; mic.classList.remove('is-on'); tell();
       const blob = new Blob(chunks, { type: r.mimeType }); if (blob.size < 1500 || ended) return;   // 只是碰了一下
-      hearing = new AbortController(); mic.replaceChildren(h('i.as-spin'));
-      try { const t = await transcribe(conn, blob, hearing.signal); if (t) { input.value = t; hearing = null; talk(); } else toast('没听清，再说一次'); }
-      catch (err) { if (!hearing.signal.aborted) toast('听写失败：' + err.message); }
-      hearing = null; mic.replaceChildren(icon('mic', 18, 2));
+      hearing = new AbortController(); tell('正在转成字…');
+      try { const t = await transcribe(conn, blob, hearing.signal); tell(); if (t) { input.value = t; hearing = null; talk(); } else toast('没听清，再说一次'); }
+      catch (err) { tell(); if (!hearing.signal.aborted) toast('听写失败：' + err.message); }
+      hearing = null;
     };
-    r.start(); mic.classList.add('is-on');
+    r.start(); mic.classList.add('is-on'); tell('正在听…松手发送');
   });
   const up = () => { held = false; if (rec && rec.state === 'recording') rec.stop(); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => mic.addEventListener(ev, up));
@@ -277,24 +279,25 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
   let bar, ring, btns;
   const el = h('div.as-chat-call' + (mode === 'video' ? '.is-video' : ''),
     h('div.as-chat-call__bg', bgUrl ? { style: { backgroundImage: `url("${bgUrl}")` } } : null),
-    h('div.as-chat-call__head', avatar(E.avatarOf(c, chat), E.nameOf(c), 96), h('b', E.nameOf(c)), timer),
+    h('div.as-chat-call__head', avatar(E.avatarOf(c, chat), E.nameOf(c), 96), h('b', E.nameOf(c)), timer, stat),
     log,
-    bar = h('div.as-chat-call__bar', { hidden: incoming }, mic, input, say),
+    bar = h('div.as-chat-call__bar', { hidden: incoming }, input, say),
     ring = h('div.as-chat-call__btns', { hidden: !incoming },
       h('button.is-hang', { 'aria-label': '拒绝', onclick: hang }, icon('phone', 24, 2)),
       h('button.is-pick', { 'aria-label': '接听', onclick: pick }, icon('phone', 24, 2))),
     btns = h('div.as-chat-call__btns', { hidden: incoming },
-      h('button', { 'aria-label': '静音', onclick: e => { e.currentTarget.classList.toggle('is-on'); stopSpeak(); } }, icon('mic', 22, 1.8)),
+      mic,
       h('button.is-hang', { 'aria-label': '挂断', onclick: hang }, icon('phone', 24, 2)),
       h('button', { 'aria-label': '让 TA 说', onclick: () => talk(true) }, icon('sparkle', 22, 1.8))));
   host.appendChild(el);
   requestAnimationFrame(() => el.classList.add('is-open'));
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) talk(); });
-  const tick = setInterval(() => { if (sec >= 0 && lines.length + sec > 0) { sec++; timer.textContent = `${mode === 'video' ? '视频' : '语音'}通话中 ${fmtDur(sec)}`; } }, 1000);
+  const tick = setInterval(() => { if (on) { sec++; timer.textContent = `${mode === 'video' ? '视频' : '语音'}通话中 ${fmtDur(sec)}`; } }, 1000);
   if (incoming) setTimeout(() => { if (!picked && !ended) hang(); }, 45000);   // 45 秒没接：未接来电
-  else setTimeout(() => { if (!ended) { sec = 0; timer.textContent = '已接通'; talk(true); } }, 1400);
-  function pick() { picked = true; ring.hidden = true; bar.hidden = btns.hidden = false; sec = 0; timer.textContent = '已接通'; talk(true); }
+  else setTimeout(() => { if (!ended) { on = true; timer.textContent = '已接通'; talk(true); } }, 1400);
+  function pick() { picked = true; ring.hidden = true; bar.hidden = btns.hidden = false; on = true; timer.textContent = '已接通'; talk(true); }
 
+  function idle() { busy = null; say.replaceChildren(icon('send', 18, 2)); say.setAttribute('aria-label', '发送'); }
   function add(who, text, zh) { lines.push({ who, text, zh }); log.appendChild(h('div.as-chat-call__line' + (who === 'me' ? '.is-me' : ''), text, zh && h('small', zh))); log.scrollTop = log.scrollHeight; }
   async function talk(themOnly) {
     if (ended) return;
@@ -302,18 +305,18 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     if (busy) { if (themOnly || !t) { busy.abort(); stopSpeak(); toast('已取消'); } return; }
     if (!themOnly && !t) return;
     if (t) { add('me', t); input.value = ''; }
-    const ac = busy = new AbortController(); say.replaceChildren(h('i.as-spin')); say.setAttribute('aria-label', '取消'); mic.disabled = true;
+    const ac = busy = new AbortController(); say.replaceChildren(h('i.as-spin')); say.setAttribute('aria-label', '取消'); tell('TA 正在想…', true);
     // 写出一句就先把声音合成好（不出声，存着），轮到它立刻播：这句在念，下一句已经在合成，句子之间不用等
     const keys = [], live = () => !ended && !ac.signal.aborted; let chain = Promise.resolve();
     const onUnit = u => {
       const k = 'callv:' + uid('v'), voice = u.text.replace(/[（(][^）)]*[）)]/g, '').trim(); keys.push(k);
       const ready = voice ? speakAs(c.id, voice, { silent: true, cache: k, stop: ac.signal }).catch(() => {}) : null;
-      chain = chain.then(async () => { await ready; if (!live()) return; add('them', u.text, u.zh); if (voice) await speakAs(c.id, voice, { cache: k, stop: ac.signal }).catch(() => {}); });
+      chain = chain.then(async () => { if (!live()) return; add('them', u.text, u.zh); tell('TA 在说'); await ready; if (live() && voice) await speakAs(c.id, voice, { cache: k, stop: ac.signal }).catch(() => {}); });   // 字先出来，声音好了就播
     };
     try { await E.callReply(chat, lines, mode, ac.signal, onUnit); await chain; }
     catch (e) { if (!ac.signal.aborted) { add('them', '（信号不太好……）'); toast('回复失败：' + e.message); } }
     keys.forEach(k => kvDel(k).catch(() => {}));
-    busy = null; say.replaceChildren(icon('send', 18, 2)); say.setAttribute('aria-label', '发送'); mic.disabled = false;
+    if (busy === ac) { idle(); if (!rec && !hearing) tell(); }
   }
   async function hang() {
     ended = true; clearInterval(tick); stopSpeak(); if (busy) busy.abort(); if (hearing) hearing.abort(); up(); if (stream) stream.getTracks().forEach(t => t.stop());

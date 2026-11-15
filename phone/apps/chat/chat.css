@@ -454,6 +454,6 @@
 .as-wave__st b { color: var(--as-color-text); font-weight: 600; }
 .as-chat-typing .as-ai-n { align-self: center; font-size: 11px; line-height: 6px; color: var(--as-color-text-2); } .as-chat-typing .as-ai-n:empty { display: none; }
 .as-chat-call__line small { display: block; margin-top: 2px; font-size: 12px; opacity: .75; }
-.as-chat-call__mic { background: rgba(255,255,255,.2); touch-action: none; -webkit-user-select: none; user-select: none; }
-.as-chat-call__mic.is-on { background: var(--as-color-danger); transform: scale(1.15); }
-.as-chat-call__mic:disabled { opacity: .4; }
+.as-chat-call__mic { touch-action: none; -webkit-user-select: none; user-select: none; }
+.as-chat-call__btns .as-chat-call__mic.is-on { transform: scale(1.15); }
+.as-chat-call__stat { min-height: 14px; font: 400 12px/14px var(--font-ui); opacity: .7; }
