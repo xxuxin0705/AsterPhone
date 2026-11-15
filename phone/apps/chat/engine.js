@@ -116,6 +116,33 @@ export function replyCfg(chat) {
 export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
 /** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
 function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text } : p; }
+/** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
+const roundNote = rc => `\n\n【这一轮】${rc.group ? '大家加起来' : ''}回复 ${rc.lines[0]}–${rc.lines[1]} 条独立消息，每条单独一行；${rc.voice[1] ? `语音 ${rc.voice[0]}–${rc.voice[1]} 条` : '不发语音'}。`;
+/** 条数不够下限：把长的话按句子拆成几条（括号、引号里的不拆，太短的并回去），拆到够数或拆不动为止；不多调一次 AI。head：每条前面要留着的（群聊的「名字：」），给 null 的那行不拆 */
+function toMin(lines, [min, max], head = () => '') {
+  for (const short of [6, 2]) {
+    if (lines.length >= min) break;
+    let room = max - lines.length;
+    lines = lines.flatMap(l => {
+      const hd = head(l);
+      if (room <= 0 || hd == null || /^\s*\[/.test(l.slice(hd.length))) return [l];
+      const body = l.slice(hd.length);
+      const ps = []; let buf = '', d = 0;
+      for (let i = 0; i < body.length; i++) {
+        const ch = body[i]; buf += ch;
+        if ('（(「『“【['.includes(ch)) d++; else if ('）)」』”】]'.includes(ch)) d = Math.max(0, d - 1);
+        else if (!d && /[。！？!?…~～]/.test(ch) && !/[。！？!?…~～”」』）)]/.test(body[i + 1] || '')) { ps.push(buf.trim()); buf = ''; }
+      }
+      if (buf.trim()) ps.push(buf.trim());
+      const parts = ps.reduce((a, x) => { if (a.length && [...a[a.length - 1]].length < short) a[a.length - 1] += x; else a.push(x); return a; }, []);
+      if (parts.length > 1 && [...parts[parts.length - 1]].length < short) parts[parts.length - 2] += parts.pop();
+      while (parts.length > room + 1) parts.splice(-2, 2, parts.at(-2) + parts.at(-1));
+      room -= parts.length - 1;
+      return parts.map(x => hd + x);
+    });
+  }
+  return lines;
+}
 async function preVoice(chat, m, rc) {
   if (m.type !== 'voice' || !rc.autoVoice) return;
   const { speakAs } = await import('../../core/voice.js');
@@ -266,9 +293,9 @@ export async function requestReply(chat, opts = {}) {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
-    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
+    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
-    const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
+    const [said, mem] = takeMem(raw), { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     saveMsgs(chat.id); emit('read', chat.id);
@@ -337,14 +364,14 @@ export async function requestGroupReply(chat, opts = {}) {
     const t = time.forPrompt(), sid = chatScheme('group', chat.cfg.prompt), wb = await worldBlock(story + '\n' + history, members, 'group', sid);
     const rc = replyCfg(chat);
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
-      time: t, history, max: chat.cfg.maxSpeakers || 3, voice: `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，${voiceNote(rc)}` }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat);
+      time: t, history, max: chat.cfg.maxSpeakers || 3, voice: `这一轮大家加起来一共发 ${rc.lines[0]}–${rc.lines[1]} 条，${voiceNote(rc)}` }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat) + roundNote(rc);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);
     msgs.forEach(m => { if (m.from === 'me') m.read = true; });
     const find = n => { n = String(n || '').trim(); return members.find(p => [p.name, p.nick, p.remark].filter(Boolean).includes(n)); };
     const batch = uid('b'); let shown = 0, nv = 0;
     keepMem(chat, batch, mem, members);
-    for (const raw of clean.split('\n').map(l => l.trim()).filter(Boolean)) {
+    for (const raw of toMin(clean.split('\n').map(l => l.trim()).filter(Boolean), rc.lines, l => /^私聊\s*[|｜]/.test(l) ? null : (/^[^:：]{1,16}[:：]\s*/.exec(l) || [null])[0])) {
       if (ac.signal.aborted) break;
       const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
