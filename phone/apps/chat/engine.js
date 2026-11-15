@@ -211,6 +211,8 @@ function historyText(msgs, c, n = 24) {
 const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更多资料）';
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
+// 正文最后一段在提示词结尾再贴一遍（作者遇到的：人就在旁边，AI 却回成在自己房间——正文太长，最后的状况埋在中间被忽略了）
+const tailOf = story => { if (story === '（暂无）') return ''; const t = story.slice(-400); return `\n\n【正文最后停在这里（你现在在哪、在做什么、和对方在不在一起，以这里为准）】\n…${t.slice(t.indexOf('\n') + 1) || t}`; };
 /** 世界书 + 岁岁砂里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
  *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
 async function worldBlock(scan, people = [], cat, sid) {
@@ -234,7 +236,7 @@ export async function buildReplyPrompt(chat, msgs) {
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
     story, ...wb, time: t, history, min, max,
-  }, sid);
+  }, sid) + tailOf(story);
   return { system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t) };
 }
 const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -332,7 +334,7 @@ export async function requestGroupReply(chat, opts = {}) {
     const story = storyNow(), history = groupHistory(msgs, chat.cfg.hist ?? 30) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const t = time.forPrompt(), sid = chatScheme('group', chat.cfg.prompt), wb = await worldBlock(story + '\n' + history, members, 'group', sid);
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
-      time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat);
+      time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + tailOf(story) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat);
     const rc = replyCfg(chat);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);

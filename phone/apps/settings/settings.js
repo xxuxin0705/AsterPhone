@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.425';
+export const VERSION = '0.8.426';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -676,7 +676,7 @@ function openLinkTime() {
     const mem = state.apps.memory, follow = group('正文互通', [toggleItem({ title: '正文也按意思找' }, mem.vecStory !== false, v => { mem.vecStory = v; commit('apps'); })]);
     follow.hidden = a.defaults.linkMode !== 'follow' || mem.vec === false;
     body.append(
-      group(withInfo('联动方式', '正文互通：手机里的角色会读最近的正文，手机聊天也会写回正文。\n线上模式：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
+      group(withInfo('联动方式', '正文互通：手机里的角色会读最近的正文，手机聊天也会写回正文。\n线上模式：角色也会读正文，但手机聊天不写回正文；角色可以按时间主动来找你。'),
         [h('div.as-field', segmented([['follow', '正文互通'], ['online', '线上模式']], a.defaults.linkMode, v => { a.defaults.linkMode = v; state.chats.forEach(c => { c.cfg.linkMode = v; }); commit('apps'); commit('chats'); commit('inject'); online.hidden = v !== 'online'; follow.hidden = v !== 'follow' || mem.vec === false; }))]),
       follow, online,
       group('时间', [

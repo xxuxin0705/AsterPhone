@@ -417,7 +417,7 @@ function openSettings(chat, redrawRoom) {
     const memRow = item({ title: withInfo('记进岁岁砂', 'TA 回消息时顺手把值得记的记进岁岁砂。正文互通的聊天一定会记。'), right: memSw });
     if (lastTab === 'mem') box.append(
       group('剧情关联', [
-        h('div.as-field', h('span.as-field__label', withInfo('联动方式', '正文互通：TA 回复时会参考正文，最近的聊天会注入正文。线上模式：不读正文、不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '正文互通'], ['online', '线上模式']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); memSw.disabled = v === 'follow'; memSw.set(E.memOn(chat)); })),
+        h('div.as-field', h('span.as-field__label', withInfo('联动方式', '正文互通：TA 回复时会参考正文，最近的聊天会注入正文。线上模式：TA 也会参考正文，但手机里聊的不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '正文互通'], ['online', '线上模式']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); memSw.disabled = v === 'follow'; memSw.set(E.memOn(chat)); })),
         memRow, sliderRow('记录条数', 10, 100, 5, cfg.hist ?? 30, v => { cfg.hist = v; save(); }, v => v + ' 条'),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
         item({ title: '注入记录', chevron: true, onClick: () => openInjectLog(chat) }),
