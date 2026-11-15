@@ -34,7 +34,7 @@ const GUIDE = {
   interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头'], ['.as-int-splash', '片头']] },
   memory: { cls: [['[class*="as-mem-"]', '岁岁砂的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
   diary: { cls: [['[class*="as-dy-"]', '日记的东西都以 .as-dy- 开头']] },
-  forum: { cls: [['[data-as-app="forum"]', '论坛的每一页（[data-as-page] 是哪一页：forum-home / forum-post / forum-user / forum-board / forum-hot / forum-search / forum-cmts / forum-likes / forum-groups；首页 [data-tab] 是正在看哪个标签）'], ['.as-fo-tabbar', '底部标签栏'], ['.as-fo-switch', '首页顶上的切换'], ['.as-fo-navgroups', '首页左上角进小组（默认藏着）'],
+  forum: { cls: [['[data-as-app="forum"]', '论坛的每一页（[data-as-page] 是哪一页：forum-home / forum-post / forum-user / forum-board / forum-hot / forum-search / forum-cmts / forum-likes / forum-ats / forum-groups；首页 [data-tab] 是正在看哪个标签）'], ['.as-fo-tabbar', '底部标签栏'], ['.as-fo-switch', '首页顶上的切换'], ['.as-fo-navgroups', '首页左上角进小组（默认藏着）'],
       ['.as-fo-search', '搜索框'], ['.as-fo-hot', '热榜块（__item 一条、__no 排名、__topic、__heat、__tag；__more 最后一格「更多」默认藏着）'], ['.as-fo-boards', '小组格子（.as-fo-board 一个）'], ['.as-fo-chips', '正在讨论'],
       ['.as-fo-post', '一条帖（.is-full 帖子页里那条）'], ['.as-fo-post__group', '小组名'], ['.as-fo-post__ava', '头像（__badge 头像角上的 V）'], ['.as-fo-post__name', '名字'], ['.as-fo-post__meta', '时间、来自'], ['.as-fo-post__menu', '右上小箭头（默认藏着）'],
       ['.as-fo-follow', '关注按钮'], ['.as-fo-post__title', '标题'], ['.as-fo-post__text', '正文（.as-fo-topic 话题）'], ['.as-fo-post__hotcmt', '热门回复'], ['.as-fo-post__count', '回应数'], ['.as-fo-post__acts', '转 · 评 · 赞（.as-fo-act 一个，[data-n] 是数字，__n 数字、__w 字）'],

@@ -16,7 +16,7 @@ const WORDS = {
   'forum.act.repost': '转发', 'forum.act.comment': '评论', 'forum.act.like': '赞', 'forum.act.fav': '收藏', 'forum.reply.ph': '写评论',
   'forum.post.new': '发帖', 'forum.follow': '关注', 'forum.followed': '已关注', 'forum.join': '加入', 'forum.joined': '已加入', 'forum.op': '楼主',
   'forum.floor': '{n} 楼', 'forum.only.op': '只看楼主', 'forum.all.reply': '全部', 'forum.inbox.notice': '提醒', 'forum.inbox.dm': '私信', 'forum.inbox.activity': '动态', 'forum.chips.all': '全部',
-  'forum.inbox.cmts': '评论', 'forum.inbox.likes': '赞', 'forum.dyn.post': '发帖了', 'forum.dyn.in': '在 {g} 发帖了', 'forum.cmt.post': '评论了你的帖子', 'forum.cmt.reply': '回复了你的评论',
+  'forum.inbox.at': '@我的', 'forum.inbox.cmts': '评论', 'forum.inbox.likes': '赞', 'forum.at.post': '在帖子里@了你', 'forum.at.cmt': '在评论里@了你', 'forum.dyn.post': '发帖了', 'forum.dyn.in': '在 {g} 发帖了', 'forum.cmt.post': '评论了你的帖子', 'forum.cmt.reply': '回复了你的评论',
   'forum.like.post': '赞了你的帖子', 'forum.like.cmt': '赞了你的评论', 'forum.bio': '简介：',
   'forum.fans': '粉丝', 'forum.follows': '关注', 'forum.likes': '获赞', 'forum.members': '成员', 'forum.user.tab': '帖子', 'forum.dm': '私信', 'forum.platform': '论坛', 'forum.title.need': '',
 };
@@ -26,7 +26,7 @@ export const BUILTIN = {
       home: [{ feed: 'global', text: '推荐' }, { feed: 'follow', text: '关注' }], discover: ['search', 'hot', 'chips'], groups: ['boards', 'chips'],
       inbox: ['activity', 'notice'], icons: { repost: 'share', comment: 'comment', like: 'thumb' } },
     texts: { 'forum.tab.local': '同城', 'forum.tab.global': '热门', 'forum.tab.anon': '树洞', 'forum.group': '超话', 'forum.hot': '微博热搜', 'forum.hot.title': '微博热搜', 'forum.hot.more': '更多热搜',
-      'forum.boards': '超话社区', 'forum.search.ph': '大家都在搜', 'forum.reply.ph': '写评论…', 'forum.post.new': '发微博', 'forum.floor': '第{n}楼', 'forum.inbox.notice': '消息', 'forum.chips.all': '热点', 'forum.dyn.post': '发微博了', 'forum.cmt.post': '评论了你的微博', 'forum.like.post': '赞了你的微博',
+      'forum.boards': '超话社区', 'forum.search.ph': '大家都在搜', 'forum.reply.ph': '写评论…', 'forum.post.new': '发微博', 'forum.floor': '第{n}楼', 'forum.inbox.notice': '消息', 'forum.chips.all': '热点', 'forum.dyn.post': '发微博了', 'forum.cmt.post': '评论了你的微博', 'forum.like.post': '赞了你的微博', 'forum.at.post': '在微博中@了你', 'forum.at.cmt': '在评论中@了你',
       'forum.likes': '转评赞', 'forum.user.tab': '微博', 'forum.platform': '微博', 'forum.title.need': 'no', 'forum.dm': '留言', 'forum.join': '加入', 'forum.joined': '已加入' } },
   douban: { name: '豆瓣', swatch: ['#ffffff', '#2c9a4b'],
     layout: { tabs: [{ page: 'home', text: '首页', icon: 'home' }, { page: 'groups', text: '小组', icon: 'users' }, { page: 'inbox', text: '消息', icon: 'chat' }, { page: 'me', text: '我', icon: 'user' }],

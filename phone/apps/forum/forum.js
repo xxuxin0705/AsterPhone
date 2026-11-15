@@ -70,10 +70,24 @@ function ava(by, size, framed) {
   const w = E.who(by), a = avatar(w.avatar, w.name, size);
   return framed ? addFrame(a, E.decoOf(keyOf(by)).frame) : a;
 }
-/** 正文里的 #话题# 标成蓝色，点了搜这个话题 */
+/** 正文里的 #话题#、@网名 标成蓝色：点话题搜这个话题，点 @ 进这个人的主页 */
+const AT = /@([^\s@#：:，,。！？!?、（）()]{1,20})/g;
+function byAt(n) { const a = E.F().accounts.find(x => E.accName(x) === n); return a ? { k: 'me', id: a.id } : E.byName(n, 'global'); }
 function rich(text) {
-  return String(text).split(/(#[^#\n]{1,30}#)/).map(s => /^#.+#$/.test(s) ? h('span.as-fo-topic', { onclick: e => { e.stopPropagation(); openSearch(s.slice(1, -1)); } }, s) : s);
+  return String(text).split(/(#[^#\n]{1,30}#|@[^\s@#：:，,。！？!?、（）()]{1,20})/).map(s => /^#.+#$/.test(s) ? h('span.as-fo-topic', { onclick: e => { e.stopPropagation(); openSearch(s.slice(1, -1)); } }, s)
+    : /^@/.test(s) ? h('span.as-fo-topic', { onclick: e => { e.stopPropagation(); openUser(byAt(s.slice(1))); } }, s) : s);
 }
+/** 「@」按钮：从熟人、营销号、关注的人里点一个，插到光标那里 */
+function atBtn(t) {
+  return btn('@', 'secondary', async () => {
+    const ns = [...new Set([...E.onForum().map(E.netName), ...E.F().bots.map(b => b.name), ...(state.forum.follows || []).filter(k => k.startsWith('n:')).map(k => k.slice(2))])];
+    if (!ns.length) { toast('还没有可以 @ 的人'); return; }
+    const n = await actionSheet('@ 谁', ns.map(x => ({ value: x, label: x }))); if (!n) return;
+    t.setRangeText('@' + n + ' ', t.selectionStart, t.selectionEnd, 'end'); t.focus();
+  });
+}
+/** 我 @ 了谁：出评论时让 TA 来 */
+const atNote = text => { const ns = [...new Set([...text.matchAll(AT)].map(m => m[1]))]; return ns.length ? `里面 @ 了 ${ns.join('、')}，被 @ 的人看到了会来回（用 TA 的网名）。` : ''; };
 /** 正文 + 翻译：上下对照时翻译常显示；「点了才显示」时显示按钮，点一下这一条在原文 / 中文之间换 */
 function tx(o, cls) {
   const t = h('div.' + cls, rich(o.text));
@@ -159,12 +173,12 @@ function compose(b0) {
     board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
   } }, g.base ? W('forum.tab.' + g.id) : g.name)));
   const s = sheet({ title: word('forum.post.new'), content: h('div.as-fo-compose', where, title, body, pv,
-    h('div.as-fo-compose__row', accChip(), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
+    h('div.as-fo-compose__row', accChip(), atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
     h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('发布', 'primary', async () => {
       const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
       s.close();
       const p = await E.post({ board, title: title.value.trim(), text, pic });
-      landed([p]); runThread(p, { count: '4～8' }); openPost(p);
+      landed([p]); runThread(p, { count: '4～8', focus: atNote(text) }); openPost(p);
     }))) });
   applyTexts();
 }
@@ -256,6 +270,43 @@ function received(d) {
 }
 const sigOf = d => d.posts.length + ':' + d.posts.reduce((n, p) => n + (p.floors || []).length + (p.likes || 0), 0);
 const snip = (p, o) => (o.pic ? h('img.as-fo-cmt__pic', { src: o.pic, alt: '' }) : h('div.as-fo-cmt__snip', o.title || o.text));
+/** 消息里的一条：谁、做了什么、什么时候，下面是内容，右边是原帖 */
+function noteRow(p, o, by, k, body, right = snip(p, p)) {
+  return h('div.as-fo-cmt', { onclick: () => openPost(p) },
+    h('span.as-fo-cmt__ava', { onclick: e => { e.stopPropagation(); if (!by.anon) openUser(by); } }, ava(by, 48, true)),
+    h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', E.who(by).name), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at)), ...body), right);
+}
+const replyBtns = (p, f) => h('div.as-fo-cmt__btns', h('button.as-fo-cmt__btn', { onclick: e => { e.stopPropagation(); replySheet(p, f.id, h('div')); } }, icon('comment', 14, 1.8), '回复'), likeBtn(f));
+function notePage(id, k, rows) {
+  const pg = page({ app: 'forum', id, title: word(k), back: true }), list = h('div.as-fo-cmts');
+  E.load().then(d => { const r = rows(d); list.replaceChildren(...(r.length ? r : [empty('还没有消息')])); applyTexts(); });
+  pg.body.append(list); nav.push(pg.el); applyTexts();
+}
+/** 消息 → @我的：别人的帖子、评论里 @ 了我的网名 */
+const openAts = () => notePage('forum-ats', 'forum.inbox.at', d => {
+  const me = E.myNames(), hit = t => me.some(n => String(t).includes('@' + n)), got = [];
+  for (const p of d.posts) {
+    if (!mine(p.by) && !p.by.anon && hit(p.text)) got.push({ p, o: p, at: p.at });
+    for (const f of p.floors || []) if (!mine(floorBy(p, f)) && hit(f.text)) got.push({ p, o: f, at: f.at });
+  }
+  return got.sort((a, b) => b.at - a.at).map(({ p, o }) => o === p ? noteRow(p, p, p.by, 'forum.at.post', tx(p, 'as-fo-cmt__text'), p.pic ? snip(p, p) : null)
+    : noteRow(p, o, floorBy(p, o), 'forum.at.cmt', [...tx(o, 'as-fo-cmt__text'), replyBtns(p, o)]));
+});
+/** 消息 → 评论：别人评论我、回我的；「回复」直接回那一层 */
+const openCmts = () => notePage('forum-cmts', 'forum.inbox.cmts', d => received(d).map(({ p, f, up }) =>
+  noteRow(p, f, floorBy(p, f), up ? 'forum.cmt.reply' : 'forum.cmt.post', [...tx(f, 'as-fo-cmt__text'), up ? h('div.as-fo-cmt__quote', `@${E.floorWho(p, up)}：${up.text}`) : null, replyBtns(p, f)])));
+/** 消息 → 赞：谁赞了我的帖子、我的评论；没留名字的路人合成一条「还有 N 人」 */
+const openLikes = () => notePage('forum-likes', 'forum.inbox.likes', d => {
+  const got = [];
+  for (const p of d.posts) for (const o of [p, ...(p.floors || [])]) {
+    if (!(o === p ? mine(p.by) : mine(floorBy(p, o))) || !o.likes) continue;
+    const k = o === p ? 'forum.like.post' : 'forum.like.cmt', L = o.likers || [];
+    L.forEach(x => got.push({ at: x.at, el: () => noteRow(p, x, x.by, k, [], snip(p, o)) }));
+    if (o.likes > L.length) got.push({ at: o.at, el: () => h('div.as-fo-cmt.is-like', { onclick: () => openPost(p) }, h('span.as-fo-cmt__ava.as-fo-likeava', icon('thumb', 24, 1.8)),
+      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', `${L.length ? '还有 ' : ''}${E.fmt(o.likes - L.length)} 人`), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at))), snip(p, o)) });
+  }
+  return got.sort((a, b) => b.at - a.at).map(x => x.el());
+});
 function dynRows(d) {
   const ps = d.posts.filter(p => !p.by.anon && following(keyOf(p.by))).sort((a, b) => b.at - a.at).slice(0, 60);
   return ps.length ? ps.map(p => {
@@ -269,7 +320,7 @@ function inboxPane() {
   const kinds = look().layout.inbox?.length ? look().layout.inbox : ['notice', 'dm'];
   const dyn = h('div.as-fo-dyns'), rows = (ic, k, fn) => h('button.as-fo-nrow', { dataset: { k }, onclick: fn }, h('span.as-fo-nrow__ic', icon(ic, 24, 1.8)), W('forum.inbox.' + k, 'span.as-fo-nrow__t'), icon('chevron', 16, 2));
   const dms = () => h('div.as-fo-dms', kinds.includes('dm') ? empty('还没有私信') : null);   // 私信下一步做
-  const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('comment', 'cmts', openCmts), rows('thumb', 'likes', openLikes), kinds.includes('dm') ? null : dms()), dm: dms };
+  const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('at', 'at', openAts), rows('comment', 'cmts', openCmts), rows('thumb', 'likes', openLikes), kinds.includes('dm') ? null : dms()), dm: dms };
   const panes = kinds.map(k => make[k]());
   const sw = h('div.as-fo-switch', kinds.map((k, i) => h('button', { dataset: { k }, onclick: () => pick(i) }, W('forum.inbox.' + k))));
   function pick(i) { sw.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i)); panes.forEach((x, j) => { x.hidden = j !== i; }); }
@@ -277,37 +328,6 @@ function inboxPane() {
   let sig = '';
   const onShow = () => E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); });   // 有新东西才重画
   return { el: h('div.as-fo-inbox', ...panes), title: sw, onShow };
-}
-/** 消息 → 评论：别人评论我、回我的，点了进帖子；「回复」直接回那一层 */
-function openCmts() {
-  const pg = page({ app: 'forum', id: 'forum-cmts', title: word('forum.inbox.cmts'), back: true }), list = h('div.as-fo-cmts');
-  E.load().then(d => {
-    const got = received(d);
-    list.replaceChildren(...(got.length ? got.map(({ p, f, up }) => h('div.as-fo-cmt', { onclick: () => openPost(p) },
-      h('span.as-fo-cmt__ava', { onclick: e => { e.stopPropagation(); if (!floorBy(p, f).anon) openUser(floorBy(p, f)); } }, ava(floorBy(p, f), 48, true)),
-      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', E.who(floorBy(p, f)).name), h('div.as-fo-cmt__sub', W(up ? 'forum.cmt.reply' : 'forum.cmt.post'), ' ', when(f.at)),
-        ...tx(f, 'as-fo-cmt__text'), up ? h('div.as-fo-cmt__quote', `@${E.floorWho(p, up)}：${up.text}`) : null,
-        h('div.as-fo-cmt__btns', h('button.as-fo-cmt__btn', { onclick: e => { e.stopPropagation(); replySheet(p, f.id, h('div')); } }, icon('comment', 14, 1.8), '回复'), likeBtn(f))),
-      snip(p, p))) : [empty('还没有评论')]));
-    applyTexts();
-  });
-  pg.body.append(list); nav.push(pg.el); applyTexts();
-}
-/** 消息 → 赞：我的帖子、我的评论被赞了多少（不知道是谁赞的，只说几个人） */
-function openLikes() {
-  const pg = page({ app: 'forum', id: 'forum-likes', title: word('forum.inbox.likes'), back: true }), list = h('div.as-fo-cmts');
-  E.load().then(d => {
-    const got = [];
-    for (const p of d.posts) {
-      if (mine(p.by) && p.likes) got.push({ p, o: p, k: 'forum.like.post' });
-      for (const f of p.floors || []) if (mine(floorBy(p, f)) && f.likes) got.push({ p, o: f, k: 'forum.like.cmt' });
-    }
-    got.sort((a, b) => b.o.at - a.o.at);
-    list.replaceChildren(...(got.length ? got.map(({ p, o, k }) => h('div.as-fo-cmt.is-like', { onclick: () => openPost(p) }, h('span.as-fo-cmt__ava.as-fo-likeava', icon('thumb', 24, 1.8)),
-      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', `${E.fmt(o.likes)} 人`), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at))), snip(p, o))) : [empty('还没有人赞')]));
-    applyTexts();
-  });
-  pg.body.append(list); nav.push(pg.el); applyTexts();
 }
 function mePane() {
   const a = E.curAcc(), me = { k: 'me', id: a.id }, w = E.who(me);
@@ -387,13 +407,13 @@ const runThread = (p, opts) => jobs['thread:' + p.id] ? null : go('thread:' + p.
 /** 回帖：点底下那条、或者点某一层弹出来；to = 回哪一楼（'' 回帖子） */
 function replySheet(p, to, floors) {
   const t = textarea({ placeholder: to ? '回复 ' + E.floorWho(p, p.floors.find(x => x.id === to)) : word('forum.reply.ph'), rows: 4 });
-  const s = sheet({ title: word('forum.act.comment'), content: h('div.as-fo-compose', t, h('div.as-fo-compose__row', accChip(), btn('发送', 'primary', async () => {
+  const s = sheet({ title: word('forum.act.comment'), content: h('div.as-fo-compose', t, h('div.as-fo-compose__row', accChip(), atBtn(t), btn('发送', 'primary', async () => {
     const text = t.value.trim(); if (!text) return;
     s.close();
     const f = await E.reply(p, text, to);
     floors.append(floorEl(p, f, p.floors.length - 1));
     const tn = to ? E.floorWho(p, p.floors.find(x => x.id === to)) : '';
-    runThread(p, { focus: `${myName()}（${E.who(f.by).name}）刚在 ${p.floors.length} 楼${tn ? '回复了' + tn : '说'}：「${text}」。${tn ? '被回复的人要回 TA，' : ''}别人想回就回。`, count: '2～5' });
+    runThread(p, { focus: `${myName()}（${E.who(f.by).name}）刚在 ${p.floors.length} 楼${tn ? '回复了' + tn : '说'}：「${text}」。${tn ? '被回复的人要回 TA，' : ''}别人想回就回。${atNote(text)}`, count: '2～5' });
   }))) });
   setTimeout(() => t.focus(), 300);
 }

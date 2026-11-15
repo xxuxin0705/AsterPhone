@@ -66,7 +66,7 @@ export function who(by) {
   return { name: by.name || '网友' };
 }
 const strip = n => String(n || '').replace(/[（(][^）)]*[）)]/g, '').trim();
-function byName(raw, board) {
+export function byName(raw, board) {
   const n = strip(raw);
   if (board === 'anon' || /^匿名/.test(n)) return { k: 'n', anon: true, no: +((/(\d+)/.exec(n) || [])[1]) || 0 };
   const b = F().bots.find(x => x.name === n); if (b) return { k: 'bot', id: b.id };
@@ -126,6 +126,9 @@ const rnd = n => Math.floor(Math.random() * n);
 const clean = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
 const story = () => storyText(Math.min(4, C().count)) || '（暂无）';
 const crowd = () => onForum().slice(0, 15);
+export const myNames = () => F().accounts.map(accName);
+/** 告诉 AI 我的网名、可以 @ 我（匿名区不 @） */
+const atMe = board => board === 'anon' ? '' : `【${myName()} 在论坛的网名】${myNames().join('、')}（别人只认得网名）\n- 帖子、评论里可以 @ 人，写成「@网名」；剧情里和 ${myName()} 有关的人偶尔会 @ TA 的网名，一次最多一两处。\n`;
 
 /** 刷一批帖。opts.pick：额外要求（话题、只让谁发）；opts.only：只能由这些号发（'b:id' / 'c:id'） */
 export async function feed(board, { pick = '', only = null, count = A().count || 6 } = {}, stop) {
@@ -133,7 +136,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
   const st = story();
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
-      world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '',
+      world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = []; let cur = null;
   const end = () => { if (cur && cur.text.trim()) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
@@ -195,6 +198,23 @@ function mineNote(p) {
   const names = [...new Set(mine.map(b => b.anon ? '' : accName(accOf(b.id))).filter(Boolean))];
   return `【注意】${p.by.k === 'me' ? '楼主' : '有几层'}是 ${myName()} 发的${names.length ? `（用的网名：${names.join('、')}）` : '（匿名的）'}；别人只看得到网名，不知道是 TA，不能叫出 TA 的真名。不要替 TA 写${p.by.k === 'me' ? '，不要出现「楼主」的楼层' : ''}。`;
 }
+const isMine = (p, o) => o.by.k === 'me' || (o.by.op && p.by.k === 'me');
+/** 我的帖子、我的楼层：让 AI 顺便写谁点了赞 */
+function likesAsk(p) {
+  const fl = (p.floors || []).map((f, i) => isMine(p, f) ? i + 1 : 0).filter(Boolean).slice(-5), out = [];
+  if (p.by.k === 'me') out.push('赞：名字、名字（这次给楼主帖子点赞的人，0～5 个）');
+  if (fl.length) out.push(`赞 楼号：名字、名字（${fl.join('、')} 楼是 ${myName()} 的，有人给这几层点赞就写，一层一行）`);
+  return out.length ? `\n另外，${out.join('\n')}\n剧情里的熟人按人设和最近的事决定会不会点，路人也可以。` : '';
+}
+/** 一行「赞：…」：记下是谁点的，赞数跟着加 */
+function addLikers(p, o, names) {
+  const L = o.likers = o.likers || [], key = b => b.k + ':' + (b.id || b.name), mine = new Set(myNames());
+  for (const n of names.split(/[、,，\s]+/).map(strip).filter(Boolean).slice(0, 8)) {
+    const by = byName(n, p.board);
+    if (by.anon || mine.has(n) || L.some(x => key(x.by) === key(by))) continue;
+    L.push({ by, ...time.stamp() }); o.likes = (o.likes || 0) + 1;
+  }
+}
 /** 给这条帖出几层楼（第一次点开、或者「再来一些」） */
 export async function thread(p, stop, { focus = '', count } = {}) {
   await load();
@@ -202,9 +222,12 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '6～10' : '4～6'),
       world: (await worldBlock(st, anon ? [] : crowd())).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
-      lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n') }) });
-  const list = p.floors || [], add = [], mine = new Set(F().accounts.map(accName));
+      lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n'),
+      atme: atMe(p.board), likes: anon ? '' : likesAsk(p) }) });
+  const list = p.floors || [], add = [], mine = new Set(myNames()), likes = [];
   for (const l of clean(raw).split('\n').map(x => x.trim()).filter(Boolean)) {
+    const lk = /^赞\s*(\d*)\s*楼?\s*[:：]\s*(.+)$/.exec(l);
+    if (lk) { likes.push(lk); continue; }
     const m = /^(?:\d+\s*楼\s*)?(.+?)(?:\s*回复\s*(楼主|\d+)\s*楼?)?\s*[:：]\s*(.+)$/.exec(l); if (!m || m[1].length > 24) continue;
     const [text, t2] = takeTr(m[3]), tr = t2 === text ? '' : t2, op = strip(m[1]) === '楼主';
     if ((op && p.by.k === 'me') || mine.has(strip(m[1]))) continue;   // 不替我写
@@ -214,6 +237,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   }
   if (!add.length) { log('error', '论坛', 'AI 没有按格式写评论', raw); throw new Error('AI 没有按格式写评论'); }
   p.floors = list.concat(add); p.cmts = Math.max(p.cmts, p.floors.length);
+  for (const [, no, names] of likes) { const o = no ? p.floors[no - 1] : p; if (o && isMine(p, o)) addLikers(p, o, names); }
   if (p.by.k === 'me') p.likes += rnd(add.length * 5);   // 我的帖子有人来看，也有人点赞（消息 → 赞）
   await save();
   return add;
