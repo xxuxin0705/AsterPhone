@@ -466,7 +466,7 @@ function userView(by, host) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
   const decorate = () => dressMenu(key, paint);
   // 点背景图：整张大图铺满看
-  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } });
+  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } }, h('img.as-fo-user__coverimg', { alt: '', hidden: true }));
   const avaBox = h('span.as-fo-user__ava'), badge = h('img.as-fo-dbadge', { alt: '' }), tab = h('span.is-on', h('img.as-fo-user__tabimg', { alt: '' }), W('forum.user.tab'));
   const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
@@ -489,7 +489,7 @@ function userView(by, host) {
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
     host.classList.toggle('is-dressed', dressed(key));
-    cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover);
+    cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover); img(cover.firstChild, dr.cover);
     avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge') : null);
     img(badge, dr.badge); img(tab.firstChild, dr.tab);
     tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);

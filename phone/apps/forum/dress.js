@@ -119,31 +119,37 @@ export function openDress() {
 const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
 // 头像框：中间头像那一圈挖空（框画在头像外面一圈，比头像大：头像 = 框的 1 / 1.44）
 function hole(g, w) { const r = w / 2; g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(r, r, r / 1.44 * 1.02, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
+/** 抠底色：从图的四边、还有已经透明的地方往里走，和走过来的那一格颜色接近（t，渐变也跟得上）、离出发那一格的颜色也不太远（g）就当底色去掉 */
+function flood(x, w, H, t, g = 999) {
+  const d = x.getImageData(0, 0, w, H), a = d.data, at = (i, j) => (j * w + i) * 4, seen = new Uint8Array(w * H), q = [];
+  const far = (p, f) => Math.abs(a[p] - a[f]) + Math.abs(a[p + 1] - a[f + 1]) + Math.abs(a[p + 2] - a[f + 2]);
+  for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) {
+    const p = at(i, j);
+    if (a[p + 3] === 0) { for (const [u, v] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (u >= 0 && v >= 0 && u < w && v < H) q.push([u, v, at(u, v), at(u, v)]); }
+    else if (!i || !j || i === w - 1 || j === H - 1) q.push([i, j, p, p]);
+  }
+  while (q.length) {
+    const [i, j, from, s0] = q.pop(); if (i < 0 || j < 0 || i >= w || j >= H || seen[j * w + i]) continue;
+    const p = at(i, j); if (!a[p + 3] || far(p, from) >= t || far(p, s0) >= g) continue;
+    seen[j * w + i] = 1; a[p + 3] = 0;
+    q.push([i + 1, j, p, s0], [i - 1, j, p, s0], [i, j + 1, p, s0], [i, j - 1, p, s0]);
+  }
+  x.putImageData(d, 0, 0);
+}
 async function cutout(url, frame) {
   if (!/^data:image\//.test(url)) return url;
   const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
   x.drawImage(im, 0, 0);
-  const d = x.getImageData(0, 0, w, H), a = d.data, at = (i, j) => (j * w + i) * 4;
-  for (let i = 0; i < w; i++) if (a[at(i, 0) + 3] < 250 || a[at(i, H - 1) + 3] < 250) return url;   // 本来就有透明，不动
-  const near = (p, q, t) => Math.abs(a[p] - a[q]) + Math.abs(a[p + 1] - a[q + 1]) + Math.abs(a[p + 2] - a[q + 2]) < t;
-  const seen = new Uint8Array(w * H), q = [];
-  for (let i = 0; i < w; i++) q.push([i, 0, at(i, 0)], [i, H - 1, at(i, H - 1)]);
-  for (let j = 0; j < H; j++) q.push([0, j, at(0, j)], [w - 1, j, at(w - 1, j)]);
-  // 从四边往里走：和走过来的那一格颜色接近（渐变也跟得上），又和起点的底色差不太远，就当底色
-  while (q.length) {
-    const [i, j, from] = q.pop(); if (i < 0 || j < 0 || i >= w || j >= H || seen[j * w + i]) continue;
-    const p = at(i, j); if (!near(p, from, 60)) continue;
-    seen[j * w + i] = 1; a[p + 3] = 0;
-    q.push([i + 1, j, p], [i - 1, j, p], [i, j + 1, p], [i, j - 1, p]);
-  }
-  x.putImageData(d, 0, 0);
+  const top = x.getImageData(0, 0, w, 1).data, bot = x.getImageData(0, H - 1, w, 1).data;
+  for (let i = 3; i < top.length; i += 4) if (top[i] < 250 || bot[i] < 250) return url;   // 本来就有透明，不动
+  flood(x, w, H, 60);
   if (frame) hole(x, w);
   return c.toDataURL('image/png');
 }
 
 /* ---------- 从截图拆：整张截图铺开，按微博主页常见的位置先摆好几个框，拖一拖、拉一拉大小，点「完成」一次切好变成一个新套装 ---------- */
 // 框：[部件, 叫法, 左, 上, 宽, 高]，都是截图宽度的几分之几；top 从内容最上面量、bottom 从最下面量
-const BOXES = [['cover', '背景', 0, .22, 1, .32, 'top'], ['frame', '头像框', .01, .465, .24, .24, 'top'], ['tab', '标签小图', .36, .95, .07, .065, 'top'],
+const BOXES = [['cover', '背景', 0, .25, 1, .22, 'top'], ['frame', '头像框', .01, .465, .24, .24, 'top'], ['tab', '标签小图', .36, .95, .07, .065, 'top'],
   ['tabline', '标签下的花边', .41, 1.008, .085, .024, 'top'], ['btn', '底栏按钮小图', .075, .215, .1, .085, 'bottom'], ['bar', '底栏', 0, .09, 1, .09, 'bottom']];
 async function split(done) {
   const f = await pickFile('image/*'); if (!f) return;
@@ -178,11 +184,17 @@ async function split(done) {
     for (const b of stage.querySelectorAll('.as-fo-split__box')) {
       const k = b.dataset.k, [, , , size] = PIECES.find(z => z[0] === k), r = stage.getBoundingClientRect(), k2 = W / r.width;
       const sx = b.offsetLeft * k2, sy = y0 + b.offsetTop * k2, sw = b.offsetWidth * k2, sh = b.offsetHeight * k2, z = Math.min(1, size / Math.max(sw, sh));
-      const o = document.createElement('canvas'); o.width = Math.round(sw * z); o.height = Math.round(sh * z);
-      const g = o.getContext('2d'); g.drawImage(im, sx, sy, sw, sh, 0, 0, o.width, o.height);
-      // 头像框：中间挖空，圈外也不要
-      if (k === 'frame') { hole(g, o.width); g.globalCompositeOperation = 'destination-in'; g.beginPath(); g.arc(o.width / 2, o.width / 2, o.width / 2, 0, 7); g.fill(); }
-      imgs[k] = k === 'frame' ? o.toDataURL('image/png') : o.toDataURL('image/jpeg', .9);
+      // 背景：框上面到截图顶那一截（印着时间、按钮，不能要）用框的第一行颜色补上，这样图还在原来的高度
+      const up = k === 'cover' ? Math.round((sy - y0) * z) : 0;
+      const o = document.createElement('canvas'); o.width = Math.round(sw * z); o.height = Math.round(sh * z) + up;
+      const g = o.getContext('2d'); g.drawImage(im, sx, sy, sw, sh, 0, up, o.width, o.height - up);
+      if (up) { const row = document.createElement('canvas'); row.width = 6; row.height = 1; row.getContext('2d').drawImage(im, sx, sy, sw, 8, 0, 0, 6, 1); g.drawImage(row, 0, 0, 6, 1, 0, 0, o.width, up); }   // 缩成 6 个点再拉开：只留颜色，不把星星拉成竖条
+      // 头像框：圈外不要，从外往里把底色抠掉，再把中间头像那一圈挖空。小图标也抠底色
+      const png = PIECES.find(z2 => z2[0] === k)[4];
+      if (k === 'frame') { g.globalCompositeOperation = 'destination-in'; g.beginPath(); g.arc(o.width / 2, o.width / 2, o.width / 2, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
+      if (png) flood(g, o.width, o.height, k === 'frame' ? 18 : 25, k === 'frame' ? 45 : 60);   // 截图里的底是花的，抠得保守一点
+      if (k === 'frame') hole(g, o.width);
+      imgs[k] = png ? o.toDataURL('image/png') : o.toDataURL('image/jpeg', .9);
     }
     if (!Object.keys(imgs).length) { toast('没有框'); return; }
     const set = { id: uid('fd'), name: '截图拆的', imgs };
