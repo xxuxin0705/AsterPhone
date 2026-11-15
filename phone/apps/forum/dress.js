@@ -24,7 +24,8 @@ export function dressOf(key) {
 }
 export const dressed = key => !!setOf(D(key).set);
 const meKey = () => 'me:' + state.forum.cur;
-function wear(key, id) { state.forum.decos[key] = { ...D(key), set: id || '' }; commit('forum'); }
+export const hooks = {};   // 论坛开着时：穿上 / 脱下以后让「我」那页换图
+function wear(key, id) { state.forum.decos[key] = { ...D(key), set: id || '' }; commit('forum'); hooks.worn?.(key); }
 
 /** 主页右上「…」→ 装扮：穿套装 / 脱下 / 单独换一样 / 存成套装 */
 export async function dressMenu(key, repaint) {
@@ -46,6 +47,7 @@ export async function dressMenu(key, repaint) {
     if (how === 'lib') { const r = await pickDeco('frames', cur); if (r == null) return; u = r === 'none' ? '' : r; }
     else u = await pickImage(t, { ratio, size, png: !!png, has: !!cur });
     if (u == null) return;
+    if (u && png) u = await cutout(u, k === 'frame');
     let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...D(key), own: own.id }; }
     if (u) own.imgs[k] = u; else { delete own.imgs[k]; delete state.forum.decos[key][k]; }
     await saveSets(); commit('forum'); repaint();
@@ -68,7 +70,7 @@ export function setTiles() {
     } }, h('span.as-lib-chatskins__mock.as-fo-settile', { style: { backgroundImage: s.imgs.cover ? `url("${s.imgs.cover}")` : '' } }),
     h('em', s.name), h('span.as-fo-looktile__more', { role: 'button', 'aria-label': s.name + '更多', onclick: e => { e.stopPropagation(); menu(s); } }, icon('more', 16, 2.4)));
     box.replaceChildren(group('装扮套装', [sets().length ? h('div.as-lib-chatskins', sets().map(tile)) : empty('还没有套装')]),
-      h('div.as-lib-actions.is-two', btn('导入', 'secondary', importSet), btn('新建', 'primary', () => { const s = { id: uid('fd'), name: '我的套装', imgs: {} }; editSet(s, true, draw); })));
+      h('div.as-lib-actions', btn('导入套装文件', 'secondary', importSet), btn('从截图拆', 'secondary', () => split(draw)), btn('新建', 'primary', () => { const s = { id: uid('fd'), name: '我的套装', imgs: {} }; editSet(s, true, draw); })));
   };
   async function menu(s) {
     const v = await actionSheet(s.name, [{ value: 'edit', label: '编辑', icon: 'edit' }, { value: 'out', label: '导出', icon: 'box' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
@@ -95,7 +97,8 @@ function editSet(s, isNew, done) {
   const rows = PIECES.map(([k, t, ratio, size, png]) => {
     const prev = h('img.as-fo-lookimg', { alt: '', hidden: !imgs[k] }); if (imgs[k]) prev.src = imgs[k];
     return item({ title: t, right: prev, chevron: true, onClick: async () => {
-      const u = await pickImage(t, { ratio, size, png: !!png, has: !!imgs[k] }); if (u == null) return;
+      let u = await pickImage(t, { ratio, size, png: !!png, has: !!imgs[k] }); if (u == null) return;
+      if (u && png) u = await cutout(u, k === 'frame');
       if (u) { imgs[k] = u; prev.src = u; prev.hidden = false; } else { delete imgs[k]; prev.hidden = true; }
     } });
   });
@@ -109,5 +112,82 @@ function editSet(s, isNew, done) {
 export function openDress() {
   const p = page({ app: 'forum', id: 'forum-dress', title: '装扮', back: true });
   p.body.append(h('div.as-fo-set', setTiles()));
+  nav.push(p.el);
+}
+
+/* ---------- 抠图：要透明的部件（头像框、小图标…）传的图没有透明，就把和四周连着、颜色差不多的底色抠掉（纯色、渐变底好用，花底抠不干净） ---------- */
+const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+// 头像框：中间头像那一圈挖空（框画在头像外面一圈，比头像大：头像 = 框的 1 / 1.44）
+function hole(g, w) { const r = w / 2; g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(r, r, r / 1.44 * 1.02, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
+async function cutout(url, frame) {
+  if (!/^data:image\//.test(url)) return url;
+  const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
+  x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, H), a = d.data, at = (i, j) => (j * w + i) * 4;
+  for (let i = 0; i < w; i++) if (a[at(i, 0) + 3] < 250 || a[at(i, H - 1) + 3] < 250) return url;   // 本来就有透明，不动
+  const near = (p, q, t) => Math.abs(a[p] - a[q]) + Math.abs(a[p + 1] - a[q + 1]) + Math.abs(a[p + 2] - a[q + 2]) < t;
+  const seen = new Uint8Array(w * H), q = [];
+  for (let i = 0; i < w; i++) q.push([i, 0, at(i, 0)], [i, H - 1, at(i, H - 1)]);
+  for (let j = 0; j < H; j++) q.push([0, j, at(0, j)], [w - 1, j, at(w - 1, j)]);
+  // 从四边往里走：和走过来的那一格颜色接近（渐变也跟得上），又和起点的底色差不太远，就当底色
+  while (q.length) {
+    const [i, j, from] = q.pop(); if (i < 0 || j < 0 || i >= w || j >= H || seen[j * w + i]) continue;
+    const p = at(i, j); if (!near(p, from, 60)) continue;
+    seen[j * w + i] = 1; a[p + 3] = 0;
+    q.push([i + 1, j, p], [i - 1, j, p], [i, j + 1, p], [i, j - 1, p]);
+  }
+  x.putImageData(d, 0, 0);
+  if (frame) hole(x, w);
+  return c.toDataURL('image/png');
+}
+
+/* ---------- 从截图拆：整张截图铺开，按微博主页常见的位置先摆好几个框，拖一拖、拉一拉大小，点「完成」一次切好变成一个新套装 ---------- */
+// 框：[部件, 叫法, 左, 上, 宽, 高]，都是截图宽度的几分之几；top 从内容最上面量、bottom 从最下面量
+const BOXES = [['cover', '背景', 0, .22, 1, .32, 'top'], ['frame', '头像框', .01, .465, .24, .24, 'top'], ['tab', '标签小图', .36, .95, .07, .065, 'top'],
+  ['tabline', '标签下的花边', .41, 1.008, .085, .024, 'top'], ['btn', '底栏按钮小图', .075, .215, .1, .085, 'bottom'], ['bar', '底栏', 0, .09, 1, .09, 'bottom']];
+async function split(done) {
+  const f = await pickFile('image/*'); if (!f) return;
+  const url = URL.createObjectURL(f), im = await loadImg(url).catch(() => null);
+  if (!im) { toast('这张图打不开'); return; }
+  // 去掉相册看大图时上下的黑边
+  const c = document.createElement('canvas'), W = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const dark = j => { const r = x.getImageData(0, j, W, 1).data; let n = 0; for (let i = 0; i < r.length; i += 16) n += r[i] + r[i + 1] + r[i + 2] < 150; return n > W / 4 * .6; };   // 黑边上有时间、「3/4」这些小字，六成是黑的就算
+  let y0 = 0, y1 = H - 1; while (y0 < H / 2 && dark(y0)) y0++; while (y1 > H / 2 && dark(y1)) y1--;
+  const p = page({ app: 'library', id: 'library-forum-split', title: '从截图拆', back: true });
+  const stage = h('div.as-fo-split', h('img', { src: url, alt: '', style: { marginTop: -y0 / W * 100 + '%' } }));
+  stage.style.aspectRatio = `${W} / ${y1 - y0 + 1}`;
+  const boxes = BOXES.map(([k, t, l, tp, bw, bh, from]) => {
+    const top = from === 'top' ? tp : (y1 - y0) / W - tp;
+    const b = h('div.as-fo-split__box', { dataset: { k } }, h('span', t), h('i.as-fo-split__x', { role: 'button', 'aria-label': '不要这块', onclick: e => { e.stopPropagation(); b.remove(); } }, '×'), h('i.as-fo-split__size'));
+    Object.assign(b.style, { left: l * 100 + '%', top: top * W / (y1 - y0) * 100 + '%', width: bw * 100 + '%', height: bh * W / (y1 - y0) * 100 + '%' });
+    drag(b, k === 'frame'); return b;
+  });
+  stage.append(...boxes);
+  function drag(b, square) {
+    let s = null;
+    b.onpointerdown = e => { if (e.target.closest('.as-fo-split__x')) return; b.setPointerCapture(e.pointerId); const r = stage.getBoundingClientRect(); s = { x: e.clientX, y: e.clientY, r, l: b.offsetLeft, t: b.offsetTop, w: b.offsetWidth, h: b.offsetHeight, size: !!e.target.closest('.as-fo-split__size') }; };
+    b.onpointermove = e => {
+      if (!s) return; const dx = e.clientX - s.x, dy = e.clientY - s.y, R = s.r;
+      if (s.size) { const w = Math.max(16, s.w + dx), hh = square ? w : Math.max(10, s.h + dy); b.style.width = w / R.width * 100 + '%'; b.style.height = hh / R.height * 100 + '%'; }
+      else { b.style.left = Math.min(R.width - s.w, Math.max(0, s.l + dx)) / R.width * 100 + '%'; b.style.top = Math.min(R.height - s.h, Math.max(0, s.t + dy)) / R.height * 100 + '%'; }
+    };
+    b.onpointerup = b.onpointercancel = () => { s = null; };
+  }
+  p.body.append(stage, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => nav.pop()), btn('完成', 'primary', async () => {
+    const imgs = {};
+    for (const b of stage.querySelectorAll('.as-fo-split__box')) {
+      const k = b.dataset.k, [, , , size] = PIECES.find(z => z[0] === k), r = stage.getBoundingClientRect(), k2 = W / r.width;
+      const sx = b.offsetLeft * k2, sy = y0 + b.offsetTop * k2, sw = b.offsetWidth * k2, sh = b.offsetHeight * k2, z = Math.min(1, size / Math.max(sw, sh));
+      const o = document.createElement('canvas'); o.width = Math.round(sw * z); o.height = Math.round(sh * z);
+      const g = o.getContext('2d'); g.drawImage(im, sx, sy, sw, sh, 0, 0, o.width, o.height);
+      // 头像框：中间挖空，圈外也不要
+      if (k === 'frame') { hole(g, o.width); g.globalCompositeOperation = 'destination-in'; g.beginPath(); g.arc(o.width / 2, o.width / 2, o.width / 2, 0, 7); g.fill(); }
+      imgs[k] = k === 'frame' ? o.toDataURL('image/png') : o.toDataURL('image/jpeg', .9);
+    }
+    if (!Object.keys(imgs).length) { toast('没有框'); return; }
+    const set = { id: uid('fd'), name: '截图拆的', imgs };
+    SETS.push(set); await saveSets(); URL.revokeObjectURL(url); nav.pop(); done(); toast('拆好了，缺的自己传');
+    editSet(set, false, done);
+  })));
   nav.push(p.el);
 }

@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, dressMenu, openDress } from './dress.js';
+import { dressOf, dressed, dressMenu, openDress, hooks } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -352,7 +352,7 @@ function inboxPane() {
 /** 我：就是我自己的主页（照真微博），右上搜索、设置；我的号、营销号、熟人在设置里 */
 function mePane(p) {
   const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
-  R.mePaint = v.paint;
+  R.mePaint = v.paint; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
   return { el: h('div.as-fo-me', ...v.els), title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('palette', '装扮', openDress), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
