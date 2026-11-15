@@ -61,7 +61,7 @@ export const CHANNELS = {
     { v: 'openai-embed', label: '第三方向量（OpenAI 兼容）', tag: '向量', base: '', model: 'text-embedding-3-small', site: '', custom: true },
     { v: 'siliconflow-rerank', label: '硅基流动', tag: '重排', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-reranker-v2-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '向量找到以后再排一遍，挑最对得上的。' },
     { v: 'siliconflow-stt', label: '硅基流动', tag: '听写', base: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', site: 'https://cloud.siliconflow.cn/account/ak', note: '通话时把你说的话转成字。' },
-    { v: 'tencent-asr', label: '腾讯云（边说边出字）', tag: '听写', base: 'wss://asr.cloud.tencent.com/asr/v2', model: '16k_zh_en', site: 'https://console.cloud.tencent.com/asr', fields: [['appId', 'AppID'], ['secretId', 'SecretId']], note: '在腾讯云「语音识别」控制台开通，密钥填 SecretKey。「后付费」别开：每月 5 小时用完会自动停，不扣钱。' },
+    { v: 'tencent-asr', label: '腾讯云（边说边出字）', tag: '听写', base: 'wss://asr.cloud.tencent.com/asr/v2', model: '16k_zh', site: 'https://console.cloud.tencent.com/asr', fields: [['appId', 'AppID'], ['secretId', 'SecretId']], note: '在腾讯云「语音识别」控制台开通，密钥填 SecretKey。「后付费」别开：每月 5 小时用完会自动停，不扣钱。' },
     { v: 'openai-realtime', label: 'OpenAI 实时语音', tag: '通话', base: 'https://api.openai.com/v1', model: 'gpt-realtime-2.1', site: 'https://platform.openai.com/api-keys' },
     { v: 'gemini-live', label: 'Gemini Live', tag: '通话', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.8-live', site: 'https://aistudio.google.com/apikey' },
     { v: 'other-compat', label: '自定义（OpenAI 兼容）', tag: '', base: '', model: '', site: '', custom: true },
