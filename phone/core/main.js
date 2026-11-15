@@ -244,7 +244,7 @@ async function boot() {
   let touching = null, liveT = 0, livePressed = false, x0 = 0, y0 = 0;
   phone.addEventListener('pointerdown', e => {
     if (nav.depth() > 0 && !isLocked()) return;
-    if (e.target.closest('button, .as-lock-notice, .as-pin, .as-home-widget, .as-home-app, .as-sheet, .as-dialog-mask')) return;
+    if (e.target.closest('button, .as-lock-notice, .as-pin, .as-home-widget, .as-home-app, .as-desk-item, .as-sheet, .as-dialog-mask')) return;
     const p = phone.getBoundingClientRect(); touching = e.pointerId; x0 = e.clientX; y0 = e.clientY; wallpaper.tap(e.clientX - p.left, e.clientY - p.top);
     clearTimeout(liveT); liveT = setTimeout(() => { livePressed = wallpaper.livePlay(); }, 300);
   });

@@ -9,6 +9,7 @@ import * as time from '../../core/time.js';
 import * as walls from '../../core/walls.js';
 import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
+import { desk, setDesk, cleanDesk } from '../home/home.js';
 
 // 教程：每个能美化的地方（整部手机 / 某个 App / 某一页）一份：常用门牌号（类名）+ 例子
 const GUIDE = {
@@ -36,7 +37,7 @@ const GUIDE = {
   settings: { cls: [['[class*="as-settings-"]', '设置的东西都以 .as-settings- 开头'], ['.as-list-item__icon', '每行前面的小图标']] },
   library: { cls: [['.as-lib-theme', '一张主题卡片']] },
   log: { cls: [['[class*="as-log-"]', '日志的东西都以 .as-log- 开头']] },
-  home: { cls: [['.as-home-widget', '时间小组件'], ['.as-home-grid', '图标那几排'], ['.as-home-app__icon', '一个图标'], ['.as-home-app__name', '图标下面的名字']] },
+  home: { cls: [['.as-home-widget', '时间小组件'], ['.as-desk-page', '桌面的一页'], ['.as-home-dock', '底下那排常用'], ['.as-desk-w', '一个组件'], ['.as-home-app__icon', '一个图标'], ['.as-home-app__name', '图标下面的名字']] },
   lock: { cls: [['.as-lock-clock', '大时间'], ['.as-lock-date', '日期'], ['.as-lock-notice', '通知'], ['.as-lock-keypad', '密码键盘']],
     ex: [{ name: '大一号的锁屏时钟', css: `.as-lock-clock { font-size: 118px !important; }` }] },
 };
@@ -142,6 +143,7 @@ function useTheme(k, t) {
   setTheme(k);
   const w = t.walls || { lock: t.wall, home: t.wall };
   Object.assign(state.settings.walls, { lock: w.lock, home: w.home, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook();
+  if (t.desk) setDesk(structuredClone(t.desk));
   toast(`已换成「${t.name}」`);
 }
 function drawThemes(box, redraw) {
@@ -162,12 +164,12 @@ function drawThemes(box, redraw) {
   box.append(h('div.as-lib-actions.is-two', btn('导入', 'secondary', () => importTheme(redraw)), btn('存成主题', 'secondary', () => saveTheme(redraw))),
     h('div.as-lib-themes', ...Object.entries(THEMES).map(([k, t]) => card(k, t, false)), ...userThemes().map(t => card(t.id, t, true))));
 }
-/** 把现在的样子（颜色、锁屏和桌面壁纸、作用在全部的皮肤）存成一个主题 */
+/** 把现在的样子（颜色、锁屏和桌面壁纸、桌面上的图标和组件、作用在全部的皮肤）存成一个主题 */
 async function saveTheme(redraw) {
   const name = await dialog({ title: '存成主题', input: { value: '我的主题' } }); if (!name || !name.trim()) return;
   const L = lib(), u = userThemes().find(x => x.id === L.theme);
   const css = [u && u.css, ...L.skins.filter(x => x.on && x.scope === 'all').map(x => x.css)].filter(Boolean).join('\n');
-  const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, css };
+  const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, desk: structuredClone(desk()), css };
   userThemes().push(t); setTheme(t.id); toast(`存好了「${t.name}」`); redraw();
 }
 async function themeMenu(t, redraw) {
@@ -175,7 +177,7 @@ async function themeMenu(t, redraw) {
   if (v === 'out') {
     toast('正在打包…', true);
     try {
-      const data = { asterphone: 'theme', v: 1, name: t.name, base: t.base, css: t.css, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) } };
+      const data = { asterphone: 'theme', v: 1, name: t.name, base: t.base, css: t.css, desk: t.desk, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) } };
       const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-主题-${t.name}.json` });
       document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
     } catch (e) { toast('打包失败：' + e.message); }
@@ -196,7 +198,7 @@ async function importTheme(redraw) {
   if (!d || d.asterphone !== 'theme') { toast('这不是 AsterPhone 的主题文件'); return; }
   toast('正在导入…', true);
   try {
-    const t = { id: uid('th'), name: String(d.name || '导入的主题').slice(0, 20), base: THEMES[d.base] ? d.base : 'aero', css: String(d.css || ''),
+    const t = { id: uid('th'), name: String(d.name || '导入的主题').slice(0, 20), base: THEMES[d.base] ? d.base : 'aero', css: String(d.css || ''), desk: cleanDesk(d.desk),
       walls: { lock: await walls.unpack(d.walls?.lock ?? 'water', 'lock'), home: await walls.unpack(d.walls?.home ?? 'water', 'home') } };
     userThemes().push(t); useTheme(t.id, t); redraw();
   } catch (e) { toast('导入失败：' + e.message); }
