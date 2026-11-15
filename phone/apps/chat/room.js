@@ -407,6 +407,7 @@ function openSettings(chat, redrawRoom) {
       ].filter(Boolean)),
       replyGroup(chat, save),
       group('通话', [
+        toggleItem({ title: withInfo('停下来自动发', '点输入框，用输入法自带的语音输入说话：字出来后停一下就自动发出去，不用点发送。打字时停顿也会发。') }, !!cfg.callAuto, v => { cfg.callAuto = v; save(); }),
         toggleItem({ title: withInfo('写动作', '用（）写一点语气、动作，只显示不念出来。关掉就只有说出口的话。') }, cfg.callAct !== false, v => { cfg.callAct = v; save(); }),
         h('div.as-field', h('span.as-field__label', withInfo('带多少背景', '带得越少，TA 开口越快。全带：和打字聊天一样。少带正文：正文只带最后一段。最少：再连世界书也不带（人设写在世界书里的别选这个）。')),
           segmented([['full', '全带'], ['story', '少带正文'], ['min', '最少']], cfg.callCtx || 'story', v => { cfg.callCtx = v; save(); })),

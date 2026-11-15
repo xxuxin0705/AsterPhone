@@ -300,6 +300,12 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
   host.appendChild(el);
   requestAnimationFrame(() => el.classList.add('is-open'));
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) talk(); });
+  // 用输入法自带的语音输入（又快又准，还不花钱）：字落定后停 1.2 秒没再变就自动发出去，不用再点发送；TA 正在说就先打断
+  let autoT = 0;
+  if (chat.cfg.callAuto) input.addEventListener('input', e => {
+    clearTimeout(autoT); if (e.isComposing) return;
+    autoT = setTimeout(() => { if (ended || !input.value.trim()) return; if (busy) { busy.abort(); stopSpeak(); idle(); } talk(); }, 1200);
+  });
   const tick = setInterval(() => { if (on) { sec++; timer.textContent = `${mode === 'video' ? '视频' : '语音'}通话中 ${fmtDur(sec)}`; } }, 1000);
   if (incoming) setTimeout(() => { if (!picked && !ended) hang(); }, 45000);   // 45 秒没接：未接来电
   else setTimeout(() => { if (!ended) { on = true; timer.textContent = '已接通'; talk(true); } }, 1400);
