@@ -859,7 +859,14 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         d.type = v; paintSub(); touch(); rebuild();
       } }, h('span', (CHANNELS[kind].find(x => x.v === d.type) || {}).label || d.type), icon('chevron', 14, 2));
       // 「其他」线：标签自己写（格子上显示它，App 设置里按它挑），空着就用这一类默认的
-      const tagIn = kind === 'embed' && input({ value: d.tag || '', placeholder: (CHANNELS.embed.find(x => x.v === d.type) || {}).tag || '标签', onInput: v => { d.tag = v.trim().slice(0, 8); paintSub(); touch(); } });
+      // 点选，不让打字（作者遇到的：把密钥贴进了这一格，接口就归到一个不存在的类里，测试也测错了）
+      const tagNow = () => d.tag || (CHANNELS.embed.find(x => x.v === d.type) || {}).tag || '其他';
+      const tagIn = kind === 'embed' && h('button.as-pbd__select', { onclick: async () => {
+        const tags = [...new Set([...CHANNELS.embed.map(x => x.tag), ...C().embed.map(tagOf)].filter(t => t && t !== '其他'))];
+        let v = await actionSheet('这个接口用来做什么', [...tags.map(t => ({ value: t, label: t, active: t === tagNow() })), { value: '\0', label: '自己写' }]);
+        if (v === '\0') v = ((await dialog({ title: '标签', input: { value: d.tag || '' } })) || '').trim().slice(0, 8);
+        if (!v) return; d.tag = v; tagIn.firstChild.textContent = v; paintSub(); touch();
+      } }, h('span', tagNow()), icon('chevron', 14, 2));
       const baseIn = input({ value: d.base, placeholder: 'https://…', onInput: v => { d.base = v; touch(); } });
       // 密钥：可以存好几把，被拒了自动换下一把
       const keyBox = h('div.as-pbd__keys');

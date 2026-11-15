@@ -832,6 +832,7 @@ export function seedChannels() {
   if (rr && !d[auxKey('重排')] && !C.seeded.rerankPlug) { d[auxKey('重排')] = rr.id; changed = true; }
   C.seeded.rerankPlug = true;
   if (rr && em && !keysOf(rr).length && keysOf(em).length) { rr.key = em.key; rr.keys = [...(em.keys || [])]; changed = true; }
+  for (const c of C.embed) if (/^sk-/.test(c.tag || '')) { delete c.tag; changed = true; }   // 以前标签能打字，有人把密钥贴了进去：改回这一类默认的
   // 听写：和重排一样，第一次默认插在硅基流动上，密钥照抄向量那条的
   const st = C.embed.find(c => c.id === 'emb_siliconflow-stt');
   if (st && !d[auxKey('听写')] && !C.seeded.sttPlug) { d[auxKey('听写')] = st.id; changed = true; }
