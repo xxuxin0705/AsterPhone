@@ -86,8 +86,8 @@ export function defaults() {
     // 音乐（整部手机一份）：播放队列、放到哪、喜欢、最近、导入的歌单、皮肤、音源地址
     music: { queue: [], idx: 0, mode: 'list', pos: 0, liked: [], recent: [], lists: [], local: [], plays: {}, history: [], storySongs: false, skin: { name: 'record', disc: 'glass', bg: '' }, src: {} },
     musicNotes: [],   // 音乐笔记（歌词 + 感悟 + 乐评），跟着聊天窗口走
-    // 论坛（帖子本身存在 kv 的 forum:窗口 里）：地区和语言、营销号、熟人在论坛上的网名 / 认证 / 上不上（people[联系人 id]）、关注、热榜、收藏
-    forum: { region: '', lang: '', bots: [], people: {}, follows: [], hot: [], favs: [] },
+    // 论坛（帖子本身存在 kv 的 forum:窗口 里）：地区和语言、我的号（main 是大号，其余是小号）和现在用哪个、营销号、熟人在论坛上的网名 / 认证 / 上不上（people[联系人 id]）、关注、热榜、收藏
+    forum: { region: '', lang: '', accounts: [{ id: 'main', name: '', bio: '', avatar: '' }], cur: 'main', bots: [], people: {}, follows: [], hot: [], favs: [] },
     diary: { books: [] },   // 日记本：谁有一本、封面、什么时候写（日记本身存在 kv 的 diary:窗口 里）
   };
 }

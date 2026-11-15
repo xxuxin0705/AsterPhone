@@ -3,7 +3,7 @@
 import { uid } from '../../core/util.js';
 import { state, win, kvGet, kvSet, commit, contact } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
-import { compose } from '../../core/promptstore.js';
+import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
 import { LANGS, langName } from '../../core/translate.js';
 import { textOf } from '../../core/skin.js';
@@ -49,10 +49,17 @@ export const onForum = () => state.contacts.filter(c => !P(c.id).off);
 export const netName = c => P(c.id).name || c.nick || c.name || nameOf(c);
 export const isV = c => !!P(c.id).v;
 export const botOf = id => F().bots.find(b => b.id === id);
+/* 我的号：main 是大号；name 空着就用手机里我的网名 */
+export const accOf = id => F().accounts.find(a => a.id === id);
+export const curAcc = () => accOf(F().cur) || F().accounts[0];
+export const accName = a => (a && a.name) || (a && a.id === 'main' ? myNick() : '小号');
+/** 我现在发东西用的 by；匿名区里发的是匿名 */
+export const meBy = anon => ({ k: 'me', id: curAcc().id, ...(anon ? { anon: true, no: 0 } : {}) });
 /** 帖子、楼层上的 by → 显示用的 { name, avatar, v } */
 export function who(by) {
   if (by.anon) return { name: by.no ? `匿名 ${by.no} 号` : '匿名', anon: true };
   if (by.k === 'bot') { const b = botOf(by.id); return b ? { name: b.name, avatar: b.avatar, v: true, sub: b.topic } : { name: by.name || '已删除的号' }; }
+  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true } : { name: '已注销', me: true }; }
   if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c) } : { name: by.name || '用户' }; }
   return { name: by.name || '网友' };
 }
@@ -166,18 +173,26 @@ function threadText(p) {
   return [`楼主（${op}）：${p.title ? p.title + '\n' : ''}${p.text}${p.img ? `\n（配图：${p.img}）` : ''}`,
     ...(p.floors || []).map((f, i) => `${i + 1} 楼 ${floorWho(p, f)}${f.to ? ` 回复 ${f.to === 'op' ? '楼主' : (p.floors.findIndex(x => x.id === f.to) + 1) + ' 楼'}` : ''}：${f.text}`)].join('\n');
 }
+/** 楼主或楼里有我的号时告诉 AI：那是 {{user}}，但别人只看得到网名 */
+function mineNote(p) {
+  const mine = [p.by, ...(p.floors || []).map(f => f.by)].filter(b => b.k === 'me');
+  if (!mine.length) return '';
+  const names = [...new Set(mine.map(b => b.anon ? '' : accName(accOf(b.id))).filter(Boolean))];
+  return `【注意】${p.by.k === 'me' ? '楼主' : '有几层'}是 ${myName()} 发的${names.length ? `（用的网名：${names.join('、')}）` : '（匿名的）'}；别人只看得到网名，不知道是 TA，不能叫出 TA 的真名。不要替 TA 写${p.by.k === 'me' ? '，不要出现「楼主」的楼层' : ''}。`;
+}
 /** 给这条帖出几层楼（第一次点开、或者「再来一些」） */
-export async function thread(p, stop) {
+export async function thread(p, stop, { focus = '', count } = {}) {
   await load();
   const st = story(), anon = p.board === 'anon', first = !(p.floors || []).length;
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
-    prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: first ? '6～10' : '4～6',
+    prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '6～10' : '4～6'),
       world: (await worldBlock(st, anon ? [] : crowd())).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
-      lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: '' }) });
-  const list = p.floors || [], add = [];
+      lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n') }) });
+  const list = p.floors || [], add = [], mine = new Set(F().accounts.map(accName));
   for (const l of clean(raw).split('\n').map(x => x.trim()).filter(Boolean)) {
     const m = /^(?:\d+\s*楼\s*)?(.+?)(?:\s*回复\s*(楼主|\d+)\s*楼?)?\s*[:：]\s*(.+)$/.exec(l); if (!m || m[1].length > 24) continue;
     const [text, t2] = takeTr(m[3]), tr = t2 === text ? '' : t2, op = strip(m[1]) === '楼主';
+    if ((op && p.by.k === 'me') || mine.has(strip(m[1]))) continue;   // 不替我写
     const by = op ? { ...p.by, op: true } : byName(m[1], p.board);
     const to = m[2] === '楼主' ? 'op' : m[2] ? (list.concat(add)[+m[2] - 1] || {}).id || 'op' : '';
     add.push({ id: uid('ff'), by, to, text, tr, likes: rnd(40), ...time.stamp() });
@@ -186,5 +201,28 @@ export async function thread(p, stop) {
   p.floors = list.concat(add); p.cmts = Math.max(p.cmts, p.floors.length);
   await save();
   return add;
+}
+/** 我发帖：马上存好、返回这条（别人的回复由页面接着找 AI） */
+export async function post({ board, title = '', text, pic = '' }) {
+  await load();
+  const p = { id: uid('fp'), board, by: meBy(board === 'anon'), title: title.slice(0, 40), text, tr: '', img: '', pic, likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
+  D.posts.unshift(p); prune(); await save();
+  return p;
+}
+/** 我回一层：to = 回哪一楼（'op' 楼主）；在自己的帖里回就是楼主 */
+export async function reply(p, text, to = '') {
+  const by = p.by.k === 'me' && p.by.id === curAcc().id ? { ...p.by, op: true } : meBy(p.board === 'anon');
+  if (by.anon && !by.op) by.no = p.myNo || (p.myNo = Math.max(0, ...(p.floors || []).map(f => f.by.no || 0)) + 1);
+  const f = { id: uid('ff'), by, to, text, tr: '', likes: 0, ...time.stamp() };
+  (p.floors = p.floors || []).push(f); p.cmts++;
+  await save();
+  return f;
+}
+/** 给营销号投稿：营销号马上发出来（不写是谁投的） */
+export async function submit(bot, text) {
+  await load();
+  const p = { id: uid('fp'), board: 'global', by: { k: 'bot', id: bot.id }, sub: true, title: '', text: '【投稿】' + text, tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
+  D.posts.unshift(p); prune(); await save();
+  return p;
 }
 export const fmt = n => (n >= 1e4 ? (n / 1e4).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + '万' : String(n || 0));
