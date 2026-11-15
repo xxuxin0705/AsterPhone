@@ -212,7 +212,7 @@ const charPersona = c => (ctxCfg().charPersona && personaOf(c)) || '（没有更
 const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没有更多资料）';
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
 // 正文最后一段在提示词结尾再贴一遍（作者遇到的：人就在旁边，AI 却回成在自己房间——正文太长，最后的状况埋在中间被忽略了）
-const tailOf = story => { if (story === '（暂无）') return ''; const t = story.slice(-400); return `\n\n【正文最后停在这里（你现在在哪、在做什么、和对方在不在一起，以这里为准）】\n…${t.slice(t.indexOf('\n') + 1) || t}`; };
+const tailOf = story => { if (story === '（暂无）') return ''; const t = story.slice(-800); return `\n\n【正文最后停在这里（你现在在哪、在做什么、和对方在不在一起，以这里为准）】\n…${t.slice(t.indexOf('\n') + 1) || t}`; };
 /** 世界书 + 岁岁砂里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
  *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
 async function worldBlock(scan, people = [], cat, sid) {
