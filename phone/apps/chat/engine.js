@@ -215,8 +215,8 @@ const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正
 const tailOf = story => { if (story === '（暂无）') return ''; const t = story.slice(-800); return `\n\n【正文最后停在这里（你现在在哪、在做什么、和对方在不在一起，以这里为准）】\n…${t.slice(t.indexOf('\n') + 1) || t}`; };
 /** 世界书 + 岁岁砂里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
  *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
-async function worldBlock(scan, people = [], cat, sid) {
-  const w = await worldText(scan).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
+async function worldBlock(scan, people = [], cat, sid, noBook) {
+  const w = noBook ? '' : await worldText(scan).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
   const own = cat && blocksIn(cat, sid).some(b => b.on && b.text.includes('{{memory}}'));
   return { world: (w ? `\n【世界书】\n${w}\n` : '') + m + (own ? '' : r), memory: own ? r : '' };
 }
@@ -229,14 +229,16 @@ const memNote = chat => state.apps.memory.on && memOn(chat) ? '\n\n' + compose('
 /** 把回复里的 <astermem> 拿出来（没写完被截断的也去掉），剩下的才是消息 */
 const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<astermem>([\s\S]*?)<\/astermem>/gi, (_, x) => { mem += x + '\n'; return ''; }).replace(/<astermem>[\s\S]*$/i, ''); return [text, mem.trim()]; };
 const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '岁岁砂', '记不下这段聊天：' + e.message));
-export async function buildReplyPrompt(chat, msgs) {
+/** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
+export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
-  const story = storyNow(), history = historyText(msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid);
+  const all = storyNow(), cut = all.slice(-1500), story = lite && all.length > 1500 ? '…' + cut.slice(cut.indexOf('\n') + 1) : all;
+  const history = historyText(msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid, lite === 'min');
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
     story, ...wb, time: t, history, min, max,
-  }, sid) + tailOf(story);
+  }, sid) + (lite ? '' : tailOf(story));
   return { system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t) };
 }
 const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -383,9 +385,9 @@ async function deliverDM(p, text) {
  *  边写边给（onUnit）：一句写定了就交出去念，不等整段写完。「译：」那行跟着上一句；一句后面还可能跟「译：」，所以要等到译文那行写完、或下一句开了头才算写定 */
 export async function callReply(chat, lines, mode, stop, onUnit = () => {}) {
   const c = contact(chat.contactId), msgs = await getMsgs(chat.id);
-  const { prompt } = await buildReplyPrompt(chat, msgs);
+  const { prompt } = await buildReplyPrompt(chat, msgs, { full: '', min: 'min' }[chat.cfg.callCtx] ?? 'story');
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
-  const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行，句子短一点；可以用（）写一点语气或动作；不要发特殊消息。正文里 ${nameOf(c)} 的台词是什么语言，就用什么语言说；说的不是中文时，每句下面另起一行，以「译：」开头写这句的中文意思。`;
+  const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行，句子短一点；${chat.cfg.callAct === false ? '只写说出口的话，不要写动作、神态，不要用括号' : '可以用（）写一点语气或动作（括号里的不会念出来）'}；不要发特殊消息。正文里 ${nameOf(c)} 的台词是什么语言，就用什么语言说；说的不是中文时，每句下面另起一行，以「译：」开头写这句的中文意思。`;
   const units = []; let sent = 0;
   const read = (raw, done) => {
     const t = String(raw || '').replace(/<(think(?:ing)?|inner|astermem)>[\s\S]*?(<\/\1>|$)/gi, ''), cut = done ? t.length : t.lastIndexOf('\n') + 1, tail = t.slice(cut).trim();

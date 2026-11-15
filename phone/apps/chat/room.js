@@ -406,6 +406,11 @@ function openSettings(chat, redrawRoom) {
         tempRow,
       ].filter(Boolean)),
       replyGroup(chat, save),
+      group('通话', [
+        toggleItem({ title: withInfo('写动作', '用（）写一点语气、动作，只显示不念出来。关掉就只有说出口的话。') }, cfg.callAct !== false, v => { cfg.callAct = v; save(); }),
+        h('div.as-field', h('span.as-field__label', withInfo('带多少背景', '带得越少，TA 开口越快。全带：和打字聊天一样。少带正文：正文只带最后一段。最少：再连世界书也不带（人设写在世界书里的别选这个）。')),
+          segmented([['full', '全带'], ['story', '少带正文'], ['min', '最少']], cfg.callCtx || 'story', v => { cfg.callCtx = v; save(); })),
+      ]),
       // 定时来找你只有仅线上才有；正文里提到 TA 就会来，不用设
       ...(cfg.linkMode === 'online' ? (() => {
         const every = sliderRow('多久来找你一次', 1, 24, 1, cfg.proactiveEvery || ({ low: 6, normal: 2, high: 1 })[cfg.proactiveFreq] || state.apps.chat.defaults.proactiveEvery || 3, v => { cfg.proactiveEvery = v; save(); }, v => v + ' 小时');

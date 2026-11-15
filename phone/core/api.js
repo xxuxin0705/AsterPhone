@@ -581,7 +581,23 @@ export async function synthesize(conn, text, opts = {}) {
   try { const u = await orAbort(synthRaw(conn, text, opts), call.signal); call.done('[一段声音]'); return u; }
   catch (e) { call.fail(e.message); throw Object.assign(e, { logId: call.id }); }
 }
-async function synthRaw(conn, text, { voice, act = {} } = {}) {
+// 边合成边播（通话用，opts.stream）：接口能一小块一小块给 mp3 的，回一条字节流（ReadableStream）让播放器边收边播；不能的照旧回整段声音的地址
+const mp3Of = res => /mpeg|mp3/i.test(res.headers.get('content-type') || '') && res.body ? res.body : audioOf(res);
+/** 一行一个 JSON（或 SSE 的 data: 行）的回复：每行交给 pick 变成一小块声音 */
+function lineStream(res, pick) {
+  const rd = res.body.getReader(), td = new TextDecoder(); let buf = '', end = false;
+  return new ReadableStream({ async pull(c) {
+    for (;;) {
+      const i = buf.indexOf('\n');
+      if (i < 0 && !end) { const { done, value } = await rd.read(); if (done) end = true; else buf += td.decode(value, { stream: true }); continue; }
+      const l = (i < 0 ? buf : buf.slice(0, i)).replace(/^data:\s*/, '').trim(); buf = i < 0 ? '' : buf.slice(i + 1);
+      const b = l[0] === '{' && pick(JSON.parse(l));
+      if (b) return c.enqueue(b);
+      if (i < 0) return c.close();
+    }
+  }, cancel() { rd.cancel(); } });
+}
+async function synthRaw(conn, text, { voice, act = {}, stream: S } = {}) {
   const T = conn.tts || {}, v = voice || T.voice || conn.voice || (CHANNELS.tts.find(x => x.v === conn.type) || {}).voice || '';
   const key = keysOf(conn)[0] || '', base = trim(conn.base), speed = T.speed || 1;
   const bad = async res => { throw new Error(await readErr(res)); };
@@ -589,8 +605,10 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
   switch (conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type) {
     case 'minimax-cn': case 'minimax-intl': {
       const res = await xf(`${base}/v1/t2a_v2${conn.groupId ? '?GroupId=' + encodeURIComponent(conn.groupId) : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-        body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: false, voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0, ...(act.emotion && { emotion: act.emotion }) }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
+        body: JSON.stringify({ model: conn.model || 'speech-2.8-hd', text, stream: !!S, ...(S && { stream_options: { exclude_aggregated_audio: true } }), voice_setting: { voice_id: v || 'female-shaonv', speed, vol: Math.max(.1, (T.volume ?? 1) * 1), pitch: T.pitch || 0, ...(act.emotion && { emotion: act.emotion }) }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 } }) });
       if (!res.ok) await bad(res);
+      // 流式：status 1 是一小块，最后 status 2 那行是整段（不要，不然会念两遍）
+      if (S && !/json/i.test(res.headers.get('content-type') || '')) return lineStream(res, j => { if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`); return j.data && j.data.status === 1 && j.data.audio && hexToBytes(j.data.audio); });
       const j = await res.json(); if (j.base_resp && j.base_resp.status_code) throw new Error(`${j.base_resp.status_code} ${j.base_resp.status_msg}`);
       if (!j.data || !j.data.audio) throw new Error('MiniMax 没有返回声音');
       return URL.createObjectURL(new Blob([hexToBytes(j.data.audio)], { type: 'audio/mpeg' }));
@@ -600,12 +618,12 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
         body: JSON.stringify({ model: 'fish-audio/' + String(conn.model || 's2.1-pro').replace(/^fish-audio\//, ''), input: text, voice: v || '', response_format: 'mp3', ...(speed !== 1 && { speed }), ...(temp && { temperature: temp }) }) });
       let res = await send(act.temperature);
       if (!res.ok && act.temperature) res = await send();   // 张力换成的温度这个地址不认：去掉再来一次
-      if (!res.ok) await bad(res); return audioOf(res);
+      if (!res.ok) await bad(res); return S ? mp3Of(res) : audioOf(res);
     }
     case 'elevenlabs': {
-      const res = await xf(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+      const res = await xf(`${base}/v1/text-to-speech/${encodeURIComponent(v || 'JBFqnCBsd6RMkjVDRZzb')}${S ? '/stream' : ''}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
         body: JSON.stringify({ text, model_id: conn.model || 'eleven_multilingual_v2', voice_settings: { speed } }) });
-      if (!res.ok) await bad(res); return audioOf(res);
+      if (!res.ok) await bad(res); return S ? mp3Of(res) : audioOf(res);
     }
     case 'mimo': {
       const res = await xf(oaiBase(base) + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
@@ -621,6 +639,7 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
           headers: { 'Content-Type': 'application/json', 'X-Api-App-Id': conn.appId, 'X-Api-Access-Key': key, 'X-Api-Resource-Id': conn.resId || 'seed-tts-2.0' },
           body: JSON.stringify({ user: { uid: 'asterphone' }, req_params: { text, speaker: v || 'zh_female_xiaohe_uranus_bigtts', audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: Math.round((speed - 1) * 100) }, ...(act.context && { additions: JSON.stringify({ context_texts: [act.context] }) }) } }) });
         if (!res.ok) await bad(res);
+        if (S) return lineStream(res, j => { if (j.code && j.code !== 20000000) throw new Error(`${j.code} ${j.message || ''}`); return j.data && new Uint8Array([...atob(j.data)].map(ch => ch.charCodeAt(0))); });
         const parts = (await res.text()).match(/\{[^{}]*\}/g) || [], bytes = [];
         for (const t of parts) { const j = JSON.parse(t); if (j.data) bytes.push(b64ToBlob(j.data)); else if (j.code && j.code !== 20000000) throw new Error(`${j.code} ${j.message || ''}`); }
         if (!bytes.length) throw new Error('豆包没有返回声音');
@@ -636,7 +655,7 @@ async function synthRaw(conn, text, { voice, act = {} } = {}) {
     default: {   // OpenAI、IndexTTS 本地、第三方：/audio/speech
       const res = await xf(oaiBase(base) + '/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
         body: JSON.stringify({ model: conn.model || 'tts-1', input: text, voice: v || 'alloy', speed, ...(act.instructions && { instructions: act.instructions }), ...(act.emoText && { emo_text: act.emoText, use_emo_text: true }) }) });
-      if (!res.ok) await bad(res); return audioOf(res);
+      if (!res.ok) await bad(res); return S ? mp3Of(res) : audioOf(res);
     }
   }
 }
@@ -710,12 +729,43 @@ export async function testVoice(conn) {
 }
 /** 朗读：有语音连接就用它，失败或没有就用浏览器自带的（免费）。
  *  cache：聊天里的语音消息传一个钥匙，合成好的声音存在这台设备上，以后再放不用再合成（不再花钱）；silent：只合成存起来，不放 */
+// 开口前告诉别人（音乐会先停一下），说完再告诉一声
+const sayEv = d => { try { (window.parent || window).dispatchEvent(new CustomEvent('asterphone-voice', { detail: d })); } catch (e) { /* 拿不到酒馆页面就算了 */ } };
 export async function speak(text, opts = {}) {
   if (opts.silent) return speakRaw(text, opts);
-  // 开口前告诉别人（音乐会先停一下），说完再告诉一声
-  const say = d => { try { (window.parent || window).dispatchEvent(new CustomEvent('asterphone-voice', { detail: d })); } catch (e) { /* 拿不到酒馆页面就算了 */ } };
-  say('start');
-  try { return await speakRaw(text, opts); } finally { say('end'); }
+  sayEv('start');
+  try { return await speakRaw(text, opts); } finally { sayEv('end'); }
+}
+/** 一条字节流边收边播：收到一小块就塞给播放器，第一块进去就开口 */
+async function playStream(stream, a, onStart) {
+  const ms = new MediaSource(), rd = stream.getReader(); a.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, { once: true }));
+  const sb = ms.addSourceBuffer('audio/mpeg'), idle = () => sb.updating && new Promise(r => sb.addEventListener('updateend', r, { once: true }));
+  for (let on = false; ;) {
+    const { done, value } = await rd.read();
+    if (playing !== a) { rd.cancel(); return; }   // 被停掉了
+    if (done) break;
+    sb.appendBuffer(value); await idle();
+    if (!on) { on = true; a.play().catch(() => {}); onStart && onStart(); }
+  }
+  await idle(); if (ms.readyState === 'open') ms.endOfStream();
+}
+/** 通话用：现在就开始合成，返回的函数轮到这句时再调（= 开播）。能边收边播的接口第一小块到了就出声，不能的整句好了再播；
+ *  合成没成的照老办法念（重试、副 API、浏览器朗读都在 speak 里） */
+export function speakSoon(text, { conn = resolveConn('tts', 'chat'), voice, stop } = {}) {
+  const S = !!window.MediaSource && MediaSource.isTypeSupported('audio/mpeg');
+  const pre = conn ? synthesize(conn, text, { voice, stop, stream: S }).catch(e => { log('warn', '语音', `「${conn.name}」合成失败：${e.message}`); return null; }) : Promise.resolve(null);
+  return async onStart => {
+    const got = await pre; if (stop && stop.aborted) return;
+    if (!got) return speak(text, { conn, voice, stop, onStart });
+    stopSpeak(); sayEv('start');
+    const a = new Audio(); a.volume = Math.min(1, (conn.tts && conn.tts.volume) ?? 1); playing = a;
+    const over = new Promise(r => { a.onended = r; a.onerror = r; a.onpause = r; });
+    try {
+      if (got instanceof ReadableStream) await playStream(got, a, onStart); else { a.src = got; await a.play(); onStart && onStart(); }
+      if (playing === a) await over;
+    } finally { sayEv('end'); }
+  };
 }
 async function speakRaw(text, { voice, conn = resolveConn('tts', 'chat'), cache, silent, stop, acted, t, onStart } = {}) {   // onStart：真的出声那一刻（立绘动嘴）
   if (!silent) stopSpeak();

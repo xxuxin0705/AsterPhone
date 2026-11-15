@@ -4,7 +4,7 @@
 // - 没配音色的：开了「用默认音色」就按性别用这个接口的男声 / 女声默认，否则用接口的当前音色
 // - 读音表：全局一张，念之前把「写法」换成「读音」（主要给日语人名用），显示的字不动
 import { state, commit, contact } from './store.js';
-import { resolveConn, speak } from './api.js';
+import { resolveConn, speak, speakSoon } from './api.js';
 import { myAvatar } from './promptstore.js';
 
 export const V = () => state.voice || (state.voice = { mode: 'one', useDefault: true, people: {}, readings: [] });
@@ -48,6 +48,11 @@ export function readAloud(text) {
     .reduce((s, r) => s.split(r.from).join(r.to), String(text || ''));
 }
 /** 用某个人的声音念一段话 */
+/** 通话里用 TA 的声音：现在就开始合成，返回的函数轮到这句时再调 */
+export function soonAs(id, text, stop) {
+  const conn = connFor(id);
+  return speakSoon(readAloud(text), conn ? { conn, voice: voiceOf(id, conn).voice, stop } : { stop });
+}
 export function speakAs(id, text, opts = {}) {
   const conn = connFor(id);
   return speak(readAloud(text), conn ? { ...opts, conn, voice: voiceOf(id, conn).voice } : opts);
