@@ -677,9 +677,9 @@ export async function memoryForStory() {
   const names = [...new Set([c.name2, ...d.ppl.filter(p => [p.name, ...p.alias].some(n => scan.includes(n))).map(p => p.name)].filter(n => n && !isMe(n)))];
   let from = ctxFrom();
   if (c.maxContext) { let n = c.maxContext * .6; from = ms.length; while (from > 0 && (n -= (ms[from - 1].mes || '').length) > 0) from--; }
-  return memoryFor(names.map(n => state.contacts.find(x => x.name === n) || { name: n }), scan, from);
+  return memoryFor(names.map(n => state.contacts.find(x => x.name === n) || { name: n }), scan, from, state.apps.memory.vecStory === false);
 }
-export async function memoryFor(people, scan = '', upto = ctxFrom()) {
+export async function memoryFor(people, scan = '', upto = ctxFrom(), byWords = false) {
   const m = state.apps.memory;
   if (!m.on || !people.length) return ['', ''];
   const d = await load();
@@ -715,7 +715,7 @@ export async function memoryFor(people, scan = '', upto = ctxFrom()) {
   const here = spots.includes(tagAt) ? tagAt : (spots.map(n => [n, scan.lastIndexOf(n)]).filter(x => x[1] >= 0).sort((a, b) => b[1] - a[1])[0] || [''])[0];
   // 还在这轮上下文里的事（出自给手机看的那几楼正文）不用再想起：上下文调长调短，这里自动跟着变
   const from = upto, keep = [...pool.filter(e => e.pin), ...onDay];
-  const [got, drift, why, how] = await recollect(live.filter(e => !e.pin && !onDay.includes(e) && floorOf(e) < from), scan, new Set([...ns, myName(), '我']), here);
+  const [got, drift, why, how] = await recollect(live.filter(e => !e.pin && !onDay.includes(e) && floorOf(e) < from), scan, new Set([...ns, myName(), '我']), here, byWords);
   const cap = m.origMax ?? 500, byAt = (a, b) => (a.at || '9999').localeCompare(b.at || '9999');
   const brief = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${tail(e, pool)}`;
   // 同一个小标签的事：想起一件，另外几件（最近的 5 件）各一句、按先后带上；一个小标签只带一次
@@ -814,8 +814,8 @@ function noted(pick, drift) {
 }
 let vecErr = '';
 /** 回 [想起的, 忽然想起的一件, 每件为什么, 这次是怎么找的] */
-async function recollect(pool, scan, self, here) {
-  const m = state.apps.memory, conn = vecConn(), said = scan.slice(-240).trim(), words = () => [...recall(pool, scan, self), '按词找'];
+async function recollect(pool, scan, self, here, byWords) {
+  const m = state.apps.memory, conn = !byWords && vecConn(), said = scan.slice(-240).trim(), words = () => [...recall(pool, scan, self), '按词找'];
   if (!conn || !pool.length || !said) return words();
   const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 9000);
   try {

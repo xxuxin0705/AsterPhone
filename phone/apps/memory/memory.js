@@ -674,12 +674,14 @@ async function openSet() {
   } });
   M.vecState().then(v => val(vecRow, vecTxt(v)));
   const rr = toggleItem({ title: withInfo('再排一遍', '向量先找出最像的 20 件，重排模型再从里面挑出最准的。用的是 设置 → 连接 → 其他 里的「重排」。') }, m.rerank !== false, on => { m.rerank = on; commit('apps'); });
-  const vecOn = on => { rr.hidden = vecRow.hidden = !on; };
+  // 正文也按意思找（作者要的，默认开）：只在按意思找开着、正文互通时出现；关了正文就按字面找，手机照旧
+  const story = toggleItem({ title: '正文也按意思找' }, m.vecStory !== false, on => { m.vecStory = on; commit('apps'); });
+  const vecOn = on => { rr.hidden = vecRow.hidden = !on; story.hidden = !on || state.apps.chat.defaults.linkMode !== 'follow'; };
   vecOn(m.vec !== false);
   const back = group('回想', [
     toggleItem({ title: '聊天时带上记忆' }, m.on, on => { m.on = on; save(); }),
     toggleItem({ title: withInfo('按意思找', '把每件事和你刚说的话各算成一串数字（向量），比哪几件意思最像：说「感觉自己醉了」，也能想起喝酒那次。用的是 设置 → 连接 → 其他 里的「向量」。换了向量模型，以前算好的要重新算一遍；记下的事、关系、地点都不会丢，算好之前先按词找。关掉就只按词找。') }, m.vec !== false, on => { m.vec = on; commit('apps'); vecOn(on); }),
-    rr, vecRow,
+    story, rr, vecRow,
     pick('最多想起几件', 'slots', 3, [[1], [2], [3], [5], [8], [99, '不限']], ' 件'),
     pick('每件带多少原文', 'origMax', 500, [[200], [500], [1000], [2000], [0, '不限']], ' 字'),
     toggleItem({ title: withInfo('来时路', '每轮都带一份经历过的事的目录（日期、地点、标题，最多 60 件），TA 一直知道自己经历过什么；每轮的字数会多一些。') }, !!m.road, on => { m.road = on; commit('apps'); })]);
