@@ -222,7 +222,8 @@ function lookPanel() {
   const d = desk(), L = (d.look = d.look || {}), ch = () => { dress(); commit('library'); };
   const color = (title, key, alpha) => {
     const dot = h('span.as-lib-dot', { style: { background: L[key] || 'transparent' } });
-    return item({ title, right: dot, onClick: () => sheet({ title, content: h('div.as-mu-color', colorWheel(L[key] || '#ffffff', v => { L[key] = v; dot.style.background = v; ch(); }, alpha)) }) });
+    return item({ title, right: dot, onClick: () => { const c = sheet({ title, content: h('div.as-mu-color', colorWheel(L[key] || '#ffffff', v => { L[key] = v; dot.style.background = v; ch(); }, alpha),
+      btn('恢复默认', 'secondary', () => { delete L[key]; dot.style.background = 'transparent'; ch(); c.close(); })) }); } });
   };
   const row = (label, opt, fmt, key, def) => { const out = h('output', fmt(L[key] ?? def));
     return h('div.as-settings-slider-row', h('span', label), slider({ ...opt, value: L[key] ?? def, onInput: v => { L[key] = v; out.textContent = fmt(v); ch(); } }), out); };
