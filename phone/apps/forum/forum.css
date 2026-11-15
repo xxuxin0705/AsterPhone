@@ -224,3 +224,4 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-split__size { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 50%; background: #ff8200; box-shadow: 0 0 0 2px #fff; cursor: nwse-resize; }
 .as-fo-user__coverimg { display: none; }
 .as-fo-user__ava { display: grid; }
+.as-fo-user__tabs span span::after { display: none; }   /* 短条只画在标签上，不画在里面那层字上 */
