@@ -379,13 +379,26 @@ async function deliverDM(p, text) {
 }
 
 /** 通话中：TA 接着说几句（不写进聊天记录，挂断时整段变成一条通话记录） */
-export async function callReply(chat, lines, mode, stop) {
+/** 通话里 TA 接着说：一句一个 { text 原话, zh 中文意思（说的不是中文才有）}，最多 3 句。
+ *  边写边给（onUnit）：一句写定了就交出去念，不等整段写完。「译：」那行跟着上一句；一句后面还可能跟「译：」，所以要等到译文那行写完、或下一句开了头才算写定 */
+export async function callReply(chat, lines, mode, stop, onUnit = () => {}) {
   const c = contact(chat.contactId), msgs = await getMsgs(chat.id);
   const { prompt } = await buildReplyPrompt(chat, msgs);
   const talk = lines.map(l => `${l.who === 'me' ? myName() : nameOf(c)}：${l.text}`).join('\n') || '（刚接通）';
-  const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行；可以用（）写一点语气或动作；不要发特殊消息。`;
-  const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, app: '通话', stop });
-  return parseReply(raw, c).lines.filter(l => !/^\[/.test(l)).slice(0, 3);
+  const p2 = `${prompt}\n\n【你们现在正在${mode === 'video' ? '视频' : '语音'}通话，上面是通话前的聊天】\n通话内容：\n${talk}\n\n请以 ${nameOf(c)} 的身份接着说：用说话的口吻，1~3 句，每句一行，句子短一点；可以用（）写一点语气或动作；不要发特殊消息。正文里 ${nameOf(c)} 的台词是什么语言，就用什么语言说；说的不是中文时，每句下面另起一行，以「译：」开头写这句的中文意思。`;
+  const units = []; let sent = 0;
+  const read = (raw, done) => {
+    const t = String(raw || '').replace(/<(think(?:ing)?|inner|astermem)>[\s\S]*?(<\/\1>|$)/gi, ''), cut = done ? t.length : t.lastIndexOf('\n') + 1, tail = t.slice(cut).trim();
+    units.length = 0;
+    for (const l of t.slice(0, cut).split('\n').map(x => x.trim().replace(/^[-*•\d.、]+\s*/, '').replace(/^["“「]|["”」]$/g, '')).filter(x => x && !/^[[<]/.test(x))) {
+      const zh = /^译\s*[:：]\s*(.*)$/.exec(l);
+      if (zh) { if (units.length) units[units.length - 1].zh = zh[1]; } else if (units.length < 3) units.push({ text: l, zh: '' }); else break;
+    }
+    const ok = done ? units.length : units.length - (units.length && (units[units.length - 1].zh || (tail && !tail.startsWith('译'))) ? 0 : 1);
+    while (sent < ok) onUnit(units[sent++]);
+  };
+  read(await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, app: '通话', stop, onPart: t => read(t, false) }), true);
+  return units;
 }
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
 export async function regenerate(chat, msgId) {

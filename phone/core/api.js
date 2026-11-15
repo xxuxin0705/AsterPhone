@@ -55,11 +55,12 @@ export const CHANNELS = {
   ],
   // 「其他」线：向量记忆用的 Embedding 接口（以后找旧聊天用）
   embed: [
-    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、一个重排、两个实时通话，也可以自定义
+    // 「其他」线：标签（tag）是给自己认的，格子上显示它；App 设置里按它挑。内置两个向量、一个重排、一个听写、两个实时通话，也可以自定义
     { v: 'siliconflow-embed', label: '硅基流动', tag: '向量', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '免费的 BAAI/bge-m3 就够用，国内直连。' },
     { v: 'zhipu-embed', label: '智谱', tag: '向量', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'embedding-3', site: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', note: '智谱 BigModel 的 embedding-3。' },
     { v: 'openai-embed', label: '第三方向量（OpenAI 兼容）', tag: '向量', base: '', model: 'text-embedding-3-small', site: '', custom: true },
     { v: 'siliconflow-rerank', label: '硅基流动', tag: '重排', base: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-reranker-v2-m3', site: 'https://cloud.siliconflow.cn/account/ak', note: '向量找到以后再排一遍，挑最对得上的。' },
+    { v: 'siliconflow-stt', label: '硅基流动', tag: '听写', base: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', site: 'https://cloud.siliconflow.cn/account/ak', note: '通话时把你说的话转成字。' },
     { v: 'openai-realtime', label: 'OpenAI 实时语音', tag: '通话', base: 'https://api.openai.com/v1', model: 'gpt-realtime-2.1', site: 'https://platform.openai.com/api-keys' },
     { v: 'gemini-live', label: 'Gemini Live', tag: '通话', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.8-live', site: 'https://aistudio.google.com/apikey' },
     { v: 'other-compat', label: '自定义（OpenAI 兼容）', tag: '', base: '', model: '', site: '', custom: true },
@@ -831,6 +832,11 @@ export function seedChannels() {
   if (rr && !d[auxKey('重排')] && !C.seeded.rerankPlug) { d[auxKey('重排')] = rr.id; changed = true; }
   C.seeded.rerankPlug = true;
   if (rr && em && !keysOf(rr).length && keysOf(em).length) { rr.key = em.key; rr.keys = [...(em.keys || [])]; changed = true; }
+  // 听写：和重排一样，第一次默认插在硅基流动上，密钥照抄向量那条的
+  const st = C.embed.find(c => c.id === 'emb_siliconflow-stt');
+  if (st && !d[auxKey('听写')] && !C.seeded.sttPlug) { d[auxKey('听写')] = st.id; changed = true; }
+  C.seeded.sttPlug = true;
+  if (st && em && !keysOf(st).length && keysOf(em).length) { st.key = em.key; st.keys = [...(em.keys || [])]; changed = true; }
   return changed;
 }
 export const seedImageChannels = seedChannels;
@@ -865,6 +871,22 @@ const aux = (conn, path, body, signal) => withRetry('embed', '连接', async () 
   if (!res.ok) throw new Error(await readErr(res));
   return res.json();
 });
+/** 听写：一段录音变成字（OpenAI 兼容的 /audio/transcriptions） */
+export const transcribe = (conn, blob, signal) => withRetry('embed', '连接', async () => {
+  const f = new FormData(); f.append('file', blob, 'say.' + (/mp4|m4a|aac/.test(blob.type) ? 'm4a' : /wav/.test(blob.type) ? 'wav' : 'webm')); f.append('model', conn.model);
+  const res = await fetch(oaiBase(conn.base) + '/audio/transcriptions', { method: 'POST', signal, headers: { Authorization: 'Bearer ' + (keysOf(conn)[0] || '') }, body: f });
+  if (!res.ok) throw new Error(await readErr(res));
+  const t = (await res.json()).text;
+  if (typeof t !== 'string') throw new Error('接口没有返回文字');
+  return t.replace(/<\|[^|]*\|>/g, '').trim();   // SenseVoice 有时带 <|zh|> 这类记号
+});
+/** 测听写接口：发 0.3 秒没声音的录音，能回就算通 */
+export async function testStt(conn) {
+  const n = 4800, b = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, 16000, true); b.setUint32(28, 32000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
+  await transcribe(conn, new Blob([b], { type: 'audio/wav' }));
+}
 /** 测向量接口：把「你好」变成一串数字 */
 export const testEmbed = async conn => (await embed(conn, ['你好']))[0].length;
 /** 重排：docs 里哪几条和 query 最对得上。回 [[第几条, 分数]…]，分高的在前 */

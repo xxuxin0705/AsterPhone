@@ -49,7 +49,7 @@ function build() {
     frame.className = 'aster-frame';
     iframe = document.createElement('iframe');
     iframe.title = 'AsterPhone 小手机';
-    iframe.setAttribute('allow', 'autoplay; clipboard-write');
+    iframe.setAttribute('allow', 'autoplay; clipboard-write; microphone');
     frame.appendChild(iframe);
     overlay.appendChild(frame);
     document.body.appendChild(overlay);
