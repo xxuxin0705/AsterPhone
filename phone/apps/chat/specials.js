@@ -262,16 +262,22 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     try { stream = stream || await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (err) { held = false; return toast('没拿到麦克风权限'); }
     if (!held || ended) return;   // 第一次要先点「允许」，手已经松了：再按一次
     const chunks = [], r = rec = new MediaRecorder(stream);
-    r.ondataavailable = x => chunks.push(x.data);
+    // 边说边出字：每隔一秒多，把到目前为止录的先转一遍放进输入框（上一遍还没回来就跳过这次）；松手后再整段转一遍为准
+    let peek = null;
+    r.ondataavailable = x => {
+      chunks.push(x.data); if (peek || r.state !== 'recording') return;
+      const ac = peek = new AbortController();
+      transcribe(conn, new Blob(chunks, { type: r.mimeType }), ac.signal).then(t => { if (rec === r && t) input.value = t; }, () => {}).finally(() => { if (peek === ac) peek = null; });
+    };
     r.onstop = async () => {
-      rec = null; mic.classList.remove('is-on'); tell();
+      rec = null; mic.classList.remove('is-on'); tell(); if (peek) peek.abort();
       const blob = new Blob(chunks, { type: r.mimeType }); if (blob.size < 1500 || ended) return;   // 只是碰了一下
       hearing = new AbortController(); tell('正在转成字…');
-      try { const t = await transcribe(conn, blob, hearing.signal); tell(); if (t) { input.value = t; hearing = null; talk(); } else toast('没听清，再说一次'); }
+      try { const t = await transcribe(conn, blob, hearing.signal); tell(); if (t) { input.value = t; hearing = null; talk(); } else { input.value = ''; toast('没听清，再说一次'); } }
       catch (err) { tell(); if (!hearing.signal.aborted) toast('听写失败：' + err.message); }
       hearing = null;
     };
-    r.start(); mic.classList.add('is-on'); tell('正在听…松手发送');
+    r.start(1200); mic.classList.add('is-on'); tell('正在听…松手发送');
   });
   const up = () => { held = false; if (rec && rec.state === 'recording') rec.stop(); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => mic.addEventListener(ev, up));
