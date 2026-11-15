@@ -389,10 +389,12 @@ export async function callReply(chat, lines, mode, stop, onUnit = () => {}) {
   const units = []; let sent = 0;
   const read = (raw, done) => {
     const t = String(raw || '').replace(/<(think(?:ing)?|inner|astermem)>[\s\S]*?(<\/\1>|$)/gi, ''), cut = done ? t.length : t.lastIndexOf('\n') + 1, tail = t.slice(cut).trim();
-    units.length = 0;
+    units.length = 0; let pre = '';
     for (const l of t.slice(0, cut).split('\n').map(x => x.trim().replace(/^[-*•\d.、]+\s*/, '').replace(/^["“「]|["”」]$/g, '')).filter(x => x && !/^[[<]/.test(x))) {
       const zh = /^译\s*[:：]\s*(.*)$/.exec(l);
-      if (zh) { if (units.length) units[units.length - 1].zh = zh[1]; } else if (units.length < 3) units.push({ text: l, zh: '' }); else break;
+      if (zh) { if (units.length) units[units.length - 1].zh = zh[1]; }
+      else if (/^[（(][^）)]*[）)]$/.test(l)) pre = l;   // 整行只有（动作）：不单算一句，挂到下一句前面
+      else if (units.length < 3) { units.push({ text: pre + l, zh: '' }); pre = ''; } else break;
     }
     const ok = done ? units.length : units.length - (units.length && (units[units.length - 1].zh || (tail && !tail.startsWith('译'))) ? 0 : 1);
     while (sent < ok) onUnit(units[sent++]);

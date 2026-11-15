@@ -7,6 +7,7 @@ import { generateImage, stopSpeak, connOfTag, keysOf, transcribe } from '../../c
 import { speakAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { shell } from '../../core/shell.js';
+import { log as note } from '../../core/log.js';
 import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
 
 /* ================= 气泡 ================= */
@@ -272,8 +273,8 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     r.onstop = async () => {
       rec = null; mic.classList.remove('is-on'); tell(); if (peek) peek.abort();
       const blob = new Blob(chunks, { type: r.mimeType }); if (blob.size < 1500 || ended) return;   // 只是碰了一下
-      hearing = new AbortController(); tell('正在转成字…');
-      try { const t = await transcribe(conn, blob, hearing.signal); tell(); if (t) { input.value = t; hearing = null; talk(); } else { input.value = ''; toast('没听清，再说一次'); } }
+      hearing = new AbortController(); tell('正在转成字…'); const h0 = Date.now();
+      try { const t = await transcribe(conn, blob, hearing.signal); tell(); note('info', '通话', `听写用了 ${((Date.now() - h0) / 1000).toFixed(1)} 秒（录音 ${Math.round(blob.size / 1024)} KB）`); if (t) { input.value = t; hearing = null; talk(); } else { input.value = ''; toast('没听清，再说一次'); } }
       catch (err) { tell(); if (!hearing.signal.aborted) toast('听写失败：' + err.message); }
       hearing = null;
     };
@@ -313,13 +314,13 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     if (t) { add('me', t); input.value = ''; }
     const ac = busy = new AbortController(); say.replaceChildren(h('i.as-spin')); say.setAttribute('aria-label', '取消'); tell('TA 正在想…', true);
     // 写出一句就先把声音合成好（不出声，存着），轮到它立刻播：这句在念，下一句已经在合成，句子之间不用等
-    const keys = [], live = () => !ended && !ac.signal.aborted; let chain = Promise.resolve();
+    const keys = [], live = () => !ended && !ac.signal.aborted, t0 = Date.now(), sec = () => ((Date.now() - t0) / 1000).toFixed(1); let chain = Promise.resolve(), tw = '', tv = '';   // 记下各段花了多久，写进日志（哪一段慢一看就知道）
     const onUnit = u => {
-      const k = 'callv:' + uid('v'), voice = u.text.replace(/[（(][^）)]*[）)]/g, '').trim(); keys.push(k);
+      tw = tw || sec(); const k = 'callv:' + uid('v'), voice = u.text.replace(/[（(][^）)]*[）)]/g, '').trim(); keys.push(k);
       const ready = voice ? speakAs(c.id, voice, { silent: true, cache: k, stop: ac.signal }).catch(() => {}) : null;
-      chain = chain.then(async () => { if (!live()) return; add('them', u.text, u.zh); tell('TA 在说'); await ready; if (live() && voice) await speakAs(c.id, voice, { cache: k, stop: ac.signal }).catch(() => {}); });   // 字先出来，声音好了就播
+      chain = chain.then(async () => { if (!live()) return; add('them', u.text, u.zh); tell('TA 在说'); await ready; tv = tv || sec(); if (live() && voice) await speakAs(c.id, voice, { cache: k, stop: ac.signal }).catch(() => {}); });   // 字先出来，声音好了就播
     };
-    try { await E.callReply(chat, lines, mode, ac.signal, onUnit); await chain; }
+    try { await E.callReply(chat, lines, mode, ac.signal, onUnit); await chain; note('info', '通话', `第一句写出来 ${tw} 秒 · 第一句声音合成好 ${tv} 秒 · 全部说完 ${sec()} 秒`); }
     catch (e) { if (!ac.signal.aborted) { add('them', '（信号不太好……）'); toast('回复失败：' + e.message); } }
     keys.forEach(k => kvDel(k).catch(() => {}));
     if (busy === ac) { idle(); if (!rec && !hearing) tell(); }
