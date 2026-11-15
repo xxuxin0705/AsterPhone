@@ -2,7 +2,7 @@
 // 每个酒馆聊天窗口一份，存在 kv 的 mem:窗口 里：
 //   ev 事件 / rel 关系（两人一条，只记一次）/ ppl 人物 / days 特殊日子 / todo 没完的事 / trees 有树的 TA（联系人 id）
 //   facts 了解（关于某人长期不太变的事：喜好、怕什么、酒量…，带「谁知道」：每个人知道的不一样）
-//   wait 等你看（自动记下、你还没点「留下」的，一处一批）/ places 地点（一句介绍、归哪个大地方、在地图上拖到了哪）
+//   wait 未落的沙（自动记下、你还没点「落下」的，一处一批）/ places 地点（一句介绍、归哪个大地方、在地图上拖到了哪）
 //   show、order 名字行上显示谁、怎么排（你在设置里定的）/ autoAt 每隔几轮自动整理到了第几楼
 // 每件事的向量（按意思找用）另外存在 memvec:窗口 里：{ model, v: { 事件 id: 向量 } }，换了向量模型要重算。
 // 记忆从三处来：① 整理（世界书、导入的文件、当前聊天切成一批批交给 AI，同一时间只跑一个，断了能接着跑，kv 的 memjob:窗口）；
@@ -16,6 +16,7 @@ import { cleanText, worldText, C as ctxCfg } from './context.js';
 import { log, apiLog } from './log.js';
 import { ctx } from './bridge.js';
 import * as time from './time.js';
+import { shell } from './shell.js';
 
 // 关系不限词（作者：师生被塞进「其他」），这几个只是改关系时可以直接点的常用词。没写关系的存「其他」，哪儿都不显示
 export const KINDS = ['恋人', '暧昧', '夫妻', '家人', '挚友', '朋友', '同学', '师生', '前后辈', '搭档', '同事', '对手', '敌人', '不熟'];
@@ -71,7 +72,7 @@ function neat(e) {
   e.tags = [...new Set(e.tags.map(bare))].filter(t => t && !NONE.test(t) && t.length <= 6 && !ps.has(t) && !ns.some(n => t.includes(n))).slice(0, 3);
   if (e.know) e.know = e.know.filter(n => isMe(n) || seen.has(n));
 }
-/** 以前记的事（存着的、还在「等你看」里的）没有大标签：重要度 4 以上的算「重要」；以前的「故事线」并进小标签 */
+/** 以前记的事（存着的、还在「未落的沙」里的）没有大标签：重要度 4 以上的算「重要」；以前的「故事线」并进小标签 */
 const upgrade = e => { if (e.big && e.big.includes('特殊日')) e.big = [...new Set(e.big.map(t => t === '特殊日' ? '纪念日' : t))];   // v0.8.368 前这个大标签叫「特殊日」
   if (!e.big) { e.big = e.imp >= 4 ? ['重要'] : []; if (e.line && !e.tags.includes(e.line)) e.tags.push(e.line); } };
 
@@ -146,7 +147,7 @@ export function parse(raw) {
     else if (m[1] === '印象' && f[1]) { const t = f[3] ? null : /^(.{2,}?)对(.{2,})$/.exec(f[0]); if (t) f.splice(0, 1, t[1], t[2]);   // 两个名字挤在一格（「甲对乙｜看法｜一句话」）
       imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]); }
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
-    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '' });
+    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '', died: day(f[3] || '')[0] });
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
       const [kind, at, what, who] = DAY_KINDS.includes(f[0]) ? f : ['其他', ...f], d = /(?:(\d{4})\D+)?(\d{1,2})\D+(\d{1,2})/.exec(at || ''), p = x => x.padStart(2, '0');
       if (d && what) out.days.push({ kind, date: d[1] ? `${d[1]}-${p(d[2])}-${p(d[3])}` : '', md: `${p(d[2])}-${p(d[3])}`, what, who: list(who) });
@@ -195,6 +196,14 @@ const cutOrig = (e, text, here) => {
 };
 /** 把 name 归到 area 下面会不会绕成一圈（area 自己、或者它的上级的上级…就是 name）。地点能一层套一层，但不能互相归（作者定的） */
 export function loops(name, area) { for (let p = area, k = 0; p && k < 50; k++) { if (p === name) return true; p = (D.places.find(q => q.name === p) || {}).area; } return false; }
+/** 标已故（v 是日期，空 = 撤销）：顺手记上祭日 */
+export function setGone(who, v) {
+  let p = D.ppl.find(q => q.name === who);
+  if (!p) D.ppl.push(p = { name: who, alias: [], who: '' });
+  if (v) p.died = v; else delete p.died;
+  D.days = D.days.filter(x => !(x.src === 'gone' && x.who[0] === who));
+  if (v) D.days.push({ kind: '祭日', date: v, md: v.slice(5), what: who + '的祭日', who: [who], src: 'gone' });
+}
 /** 合并进来，返回新加了几条事件。text：这批记的是哪段原文（拿来剪原文节选）；here：这段原文是现在这个聊天的楼层 */
 export function merge(x, src = '', text = '', here = false) {
   // 补以前漏掉的楼层（作者：后面的已经记了，回头补中间那一段）：这一批的事都比两个人已经记下的最晚那件早，写出来的关系、了解就是那时候的样子，
@@ -204,8 +213,10 @@ export function merge(x, src = '', text = '', here = false) {
   const older = (...ns) => { const l = upto && lastOf(...ns); return !!l && upto < l; };
   for (const p of x.ppl) {
     const o = D.ppl.find(q => q.name === p.name || q.alias.includes(p.name) || p.alias.includes(q.name));
-    if (!o) D.ppl.push({ ...p, src });
+    const { died, ...q } = p;
+    if (!o) D.ppl.push({ ...q, src });
     else { o.alias = [...new Set([...o.alias, ...p.alias, p.name].filter(n => n !== o.name))]; if (!o.who) o.who = p.who; }
+    if (died && !(o || {}).died) setGone(o ? o.name : p.name, died);
   }
   let added = 0;
   for (const e of x.ev) {
@@ -237,7 +248,7 @@ export function merge(x, src = '', text = '', here = false) {
     if (v.sa) o.sa = v.sa;
     if (v.sb) o.sb = v.sb;
   }
-  for (const p of x.places || []) {   // 「等你看」里以前存下的没有这一项
+  for (const p of x.places || []) {   // 「未落的沙」里以前存下的没有这一项
     const o = D.places.find(o => o.name === p.name);
     const area = loops(p.name, p.area) ? '' : p.area;   // AI 写成互相归的那一条不听
     if (!o) D.places.push({ ...p, area, src }); else { if (!o.area) o.area = area; if (!o.intro) o.intro = p.intro; }
@@ -283,9 +294,9 @@ async function take(src, body, fix, fixFact, text) {
   if (!sig) { delete S[src]; await save(); return 0; }   // 这一楼换了个没写暗号的版本：之前记的收回就好
   S[src] = sig;
   const x = parse(sig); x.ev.forEach(e => { fix(e); cutOrig(e, text); }); if (fixFact) x.facts.forEach(fixFact);
-  if (state.apps.memory.wait) {   // 先等你看：点了「留下」才合并进来
-    if (Object.values(x).some(a => a.length)) { d.wait.push({ src, x, at: Date.now() }); log('info', '岁岁砂', `记下 ${x.ev.length} 件事，等你看`); }
-    await save(); return 0;
+  if (state.apps.memory.wait) {   // 未落的沙：点了「落下」才合并进来
+    if (Object.values(x).some(a => a.length)) { d.wait.push({ src, x, at: Date.now() }); log('info', '岁岁砂', `记下 ${x.ev.length} 件事，放进未落的沙`); }
+    await save(); shell.refreshBadges(); return 0;
   }
   const n = merge(x, src); await save(); vecLater();
   if (n) log('info', '岁岁砂', `记下 ${n} 件事：${x.ev.map(e => e.title).join('、')}`);
@@ -309,8 +320,8 @@ export function fromChat(chatId, batch, body, people) {
     e.tags = [...new Set([...e.tags, '手机'])];
   }, f => { f.know = names; });   // 手机里说的，只有这个聊天里的 TA 们知道
 }
-/** 等你看的一批：ok = 留下（合并进来），否则不要 */
-export async function settle(w, ok) { D.wait = D.wait.filter(x => x !== w); if (ok) merge(w.x, w.src); await save(); vecLater(); }
+/** 未落的沙里的一批：ok = 落下（合并进来），否则不要 */
+export async function settle(w, ok) { D.wait = D.wait.filter(x => x !== w); if (ok) merge(w.x, w.src); await save(); vecLater(); shell.refreshBadges(); }
 /** 用着的小标签和各有几件，多的在前（「手机」是手机聊天自动加的记号，不算） */
 export function smallTags(d = D) { const n = new Map(); for (const e of d.ev) for (const t of e.tags) if (t !== '手机') n.set(t, (n.get(t) || 0) + 1); return [...n].sort((a, b) => b[1] - a[1]); }
 const lineSet = () => smallTags().slice(0, 60).map(x => x[0]).join('、');
@@ -413,8 +424,9 @@ const pairRel = (a, b) => D.rel.find(q => (same(q.a, a) && same(q.b, b)) || (sam
 const whole = k => { const [a, b] = k.split('—'), r = pairRel(a, b); return r && (r.lv === 0 || (r.kind !== '其他' && r.va && r.vb && r.sa && r.sb)); };
 const lacking = () => [...pairs()].filter(c => c[1] > 1 && !whole(c[0])).map(c => c[0]);
 // 还缺哪几行：程序拿已经记下的对出来，续写时发给 AI（只发回复末尾一段，它看不到前面写了哪些）
-const gaps = () => lacking().map(k => { const [a, b] = k.split('—'), r = pairRel(a, b), v = r && (same(r.a, a) ? r : { kind: r.kind, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa });
-  return [(!v || v.kind === '其他') && `关系 ${a}—${b}`, !(v && v.va && v.sa) && `印象 ${a}→${b}`, !(v && v.vb && v.sb) && `印象 ${b}→${a}`].filter(Boolean).join('、'); }).join('\n');
+const flip = r => ({ ...r, a: r.b, b: r.a, va: r.vb, vb: r.va, sa: r.sb, sb: r.sa });
+const gaps = (keys = lacking(), find = pairRel) => keys.map(k => { const [a, b] = k.split('—'), r = find(a, b), v = r && (same(r.a, a) ? r : flip(r));
+  return [(!v || !v.kind || v.kind === '其他') && `关系 ${a}—${b}`, !(v && v.va && v.sa) && `印象 ${a}→${b}`, !(v && v.vb && v.sb) && `印象 ${b}→${a}`].filter(Boolean).join('、'); }).join('\n');
 export async function refill(want, signal, redo, source = '') {
   if (refilling) throw new Error('已经在重新填了');
   refilling = true;
@@ -434,11 +446,21 @@ export async function refill(want, signal, redo, source = '') {
       events: evs.map((e, i) => `${i + 1}｜${e.at || '不知道'}｜${e.place}｜${e.title}：${e.text}｜${e.who.join('、')}${e.quote ? '｜' + e.quote : ''}`).join('\n') || '（没有）' };
     const w = [want.includes('rel') && '关系、印象、了解、成长', want.includes('places') && '在哪、地点'].filter(Boolean).join('、');
     // 最后没写「【整理完了】」就是没写完（AI 自己停了也算）：开了自动补写就让它接着写
-    const m = state.apps.memory, most = m.fill ? m.fillMax || 3 : 0, end = t => /【整理完了】/.test(t);
-    let cut = false;
-    const y = w ? parse(await generateMore({ conn: resolveConn('text', 'memory'), app: '岁岁砂', stop: signal, resume: most, prompt: compose('memFill', { ...base, want: w }) }, end, most)
-      .then(t => { cut = !end(t); return t; })
-      .catch(e => { if (!e.part || (signal && signal.aborted)) throw e; cut = true; return e.part.slice(0, e.part.lastIndexOf('\n') + 1); })) : {};
+    const m = state.apps.memory, end = t => t.includes(END), prompt = compose('memFill', { ...base, want: w });
+    const ask = more => generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', stop: signal, prompt: prompt + more })
+      .catch(e => { if (!e.part || (signal && signal.aborted)) throw e; return e.part; });
+    // 断了接着写：和整理一样只发回复末尾一段 + 还缺哪几对（作者：整段发回去又贵又容易再断）。最后半行不算，补写时整行重写
+    const listed = base.pairs === '（没有）' ? [] : base.pairs.split('、'), whole0 = t => t.slice(0, t.lastIndexOf('\n') + 1);
+    const found = y => (a, b) => { const n = y.rel.find(q => (same(canon(q.a), a) && same(canon(q.b), b)) || (same(canon(q.a), b) && same(canon(q.b), a))), o = !redo && pairRel(a, b);
+      if (!n || !o) return n || o; const v = same(canon(n.a), canon(o.a)) ? n : flip(n); return { ...o, kind: v.kind || o.kind, va: v.va || o.va, vb: v.vb || o.vb, sa: v.sa || o.sa, sb: v.sb || o.sb }; };
+    let text = '', raw = w ? await ask('') : END;
+    for (let more = m.fill ? m.fillMax || 3 : 0; ; more--) {
+      if (end(raw)) { text += raw; break; }
+      const all = text + raw; text += whole0(raw);
+      if (more <= 0) break;
+      raw = await ask(TAIL(all.slice(-2000).replace(/^[^\n]*\n/, ''), want.includes('rel') ? gaps(listed, found(parse(text))) : ''));
+    }
+    const cut = !end(text), y = w ? parse(text) : {};
     const x = { rel: [], grow: [], at: [], places: [], facts: [] };
     if (want.includes('rel')) { x.rel = y.rel; x.grow = y.grow; x.facts = y.facts; }
     if (want.includes('places')) { x.at = y.at; x.places = y.places; }
@@ -543,7 +565,7 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
       const ask = more => generate({ conn: resolveConn('text', 'memory'), app: '岁岁砂', prompt: prompt + more, temperature: .3, stop: job.ac.signal })   // 读原文记事一直是 0.3：守规矩，从头按顺序写（v0.8.403 放开过，结果它挑着写一段就收工）
         .catch(e => { if (!e.part) throw e; log('warn', '岁岁砂', '整理的回复写到一半断了：' + e.message); return e.part; });
       const half = t => prompt.includes(END) && !t.includes(END);
-      const take = t => { const x = only(parse(half(t) ? t.slice(0, t.lastIndexOf('\n') + 1) : t), opt && opt.want); job.added += merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; return x; };
+      const take = t => { const x = only(parse(half(t) ? t.slice(0, t.lastIndexOf('\n') + 1) : t), opt && opt.want); job.added += label === AUTO && state.apps.memory.wait ? hold(x, src) : merge(x, label, src, HERE.has(label)); job.rel += x.rel.length; job.places += x.places.length; job.grow += x.grow.length; return x; };
       raw = await ask('');
       if (key !== win.key) throw new Error('换了聊天窗口，先停下');
       const x = take(raw); await save();
@@ -582,6 +604,8 @@ export async function startJob(label, list, done = 0, at = 0, opt = null) {
   }
   const j = job; job = null; tell('done', j); vecLater();
 }
+// 未落的沙：每隔几轮自动整理出来的也先放着（作者定的），点了「落下」才合并；原文节选和楼层现在就剪好
+const hold = (x, text) => { x.ev.forEach(e => cutOrig(e, text, true)); if (Object.values(x).some(a => a.length)) { D.wait.push({ src: AUTO, x, at: Date.now() }); shell.refreshBadges(); } return 0; };
 /** 每隔几轮自动整理（now = 点了「现在整理」，不等凑够轮数）：从上次整理到的那一楼接着，这次没成的下次一起补。回这次有没有东西可整理 */
 let autoBusy = false;
 export async function autoSort(now) {
@@ -608,7 +632,7 @@ async function autoRun(now, m) {
 /* 特殊日子：当天说出来；快到了（7 天内）先记在心里。
  * 生日、祭日、节日、其他：每年那天（祭日知道年份就说第几年）；纪念日（知道年份的）：满一个月、100 天、半年，满一年后每年一次。
  * 关系里「从什么时候起」写的是日期的恋人，也当成交往纪念日。返回 [今天的, 快到的, 碰上的日子（拿来找相关的往事）, 今天有没有祭日] */
-const AHEAD = 7, CATALOG = 60, DRIFT = .35;   // 快到的日子提前几天；目录最多几件；没被问到时，大概几次里有一次忽然想起一件
+const AHEAD = 7, CATALOG = 60;   // 快到的日子提前几天；目录最多几件
 function specialDays(d, ns) {
   const n = time.isStory() ? time.story().date : new Date(), t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
   const ymd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m && new Date(+m[1], m[2] - 1, +m[3]); };
@@ -645,15 +669,17 @@ export const peeks = [];   // 最近几次想起了哪几件、为什么（「�
 const GROW = '这些人后来变了（和人设写的不一样的地方，以这里为准）';
 const growLines = (d, ok) => [...new Set(d.grow.map(g => g.who))].filter(ok).flatMap(w => d.grow.filter(g => g.who === w).sort((a, b) => (a.at || '').localeCompare(b.at || '')).slice(-4)
   .map(g => `- ${g.who}${g.at ? `（${g.at}）` : ''}：${g.text}${g.why ? `（因为：${g.why}）` : ''}`)).join('\n');
-/** 送进正文的那一小段：只有「跟随正文」时才有（作者定的：跟随正文也影响正文，仅线上只影响手机）；只带最近几楼里出现的人 */
-export async function growForStory() {
-  if (!state.apps.memory.on || state.apps.chat.defaults.linkMode !== 'follow') return '';
-  const d = await load(); if (!d.grow.length) return '';
-  const scan = ((ctx() || {}).chat || []).slice(-6).map(m => m.mes || '').join('\n');
-  const t = growLines(d, n => isMe(n) || [n, ...((d.ppl.find(p => p.name === n) || {}).alias || [])].some(x => scan.includes(x)));
-  return t && `[${GROW}]\n${t}`;
+/** 正文互通时带进正文的（作者定的：和手机聊天带的是同一套），回 [一直记着的, 这会儿想起的]。涉及的人 = 酒馆这个角色 + 最近几楼里出现的人。
+ *  还在酒馆上下文里的楼层不用再想起：酒馆按字数从新往旧塞楼层，这里照「上下文长度」大概估（一个字算一个 token，六成留给聊天记录）；读不到长度就照手机读几条正文 */
+export async function memoryForStory() {
+  if (!state.apps.memory.on || state.apps.chat.defaults.linkMode !== 'follow') return ['', ''];
+  const c = ctx() || {}, d = await load(), ms = chatMsgs(), scan = ms.slice(-6).map(m => cleanText(m.mes || '')).join('\n');
+  const names = [...new Set([c.name2, ...d.ppl.filter(p => [p.name, ...p.alias].some(n => scan.includes(n))).map(p => p.name)].filter(n => n && !isMe(n)))];
+  let from = ctxFrom();
+  if (c.maxContext) { let n = c.maxContext * .6; from = ms.length; while (from > 0 && (n -= (ms[from - 1].mes || '').length) > 0) from--; }
+  return memoryFor(names.map(n => state.contacts.find(x => x.name === n) || { name: n }), scan, from);
 }
-export async function memoryFor(people, scan = '') {
+export async function memoryFor(people, scan = '', upto = ctxFrom()) {
   const m = state.apps.memory;
   if (!m.on || !people.length) return ['', ''];
   const d = await load();
@@ -688,7 +714,7 @@ export async function memoryFor(people, scan = '') {
   const spots = [...new Set([...d.places.map(p => p.name), ...d.ev.map(e => e.place)].filter(Boolean))], tagAt = time.isStory() ? time.story().place : '';
   const here = spots.includes(tagAt) ? tagAt : (spots.map(n => [n, scan.lastIndexOf(n)]).filter(x => x[1] >= 0).sort((a, b) => b[1] - a[1])[0] || [''])[0];
   // 还在这轮上下文里的事（出自给手机看的那几楼正文）不用再想起：上下文调长调短，这里自动跟着变
-  const from = ctxFrom(), keep = [...pool.filter(e => e.pin), ...onDay];
+  const from = upto, keep = [...pool.filter(e => e.pin), ...onDay];
   const [got, drift, why, how] = await recollect(live.filter(e => !e.pin && !onDay.includes(e) && floorOf(e) < from), scan, new Set([...ns, myName(), '我']), here);
   const cap = m.origMax ?? 500, byAt = (a, b) => (a.at || '9999').localeCompare(b.at || '9999');
   const brief = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${tail(e, pool)}`;
@@ -809,7 +835,7 @@ async function recollect(pool, scan, self, here) {
       if ((max && pick.length >= max) || tags.some(t => used.has(t))) continue;
       tags.forEach(t => used.add(t)); pick.push(e); why.set(e, [`意思相近 · ${sim.toFixed(2)}`, []]);
     }
-    const drift = near.length && Math.random() < DRIFT ? near[0] : null;
+    const drift = near[0] || null;
     noted(pick, drift); vecErr = '';
     return [pick, drift, why, k ? '按意思找' : '按意思找 + 重排'];
   } catch (e) {
@@ -862,10 +888,8 @@ function recall(pool, scan, self) {
     return s + e.imp * .08 + Math.log1p(e.used || 0) * .1 + (e.mark === 'hi' ? .3 : 0);   // 高光：沾边就更容易想起
   };
   const scored = pool.map(e => [e, score(e)]), pick = scored.filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, state.apps.memory.slots ?? 3).map(([e]) => e);
-  // 忽然想起：和现在有点关系（沾边但不够格）的里面，偶尔按分数抽一件（学自玄参的「自然浮现」：纯随机像失忆，只取最高分又会一直是那几件）
-  const near = scored.filter(([e, s]) => s > 0 && s < .8 && !pick.includes(e)), total = near.reduce((t, [, s]) => t + s, 0);
-  let drift = null;
-  if (near.length && Math.random() < DRIFT) { let r = Math.random() * total; drift = (near.find(([, s]) => (r -= s) <= 0) || near[0])[0]; }
+  // 忽然想起：和现在有点关系（沾边但不够格）的里面分数最高的那件，有就一定带上（作者定的：同一句话重新生成，想起的该是同样的事，不靠抽签）
+  const drift = (scored.filter(([e, s]) => s > 0 && s < .8 && !pick.includes(e)).sort((a, b) => b[1] - a[1])[0] || [null])[0];
   noted(pick, drift);
   for (const e of [...pick, drift].filter(Boolean)) { const [st, hit] = words(e), w = [...new Set([...st, ...hit])]; why.set(e, ['对上：' + (w.filter(x => x.length > 1).join('、') || w.join('、')), w]); }
   return [pick, drift, why];

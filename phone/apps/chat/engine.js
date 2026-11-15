@@ -221,14 +221,16 @@ async function worldBlock(scan, people = [], cat, sid) {
 /** 前面不常变的（人设、世界书、一直记着的、正文）走缓存：从第一处每次都会变的地方（聊天记录、这会儿想起的、时间）切开 */
 const cacheAt = (p, ...vs) => Math.min(p.length, ...vs.filter(Boolean).map(v => p.indexOf(v)).filter(i => i >= 0));
 /** 岁岁砂：让 TA 回消息时顺手把值得记的写进 <astermem>（不多调一次 AI） */
-const memNote = () => state.apps.memory.on && state.apps.memory.chat !== false ? '\n\n' + compose('memChat', { lines: lineNames(), bigs: bigNames() }) : '';
+// 这个聊天记不记进岁岁砂：正文互通的一定记（正文都知道了，岁岁砂也该知道）；线上模式的各自开关，没设过照以前的总开关
+export const memOn = chat => chat.cfg.linkMode === 'follow' || (chat.cfg.mem ?? state.apps.memory.chat !== false);
+const memNote = chat => state.apps.memory.on && memOn(chat) ? '\n\n' + compose('memChat', { lines: lineNames(), bigs: bigNames() }) : '';
 /** 把回复里的 <astermem> 拿出来（没写完被截断的也去掉），剩下的才是消息 */
 const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<astermem>([\s\S]*?)<\/astermem>/gi, (_, x) => { mem += x + '\n'; return ''; }).replace(/<astermem>[\s\S]*$/i, ''); return [text, mem.trim()]; };
 const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '岁岁砂', '记不下这段聊天：' + e.message));
 export async function buildReplyPrompt(chat, msgs) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
-  const story = storyNow(), history = historyText(msgs, c), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid);
+  const story = storyNow(), history = historyText(msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid);
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
     story, ...wb, time: t, history, min, max,
@@ -260,7 +262,7 @@ export async function requestReply(chat, opts = {}) {
     const msgs = await getMsgs(chat.id);
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
-    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote() + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
+    const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : ''), system = built.system;
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
     const [said, mem] = takeMem(raw), { lines, inner } = parseReply(said, c);
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
@@ -327,10 +329,10 @@ export async function requestGroupReply(chat, opts = {}) {
     const lastMine = [...msgs].reverse().find(m => m.from === 'me');
     const at = lastMine ? members.filter(p => (lastMine.text || '').includes('@' + nameOf(p))).map(nameOf) : [];
     const memText = members.map(p => `- ${p.name || nameOf(p)}${chat.titles[p.id] ? `（群头衔：${chat.titles[p.id]}）` : ''}${chat.owner === p.id ? '（群主）' : ''}：${charPersona(p).slice(0, 160).replace(/\n/g, ' ')}`).join('\n');
-    const story = storyNow(), history = groupHistory(msgs) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
+    const story = storyNow(), history = groupHistory(msgs, chat.cfg.hist ?? 30) + (at.length ? `\n（${myName()} 刚才 @ 了：${at.join('、')}）` : '') + (opts.extra ? '\n' + opts.extra : '');
     const t = time.forPrompt(), sid = chatScheme('group', chat.cfg.prompt), wb = await worldBlock(story + '\n' + history, members, 'group', sid);
     const prompt = compose('group', { group: chat.name, members: memText, intro: chat.intro || '（无）', story, ...wb,
-      time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote();
+      time: t, history, max: chat.cfg.maxSpeakers || 3 }, sid) + (await import('../../core/music.js')).togetherNote(chat) + memNote(chat);
     const rc = replyCfg(chat);
     const raw = await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t), temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '群聊', stop: ac.signal });
     const [said, mem] = takeMem(String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')), clean = stripTags(said);

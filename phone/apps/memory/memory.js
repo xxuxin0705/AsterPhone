@@ -4,7 +4,7 @@
 // 右上角设置：人物、记录、整理、回想、标签、清空。整理在核心 core/memory.js 里跑，退出这页也接着跑；同一时间只跑一个。
 import { h, pickFile, uid } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, dateField, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, colorFor } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, input, textarea, field, btn, icon, actionSheet, dialog, dateField, toast, empty, navBtn, sheet, withInfo, waiting, sortable, pickImage, pickWheels, colorFor, badge } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { worldNames, ctx } from '../../core/bridge.js';
 import { loadBook, C as ctxCfg } from '../../core/context.js';
@@ -60,7 +60,9 @@ async function vecRun(tell) {
 }
 
 export function open() {
-  const p = page({ app: 'memory', id: 'memory-main', title: '岁岁砂', back: true, cls: 'as-ss', right: [navBtn('gear', '设置', openSet)] });
+  // 有没落下的沙：右上角挂个带数字的沙漏，点进去挑
+  const sand = navBtn('hourglass', '未落的沙', openWait), paintSand = n => { sand.hidden = !n; sand.querySelectorAll('.as-badge').forEach(b => b.remove()); if (n) sand.append(badge(n)); };
+  const p = page({ app: 'memory', id: 'memory-main', title: '岁岁砂', back: true, cls: 'as-ss', right: [sand, navBtn('gear', '设置', openSet)] });
   const bar = h('div.as-ss-who.off', { dataset: { noSwipe: '' } }), stage = h('div.as-ss-stage.up'), axis = h('div.as-ss-axis'), paper = h('aside.as-ss-paper', { 'aria-live': 'polite' });
   const tabs = h('nav.as-ss-tabs', ['时间', '关系', '地点'].map((t, i) => h('button' + (i ? '' : '.on'), { onclick: () => go(i) }, t)));
   p.body.append(bar, stage, axis); p.el.append(tabs, paper);
@@ -166,7 +168,7 @@ export function open() {
   const modes = h('div.as-ss-modes', [['line', '时间轴'], ['tag', '分类'], ['day', '纪念日'], ['todo', '待办']].map(([k, t]) => h('button' + (k === view ? '.on' : ''), { onclick: e => {
     if (k === view) return; view = k; [...modes.children].forEach(x => x.classList.toggle('on', x === e.currentTarget)); fillAxis(); } }, t)));
   const evRow = (e, t) => {
-    const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), t, e.title, [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
+    const b = row((e.pin ? '.pin' : '') + (e.mark === 'hi' || e.big.includes('重要') ? '.hi' : '') + (e.mark === 'no' ? '.noise' : ''), t, [e.title, e.tags.includes('手机') && h('em.phone', '手机')], [e.part, e.place].filter(Boolean).join(' · '), () => toggle(b, e),
       h('p', e.text, e.quote && h('q', '「' + e.quote + '」'), h('span.meta', ['参与的人：' + e.who.join('、'), (e.know || []).length && '后来听说：' + e.know.join('、')].filter(Boolean).join(' · ')), (e.big.length || kin(e).length) && h('span.meta', '标签：' + [...new Set([...e.big, ...kin(e)])].join(' · ')), h('button', { onclick: ev => { ev.stopPropagation(); editEvent(e); } }, '改')));
     b.style.setProperty('--r', 3 + e.imp * 1.4 + 'px'); b._e = e;
     return b;
@@ -192,10 +194,14 @@ export function open() {
       const by = new Map(); for (const e of ev) for (const t of kin(e).length ? kin(e) : ['没细分']) by.set(t, [...(by.get(t) || []), e]);
       const home = es => { const n = new Map(); for (const e of es) for (const g of e.big) n.set(g, (n.get(g) || 0) + 1); return ([...n].sort((a, b) => b[1] - a[1])[0] || [''])[0]; };
       const cards = [...by].map(([t, es]) => [t, es, home(es)]).sort((a, b) => b[1].length - a[1].length);
+      const card = ([t, es]) => h('button', { onclick: () =>
+        show(t, `${es.length} 件`, '', '', es.map(e => li(dot(e.at), e.title, e.text, [e.part, e.place].filter(Boolean).join(' · '), () => editEvent(e))), '') }, t, h('small', String(es.length)));
+      // 手机里记下的单独一栏放最上面（作者要的：显眼）
+      const phone = ev.filter(e => e.tags.includes('手机'));
+      if (phone.length) rows.push(h('div.as-ss-cat', h('em', '手机'), h('div', card(['手机', phone]))));
       for (const g of [...M.bigs(), '']) {
         const l = cards.filter(c => c[2] === g || (!g && !M.bigs().includes(c[2]))); if (!l.length) continue;
-        rows.push(h('div.as-ss-cat', h('em', g || '没分类'), h('div', l.map(([t, es]) => h('button', { onclick: () =>
-          show(t, `${es.length} 件`, '', '', es.map(e => li(dot(e.at), e.title, e.text, [e.part, e.place].filter(Boolean).join(' · '), () => editEvent(e))), '') }, t, h('small', String(es.length)))))));
+        rows.push(h('div.as-ss-cat', h('em', g || '没分类'), h('div', l.map(card))));
       }
       if (!ev.length) none('还没有记下的事');
     } else {
@@ -262,7 +268,7 @@ export function open() {
   }
   async function draw() {
     A.resume();
-    d = await M.load(); if (sig() === seen) return;   // 返回这页时数据没变就一点都不动
+    d = await M.load(); paintSand(d.wait.length); if (sig() === seen) return;   // 返回这页时数据没变就一点都不动
     seen = sig(); shut();
     const was = names[ctr]; names = [myName(), ...M.cast(d).filter(x => x[1]).map(x => x[0])];
     const idx = n => M.isMe(n) ? 0 : names.indexOf(n);
@@ -294,14 +300,8 @@ export function open() {
 
 // 已故：哪天走的。关系页上留在原位、淡下去；认识多久停在那天；自动记一个祭日（作者要的）
 async function editGone(who) {
-  const d = await M.load(); let p = d.ppl.find(q => q.name === who), at = (p && p.died) || '';
-  const set = async v => {
-    if (!p) d.ppl.push(p = { name: who, alias: [], who: '' });
-    if (v) p.died = v; else delete p.died;
-    d.days = d.days.filter(x => !(x.src === 'gone' && x.who[0] === who));
-    if (v) d.days.push({ kind: '祭日', date: v, md: v.slice(5), what: who + '的祭日', who: [who], src: 'gone' });
-    await M.save(); s.close(); refresh();
-  };
+  const d = await M.load(), p = d.ppl.find(q => q.name === who); let at = (p && p.died) || '';
+  const set = async v => { M.setGone(who, v); await M.save(); s.close(); refresh(); };
   const s = sheet({ title: who, content: [field('哪天走的', dateField(at, v => { at = v; })),
     h('div.as-prompt-bar', p && p.died && btn('撤销', 'danger', () => set('')), btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => at ? set(at) : toast('选一下日期')))] });
 }
@@ -506,15 +506,15 @@ function openPeek() {
   nav.push(p.el);
 }
 
-/* ---------- 等你看：自动记下的先放这里，点「留下」TA 才会记得 ---------- */
+/* ---------- 未落的沙：自动记下的先放这里，点「落下」TA 才会记得 ---------- */
 async function openWait() {
-  const p = page({ app: 'memory', id: 'memory-wait', title: '等你看', back: true }), d = await M.load(), none = empty('都看完了');
-  const from = s => s.startsWith('story:') ? `正文第 ${s.slice(6)} 层` : '手机聊天';
+  const p = page({ app: 'memory', id: 'memory-wait', title: '未落的沙', back: true }), d = await M.load(), none = empty('都看完了');
+  const from = s => s.startsWith('story:') ? `正文第 ${s.slice(6)} 层` : s.startsWith('chat:') ? '手机聊天' : s;
   const what = x => [...x.ev.map(e => [e.title, `${ymd(e.at)} · ${e.text}`]), ...(x.places || []).map(q => [q.name, q.intro || '新去的地方']), ...x.rel.map(r => [`${r.a}和${r.b}：${r.kind}`, r.now]), ...x.facts.map(f => [`${f.about}：${f.text}`, '了解']),
     ...x.days.map(y => [y.what, y.kind]), ...x.todo.map(t => [t.text, '没完的事']), ...x.done.map(t => [t.text, '做完了']), ...x.ppl.map(q => [q.name, q.who || '新出场的人'])];
   none.hidden = d.wait.length > 0;
   p.body.append(...d.wait.map(w => {
-    const el = h('div.as-mem-wait', group(from(w.src), what(w.x).map(([title, sub]) => item({ title, sub }))), h('div.as-mem-acts', btn('不要', 'secondary', () => done(false)), btn('留下', 'primary', () => done(true))));
+    const el = h('div.as-mem-wait', group(from(w.src), what(w.x).map(([title, sub]) => item({ title, sub }))), h('div.as-mem-acts', btn('不要', 'secondary', () => done(false)), btn('落下', 'primary', () => done(true))));
     const done = async ok => { await M.settle(w, ok); el.remove(); none.hidden = d.wait.length > 0; };
     return el;
   }), none);
@@ -561,9 +561,13 @@ function openSort() {
     };
     const step = d => () => { const l = span(); if (k + d >= 0 && k + d < l.length) { k += d; show(); } };
     fresh = show;
+    const top = () => Math.min(chat.to, msgs.length - 1), rl = () => `第 ${chat.from} 层 到 第 ${top()} 层`;
+    const range = h('button.as-input.as-date', { type: 'button', onclick: async () => {
+      const l = msgs.map((_, i) => [i, `第 ${i} 层`]), v = await pickWheels('从第几层到第几层', [[l, chat.from], [l, top()]]); if (!v) return;
+      [chat.from, chat.to] = v[0] <= v[1] ? v : [v[1], v[0]]; range.textContent = rl(); count();
+    } }, rl());
     return [group('楼层', [toggleItem({ title: '包含你发的楼层' }, chat.withUser, on => { chat.withUser = on; count(); remember(); }),
-      field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, h('div.as-mem-range', input({ type: 'number', value: String(chat.from), onInput: v => { chat.from = Math.max(0, parseInt(v, 10) || 0); count(); } }),
-        h('span', '到'), input({ type: 'number', value: String(Math.min(chat.to, msgs.length - 1)), onInput: v => { chat.to = v === '' ? Infinity : parseInt(v, 10); count(); } })), n)]),
+      field(`从第几层到第几层（一共 ${msgs.length} 层，从 0 数）`, range, n)]),
       group(withInfo('正文筛选', '正文里有的段落用 <标签> 包着。「要」里的标签，里面的字拿去整理（点一下能暂时关掉）；里面不想要的，放进「不要」。两边都没放的标签，在「要」的标签外面就整段去掉。没被标签包着的正文照常整理。'), [keep, drop]),
       group('预览', [h('div.as-field', pre, h('div.as-mem-pvbar', btn('上一层', 'secondary', step(-1)), at, btn('下一层', 'secondary', step(1))))])];
   };
@@ -661,8 +665,7 @@ async function openSet() {
   const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己去「整理」。'), [
     h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
     fillOn, fillMax,
-    toggleItem({ title: '手机聊天时顺手记' }, m.chat !== false, on => { m.chat = on; commit('apps'); }),
-    toggleItem({ title: withInfo('记下的先等你看', '自动记下的先放在「等你看」里，你点「留下」TA 才会记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem, relItem]);
+    toggleItem({ title: withInfo('未落的沙', '自动记下的先停在这里，你点「落下」它才落进沙漏，TA 才记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem, relItem]);
   // 回想：按意思找（向量）、再排一遍（重排）、最多想起几件、每件带多少原文、来时路
   const vecTxt = v => !v.conn ? '还没接好' : v.stale ? '要重新算' : `已算 ${v.done} / ${v.total}`;
   const vecRow = item({ title: '向量', value: '', chevron: true, onClick: async () => {
@@ -681,7 +684,7 @@ async function openSet() {
     pick('每件带多少原文', 'origMax', 500, [[200], [500], [1000], [2000], [0, '不限']], ' 字'),
     toggleItem({ title: withInfo('来时路', '每轮都带一份经历过的事的目录（日期、地点、标题，最多 60 件），TA 一直知道自己经历过什么；每轮的字数会多一些。') }, !!m.road, on => { m.road = on; commit('apps'); })]);
   p.body.append(
-    group('', [d.wait.length ? item({ title: '等你看', value: String(d.wait.length), chevron: true, onClick: openWait }) : null, item({ title: '刚才想起了什么', chevron: true, onClick: openPeek })].filter(Boolean)),
+    group('', [d.wait.length ? item({ title: '未落的沙', value: String(d.wait.length), chevron: true, onClick: openWait }) : null, item({ title: '刚才想起了什么', chevron: true, onClick: openPeek })].filter(Boolean)),
     group('', [item({ title: '人物', chevron: true, onClick: openPeople }), item({ title: '标签', chevron: true, onClick: openTags }), item({ title: '整理', chevron: true, onClick: openSort })]),
     rec, back,
     group('', [item({ title: '清空', danger: true, onClick: () => {

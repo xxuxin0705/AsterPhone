@@ -156,6 +156,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-switch { flex: none; width: 50px; height: 30px; border-radius: 999px; border: 1px solid var(--as-color-glass-line); padding: 0; background: var(--as-color-surface-2); position: relative; cursor: pointer; transition: background var(--as-dur-base), border-color var(--as-dur-base); box-shadow: inset 0 1px 3px rgba(14,60,96,.12); }
 .as-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(180deg, #fff, #eaf5ff); box-shadow: 0 2px 6px rgba(14,60,96,.25); transition: transform 320ms var(--as-ease-spring); }
 .as-switch.is-active { background: linear-gradient(180deg, var(--as-color-accent-2), var(--as-color-accent)); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+.as-switch:disabled { opacity: .5; cursor: default; }   /* 锁着的（比如正文互通的聊天一定记进岁岁砂） */
 .as-switch.is-active::after { transform: translateX(20px); }
 .as-switch:focus-visible, .as-btn:focus-visible, .as-segmented button:focus-visible, .as-list-item:focus-visible { outline: 2px solid var(--as-color-accent-2); outline-offset: 2px; }
 .as-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px; border-radius: 14px; background: var(--as-color-surface-2); border: 1px solid var(--as-color-glass-line); box-shadow: inset 0 1px 3px rgba(14,60,96,.08); }

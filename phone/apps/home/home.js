@@ -4,6 +4,8 @@ import { state, contact } from '../../core/store.js';
 import { icon, badge } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
+import { load as loadMem } from '../../core/memory.js';
+import { log } from '../../core/log.js';
 
 export const APPS = [
   { id: 'chat', name: '聊天', icon: 'chat' },
@@ -40,6 +42,9 @@ export function renderBadges() {
   const total = state.chats.reduce((s, c) => s + (c.muted ? 0 : c.unread || 0), 0);
   homeEl.querySelectorAll('.as-home-app[data-as-app="chat"] .as-badge').forEach(b => b.remove());
   if (state.settings.notify.badge && total) homeEl.querySelector('.as-home-app[data-as-app="chat"]').appendChild(badge(total));
+  // 岁岁砂：有没落下的沙就挂红点
+  loadMem().then(d => { const a = homeEl.querySelector('.as-home-app[data-as-app="memory"]'), b = state.settings.notify.badge && badge(d.wait.length); if (!a) return; a.querySelectorAll('.as-badge').forEach(x => x.remove()); if (b) a.appendChild(b); })
+    .catch(e => log('warn', '岁岁砂', '读不到未落的沙：' + e.message));
   const latest = state.chats.filter(c => c.unread > 0 && !c.muted).sort((a, b) => b.lastAt - a.lastAt)[0];
   wMsg.hidden = !latest; wMsg.innerHTML = '';
   if (latest) {

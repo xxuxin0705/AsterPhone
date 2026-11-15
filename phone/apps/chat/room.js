@@ -2,7 +2,7 @@
 import { h, onLongPress } from '../../core/util.js';
 import { addFrame, paintBubble, pickDeco, decoName } from '../../core/deco.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, navBtn, aiCount, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, avatar, icon, navBtn, aiCount, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
@@ -413,9 +413,12 @@ function openSettings(chat, redrawRoom) {
         return [group('主动消息', [toggleItem({ title: 'TA 主动来找我' }, E.proactiveOn(cfg), v => { cfg.proactive = v; save(); every.style.display = v ? '' : 'none'; }), every])];
       })() : []),
       trGroup(cfg, save, draw));
+    const memSw = switchEl(E.memOn(chat), v => { cfg.mem = v; save(); }, '记进岁岁砂'); memSw.disabled = cfg.linkMode === 'follow';
+    const memRow = item({ title: withInfo('记进岁岁砂', 'TA 回消息时顺手把值得记的记进岁岁砂。正文互通的聊天一定会记。'), right: memSw });
     if (lastTab === 'mem') box.append(
       group('剧情关联', [
-        h('div.as-field', h('span.as-field__label', withInfo('联动方式', '跟随正文：TA 回复时会参考正文，最近的聊天会注入正文。仅线上：不读正文、不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
+        h('div.as-field', h('span.as-field__label', withInfo('联动方式', '正文互通：TA 回复时会参考正文，最近的聊天会注入正文。线上模式：不读正文、不自动注入（手动钉住的仍会注入）。')), segmented([['follow', '正文互通'], ['online', '线上模式']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); memSw.disabled = v === 'follow'; memSw.set(E.memOn(chat)); })),
+        memRow, sliderRow('记录条数', 10, 100, 5, cfg.hist ?? 30, v => { cfg.hist = v; save(); }, v => v + ' 条'),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
         item({ title: '注入记录', chevron: true, onClick: () => openInjectLog(chat) }),
       ]));
@@ -529,7 +532,7 @@ async function openInjectLog(chat) {
     } }, kind === 'pin' ? '取消钉住' : '不注入') });
     const a = auto.filter(mine), b = pinned.filter(mine);
     p.body.append(
-      group(withInfo(`自动注入（${a.length}）`, chat.cfg.linkMode === 'follow' ? `这个聊天「跟随正文」：最近 ${chat.cfg.injectCount ?? 12} 条会自动写进正文。` : '这个聊天是「仅线上」：不会自动注入，只有手动钉住的会写进正文。'), a.length ? a.map(x => row(x, 'auto')) : [item({ title: '没有', sub: null })]),
+      group(withInfo(`自动注入（${a.length}）`, chat.cfg.linkMode === 'follow' ? `这个聊天是「正文互通」：最近 ${chat.cfg.injectCount ?? 12} 条会自动写进正文。` : '这个聊天是「线上模式」：不会自动注入，只有手动钉住的会写进正文。'), a.length ? a.map(x => row(x, 'auto')) : [item({ title: '没有', sub: null })]),
       group(`手动钉住（${b.length}）`, b.length ? b.map(x => row(x, 'pin')) : [item({ title: '没有' })]),
       btn('预览正文 AI 看到的内容', 'secondary', async () => {
         const text = await S.injectionText();

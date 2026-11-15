@@ -11,9 +11,9 @@ import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
 import { themeNames } from './diary.js';
-import { lineNames, bigNames, growForStory } from './memory.js';
+import { lineNames, bigNames, memoryForStory } from './memory.js';
 
-const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat';
+const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat', KEY_MEM = 'asterphone_mem', KEY_RECALL = 'asterphone_recall';
 const seen = new Set();
 
 export function startSync() {
@@ -28,7 +28,7 @@ export function startSync() {
     if (await enterWindow(chatWindow())) { (await import('./nav.js')).closeAll(); commit('all'); }
     setTimeout(hideAll, 300); refresh();
   });
-  onTavern('GENERATION_STARTED', () => { applyTags(); });
+  onTavern('GENERATION_STARTED', async (type, o, dry) => { applyTags(); if (!dry) await memInject(); });
   subscribe(what => { if (what === 'prompts' || what === 'all' || what === 'inject') { applyTags(); refresh(); } else if (String(what).startsWith('msgs:') || what === 'chats') refresh(); });
   // 酒馆的连接配置：一开始同步一次，之后酒馆里加 / 删 / 改 / 切换配置时再同步
   const syncProfiles = () => { try { if (syncTavernProfiles()) commit('connections'); } catch (e) { log('warn', '酒馆联动', '读取连接配置失败', e); } };
@@ -145,9 +145,14 @@ export async function injectionText() {
 const refresh = debounce(async () => {
   if (!inTavern()) return;
   try {
-    const text = [await injectionText(), await growForStory().catch(() => '')].filter(Boolean).join('\n\n');
+    const text = await injectionText();
     const pos = state.apps.chat.injectPos === 'prompt' ? { position: 0, depth: 0 } : { position: 1, depth: state.apps.chat.injectDepth ?? 3 };
     setInjection(KEY_CHAT, text, pos);
   } catch (e) { log('warn', '酒馆联动', '更新注入失败', e); }
 }, 400);
 export { refresh as refreshInjection };
+// 岁岁砂带进正文（正文互通时）：每次要写正文前按最新那几楼现想；一直记着的放世界书那附近，这会儿想起的插在聊天记录里离最新几楼不远处
+async function memInject() {
+  const [keep, now] = await memoryForStory().catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
+  setInjection(KEY_MEM, keep, { position: 0, depth: 0 }); setInjection(KEY_RECALL, now, { position: 1, depth: 2 });
+}

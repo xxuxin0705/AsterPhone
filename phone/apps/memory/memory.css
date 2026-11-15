@@ -126,6 +126,7 @@
 .as-ss-axis .ev.todo i { border-style: dashed; }
 .as-ss-axis .ev.open i { transform: scale(1.25); }
 .as-ss-axis .ev b { display: block; font: 600 15px/1.45 var(--han); letter-spacing: .5px; transition: color .3s; }
+.as-ss-axis .ev b .phone { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--blue); border-radius: 2px; font: 400 11px/16px var(--han); font-style: normal; letter-spacing: 1px; color: var(--blue); vertical-align: 2px; }   /* 手机里记下的：标出来（作者要显眼） */
 .as-ss-axis .ev.kin b { color: var(--blue); }
 .as-ss-axis .ev small { display: block; margin-top: 3px; font: 400 12px/1.5 var(--han); color: var(--soft); letter-spacing: 1px; }
 .as-ss-axis .ev p { display: none; margin: 10px 0 0; padding: 12px 14px; background: var(--card); border-left: 2px solid var(--blue); font: 400 13px/1.8 var(--han); }
@@ -224,3 +225,5 @@
 .as-mem-pick button i { display: block; font-style: normal; font-size: 11px; color: var(--as-color-accent); }
 .as-mem-all { margin-bottom: 16px; }
 .as-ss-stage.up canvas { touch-action: none; }   /* 时间页：手指在沙漏上滑是划沙，不是拉页面 */
+.as-ss .as-navbar__btn { position: relative; }
+.as-ss .as-navbar__btn .as-badge { position: absolute; top: -2px; right: -4px; background: var(--blue); }   /* 图纸只有一种钴蓝 */

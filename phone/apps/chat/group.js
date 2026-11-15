@@ -1,7 +1,7 @@
 // 群聊：建群、群头像（没设置时是群名第一个字）、群设置（资料 / 成员 / 行为 / 数据）。
 import { h } from '../../core/util.js';
 import { state, commit, contact, clearMsgs } from '../../core/store.js';
-import { page, group, item, toggleItem, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage, withInfo } from '../../core/ui.js';
+import { page, group, item, toggleItem, switchEl, segmented, slider, avatar, icon, actionSheet, dialog, toast, field, input, textarea, btn, empty, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { connLabel } from '../../core/api.js';
 import * as E from './engine.js';
@@ -77,6 +77,8 @@ export function openGroupSettings(chat, redrawRoom) {
         h('button.as-chat-members__add', { onclick: invite }, h('span.as-chat-members__plus', icon('plus', 22, 1.8)), h('span', '邀请')));
       box.append(group(`成员（${chat.members.length + 1}）`, [grid], '点成员可以看资料、设头衔、设管理员、移出群聊。'));
     }
+    const memSw = switchEl(E.memOn(chat), v => { cfg.mem = v; save(); }, '记进岁岁砂'); memSw.disabled = cfg.linkMode === 'follow';
+    const memRow = item({ title: withInfo('记进岁岁砂', 'TA 们回消息时顺手把值得记的记进岁岁砂。正文互通的聊天一定会记。'), right: memSw });
     if (lastTab === 'act') box.append(
       group('基础', [
         toggleItem({ title: '置顶聊天' }, chat.pinned, v => { chat.pinned = v; save(); }),
@@ -106,7 +108,8 @@ export function openGroupSettings(chat, redrawRoom) {
         return [group('主动消息', [toggleItem({ title: '群里自己聊起来' }, E.proactiveOn(cfg), v => { cfg.proactive = v; save(); every.style.display = v ? '' : 'none'; }), every])];
       })() : []),
       group('剧情关联', [
-        h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); })),
+        h('div.as-field', h('span.as-field__label', '联动方式'), segmented([['follow', '正文互通'], ['online', '线上模式']], cfg.linkMode, v => { cfg.linkMode = v; save(); commit('inject'); memSw.disabled = v === 'follow'; memSw.set(E.memOn(chat)); })),
+        memRow, sliderRow('记录条数', 10, 100, 5, cfg.hist ?? 30, v => { cfg.hist = v; save(); }, v => v + ' 条'),
         sliderRow('注入条数', 0, 40, 1, cfg.injectCount ?? 12, v => { cfg.injectCount = v; save(); commit('inject'); }),
       ]),
       trGroup(cfg, save, draw));

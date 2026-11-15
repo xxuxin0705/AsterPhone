@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.422';
+export const VERSION = '0.8.423';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -68,7 +68,7 @@ export function open() {
         item({ icon: 'bell', color: 'red', title: '通知', chevron: true, onClick: openNotify }),
       ]),
       group('', [
-        item({ icon: 'link', color: 'green', title: '联动方式与时间', value: (state.apps.chat.defaults.linkMode === 'online' ? '仅线上' : '跟随正文') + ' · ' + (S().timeSrc === 'story' ? '剧情时间' : '现实时间'), chevron: true, onClick: openLinkTime }),
+        item({ icon: 'link', color: 'green', title: '联动方式与时间', value: (state.apps.chat.defaults.linkMode === 'online' ? '线上模式' : '正文互通') + ' · ' + (S().timeSrc === 'story' ? '剧情时间' : '现实时间'), chevron: true, onClick: openLinkTime }),
         item({ icon: 'list', color: 'purple', title: '上下文与世界书', chevron: true, onClick: () => import('./context.js').then(m => m.openContext({ sub, sliderRow, withInfo })) }),
         item({ icon: 'db', color: 'gold', title: '数据', chevron: true, onClick: openData }),
         item({ icon: 'info', color: 'pink', title: '关于', value: 'v' + VERSION, chevron: true, onClick: openAbout }),
@@ -211,7 +211,7 @@ function openChatApp() {
         toggleItem({ title: '允许拍一拍我' }, a.defaults.poke, v => { a.defaults.poke = v; commit('apps'); }),
       ].filter(Boolean)),
       group('注入正文', [
-        item({ title: withInfo('注入默认表', '跟随正文的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
+        item({ title: withInfo('注入默认表', '正文互通的聊天里，打开的这几种消息会整理成「【手机】谁给谁发了什么」写进正文，让正文里的角色也知道。每个聊天还能单独改。'), chevron: true, onClick: openInjectTable }),
         field('注入位置', segmented([['chat', '聊天记录里'], ['prompt', '人设卡和世界书附近']], a.injectPos, v => { a.injectPos = v; commit('inject'); re(); })),
         a.injectPos === 'chat' ? sliderRow('离最新消息几层', { min: 0, max: 10, step: 1, value: a.injectDepth, onInput: v => { a.injectDepth = v; commit('inject'); } }) : null,
         sliderRow('新聊天默认注入条数', { min: 0, max: 40, step: 1, value: a.injectCount, onInput: v => { a.injectCount = v; commit('apps'); } }),
@@ -669,12 +669,12 @@ function openLinkTime() {
       every, quiet, quietTimes,
       item({ title: '让 TA 现在来找我', chevron: true, onClick: async () => {
         const name = (await import('../chat/engine.js')).pokeNow();
-        toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「仅线上聊天」的私聊');
+        toast(name ? `叫 ${name} 来找你了，等一下看聊天` : '还没有「线上模式」的私聊');
       } })]);
     online.hidden = a.defaults.linkMode !== 'online';   // 定时来找你、免打扰都只有仅线上才有
     body.append(
-      group(withInfo('联动方式', '跟随正文：手机里的角色会读最近的正文，手机聊天也会写回正文。\n仅线上聊天：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
-        [h('div.as-field', segmented([['follow', '跟随正文'], ['online', '仅线上聊天']], a.defaults.linkMode, v => { a.defaults.linkMode = v; state.chats.forEach(c => { c.cfg.linkMode = v; }); commit('apps'); commit('chats'); commit('inject'); online.hidden = v !== 'online'; }))]),
+      group(withInfo('联动方式', '正文互通：手机里的角色会读最近的正文，手机聊天也会写回正文。\n线上模式：手机聊天和正文互不影响，角色可以按时间主动来找你。'),
+        [h('div.as-field', segmented([['follow', '正文互通'], ['online', '线上模式']], a.defaults.linkMode, v => { a.defaults.linkMode = v; state.chats.forEach(c => { c.cfg.linkMode = v; }); commit('apps'); commit('chats'); commit('inject'); online.hidden = v !== 'online'; }))]),
       online,
       group('时间', [
         h('div.as-field', segmented([['story', '跟随剧情'], ['real', '现实时间']], S().timeSrc, v => { S().timeSrc = v; commit('time'); commit('settings'); manual.hidden = v !== 'story'; nowItem.querySelector('.as-list-item__value').textContent = nowText(); })),
