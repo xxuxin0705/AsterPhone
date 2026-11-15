@@ -22,8 +22,8 @@ const WORDS = {
 };
 export const BUILTIN = {
   weibo: { name: '微博', swatch: ['#f2f2f2', '#ff8200'],
-    layout: { tabs: [{ page: 'home', text: '首页', icon: 'home' }, { page: 'feed', feed: 'anon', text: '树洞', icon: 'tree' }, { page: 'discover', text: '发现', icon: 'search' }, { page: 'inbox', text: '消息', icon: 'mail' }, { page: 'me', text: '我', icon: 'user' }],
-      home: [{ feed: 'global', text: '推荐' }, { feed: 'follow', text: '关注' }], discover: ['search', 'hot', 'chips'], groups: ['boards', 'chips'],
+    layout: { tabs: [{ page: 'home', text: '首页', icon: 'home' }, { page: 'discover', text: '发现', icon: 'search' }, { page: 'inbox', text: '消息', icon: 'mail' }, { page: 'me', text: '我', icon: 'user' }],
+      home: [{ feed: 'global', text: '推荐' }, { feed: 'follow', text: '关注' }, { feed: 'anon', text: '树洞' }], discover: ['search', 'hot', 'chips'], groups: ['boards', 'chips'],
       inbox: ['activity', 'notice'], icons: { repost: 'share', comment: 'comment', like: 'thumb' } },
     texts: { 'forum.tab.local': '同城', 'forum.tab.global': '热门', 'forum.tab.anon': '树洞', 'forum.group': '超话', 'forum.hot': '微博热搜', 'forum.hot.title': '微博热搜', 'forum.hot.more': '更多热搜',
       'forum.boards': '超话社区', 'forum.search.ph': '大家都在搜', 'forum.reply.ph': '写评论…', 'forum.post.new': '发微博', 'forum.floor': '第{n}楼', 'forum.inbox.notice': '消息', 'forum.chips.all': '热点', 'forum.dyn.post': '发微博了', 'forum.cmt.post': '评论了你的微博', 'forum.like.post': '赞了你的微博', 'forum.at.post': '在微博中@了你', 'forum.at.cmt': '在评论中@了你',

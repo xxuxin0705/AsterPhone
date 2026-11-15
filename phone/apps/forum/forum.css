@@ -2,7 +2,7 @@
    颜色都走 --fo-* 变量；样子可以把任何零件藏掉、挪位置、换图 */
 [data-as-app="forum"] { --fo-bg: #f4f4f4; --fo-head: #fff; --fo-card: #fff; --fo-ink: #222; --fo-ink-2: #8a8a8a; --fo-line: #ececec; --fo-soft: #f5f5f5; --fo-accent: #ff8200; --fo-v: #ff8200; --fo-link: #507daf; --fo-like: #ff8200; --fo-gap: 8px; }
 .as-phone[data-mode="night"] [data-as-app="forum"] { --fo-bg: #000; --fo-head: #141414; --fo-card: #141414; --fo-ink: #ddd; --fo-ink-2: #777; --fo-line: #262626; --fo-soft: #1f1f1f; }
-.as-page[data-as-app="forum"] { background: var(--fo-bg); color: var(--fo-ink); }
+.as-page[data-as-app="forum"] { background: var(--fo-bg); color: var(--fo-ink); zoom: var(--fo-zoom, 1); }
 .as-page[data-as-app="forum"] > .as-navbar { background: var(--fo-head); color: var(--fo-ink); box-shadow: 0 .5px 0 var(--fo-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .as-page[data-as-app="forum"] > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-navbar__title) { color: var(--fo-ink); text-shadow: none; }
 .as-page[data-as-app="forum"] .as-page__body { padding: 0 0 calc(28px + env(safe-area-inset-bottom, 0px)); }
@@ -90,7 +90,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-nrow[data-k="cmts"] .as-fo-nrow__ic { background: #34b36d; }
 .as-fo-nrow[data-k="at"] .as-fo-nrow__ic { background: #4ea6e6; }
 .as-fo-nrow__t { flex: 1; }
-.as-fo-nrow > svg:last-child { color: var(--fo-ink-2); }
+.as-fo-nrow__end { display: flex; align-items: center; color: var(--fo-ink-2); }
 .as-fo-dyn, .as-fo-cmt { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 14px 16px; background: var(--fo-card); box-shadow: inset 0 -.5px 0 var(--fo-line); cursor: pointer; }
 .as-fo-dyn { grid-template-columns: auto 1fr; }
 .as-fo-dyn__main, .as-fo-cmt__main { min-width: 0; }
@@ -111,17 +111,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-cmt__snip { align-self: start; width: 72px; font: 400 12px/1.4 var(--font-ui); color: var(--fo-ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .as-fo-likeava { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--fo-accent); color: #fff; }
 
-/* 我 */
-.as-fo-mehead { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 12px; align-items: center; width: 100%; padding: 18px 16px; border: 0; background: var(--fo-card); color: var(--fo-ink); text-align: left; cursor: pointer; }
-.as-fo-mehead > .as-avatar { grid-row: 1 / span 2; }
-.as-fo-mehead__name { font: 700 18px/1.3 var(--font-ui); }
-.as-fo-mehead__sub { grid-column: 2; font: 400 12.5px/1.3 var(--font-ui); color: var(--fo-ink-2); }
-.as-fo-mehead > svg { grid-column: 3; grid-row: 1 / span 2; color: var(--fo-ink-2); }
-.as-fo-menums { display: grid; grid-template-columns: repeat(3, 1fr); padding: 12px 0; background: var(--fo-card); }
-.as-fo-menum { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--fo-ink-2); font: 400 12px/1.2 var(--font-ui); cursor: pointer; }
-.as-fo-menum b { color: var(--fo-ink); font: 600 17px/1.1 var(--font-ui); }
-.as-fo-megrid { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: var(--fo-gap); padding: 14px 8px; background: var(--fo-card); }
-.as-fo-megrid__item { display: grid; justify-items: center; gap: 6px; border: 0; background: none; color: var(--fo-ink); font: 400 12px/1.2 var(--font-ui); cursor: pointer; }
 .as-fo-set { padding: 12px 16px; }
 
 /* 帖子页：数据标签、只看楼主、楼层、底下那条 */
@@ -221,3 +210,8 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-ubar__item.has-pic svg { display: none; }
 .as-fo-ubar__item.has-pic::before { content: ''; width: 36px; height: 36px; background: var(--fo-btnimg) center / contain no-repeat; }
 .as-page[data-as-app="forum"] .as-fo-ubar.has-follow > .as-fo-follow { background: var(--fo-followimg) center / 100% 100% no-repeat; color: #444; }
+
+/* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
+.as-fo-user__edit { justify-self: center; display: inline-flex; align-items: center; gap: 5px; margin-top: 16px; padding: 9px 26px; border: 0; border-radius: 20px; box-shadow: inset 0 0 0 1px var(--fo-line); background: none; color: var(--fo-ink-2); font: 400 14.5px/1 var(--font-ui); cursor: pointer; }
+.as-fo-tab { position: relative; }
+.as-fo-tab > .as-badge { position: absolute; top: -2px; left: 50%; margin-left: 4px; }

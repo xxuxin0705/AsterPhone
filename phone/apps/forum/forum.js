@@ -3,7 +3,7 @@
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, navBtn, icon, avatar, empty, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
+import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame } from '../../core/deco.js';
@@ -282,36 +282,51 @@ function noteRow(p, o, by, k, body, right = snip(p, p)) {
     h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', E.who(by).name), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at)), ...body), right);
 }
 const replyBtns = (p, f) => h('div.as-fo-cmt__btns', h('button.as-fo-cmt__btn', { onclick: e => { e.stopPropagation(); replySheet(p, f.id, h('div')); } }, icon('comment', 14, 1.8), '回复'), likeBtn(f));
-function notePage(id, k, rows) {
-  const pg = page({ app: 'forum', id, title: word(k), back: true }), list = h('div.as-fo-cmts');
-  E.load().then(d => { const r = rows(d); list.replaceChildren(...(r.length ? r : [empty('还没有消息')])); applyTexts(); });
+/** 消息里三栏的东西（新的在前）：{ at 时间, el() 画这一条 }；还没点开看过的算未读 */
+const NOTES = {
+  at: d => {   // 别人的帖子、评论里 @ 了我的网名
+    const me = E.myNames(), hit = t => me.some(n => String(t).includes('@' + n)), got = [];
+    for (const p of d.posts) {
+      if (!mine(p.by) && !p.by.anon && hit(p.text)) got.push({ at: p.at, el: () => noteRow(p, p, p.by, 'forum.at.post', tx(p, 'as-fo-cmt__text'), p.pic ? snip(p, p) : null) });
+      for (const f of p.floors || []) if (!mine(floorBy(p, f)) && hit(f.text)) got.push({ at: f.at, el: () => noteRow(p, f, floorBy(p, f), 'forum.at.cmt', [...tx(f, 'as-fo-cmt__text'), replyBtns(p, f)]) });
+    }
+    return got;
+  },
+  cmts: d => received(d).map(({ p, f, up }) => ({ at: f.at, el: () => noteRow(p, f, floorBy(p, f), up ? 'forum.cmt.reply' : 'forum.cmt.post',
+    [...tx(f, 'as-fo-cmt__text'), up ? h('div.as-fo-cmt__quote', `@${E.floorWho(p, up)}：${up.text}`) : null, replyBtns(p, f)]) })),
+  likes: d => {   // 谁赞了我的帖子、我的评论；没留名字的路人合成一条「还有 N 人」
+    const got = [];
+    for (const p of d.posts) for (const o of [p, ...(p.floors || [])]) {
+      if (!(o === p ? mine(p.by) : mine(floorBy(p, o))) || !o.likes) continue;
+      const k = o === p ? 'forum.like.post' : 'forum.like.cmt', L = o.likers || [];
+      L.forEach(x => got.push({ at: x.at, el: () => noteRow(p, x, x.by, k, [], snip(p, o)) }));
+      if (o.likes > L.length) got.push({ at: o.at, el: () => h('div.as-fo-cmt.is-like', { onclick: () => openPost(p) }, h('span.as-fo-cmt__ava.as-fo-likeava', icon('thumb', 24, 1.8)),
+        h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', `${L.length ? '还有 ' : ''}${E.fmt(o.likes - L.length)} 人`), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at))), snip(p, o)) });
+    }
+    return got;
+  },
+};
+const seen = () => (state.forum.seen = state.forum.seen || {});
+/** 红色数字：消息里每一行、底部「消息」标签上（只改这几个数字） */
+function markBadges() {
+  E.load().then(d => {
+    let all = 0;
+    for (const k of Object.keys(NOTES)) {
+      const n = NOTES[k](d).filter(x => x.at > (seen()[k] || 0)).length; all += n;
+      document.querySelectorAll(`.as-fo-nrow[data-k="${k}"] .as-fo-nrow__end`).forEach(e => e.replaceChildren(n ? badge(n) : icon('chevron', 16, 2)));
+    }
+    document.querySelectorAll('.as-fo-tab[data-tab="inbox"]').forEach(t => { t.querySelector('.as-badge')?.remove(); if (all) t.append(badge(all)); });
+  });
+}
+function openNotes(k) {
+  const pg = page({ app: 'forum', id: 'forum-' + k, title: word('forum.inbox.' + k), back: true }), list = h('div.as-fo-cmts');
+  E.load().then(d => {
+    const r = NOTES[k](d).sort((a, b) => b.at - a.at);
+    list.replaceChildren(...(r.length ? r.map(x => x.el()) : [empty('还没有消息')])); applyTexts();
+    seen()[k] = Date.now(); commit('forum'); markBadges();
+  });
   pg.body.append(list); nav.push(pg.el); applyTexts();
 }
-/** 消息 → @我的：别人的帖子、评论里 @ 了我的网名 */
-const openAts = () => notePage('forum-ats', 'forum.inbox.at', d => {
-  const me = E.myNames(), hit = t => me.some(n => String(t).includes('@' + n)), got = [];
-  for (const p of d.posts) {
-    if (!mine(p.by) && !p.by.anon && hit(p.text)) got.push({ p, o: p, at: p.at });
-    for (const f of p.floors || []) if (!mine(floorBy(p, f)) && hit(f.text)) got.push({ p, o: f, at: f.at });
-  }
-  return got.sort((a, b) => b.at - a.at).map(({ p, o }) => o === p ? noteRow(p, p, p.by, 'forum.at.post', tx(p, 'as-fo-cmt__text'), p.pic ? snip(p, p) : null)
-    : noteRow(p, o, floorBy(p, o), 'forum.at.cmt', [...tx(o, 'as-fo-cmt__text'), replyBtns(p, o)]));
-});
-/** 消息 → 评论：别人评论我、回我的；「回复」直接回那一层 */
-const openCmts = () => notePage('forum-cmts', 'forum.inbox.cmts', d => received(d).map(({ p, f, up }) =>
-  noteRow(p, f, floorBy(p, f), up ? 'forum.cmt.reply' : 'forum.cmt.post', [...tx(f, 'as-fo-cmt__text'), up ? h('div.as-fo-cmt__quote', `@${E.floorWho(p, up)}：${up.text}`) : null, replyBtns(p, f)])));
-/** 消息 → 赞：谁赞了我的帖子、我的评论；没留名字的路人合成一条「还有 N 人」 */
-const openLikes = () => notePage('forum-likes', 'forum.inbox.likes', d => {
-  const got = [];
-  for (const p of d.posts) for (const o of [p, ...(p.floors || [])]) {
-    if (!(o === p ? mine(p.by) : mine(floorBy(p, o))) || !o.likes) continue;
-    const k = o === p ? 'forum.like.post' : 'forum.like.cmt', L = o.likers || [];
-    L.forEach(x => got.push({ at: x.at, el: () => noteRow(p, x, x.by, k, [], snip(p, o)) }));
-    if (o.likes > L.length) got.push({ at: o.at, el: () => h('div.as-fo-cmt.is-like', { onclick: () => openPost(p) }, h('span.as-fo-cmt__ava.as-fo-likeava', icon('thumb', 24, 1.8)),
-      h('div.as-fo-cmt__main', h('div.as-fo-cmt__name', `${L.length ? '还有 ' : ''}${E.fmt(o.likes - L.length)} 人`), h('div.as-fo-cmt__sub', W(k), ' ', when(o.at))), snip(p, o)) });
-  }
-  return got.sort((a, b) => b.at - a.at).map(x => x.el());
-});
 function dynRows(d) {
   const ps = d.posts.filter(p => !p.by.anon && following(keyOf(p.by))).sort((a, b) => b.at - a.at).slice(0, 60);
   return ps.length ? ps.map(p => {
@@ -323,28 +338,22 @@ function dynRows(d) {
 }
 function inboxPane() {
   const kinds = look().layout.inbox?.length ? look().layout.inbox : ['notice', 'dm'];
-  const dyn = h('div.as-fo-dyns'), rows = (ic, k, fn) => h('button.as-fo-nrow', { dataset: { k }, onclick: fn }, h('span.as-fo-nrow__ic', icon(ic, 24, 1.8)), W('forum.inbox.' + k, 'span.as-fo-nrow__t'), icon('chevron', 16, 2));
+  const dyn = h('div.as-fo-dyns'), rows = (ic, k) => h('button.as-fo-nrow', { dataset: { k }, onclick: () => openNotes(k) }, h('span.as-fo-nrow__ic', icon(ic, 26, 1.8)), W('forum.inbox.' + k, 'span.as-fo-nrow__t'), h('span.as-fo-nrow__end', icon('chevron', 16, 2)));
   const dms = () => h('div.as-fo-dms', kinds.includes('dm') ? empty('还没有私信') : null);   // 私信下一步做
-  const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('at', 'at', openAts), rows('comment', 'cmts', openCmts), rows('thumb', 'likes', openLikes), kinds.includes('dm') ? null : dms()), dm: dms };
+  const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('at', 'at'), rows('chatdots', 'cmts'), rows('thumb', 'likes'), kinds.includes('dm') ? null : dms()), dm: dms };
   const panes = kinds.map(k => make[k]());
   const sw = h('div.as-fo-switch', kinds.map((k, i) => h('button', { dataset: { k }, onclick: () => pick(i) }, W('forum.inbox.' + k))));
   function pick(i) { sw.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i)); panes.forEach((x, j) => { x.hidden = j !== i; }); }
   pick(Math.max(0, kinds.indexOf('notice')));
   let sig = '';
-  const onShow = () => E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); });   // 有新东西才重画
-  return { el: h('div.as-fo-inbox', ...panes), title: sw, onShow };
+  const onShow = () => { markBadges(); E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); }); };   // 有新东西才重画
+  return { el: h('div.as-fo-inbox', ...panes), title: sw, onShow, right: [navBtn('gear', '设置', openSettings)] };
 }
-function mePane() {
-  const a = E.curAcc(), me = { k: 'me', id: a.id }, w = E.who(me);
-  const tile = (ic, label, fn) => h('button.as-fo-megrid__item', { onclick: fn }, icon(ic, 26, 1.6), h('span', label));
-  const num = (k, v, fn) => h('button.as-fo-menum', { onclick: fn }, h('b', v), W(k));
-  const posts = h('b', '0');
-  E.load().then(d => { posts.textContent = E.fmt(d.posts.filter(p => mine(p.by) && !p.by.anon).length); });
-  return { el: h('div.as-fo-me',
-    h('button.as-fo-mehead', { onclick: () => openUser(me) }, ava(me, 80, true), h('span.as-fo-mehead__name', w.name), h('span.as-fo-mehead__sub', a.bio ? word('forum.bio') + a.bio : '我的主页'), icon('chevron', 16, 2)),
-    h('div.as-fo-menums', h('button.as-fo-menum', { onclick: () => openUser(me) }, posts, W('forum.user.tab')), num('forum.follows', String((state.forum.follows || []).length)), num('forum.fans', '0')),
-    h('div.as-fo-megrid', tile('user', '我的号', openAccounts), tile('star', '营销号', openBots), tile('users', '熟人', openPeople))),
-  title: '我', right: [navBtn('gear', '设置', openSettings)] };
+/** 我：就是我自己的主页（照真微博），右上搜索、设置；我的号、营销号、熟人在设置里 */
+function mePane(p) {
+  const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
+  R.mePaint = v.paint;
+  return { el: h('div.as-fo-me', ...v.els), title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
 function blocksPane(kind, title) {
@@ -360,13 +369,15 @@ function openGroups() {
 }
 export function open() {
   applyLook();
+  // 样子都是照 393 宽的真手机量的：手机窄就整体缩一点，宽就放一点，看着和真 App 一样大（打开时算一次）
+  phone().style.setProperty('--fo-zoom', (phone().clientWidth / 393).toFixed(3));
   phone().dataset.forumTr = E.A().tr || 'both';
   const p = page({ app: 'forum', id: 'forum-home', title: '论坛', large: true, back: true, cls: 'as-fo-root' });
   const titleEl = p.nav.querySelector('.as-navbar__title'), right = p.nav.querySelector('.as-navbar__right'), left = h('span.as-fo-navleft');
   titleEl.before(left);
   const tabs = look().layout.tabs, panes = [];
   const make = { home: () => homePane(look().layout.home, true), feed: t => homePane([{ feed: t.feed, text: t.text }]), discover: () => blocksPane('discover', '发现'),
-    groups: () => blocksPane('groups', word('forum.boards')), inbox: inboxPane, me: mePane };
+    groups: () => blocksPane('groups', word('forum.boards')), inbox: inboxPane, me: () => mePane(p) };
   const bar = h('nav.as-fo-tabbar', { role: 'tablist' }, tabs.map((t, i) => h('button.as-fo-tab', { role: 'tab', dataset: { tab: t.page, i }, onclick: () => show(i) },
     /^img:/.test(t.icon) ? h('i.as-fo-tab__img', { style: { backgroundImage: `var(--fo-img-${t.icon.slice(4)})` } }) : icon(t.icon || 'grid', 24, 1.7), h('span', t.text))));
   let cur = -1;
@@ -385,8 +396,9 @@ export function open() {
     p.el.dataset.tab = tabs[i].page; p.body.scrollTop = 0; applyTexts();
   }
   p.el.append(h('button.as-fo-fab', { 'aria-label': word('forum.post.new'), onclick: () => compose(R.feed) }, icon('edit', 22, 2)), bar);
+  p.body.addEventListener('scroll', () => p.el.classList.toggle('is-up', p.body.scrollTop > 200), { passive: true });   // 「我」：背景图翻上去了，顶栏变白
   R = { el: p.el, feed: 'global' };
-  show(0);
+  show(0); markBadges();
   return p.el;
 }
 
@@ -443,11 +455,18 @@ function openPost(p) {
 /* ---------- 主页：右上角「…」装扮（穿套装、单独换一样）；穿了套装主页换成装扮的样子（.is-dressed） ---------- */
 const same = (a, b) => !a.anon && a.k === b.k && (a.id ? a.id === b.id : a.name === b.name);
 function openUser(by) {
+  const pg = page({ app: 'forum', id: 'forum-user', title: E.who(by).name, back: true, right: [navBtn('more', '装扮', () => v.decorate())] });
+  const v = userView(by, pg.el);
+  pg.body.append(...v.els); pg.el.append(v.ubar);
+  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
+  nav.push(pg.el); applyTexts();
+}
+/** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
+function userView(by, host) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
   const decorate = () => dressMenu(key, paint);
-  const pg = page({ app: 'forum', id: 'forum-user', title: w.name, back: true, right: [navBtn('more', '装扮', decorate)] });
   // 点背景图：整张大图铺满看
-  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); pg.el.append(v); } } });
+  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } });
   const avaBox = h('span.as-fo-user__ava'), badge = h('img.as-fo-dbadge', { alt: '' }), tab = h('span.is-on', h('img.as-fo-user__tabimg', { alt: '' }), W('forum.user.tab'));
   const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
@@ -469,7 +488,7 @@ function openUser(by) {
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
-    pg.el.classList.toggle('is-dressed', dressed(key));
+    host.classList.toggle('is-dressed', dressed(key));
     cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover);
     avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge') : null);
     img(badge, dr.badge); img(tab.firstChild, dr.tab);
@@ -478,19 +497,19 @@ function openUser(by) {
     ubar.querySelectorAll('.as-fo-ubar__item').forEach(x => x.classList.toggle('has-pic', !!dr.btn)); ubar.style.setProperty('--fo-btnimg', dr.btn ? `url("${dr.btn}")` : '');
     ubar.style.setProperty('--fo-followimg', dr.follow ? `url("${dr.follow}")` : ''); ubar.classList.toggle('has-follow', !!dr.follow);
   }
-  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
-  const tabs = h('div.as-fo-user__tabs', tab);
-  pg.body.append(h('div.as-fo-user', cover,
-    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', w.name, w.v ? vMark() : null, badge),
-      b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null,
-      h('div.as-fo-user__bio', b ? b.bio : mine ? E.curAcc().bio || '' : ''),
-      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')))),
-    tabs, more, list);
-  pg.el.append(ubar);
+  const tabs = h('div.as-fo-user__tabs', tab), acc = mine && E.accOf(by.id);
+  const nameEl = h('span', w.name), bio = h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : '');
+  // 我自己：「编辑个人资料」改网名、简介、头像，改完只换这几处
+  const edit = acc && h('button.as-fo-user__edit', { onclick: () => editAcc(acc, () => { nameEl.textContent = E.who(by).name; bio.textContent = acc.bio || ''; paint(); }) }, icon('edit', 15, 1.8), '编辑个人资料');
+  const els = [h('div.as-fo-user', cover,
+    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', nameEl, w.v ? vMark() : null, badge),
+      b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null, bio,
+      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')), edit)),
+    tabs, more, list].filter(Boolean);
   paint();
   E.load().then(d => { list.append(...d.posts.filter(p => same(p.by, by)).map(p => card(p))); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
-  nav.push(pg.el); applyTexts();
+  return { els, ubar, paint, decorate };
 }
 
 /* ---------- 小组页（豆瓣的小组 / 微博的超话、同城、树洞 / 推特的社群） ---------- */
@@ -540,7 +559,9 @@ function openSettings() {
     F.region = n.trim().slice(0, 20); F.lang = l; commit('forum');
     region.querySelector('.as-list-item__value').textContent = where();
   } });
-  pg.body.append(h('div.as-fo-set', group('', [region]),
+  pg.body.append(h('div.as-fo-set', group('', [item({ icon: 'user', title: '我的号', chevron: true, onClick: openAccounts }), item({ icon: 'star', color: 'orange', title: '营销号', chevron: true, onClick: openBots }),
+    item({ icon: 'users', color: 'green', title: '熟人', chevron: true, onClick: openPeople }), item({ icon: 'palette', color: 'pink', title: '我的主页装扮', chevron: true, onClick: () => dressMenu('me:' + F.cur, () => R?.mePaint?.()) })]),
+    group('', [region]),
     group('显示', [field('外语', segmented([['both', '上下对照'], ['tap', '点了才显示']], A.tr, v => { A.tr = v; commit('apps'); phone().dataset.forumTr = v; }))]),
     group('刷新', [field('一次刷几条', segmented([4, 6, 8, 10].map(n => [n, String(n)]), A.count || 6, v => { A.count = v; commit('apps'); })),
       toggleItem({ title: '点开帖子就出评论' }, A.autoOpen !== false, v => { A.autoOpen = v; commit('apps'); })])));
