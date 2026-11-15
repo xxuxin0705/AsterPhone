@@ -22,3 +22,19 @@
 .as-lib-deco__pv .as-chat-bubble { font-size: 12px; padding: 5px 9px; }
 .as-lib-bubble-pv { display: grid; place-items: center; min-height: 110px; margin-bottom: 12px; border-radius: var(--as-radius-l); background: var(--as-color-surface-2); }
 .as-lib-dot { width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+/* 聊天界面：四张小卡片，点一下换 */
+.as-lib-chatskins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px; }
+.as-lib-chatskins button { border: 1.5px solid transparent; background: none; border-radius: 12px; padding: 0 0 6px; color: var(--as-color-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.as-lib-chatskins button.is-on { border-color: var(--as-color-accent); }
+.as-lib-chatskins__mock { display: block; position: relative; height: 74px; border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+.as-lib-chatskins__mock i { position: absolute; display: block; }
+.as-lib-chatskins__mock i:nth-child(1) { left: 0; right: 0; top: 0; height: 15px; }
+.as-lib-chatskins__mock i:nth-child(2) { left: 7px; top: 24px; width: 46%; height: 13px; }
+.as-lib-chatskins__mock i:nth-child(3) { right: 7px; top: 42px; width: 40%; height: 13px; }
+.as-lib-chatskins__mock i:nth-child(4) { left: 0; right: 0; bottom: 0; height: 12px; }
+.as-lib-chatskins__mock b { position: absolute; width: 8px; height: 8px; left: 50%; top: 2px; transform: translateX(-50%); border-radius: 50%; background: #c9c3c1; }
+.as-lib-chatskins__mock.is-aster { background: linear-gradient(160deg, color-mix(in srgb, var(--as-color-accent-2) 40%, #fff), var(--as-color-accent-2)); }
+.as-lib-chatskins__mock.is-aster::before, .as-lib-chatskins__mock.is-aster::after { content: ''; position: absolute; height: 13px; border-radius: 7px; background: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.9); }
+.as-lib-chatskins__mock.is-aster::before { left: 7px; top: 24px; width: 46%; }
+.as-lib-chatskins__mock.is-aster::after { right: 7px; top: 42px; width: 40%; background: var(--as-color-accent); }
+.as-lib-chatskins em { display: block; font: 400 12px/1.2 var(--font-ui); font-style: normal; margin-top: 5px; }

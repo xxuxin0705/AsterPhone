@@ -64,6 +64,7 @@ export function defaults() {
     apps: {
       chat: {
         conn: { text: 'follow', image: 'follow', tts: 'follow' },
+        skin: 'wechat',                   // 聊天界面：wechat / qq / line / aster（原来的样子）
         prompts: {},                      // 改过的提示词存这里；没改过就用默认
         defaults: { linkMode: 'follow', proactiveEvery: 3, groupDm: 'inline', imageGen: false, lines: [1, 4], gLines: [1, 6], voice: [0, 1], autoVoice: false, poke: true },
         injectTable: { text: true, voice: true, image: true, transfer: true, sticker: false, location: true, card: false, call: true, quote: true, poke: false, reaction: false, recall: false, read: false, streak: false, music: false },

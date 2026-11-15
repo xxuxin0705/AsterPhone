@@ -1,0 +1,93 @@
+@charset "utf-8";
+/* 聊天界面样式：微信 / QQ / LINE，各自有日间、夜间。
+   在资源库 → 应用 → 聊天里挑，挂在 .as-phone[data-chat-skin]；选「AsterPhone」就是原来的样子。
+   只管聊天窗口：顶栏、消息区、气泡、头像、输入栏；聊天背景图照旧只铺在消息区 */
+
+.as-phone[data-chat-skin="wechat"] { --k-head: #ededed; --k-head-fg: #111; --k-head-line: #d9d9d9; --k-page: #ededed; --k-in: #fff; --k-in-fg: #191919; --k-out: #95ec69; --k-out-fg: #111; --k-in-shadow: none; --k-r: 4px; --k-ava-r: 4px; --k-ava: 38px; --k-bar: #f7f7f7; --k-bar-line: #dcdcdc; --k-input: #fff; --k-input-fg: #111; --k-input-line: transparent; --k-input-r: 4px; --k-icon: #181818; --k-accent: #07c160; --k-time: #9a9a9a; --k-time-bg: transparent; --k-sys: rgba(0,0,0,.06); --k-sys-fg: #8a8a8a; --k-name: #8a8a8a; --k-ph: #a3a3a3; --k-pad: 9px 11px; }
+.as-phone[data-chat-skin="wechat"][data-mode="night"] { --k-head: #191919; --k-head-fg: #e8e8e8; --k-head-line: #262626; --k-page: #111; --k-in: #2c2c2c; --k-in-fg: #f2f2f2; --k-out: #3eb575; --k-out-fg: #fff; --k-bar: #1e1e1e; --k-bar-line: #2a2a2a; --k-input: #2c2c2c; --k-input-fg: #e6e6e6; --k-icon: #d0d0d0; --k-accent: #3eb575; --k-sys: rgba(255,255,255,.08); --k-sys-fg: #b0b0b0; --k-name: #a8a8a8; --k-ph: #6f6f6f; }
+.as-phone[data-chat-skin="qq"] { --k-head: #f1f2f6; --k-head-fg: #111; --k-head-line: transparent; --k-page: #f1f2f6; --k-in: #fff; --k-in-fg: #111; --k-out: #0099ff; --k-out-fg: #fff; --k-in-shadow: none; --k-r: 12px; --k-ava-r: 50%; --k-ava: 40px; --k-bar: #f6f6f9; --k-bar-line: #e5e6eb; --k-input: #fff; --k-input-fg: #111; --k-input-line: #e9e9ee; --k-input-r: 8px; --k-icon: #2b2b2b; --k-accent: #0099ff; --k-time: #a3a3a8; --k-time-bg: transparent; --k-sys: transparent; --k-sys-fg: #a0a0a8; --k-name: #8d8d93; --k-ph: #a3a3a3; --k-pad: 9px 12px; }
+.as-phone[data-chat-skin="qq"][data-mode="night"] { --k-head: #17171a; --k-head-fg: #f2f2f2; --k-head-line: #222225; --k-page: #0f0f11; --k-in: #26262a; --k-in-fg: #f2f2f2; --k-out: #1f7ae0; --k-out-fg: #fff; --k-bar: #17171a; --k-bar-line: #222225; --k-input: #26262a; --k-input-fg: #eee; --k-input-line: #2e2e33; --k-icon: #cfcfd4; --k-accent: #3a8ee6; --k-time: #9a9aa0; --k-sys-fg: #a8a8ae; --k-name: #a8a8ae; --k-ph: #6c6c72; }
+.as-phone[data-chat-skin="line"] { --k-head: #f4f0ef; --k-head-fg: #222; --k-head-line: #e6dfdd; --k-page: #ebe3e1; --k-in: #fff; --k-in-fg: #3b3b3b; --k-out: #b3aba8; --k-out-fg: #2f2a29; --k-in-shadow: 0 1px 2px rgba(80,60,55,.06); --k-r: 18px; --k-ava-r: 50%; --k-ava: 40px; --k-bar: #fbfafa; --k-bar-line: #e9e4e3; --k-input: #fff; --k-input-fg: #333; --k-input-line: #ece6e5; --k-input-r: 18px; --k-icon: #222; --k-accent: #222; --k-time: #fff; --k-time-bg: rgba(120,105,100,.32); --k-sys: rgba(120,105,100,.22); --k-sys-fg: #fff; --k-name: #6b6260; --k-ph: #b0a8a6; --k-pad: 9px 14px; }
+.as-phone[data-chat-skin="line"][data-mode="night"] { --k-head: #221f21; --k-head-fg: #f1eeee; --k-head-line: #2f2a2c; --k-page: #191618; --k-in: #3a3436; --k-in-fg: #efe9ea; --k-out: #6a6062; --k-out-fg: #f5f0f0; --k-in-shadow: none; --k-bar: #221f21; --k-bar-line: #2f2a2c; --k-input: #332e30; --k-input-fg: #eee; --k-input-line: #3a3436; --k-icon: #e6e0e0; --k-accent: #f1eeee; --k-time: #d8d0cf; --k-time-bg: rgba(255,255,255,.12); --k-sys: rgba(255,255,255,.1); --k-sys-fg: #d8d0cf; --k-name: #a49a98; --k-ph: #8a8082; }
+
+/* ===== 三套共用：平的顶栏、平的输入栏、实心气泡、每条都带头像 ===== */
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room { background: var(--k-page); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room > .as-navbar { background: var(--k-head); color: var(--k-head-fg); border-bottom: .5px solid var(--k-head-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-chat-room__name) { color: var(--k-head-fg); text-shadow: none; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msgs { background-color: var(--k-page); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard) {
+  background: var(--k-in); color: var(--k-in-fg); border: 0; border-radius: var(--k-r); box-shadow: var(--k-in-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; padding: var(--k-pad); font-size: 15px; line-height: 1.45; overflow: visible;
+}
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msg.is-me .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard) { background: var(--k-out); color: var(--k-out-fg); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msg + .as-chat-msg.is-cont .as-chat-msg__avatar { visibility: visible !important; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msg:not(.is-sys) { margin-top: 10px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-avatar.as-chat-msg__avatar { width: var(--k-ava) !important; height: var(--k-ava) !important; border-radius: var(--k-ava-r) !important; box-shadow: none; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msg__avatar img { border-radius: var(--k-ava-r) !important; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-time { color: var(--k-time); background: var(--k-time-bg); font-size: 11px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-sys { background: var(--k-sys); color: var(--k-sys-fg); border-radius: 4px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-msg__name { color: var(--k-name); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-inputwrap { margin: 0; border-radius: 0; border: 0; border-top: .5px solid var(--k-bar-line); background: var(--k-bar); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 7px 8px max(7px, env(safe-area-inset-bottom, 0px)); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-input { background: var(--k-input); color: var(--k-input-fg); border: .5px solid var(--k-input-line); border-radius: var(--k-input-r); box-shadow: none; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-input::placeholder { color: var(--k-ph); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-input:focus { border-color: var(--k-accent); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-iconbtn { color: var(--k-icon); }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="qq"], [data-chat-skin="line"]) .as-chat-room .as-chat-sendbtn:not(.is-idle, .is-loading) { background: var(--k-accent); color: #fff; box-shadow: none; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-sendbtn:not(.is-idle, .is-loading) { color: var(--k-page); }
+
+/* ===== 微信：顶栏名字居中、没有头像和状态；气泡侧边小三角；一行输入栏（语音 · 输入框 · 表情 · ＋） ===== */
+.as-phone[data-chat-skin="wechat"] .as-chat-room > .as-navbar .as-navbar__title { justify-content: center; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room :is(.as-chat-room__ava, .as-chat-room__status) { display: none; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-room__names { text-align: center; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-room__name { font-size: 17px; font-weight: 500; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-msg.is-them .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard)::before { content: ''; position: absolute; left: -6px; top: 13px; border: 6px solid transparent; border-right-color: var(--k-in); border-left: 0; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-msg.is-me .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard)::before { content: ''; position: absolute; right: -6px; top: 13px; border: 6px solid transparent; border-left-color: var(--k-out); border-right: 0; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-msg__col { margin: 0 4px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-inputwrap { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-toolbar { display: contents; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-toolbar .as-spacer { display: none; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-input { flex: 1; min-height: 38px; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-quotebar { order: -1; flex-basis: 100%; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room :is(.as-chat-plus, .as-chat-stickers-panel, .as-chat-inputwrap > div:last-child, .as-chat-inputwrap > div:nth-last-child(2)):not(.as-chat-toolbar) { order: 9; flex-basis: 100%; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-iconbtn[aria-label="语音"] { order: 1; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-input { order: 2; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-iconbtn[aria-label="表情包"] { order: 3; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-iconbtn[aria-label="更多"] { order: 4; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-sendbtn { order: 5; border-radius: 4px; }
+.as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-iconbtn[aria-label="图片"] { display: none; }
+
+/* ===== QQ：标题靠左、名字下面一个绿点小字；圆角气泡没有尾巴；输入框一行、功能按钮一行 ===== */
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-room__ava { display: none; }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-room__name { font-size: 16px; font-weight: 600; }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-room__status { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; line-height: 1; color: var(--k-time); }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-room__status:not(:empty)::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #34c759; }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-inputwrap { padding-top: 8px; }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-toolbar { margin-top: 6px; justify-content: space-around; }
+.as-phone[data-chat-skin="qq"] .as-chat-room .as-chat-toolbar .as-spacer { display: none; }
+
+/* ===== LINE：顶栏头像在名字上面；大圆角气泡，尾巴在上角；时间胶囊；一行输入栏（＋ · 图片 · 输入框 · 表情 · 语音） ===== */
+.as-phone[data-chat-skin="line"] .as-chat-room > .as-navbar { height: auto; padding-top: 6px; padding-bottom: 6px; }
+.as-phone[data-chat-skin="line"] .as-chat-room > .as-navbar .as-navbar__title { flex-direction: column; justify-content: center; gap: 3px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-room__ava .as-avatar { width: 36px !important; height: 36px !important; border-radius: 50% !important; box-shadow: 0 0 0 1.5px #fff, 0 1px 4px rgba(0,0,0,.12); }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-room__names { text-align: center; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-room__name { font-size: 12px; font-weight: 600; letter-spacing: .2px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-room__status { display: none; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg.is-them .as-chat-bubble { border-top-left-radius: 5px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg.is-me .as-chat-bubble { border-top-right-radius: 5px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg.is-them .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard)::before { content: ''; position: absolute; left: -5px; top: 0; width: 10px; height: 10px; background: var(--k-in); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg.is-me .as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard)::before { content: ''; position: absolute; right: -5px; top: 0; width: 10px; height: 10px; background: var(--k-out); clip-path: polygon(0 0, 100% 0, 0 100%); }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-avatar.as-chat-msg__avatar { box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 6px rgba(0,0,0,.12); }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-time { padding: 3px 11px; font-size: 10.5px; border-radius: 10px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-sys { border-radius: 10px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-input { min-height: 34px; padding: 6px 14px; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-iconbtn[aria-label="更多"] { order: 1; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-iconbtn[aria-label="图片"] { order: 2; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-input { order: 3; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-iconbtn[aria-label="表情包"] { order: 4; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-iconbtn[aria-label="语音"] { order: 5; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-sendbtn { order: 6; }
+/* LINE：别人贴的表情是灰色小圆，挂在气泡上角 */
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg__col { position: relative; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-reactions { position: absolute; top: -14px; right: -12px; margin: 0; padding: 0; gap: 0; z-index: 3; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-msg.is-me .as-chat-reactions { right: auto; left: -12px; flex-direction: row-reverse; }
+.as-phone[data-chat-skin="line"] .as-chat-room .as-chat-reactions span { width: 28px; height: 28px; padding: 0; margin-left: -6px; display: grid; place-items: center; border-radius: 50%; background: rgba(150,140,138,.32); border: 0; box-shadow: none; font-size: 15px; }
+.as-phone[data-chat-skin="line"][data-mode="night"] .as-chat-room .as-chat-reactions span { background: rgba(255,255,255,.16); }

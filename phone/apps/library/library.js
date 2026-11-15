@@ -220,7 +220,19 @@ function drawSkins(box, redraw) {
   if (lib().skins.some(x => x.on)) box.append(btn('关掉所有皮肤', 'secondary', () => { lib().skins.forEach(x => { x.on = false; }); commit('library'); applySkins(); toast('皮肤都关了，回到默认样子'); redraw(); }, { style: { width: '100%' } }));
 }
 // 每个 App 自己的样式选项（不找 AI、只管长什么样的放这里；连接、补写这些还在「设置 → 应用管理」）
+// 聊天界面：微信 / QQ / LINE，或者原来的样子；小卡片照各自日间配色画一个缩略样子
+const CHAT_SKINS = [['wechat', '微信', ['#ededed', '#ededed', '#fff', '#95ec69', '#f7f7f7', '3px']], ['qq', 'QQ', ['#f1f2f6', '#f1f2f6', '#fff', '#0099ff', '#f6f6f9', '7px']],
+  ['line', 'LINE', ['#f4f0ef', '#ebe3e1', '#fff', '#b3aba8', '#fbfafa', '9px']], ['aster', 'AsterPhone', null]];
 const STYLE = {
+  chat: () => {
+    const cur = state.apps.chat.skin || 'wechat';
+    const tiles = h('div.as-lib-chatskins', CHAT_SKINS.map(([k, n, c]) => h('button' + (k === cur ? '.is-on' : ''), { dataset: { k }, 'aria-label': n, onclick: () => {
+      state.apps.chat.skin = k; commit('apps'); document.querySelector('#phone').dataset.chatSkin = k;
+      tiles.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.dataset.k === k));
+    } }, h('span.as-lib-chatskins__mock' + (c ? '' : '.is-aster'), c ? { style: { background: c[1] } } : null, c && [h('i', { style: { background: c[0] } }), h('i', { style: { background: c[2], borderRadius: c[5] } }), h('i', { style: { background: c[3], borderRadius: c[5] } }), h('i', { style: { background: c[4] } })], k === 'line' && h('b')),
+    h('em', n))));
+    return group('聊天界面', [tiles]);
+  },
   music: () => { const m = state.music;
     return group('样式', [field('主页文字', segmented([['zh', '中文'], ['en', 'English']], m.lang || time.clockCfg().lang || 'zh', v => { m.lang = v; commit('music'); }))]); },
   memory: () => { const m = state.apps.memory;
