@@ -119,7 +119,7 @@ function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? {
 /* 说外语的 TA：私聊设置里「TA 说的语言」选了外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
    拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
 const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = ch && ch.cfg.theirLang; return l && l !== 'zh-CN' ? l : ''; };
-const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
+export const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
 const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}直接用自己的语言写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
 /** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
 const roundNote = rc => `\n\n【这一轮】${rc.group ? '大家加起来' : ''}回复 ${rc.lines[0]}–${rc.lines[1]} 条独立消息，每条单独一行；${rc.voice[1] ? `语音 ${rc.voice[0]}–${rc.voice[1]} 条` : '不发语音'}。`;
@@ -267,7 +267,7 @@ const userPersonaText = () => (ctxCfg().userPersona && myPersona()) || '（没�
 const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正文（区别只在手机里的事写不写进正文）
 /** 世界书 + 岁岁砂里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
  *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
-async function worldBlock(scan, people = [], cat, sid, noBook) {
+export async function worldBlock(scan, people = [], cat, sid, noBook) {
   const w = noBook ? '' : await worldText(scan).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
   const own = cat && blocksIn(cat, sid).some(b => b.on && b.text.includes('{{memory}}'));
   return { world: (w ? `\n【世界书】\n${w}\n` : '') + m + (own ? '' : r), memory: own ? r : '' };

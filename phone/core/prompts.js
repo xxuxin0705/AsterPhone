@@ -11,7 +11,8 @@ export const VAR_INFO = {
   story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', lang: '谁说外语：用自己的语言写、后面附中文（按各人私聊里「TA 说的语言」自动填，都说中文就是空的）', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
   group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
-  entries: '世界书条目', count: '要几个（挑几首歌、发几条动态）', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
+  entries: '世界书条目', board: '这次刷论坛的哪一块（本地版 / 全球版 / 匿名区）', platform: '论坛现在像哪个平台（跟着资源库里选的样子）', setup: '还缺地区、营销号、热榜时，要 AI 先写的那几行（自动填）',
+  thread: '整条帖子和已有的楼层', focus: '你刚回了哪一楼（没有就是空的）', count: '要几个（挑几首歌、发几条动态）', song: '歌名', artist: '歌手', lyrics: '这首歌开头几句歌词', contacts: '所有联系人：真名、网名、人设',
   threads: '你写了新评论 / 回复的那几楼', must: '一定要回你的人', tag: '暗号的标签名', lists: '能加歌的人和 TA 们现在的歌单',
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从岁岁砂挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
@@ -50,6 +51,8 @@ export const PROMPT_CATS = [
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] },
     { id: 'intReview', name: '复盘会', vars: ['user', 'kp', 'mood', 'title', 'ending', 'secret', 'acts', 'pc', 'cast', 'players', 'rels', 'log'] }] },
+  { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
+    { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'user', 'world', 'story', 'time', 'lang'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -344,6 +347,51 @@ export const DEFAULT_PROMPTS = {
 评论|名字|内容
 回复|名字|被回复的人|内容
 不需要每个人都出现；只输出这些行。{{lang}}` },
+  // ---------- 论坛 ----------
+  forumFeed: { name: '刷帖子', cats: ['forumFeed'], on: true, main: true,
+    text: `你在替一个故事世界里的网络论坛写帖子。{{platform}}
+
+【这次刷的是】{{board}}
+{{world}}
+【最近的事】
+{{story}}
+
+【现在】{{time}}
+【可以发的号】
+{{posters}}
+{{pick}}
+规矩：
+- 发帖、回帖的都是这个世界里的人，聊的是这个世界里的事；不出现现实里的名人、品牌、网站名。
+- 正文里的事，只写外面的人看得到、听得到的那部分：可以猜、可以传歪；别人不可能知道的私事不能出现。
+- 熟人大多不发帖：最近剧情里 TA 身上真有事、性格也会上网，才发；有认证的、公众人物才说公开的话，普通人顶多发发日常。
+- 营销号发的是网友投稿或它那个主题的内容，口吻像小编。
+- 大部分帖只有文字，真有画面才配图。
+- 帖和帖之间长短、语气都要不一样：有一句话的、有一小段的；有吵的、玩梗的、认真的。{{lang}}{{setup}}
+
+写 {{count}} 条帖子，每条按下面格式，条与条之间单独一行 ===
+作者：名字
+标题：一行标题（可以没有）
+正文（可以多行）
+[图片：画面描述]（想配图才写）
+[翻译：简体中文意思]（正文不是中文才写）
+数据：赞 数字｜评 数字｜转 数字
+只输出这些，不要别的。` },
+  forumThread: { name: '出评论', cats: ['forumThread'], on: true, main: true,
+    text: `这是一个故事世界里的论坛帖子，和下面已经有的楼层。{{platform}}
+{{thread}}
+{{world}}
+【最近的事】
+{{story}}
+
+【现在】{{time}}
+【可能来回帖的号】（不来也行；来了用 TA 的网名）
+{{people}}
+{{focus}}
+再写 {{count}} 层楼：网友的回复要有吵架的、歪楼的、玩梗的、认真回答的，别都在夸；可以回楼主，也可以回别的楼。楼主也可以出来回。{{lang}}
+每行一层，按下面格式：
+名字：这一层的话
+名字 回复 楼号：回某一楼的话（楼号写数字；回楼主写「回复 楼主」）
+只输出这些行。` },
   proactive: { name: '主动消息', cats: ['proactive'], on: true, main: true,
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
   verify: { name: '好友验证', cats: ['verify'], on: true, main: true,

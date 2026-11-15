@@ -26,6 +26,7 @@ const APP_LOADERS = {
   diary: () => import('../apps/diary/diary.js'),
   interlude: () => import('../apps/interlude/interlude.js'),
   street: () => import('../apps/street/street.js'),
+  forum: () => import('../apps/forum/forum.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
@@ -64,7 +65,8 @@ function applyLook() {
   const s = state.settings;
   phone.style.setProperty('--as-font-scale', s.fontScale || 1);
   phone.dataset.clock = s.clockColor || 'auto';
-  phone.dataset.chatSkin = state.apps.chat.skin || 'wechat';   // 聊天界面：微信 / QQ / LINE / AsterPhone（资源库 → 应用 → 聊天）
+  phone.dataset.chatSkin = state.apps.chat.skin || 'wechat';
+  phone.dataset.forumSkin = state.apps.forum.skin || 'weibo';   // 聊天界面：微信 / QQ / LINE / AsterPhone（资源库 → 应用 → 聊天）
   applyFonts();
   if (s.clockColor === 'custom') phone.style.setProperty('--clock-hex', s.clockHex || '#8fb4ff');
   if (wallpaper && wallpaper.gl !== undefined) { wallpaper.setLiveMode(s.walls.live); showWall(wallNow(), { glitch: true }); }

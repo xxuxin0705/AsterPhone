@@ -1,0 +1,73 @@
+/* 论坛：三套样子共用的骨架，颜色全走 --fo-* 变量（在 skins.css 里按微博 / 豆瓣 / 推特给） */
+.as-page[data-as-app="forum"] { background: var(--fo-bg); color: var(--fo-ink); }
+.as-page[data-as-app="forum"] > .as-navbar { background: var(--fo-head); color: var(--fo-ink); box-shadow: 0 .5px 0 var(--fo-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.as-page[data-as-app="forum"] > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-navbar__title) { color: var(--fo-ink); text-shadow: none; }
+.as-page[data-as-app="forum"] .as-page__body { padding: 0 0 calc(28px + env(safe-area-inset-bottom, 0px)); }
+.as-page[data-as-app="forum"] .as-empty { color: var(--fo-ink-2); }
+.as-fo-job { width: auto; min-width: 36px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font: 500 11px/1 var(--font-ui); }
+.as-fo-job[hidden] { display: none; }
+
+/* 底部标签：平的一条 */
+.as-chat-tabbar.as-fo-bar { grid-template-columns: repeat(3, 1fr); margin: 0; border-radius: 0; border: 0; box-shadow: 0 -.5px 0 var(--fo-line); background: var(--fo-head); -webkit-backdrop-filter: none; backdrop-filter: none; padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); }
+.as-fo-bar .as-chat-tab { color: var(--fo-ink-2); }
+.as-fo-bar .as-chat-tab.is-active { color: var(--fo-accent); }
+
+/* 顶上那排版块：滚动时钉在上面 */
+.as-fo-tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 20px; padding: 0 16px; height: 42px; align-items: stretch; background: var(--fo-head); box-shadow: 0 .5px 0 var(--fo-line); overflow-x: auto; scrollbar-width: none; }
+.as-fo-tabs button { position: relative; flex: none; border: 0; background: none; padding: 0; color: var(--fo-ink-2); font: 500 15px/1 var(--font-ui); cursor: pointer; }
+.as-fo-tabs button.is-on { color: var(--fo-ink); font-weight: 700; }
+.as-fo-tabs button.is-on::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
+
+/* 热榜：横着滑的一条 */
+.as-fo-hot { padding: 12px 16px 10px; background: var(--fo-card); margin-bottom: var(--fo-gap); }
+.as-fo-hot__t { font: 700 14px/1 var(--font-ui); margin-bottom: 8px; color: var(--fo-ink); }
+.as-fo-hot__list { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 46%; gap: 6px 14px; overflow-x: auto; scrollbar-width: none; }
+.as-fo-hot__item { display: flex; align-items: baseline; gap: 6px; min-width: 0; border: 0; background: none; padding: 3px 0; text-align: left; color: var(--fo-ink); font: 400 13.5px/1.3 var(--font-ui); cursor: pointer; }
+.as-fo-hot__item b { flex: none; width: 14px; color: var(--fo-accent); font-weight: 700; }
+.as-fo-hot__item span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-fo-hot__item small { flex: none; color: var(--fo-ink-2); font-size: 11px; }
+
+/* 一条帖：头像 | 名字、时间；下面正文、翻译、配图、转评赞 */
+.as-fo-list { display: flex; flex-direction: column; gap: var(--fo-gap); }
+.as-fo-post { display: grid; grid-template-columns: 42px 1fr; column-gap: 10px; padding: 14px 16px 4px; background: var(--fo-card); color: var(--fo-ink); cursor: pointer; }
+.as-fo-post.is-full { cursor: default; }
+.as-fo-post__ava { grid-column: 1; grid-row: 1; cursor: pointer; }
+.as-fo-post__head { grid-column: 2; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 2px 4px; min-width: 0; }
+.as-fo-post__name { font: 600 15px/1.25 var(--font-ui); color: var(--fo-name, var(--fo-ink)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.as-fo-post__v { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--fo-v); color: #fff; }
+.as-fo-post__time { flex-basis: 100%; font: 400 12px/1.2 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-post > :is(.as-fo-post__title, .as-fo-post__text, .as-fo-post__tr, .as-fo-trbtn, .as-fo-post__img, .as-fo-post__acts) { grid-column: 1 / -1; }
+.as-fo-post__title { margin-top: 10px; font: 700 16px/1.4 var(--font-ui); }
+.as-fo-post__text { margin-top: 8px; font: 400 15px/1.6 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
+.as-fo-post__tr, .as-fo-floor .as-fo-post__tr { margin-top: 4px; font: 400 13.5px/1.55 var(--font-ui); color: var(--fo-ink-2); white-space: pre-wrap; }
+.as-fo-trbtn { justify-self: start; border: 0; background: none; padding: 4px 0 0; color: var(--fo-link, var(--fo-accent)); font: 400 13px/1.2 var(--font-ui); cursor: pointer; }
+.as-phone[data-forum-tr="tap"] .as-fo-post__tr, .as-phone:not([data-forum-tr="tap"]) .as-fo-trbtn { display: none; }
+.as-fo-post__img { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--fo-soft); color: var(--fo-ink-2); font: 400 13px/1.5 var(--font-ui); display: flex; gap: 8px; align-items: flex-start; }
+.as-fo-post__img svg { flex: none; margin-top: 2px; }
+.as-fo-post__acts { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 6px; }
+.as-fo-act { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 36px; border: 0; background: none; color: var(--fo-ink-2); font: 400 13px/1 var(--font-ui); cursor: pointer; }
+.as-fo-act__w { display: none; }
+.as-fo-like.is-on { color: var(--fo-like, var(--fo-accent)); }
+.as-fo-like.is-on svg { fill: currentColor; }
+.as-fo-anon { display: inline-grid; place-items: center; border-radius: 50%; background: var(--fo-soft); color: var(--fo-ink-2); }
+
+/* 帖子页：楼层 */
+.as-fo-floors { background: var(--fo-card); margin-top: var(--fo-gap); }
+.as-fo-floor { display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 12px 16px; box-shadow: inset 0 -.5px 0 var(--fo-line); }
+.as-fo-floor.is-sub { padding-left: 42px; }
+.as-fo-floor__ava { cursor: pointer; }
+.as-fo-floor__who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font: 500 13.5px/1.3 var(--font-ui); color: var(--fo-name, var(--fo-ink)); }
+.as-fo-floor__op { padding: 1px 5px; border-radius: 4px; background: var(--fo-accent); color: #fff; font-size: 10.5px; }
+.as-fo-floor__to { color: var(--fo-ink-2); font-weight: 400; }
+.as-fo-floor__text { margin-top: 4px; font: 400 14.5px/1.55 var(--font-ui); color: var(--fo-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.as-fo-floor__meta { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; font: 400 12px/1 var(--font-ui); color: var(--fo-ink-2); }
+.as-fo-floor__meta .as-fo-act { height: 26px; justify-content: flex-end; }
+.as-fo-morebtn { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 32px); margin: 14px 16px; }
+
+/* 主页 */
+.as-fo-user { display: grid; justify-items: center; gap: 6px; padding: 22px 16px 16px; background: var(--fo-card); text-align: center; }
+.as-fo-user__name { display: inline-flex; align-items: center; gap: 5px; font: 700 19px/1.3 var(--font-ui); }
+.as-fo-user__bio { font: 400 13px/1.5 var(--font-ui); color: var(--fo-ink-2); }
+
+/* 我 */
+.as-fo-me { padding: 12px 16px; }

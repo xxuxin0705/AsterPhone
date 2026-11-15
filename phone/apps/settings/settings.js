@@ -13,7 +13,7 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 
-export const VERSION = '0.8.447';
+export const VERSION = '0.8.448';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -124,6 +124,7 @@ function openApps() {
       group('应用', [
         item({ icon: 'chat', color: 'orange', title: '聊天', sub: '文字：' + follow('text'), chevron: true, onClick: openChatApp }),
         item({ icon: 'sparkle', color: 'gold', title: '幕间', sub: '文字：' + (state.apps.interlude.conn.text === 'follow' ? '跟随全局' : (state.connections.text.find(x => x.id === state.apps.interlude.conn.text) || {}).name || '跟随全局'), chevron: true, onClick: openInterludeApp }),
+        item({ icon: 'comment', color: 'orange', title: '论坛', sub: '文字：' + ((state.connections.text.find(x => x.id === state.apps.forum.conn.text) || {}).name || '跟随全局'), chevron: true, onClick: openForumApp }),
         item({ icon: 'music', color: 'red', title: '音乐', chevron: true, onClick: openMusicApp }),
         item({ icon: 'hourglass', color: 'blue', title: '岁岁砂', chevron: true, onClick: openMemoryApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
@@ -188,18 +189,23 @@ function openInterludeApp() {
     ].filter(Boolean)));
   });
 }
+/** 某个 App 用哪根线（a = state.apps 里这个 App 的设置，name = App 名） */
+const connRowOf = (a, name, re) => k => {
+  const v = a.conn[k], own = v !== 'follow' && state.connections[k].find(x => x.id === v);
+  return item({ title: KIND_LABEL[k], value: own ? own.name : '跟随全局 →', chevron: true, onClick: async () => {
+    const opts = [{ value: 'follow', label: '跟随全局', active: !own }, ...state.connections[k].map(x => ({ value: x.id, label: x.name, active: own && own.id === x.id })), { value: '__go', label: '去管理连接…', icon: 'link' }];
+    const r = await actionSheet(`${name}用的${KIND_LABEL[k]}连接`, opts);
+    if (r === '__go') { connKind = k; openConnections(); return; }
+    if (r) { a.conn[k] = r; commit('apps'); re(); }
+  } });
+};
+function openForumApp() {
+  sub('app-forum', '论坛', (body, re) => body.append(group('使用的连接', ['text', 'image'].map(connRowOf(state.apps.forum, '论坛', re)))));
+}
 function openChatApp() {
   const a = state.apps.chat;
   sub('app-detail', '聊天', (body, re) => {
-    const connRow = k => {
-      const v = a.conn[k], own = v !== 'follow' && state.connections[k].find(x => x.id === v);
-      return item({ title: KIND_LABEL[k], value: own ? own.name : '跟随全局 →', chevron: true, onClick: async () => {
-        const opts = [{ value: 'follow', label: '跟随全局', active: !own }, ...state.connections[k].map(x => ({ value: x.id, label: x.name, active: own && own.id === x.id })), { value: '__go', label: '去管理连接…', icon: 'link' }];
-        const r = await actionSheet(`聊天用的${KIND_LABEL[k]}连接`, opts);
-        if (r === '__go') { connKind = k; openConnections(); return; }
-        if (r) { a.conn[k] = r; commit('apps'); re(); }
-      } });
-    };
+    const connRow = connRowOf(a, '聊天', re);
     body.append(
       group('使用的连接', ['text', 'image', 'tts'].map(connRow)),
       group(withInfo('聊天默认设置', '每个聊天还能单独改。'), [
