@@ -234,7 +234,7 @@ function lookPanel() {
       h('div.as-settings-slider-row', h('span', '换的图片'), segmented([['cover', '铺满'], ['contain', '完整']], L.fit || 'cover', v => { L.fit = v; ch(); })),
       color('底板', 'plate', true)]),
     group('名字', [toggleItem({ title: '显示名字' }, L.names !== false, v => { L.names = v; ch(); }), color('颜色', 'label')]),
-    group('底栏', [color('颜色', 'dock', true), row('模糊', { min: 0, max: 40, step: 1 }, v => v + 'px', 'blur', 20)]),
+    group('底栏', [color('颜色', 'dock', true), row('模糊', { min: 0, max: 40, step: 1 }, v => v + 'px', 'blur', 2)]),
     btn('恢复默认', 'secondary', () => { d.look = {}; ch(); s.close(); })) });
 }
 
