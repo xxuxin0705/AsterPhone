@@ -197,13 +197,16 @@ Post = { id, board: 'local' | 'global' | 'anon',
 - 给 AI 看的语气例子（只是语气，写明「不要照抄」；这些都是编的）：
   - 暗恋：「你回头我就假装看风景」
   - 前任：「你的伞还在我这里」
+  - 想家：「妈妈说她没有在等我电话」
   - 失眠：「再不睡天就要亮给我看了」
+  - 做梦：「醒来就不记得你的脸了」
   - 打工：「收到，但是不服」
   - 贪吃：「明天的我会原谅我的」
   - 没钱：「余额说它尽力了」
   - 怕生：「门铃响了我先不在家」
   - 树洞：「说完这句我就删」
   - 养猫：「它踩过的键盘都是圣旨」
+  - 翻车照：「其实本人比这好看一点点」
 - **不许用现实里真实存在的账号名**（作者给的参考只学味道）。
 
 ## 七、三套样子
@@ -287,6 +290,89 @@ Post = { id, board: 'local' | 'global' | 'anon',
 - 输入框占位字只写这一格是什么（「标题」「正文」「网名」）。
 - 点选只改动到的元素；返回上一页数据没变就不动；必须重画时先在旁边画好、等图解码完再换。
 - 不为「以后可能用」加抽象；能用现成的（`page`、`group`、`item`、`sheet`、`actionSheet`、`avatar`、`waiting`、`busy`、`aiCount`、`pickImage`、`takeTr`）就不新写。
+
+## 十三、用什么写（都是项目里现成的，照着用，别新造）
+
+**不加任何库、不加后端。** 原生 JS 模块 + 项目自己的小工具。下面每一行都是查过源码的真实写法。
+
+### 13.1 App 入口
+- `apps/forum/forum.js` 导出 `open(opts)`，返回页面元素（`core/main.js` 的 `openApp` 会调 `mod.open(opts)` 再 `nav.openApp(el, r, id)`）。在 `APP_LOADERS` 里加 `forum: () => import('../apps/forum/forum.js')`。
+- 整个入口照 `apps/chat/index.js` 第 11–40 行抄：`TABS` 数组（`{ id, label, icon, text, render }`）、`page({ app: 'forum', id: 'forum-home', title: '论坛', large: true, back: true, cls: 'as-fo-root' })`、底部栏 `h('nav.as-chat-tabbar', …)`（直接用聊天的类名，样式就有了）、`switchTab(id, force)`、`P.el._onShow` / `P.el._onLeave`、`applyTexts()`。
+- 子页面：`const p = page({ app: 'forum', id: 'forum-post', title, back: true }); …; nav.push(p.el)`。`page()` 返回 `{ el, body, nav, setTitle }`。返回上一页时要不要刷新：给 `p.el._onShow` 赋函数，里面先比一个「签名」（比如帖子数 + 最后一条 id），没变就什么都不做（照 `library.js` 的 `subPage`）。
+- 右上角按钮：`navBtn(图标名, 说明, onclick)`；文字按钮：`navText(字, onclick, 主按钮吗)`。
+- 建元素一律用 `h('div.类名', { 属性 }, 子元素…)`（`core/util.js`），不拼大段 innerHTML。
+
+### 13.2 数据读写
+- 小的（设置、号、bot、关注）：`state.forum.*`，改完 `commit('forum')`。在 `core/store.js`：`defaults()` 里加 `forum: {…}`，`SCOPED` 数组里加 `'forum'`（这样自动按酒馆窗口各存一份）；`state.apps.forum` 加在 `defaults().apps` 里。
+- 大的（帖子、私信）：照 `core/diary.js` 第 14–22 行的写法，放在 `apps/forum/engine.js`：
+  ```js
+  let D = null, Dkey = '';
+  export async function load() { if (D && Dkey === win.key) return D; Dkey = win.key; D = (await kvGet('forum:' + Dkey)) || { posts: [], dms: {} }; return D; }
+  export const save = async () => { await kvSet('forum:' + Dkey, D); commit('forum'); };
+  ```
+  读不到（`kvGet` 抛错）要 `log('warn', '论坛', …)` 并当成空的，不能整个 App 打不开。
+- 编号：`uid('fp')`、`uid('ff')`；时间戳：`...time.stamp()`；显示「几分钟前」：`time.ago(post.at)`。
+- 页面要跟着数据变：`const off = subscribe(w => { if (w === 'forum' || w === 'all') 只更新变了的那块; })`，页面离开时 `off()`。
+
+### 13.3 找 AI
+```js
+import { generate, generateImage, resolveConn } from '../../core/api.js';
+import { compose, myName, myNick, myAvatar, myPersona } from '../../core/promptstore.js';
+import { storyText } from '../../core/context.js';
+import { nameOf, personaOf } from '../chat/engine.js';
+
+const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
+  prompt: compose('forumFeed', { board, platform, count, world, story, time: time.forPrompt(), posters, pick, lang, setup }) });
+```
+- `resolveConn('text', 'forum')` 会自己去读 `state.apps.forum.conn.text`，是 `follow` 就用全局那根线；所以默认值里一定要有 `conn: { text: 'follow', image: 'follow' }`。
+- 世界书和记忆：`apps/chat/engine.js` 里的 `worldBlock(scan, people)` 现在没导出，**给它加上 `export`**（只加这个词），用法 `(await worldBlock(story, 这次出现的联系人数组)).world`。
+- 翻译记号：同一个文件的 `takeTr(行)` 返回 `[正文, 中文]`，也**加上 `export`** 来用。帖子正文可能多行，所以先把单独成行的 `[翻译：…]` 那行拿出来再 `takeTr`。
+- 去掉思考块：`String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')`（`genMoments` 里就是这句）。
+- 语言名字：`import { LANGS, langName } from '../../core/translate.js'`；`state.forum.lang` 存的是 `LANGS` 里的代号（中文是 `'zh-CN'`）。AI 回的「地区：地名｜语言」里的语言是字，用 `LANGS.find(([v, l]) => l === 字)` 对回代号，对不上就当中文。
+- 提示词：`core/prompts.js` 里三处：`PROMPT_CATS` 加 `{ app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: […] }, { id: 'forumThread', name: '出评论', vars: […] }, { id: 'forumDm', name: '私信', vars: […] }] }`；模板对象里照 `moment:` 那条的格式加三条（`{ name, cats: ['forumFeed'], on: true, main: true, text: \`…\` }`）；`VAR_INFO` 里补新变量的说明（`board`、`platform`、`setup`、`focus`、`who`、`event`、`post`）。
+
+### 13.4 要等的操作
+- 提示条 + 取消：`waiting('正在刷新…', signal => feed(board, signal), ac)`（`core/ui.js`；第三个参数是外面给的 AbortController，这样同一个按钮再点一下也能取消）。
+- 按钮自己转圈：`busy(btn, signal => …)`（再点就是取消，里面自带收到多少字）。
+- 自己放一个「收到多少字」：`aiCount()` 返回一个会自己更新的小元素。
+- 「同时只跑一个」：`engine.js` 里放 `const running = {};`（键：`'feed:' + board`、`'thread:' + post.id`、`'dm:' + who`），值是 AbortController；开工前有就不再发；页面打开时看 `running[键]` 决定按钮画成「取消」；做完 `delete`，结果写进 `D` 后 `commit('forum')`，由 13.2 的 `subscribe` 把结果填进现在开着的页面。照 `apps/music/comments.js` 第 23 行的 `busy` / `live`。
+- 取消了：提示「已取消」，不记报错。失败：`toast('具体原因')`，日志由 `generate` 自己记，别重复记。
+
+### 13.5 界面零件（`core/ui.js`）
+| 要做的 | 用哪个 |
+|---|---|
+| 头像（没图时自动出字） | `avatar(url, 名字, 尺寸)` |
+| 从下面弹出的面板 | `sheet({ title, content })` → `{ el, close }` |
+| 选一项 | `await actionSheet(标题, [{ value, label, icon, danger, active }])` |
+| 确认 / 输一行字 | `await dialog({ title, text, confirm, danger })`、`await dialog({ title, input: { value, placeholder } })` |
+| 设置里的一组、一行 | `group(小标题, [行…])`、`item({ title, value, chevron, onClick, right })` |
+| 开关行 | `toggleItem({ title }, 开着吗, v => …)` |
+| 分段按钮 | `segmented([[值, 字]…], 当前值, v => …)` |
+| 输入框 | `input({ value, placeholder, onInput })`、`textarea({ value, rows, onInput })`、`field(标签, 控件)` |
+| 按钮 | `btn(字, 'primary' | 'secondary', onclick)` |
+| 选头像（带裁剪） | `await pickImage('头像', { ratio: 1, size: 320, has })` → 图 / `''` 恢复默认 / `null` 没改 |
+| 提示 | `toast(字)`；挂着等：`toast(字, true)`；带按钮：`toast(字, { label, fn })` |
+| 空状态 | `empty(…)`（看 `apps/chat/moments.js` 怎么用的） |
+| 红点 | `badge(数字)` |
+| 长按 | `onLongPress(el, fn)`（`core/util.js`） |
+
+### 13.6 样子、叫法
+- `core/main.js` 的 `applyLook` 里加一句：`phone.dataset.forumSkin = state.apps.forum.skin || 'weibo';`
+- `apps/forum/skins.css` 第一行写 `@charset "utf-8";`，照 `apps/chat/skins.css` 的结构：`.as-phone[data-forum-skin="douban"] { --fo-…: …; }`、`.as-phone[data-forum-skin="douban"][data-mode="night"] { … }`。在 `index.html` 里加两行 `<link rel="stylesheet" …>`。
+- 资源库里的选择卡片：`apps/library/library.js` 的 `STYLE` 对象里加 `forum: () => …`，照 `STYLE.chat` 抄（点了只切 `.is-on` 类、设 `dataset`、`commit('apps')`）。教程：同文件 `GUIDE` 加 `forum: { cls: […], vars: […], ex: […] }`。
+- 能被皮肤改的字：元素上写 `dataset: { asText: 'forum.tab.local' }`，建完调一次 `applyTexts()`（`core/skin.js`）。代码里要用字的地方（比如拼提示词）用 `textOf('forum.platform', 自带表[skin].platform)`。
+- 翻译「点了才显示」：每条帖的正文元素存着两份字，点按钮时只改这一个元素的 `textContent` 和按钮的字。
+
+### 13.7 设置里登记
+- `apps/settings/settings.js` 的 `openApps()` 里加一行论坛（照「幕间」那行，`sub` 写「文字：跟随全局」），点了 `shell.openApp('forum')` 后进论坛自己的设置页就行，不用在设置 App 里再做一份。
+- 同文件第 133 行附近「按 App 的日夜主题」用的是 `home.js` 的 `APPS`，加了就自动有；第 580 行附近状态栏那张 App 表按需要加。
+
+### 13.8 测试
+- Playwright（Python），开预览：在仓库根 `python3 -m http.server 8123`，打开 `http://localhost:8123/phone/index.html`，视口 400×860。
+- 假 AI：先在页面里往 `state.connections.text` 塞一根指向 `http://localhost:8123/fake/v1` 的线并设成默认，再 `page.route('**/fake/v1/chat/completions', …)` 回一段按第五节格式写的文字（OpenAI 格式的 JSON）。
+- 页面里拿数据：`page.evaluate("(async()=>{const s=await import('./core/store.js'); return …})()")`。
+- 查不闪：操作前后连着截 6–10 张图拼在一起看。
+- 语法检查：`cp 文件 /tmp/chk.mjs && node --check /tmp/chk.mjs`。
 
 ## 更新记录
 （开工后从这里往下写）
