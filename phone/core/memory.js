@@ -112,11 +112,11 @@ export const relOf = (c, d = D) => { const ns = namesOf(c); return d.rel.filter(
 // 人物：名字｜别名｜是谁   日子：月-日｜什么日子｜和谁有关   没完：谁｜什么事   完成：谁｜什么事
 // 地点：名字｜归哪个大地方｜一句介绍
 const list = s => norm(s).split(/[、,，/]/).map(norm).filter(Boolean);
-// 人名后面 AI 顺手加的括号注解去掉（「天内理子（昏迷）」「孔时雨（新人物）」），不然一个人会变成好几个人
+// 人名后面 AI 顺手加的括号注解去掉（「林晓（昏迷）」「周叔（新人物）」），不然一个人会变成好几个人
 const bare = n => norm(n).replace(/\s*[（(][^（()）]*[)）]$/, '');
 // 印象那行第二格 AI 有时写成「对某某」「→某某」「某某的印象」，名字就对不上、整行印象丢了（作者遇到过）：不是真有人叫这个名字就把多的字去掉
 const whom = n => { n = bare(n); return D && D.ppl.some(p => p.name === n) ? n : n.replace(/^(对|→|->)\s*(?=.)/, '').replace(/(?<=.)的?(印象|看法)$/, ''); };
-// 「九月七桃霁（不知道）」这种是 AI 在说这个人不知道，不能去掉括号当成知道的人
+// 「林小满（不知道）」这种是 AI 在说这个人不知道，不能去掉括号当成知道的人
 const folk = s => [...new Set(list(s).filter(n => !/[（(][^（()）]*(不知|不清楚|无人|没人)[^（()）]*[)）]$/.test(n)).map(bare).filter(Boolean))];
 // AI 没东西可写时爱填「（空）」「无」：都当空着。以前没当空，「（空）」被记成了某个人的别名，那个人就成了每件事「后来听说的人」
 const NONE = /^[（(]?(空|无|没有|暂无|未知)[)）]?$/;
@@ -172,7 +172,7 @@ const grams = s => { const t = norm(s).replace(/\s+/g, ''), g = new Set(); for (
 const overlap = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n; };
 const alike = (a, b) => { const x = grams(a), y = grams(b); return overlap(x, y) / Math.max(1, Math.min(x.size, y.size)); };
 /** 人物表里的别名 → 正名 */
-// 写成简称的认回全名（作者：生成了关系却什么都没有——AI 写的是「桃霁」「夜蛾」，对不上名字行上的「九月七桃霁」「夜蛾正道」，就挂到了一个看不见的人身上）：
+// 写成简称的认回全名（作者：生成了关系却什么都没有——AI 写的是「小满」「明远」，对不上名字行上的「林小满」「周明远」，就挂到了一个看不见的人身上）：
 // 先看人物表的别名；还对不上，就找唯一一个包含它的全名（你、人物表、手机联系人里的），至少两个字
 const canon = n => {
   const p = D.ppl.find(p => p.name === n || p.alias.includes(n)); if (p) return p.name;
@@ -491,7 +491,7 @@ export async function refill(want, signal, redo, source = '') {
     if (want.includes('places') && wipe && x.at.length) D.places = D.places.filter(q => spots.has(q.name));
     const tops = new Set(x.places.map(q => q.area));
     if (want.includes('places')) for (const q of x.places) {
-      if (!spots.has(q.name) && !tops.has(q.name)) continue;   // 只归类事里有的、和被写成上级的（东京咒术高专归东京），不让它添不相干的地点
+      if (!spots.has(q.name) && !tops.has(q.name)) continue;   // 只归类事里有的、和被写成上级的（星川学园归海城），不让它添不相干的地点
       let o = D.places.find(o => o.name === q.name); if (!o) D.places.push(o = { name: q.name, area: '', intro: '' });
       if ((redo || !o.area) && !loops(q.name, q.area)) o.area = q.area; if (q.intro && (redo || !o.intro)) o.intro = q.intro; n.places++;
     }
@@ -871,7 +871,7 @@ function recall(pool, scan, self) {
   // 没有关键词的老记忆（v0.8.71 前整理的）主要靠这个想起来
   // 单个字也算（分量减半）：「喝酒」和「喝了一口梅酒」两字词对不上，但「酒」「喝」对得上
   const toks = s => { const g = grams(s); for (const ch of norm(s).match(/[\u4e00-\u9fff]/g) || []) g.add(ch); return g; };
-  // 字面只比内容：说话人的名字（每行开头的「桃霁：」）、TA 们和我的名字都去掉，不然谁的事都对得上
+  // 字面只比内容：说话人的名字（每行开头的「小满：」）、TA 们和我的名字都去掉，不然谁的事都对得上
   const strip = s => [...self].filter(n => n.length > 1).reduce((x, n) => x.split(n).join(' '), s);
   const docs = new Map(pool.map(e => [e, toks(strip([e.title, e.text, e.place, ...e.tags, ...(e.keys || [])].join(' ')))])), N = pool.length;
   // 单个字只看最后一句（刚说的话），不然几百字的正文里随便几个字都能对上

@@ -116,7 +116,7 @@ export function replyCfg(chat) {
 export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
 /** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
 function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text, tr: p.tr } : p; }
-/* 说外语的 TA（照作者二改的 phonetest）：私聊设置里「TA 说的语言」选了外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
+/* 说外语的 TA：私聊设置里「TA 说的语言」选了外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
    拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
 const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = ch && ch.cfg.theirLang; return l && l !== 'zh-CN' ? l : ''; };
 const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
@@ -148,7 +148,7 @@ function toMin(lines, [min, max], head = () => '') {
   }
   return lines;
 }
-/* 角色给消息贴表情（照作者二改的 phonetest）：AI 写 [表情回应:😂] 或 [表情回应:😂|那句话里的几个字]；
+/* 角色给消息贴表情：AI 写 [表情回应:😂] 或 [表情回应:😂|那句话里的几个字]；
    没写就按你说的话和 TA 这轮的语气补一个。贴在 m.reactions[谁]（你自己贴的是 m.reactions.me） */
 const RX = /\[表情回应[:：]\s*([^\]|｜]+?)\s*(?:[|｜]\s*([^\]]+?))?\s*\]/g;
 function reactTo(msgs, by, raw, frag) {

@@ -226,19 +226,19 @@ export function open() {
     setTimeout(fit, 1400);   // 画换成别的高度要 1.3 秒
   }
 
-  /* 地图。地点是一棵树（作者定的：能一层套一层，东京 → 高专 → 医务室），root 是现在看的是哪一层（'' = 最外面）。
+  /* 地图。地点是一棵树（作者定的：能一层套一层，海城 → 星川学园 → 医务室），root 是现在看的是哪一层（'' = 最外面）。
      一层里：下面还有地方的是大地方（点一下钻进去看它直接管的那几个；里面的再点还能往下钻），没有的是单独的地点。
-     谁归谁：先看自己写的归属；没写的，名字里带着某个大地方的全名、或者用它的简称开头（大地方名字的后半截，至少两个字：「高专男生宿舍」→「东京咒术高专」）就算它的。
-     大地方 = 被写成归属的那些，加上程序看出来的：三个以上没归属的地点用同两个字开头（高专医务室、高专食堂…）就是一片，
-     名字用正好以这两个字结尾的那个地方（东京咒术高专），没有就用这两个字。
+     谁归谁：先看自己写的归属；没写的，名字里带着某个大地方的全名、或者用它的简称开头（大地方名字的后半截，至少两个字：「学园男生宿舍」→「星川学园」）就算它的。
+     大地方 = 被写成归属的那些，加上程序看出来的：三个以上没归属的地点用同两个字开头（学园医务室、学园食堂…）就是一片，
+     名字用正好以这两个字结尾的那个地方（星川学园），没有就用这两个字。
      最外面那层只放主要的（作者：次要的不要放首页）：只出过一次、又没归属的零散地点收在右上角「没归类」里。没拖过的按向日葵那样一圈圈摆开 */
   let root = '', rooted = false, upOf = () => '';
   below = () => [];
   function setMap() {
-    const junk0 = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「东京咒术高专（地下）」和「东京咒术高专」是同一个大地方
+    const junk0 = a => !a || /^[（(].*[)）]$|^(空|无|不知道|未知)$/.test(a) ? '' : a.replace(/\s*[（(][^（()）]*[)）]$/, '');   // AI 有时把「（空）」写进归属；「星川学园（地下）」和「星川学园」是同一个大地方
     const pl = new Map(d.places.map(q => [q.name, q])), cnt = new Map();
     for (const e of d.ev) if (e.place) { cnt.set(e.place, (cnt.get(e.place) || 0) + 1); if (!pl.has(e.place)) pl.set(e.place, { name: e.place }); }
-    // 归属写成简称的认成全名：「高专」→「东京咒术高专」（只有唯一一个地方的名字以它结尾时才认）
+    // 归属写成简称的认成全名：「学园」→「星川学园」（只有唯一一个地方的名字以它结尾时才认）
     const full = a => { const l = [...new Set([...pl.keys(), ...d.places.map(q => q.area)])].filter(n => n && n !== a && n.endsWith(a)); return l.length === 1 ? l[0] : a; };
     const junk = a => { const v = junk0(a); return v && full(v); };
     const head = new Map(); for (const q of pl.values()) if (!junk(q.area) && !q.lone && q.name.length > 2) head.set(q.name.slice(0, 2), (head.get(q.name.slice(0, 2)) || 0) + 1);
@@ -246,7 +246,7 @@ export function open() {
     const big = [...new Set([...set, ...[...head].filter(x => x[1] > 2).map(([h2]) => [...set, ...pl.keys()].find(n => n.length > 2 && n.endsWith(h2)) || h2)])];
     const short = (a, n) => { for (let k = a.length - 1; k >= 2; k--) if (n.startsWith(a.slice(-k))) return true; return false; };
     const nodes = [...new Set([...pl.keys(), ...big])];
-    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || (!(pl.get(n) || {}).lone && big.find(a => a !== n && (n.includes(a) || short(a, n)))) || '']));   // 大地方也一样（东京咒术高专 → 东京）
+    const P = new Map(nodes.map(n => [n, junk((pl.get(n) || {}).area) || (!(pl.get(n) || {}).lone && big.find(a => a !== n && (n.includes(a) || short(a, n)))) || '']));   // 大地方也一样（星川学园 → 海城）
     for (const n of nodes) { let q = P.get(n), k = 0; while (q && q !== n && k++ < 20) q = P.get(q) || ''; if (q === n) P.set(n, ''); }   // 甲归乙、乙又归甲：绕圈了，当它没有上级
     // 最多三层（作者定的：城市 → 大地方 → 具体地点）：再往下的并到第三层，挂在它的上上级下面
     const depth = n => { let k = 1; for (let q = P.get(n); q && k < 9; q = P.get(q)) k++; return k; };
