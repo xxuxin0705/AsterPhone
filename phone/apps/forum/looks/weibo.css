@@ -14,7 +14,7 @@
 [data-as-app="forum"] .as-fo-switch button.is-on { color: var(--fo-ink); font-weight: 700; font-size: 20px; }
 [data-as-app="forum"] .as-fo-switch button.is-on::after { z-index: -1; left: -1px; right: -1px; bottom: 5px; width: auto; height: 5px; margin: 0; border-radius: 3px; background: linear-gradient(90deg, #ffa000, #ff7a00); }
 .as-fo-root .as-navbar__right { gap: 8px; }
-.as-fo-root:not([data-tab="me"]) .as-navbar__right > .as-navbar__btn[aria-label="搜索"], .as-fo-root .as-navbar__right .as-fo-job:not(.is-busy) { display: none; }
+.as-fo-root:not([data-tab="me"]) .as-navbar__right > .as-navbar__btn[aria-label="搜索"] { display: none; }
 .as-fo-navpost .as-navbar__btn { width: 30px; height: 30px; background: linear-gradient(#fff, #fff) center / 12px 2.4px no-repeat, linear-gradient(#fff, #fff) center / 2.4px 12px no-repeat, linear-gradient(135deg, #ffad2e, #ff7300); }
 .as-fo-navpost svg { display: none; }
 
@@ -130,12 +130,13 @@
 [data-as-app="forum"] .as-fo-likeava { background: #fda61d; }
 
 
-/* 热搜整页：橙色大横幅 + 排名列表 */
-[data-as-app="forum"] .as-fo-banner { height: 150px; background: linear-gradient(120deg, #ff9d00 0%, #ff5d00 60%, #ff3d3d 100%); font: italic 900 38px/1 var(--font-ui); letter-spacing: .02em; text-shadow: 0 3px 0 rgba(180,40,0,.35); }
+/* 热搜整页：排名、话题、热度、新 / 热 / 沸 */
 [data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item { height: auto; gap: 12px; padding: 13px 16px; box-shadow: none; font-size: 16px; }
 [data-as-app="forum"] .as-fo-hotlist .as-fo-hot__no { display: block; width: 22px; text-align: center; color: #ff8200; font-style: italic; font-size: 17px; }
 [data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item:nth-child(-n+3) .as-fo-hot__no { color: #f13e3e; }
-[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__heat { flex: 1; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__topic { flex: 1; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__heat { flex: none; font-size: 13px; color: #999; }
+[data-as-app="forum"] .as-fo-hotlist .as-fo-hot__tag { width: 17px; font-size: 11.5px; line-height: 17px; }
 
 /* 正文页：转发 · 评论 · 赞（赞靠右），评论一层一层，底下浮着的胶囊 */
 [data-as-page="forum-post"] .as-fo-stat { gap: 24px; padding-top: 14px; }

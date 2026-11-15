@@ -55,7 +55,6 @@
 [data-as-app="forum"] .as-fo-board__tag { display: none; }
 [data-as-app="forum"] .as-fo-board__count:not(:empty)::after { content: ' 位成员'; }
 [data-as-app="forum"] .as-fo-hotlist .as-fo-hot__item { box-shadow: inset 0 -1px 0 var(--fo-line); }
-[data-as-app="forum"] .as-fo-banner { height: 110px; background: var(--fo-accent); font: 800 26px/1 var(--font-ui); text-shadow: none; }
 
 /* 帖子页：大字正文、数据一行、回复串（左边竖线连着）、底下「发布你的回复」 */
 [data-as-page="forum-post"] .as-fo-post { grid-template-columns: 40px 1fr; }

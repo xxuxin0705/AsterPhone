@@ -138,8 +138,8 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
       world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
-  const f = F(), got = [], hot = []; let cur = null;
-  const end = () => { if (cur && cur.text.trim()) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
+  const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
+  const end = () => { inFloors = false; if (cur && cur.text.trim()) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
   for (const l of clean(raw).split('\n').map(x => x.trim())) {
     let m;
     if (/^={3,}$/.test(l)) { end(); continue; }
@@ -167,17 +167,19 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
       continue;
     }
     if (!cur) continue;
+    if (/^评论[:：]\s*$/.test(l)) { inFloors = true; cur.floors = []; continue; }
     if ((m = /^标题[:：]\s*(.*)$/.exec(l))) { cur.title = m[1].slice(0, 40); continue; }
     if ((m = /^小组[:：]\s*(.+)$/.exec(l))) { const g = boards().find(x => x.name === strip(m[1])); if (g && board === 'all') cur.board = g.id; continue; }
     if ((m = /^来自[:：]\s*(.+)$/.exec(l))) { cur.dev = m[1].slice(0, 16); continue; }
     if ((m = /^[[【]\s*图片[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.img = m[1]; continue; }
     if ((m = /^[[【]\s*翻译[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = m[1]; continue; }
     if ((m = /^数据[:：](.*)$/.exec(l))) { cur.likes = num((/赞\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.cmts = num((/评\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.reposts = num((/转\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); continue; }
+    if (inFloors) { const fl = floorOf(l, cur, cur.floors, mine); if (fl) cur.floors.push(fl); continue; }
     cur.text += (cur.text && !cur.text.endsWith('\n') ? '\n' : '') + l;
   }
   end();
   if (!got.length) { log('error', '论坛', 'AI 没有按格式写帖子', raw); throw new Error('AI 没有按格式写帖子'); }
-  got.forEach(p => { if (!p.likes) p.likes = rnd(300); if (!p.cmts) p.cmts = rnd(60); });
+  got.forEach(p => { if (!p.likes) p.likes = rnd(300); p.cmts = Math.max(p.cmts || rnd(60), (p.floors || []).length); if (p.floors && !p.floors.length) p.floors = null; });
   if (hot.length) f.hot = hot;
   D.posts.unshift(...got.slice(0, count + 2)); prune();
   await save();
@@ -215,7 +217,16 @@ function addLikers(p, o, names) {
     L.push({ by, ...time.stamp() }); o.likes = (o.likes || 0) + 1;
   }
 }
-/** 给这条帖出几层楼（第一次点开、或者「再来一些」） */
+/** 一行楼层「名字：话」「名字 回复 3：话」→ 一层；all = 这条帖已经有的楼（算回的是哪一楼）。不替我写，认不出来就 null */
+function floorOf(l, p, all, mine) {
+  const m = /^(?:\d+\s*楼\s*)?(.+?)(?:\s*回复\s*(楼主|\d+)\s*楼?)?\s*[:：]\s*(.+)$/.exec(l); if (!m || m[1].length > 24) return null;
+  const [text, t2] = takeTr(m[3]), tr = t2 === text ? '' : t2, op = strip(m[1]) === '楼主';
+  if ((op && p.by.k === 'me') || mine.has(strip(m[1]))) return null;
+  const by = op ? { ...p.by, op: true } : byName(m[1], p.board);
+  const to = m[2] === '楼主' ? 'op' : m[2] ? (all[+m[2] - 1] || {}).id || 'op' : '';
+  return { id: uid('ff'), by, to, text, tr, likes: rnd(40), ...time.stamp() };
+}
+/** 给这条帖出几层楼（自己发的帖、以前没带评论的帖第一次点开，或者「再来一些」） */
 export async function thread(p, stop, { focus = '', count } = {}) {
   await load();
   const st = story(), anon = p.board === 'anon', first = !(p.floors || []).length;
@@ -228,12 +239,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   for (const l of clean(raw).split('\n').map(x => x.trim()).filter(Boolean)) {
     const lk = /^赞\s*(\d*)\s*楼?\s*[:：]\s*(.+)$/.exec(l);
     if (lk) { likes.push(lk); continue; }
-    const m = /^(?:\d+\s*楼\s*)?(.+?)(?:\s*回复\s*(楼主|\d+)\s*楼?)?\s*[:：]\s*(.+)$/.exec(l); if (!m || m[1].length > 24) continue;
-    const [text, t2] = takeTr(m[3]), tr = t2 === text ? '' : t2, op = strip(m[1]) === '楼主';
-    if ((op && p.by.k === 'me') || mine.has(strip(m[1]))) continue;   // 不替我写
-    const by = op ? { ...p.by, op: true } : byName(m[1], p.board);
-    const to = m[2] === '楼主' ? 'op' : m[2] ? (list.concat(add)[+m[2] - 1] || {}).id || 'op' : '';
-    add.push({ id: uid('ff'), by, to, text, tr, likes: rnd(40), ...time.stamp() });
+    const f = floorOf(l, p, list.concat(add), mine); if (f) add.push(f);
   }
   if (!add.length) { log('error', '论坛', 'AI 没有按格式写评论', raw); throw new Error('AI 没有按格式写评论'); }
   p.floors = list.concat(add); p.cmts = Math.max(p.cmts, p.floors.length);

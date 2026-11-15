@@ -257,8 +257,8 @@ function homePane(feeds, isHome) {
     for (const [k, el] of Object.entries(made)) el.hidden = k !== f;
   }
   return { el: box, title: sw, left: isHome ? [h('button.as-fo-navgroups', { onclick: openGroups }, W('forum.group'))] : [],
-    right: [navBtn('search', '搜索', () => openSearch('')), isHome ? h('span.as-fo-navdress', navBtn('palette', '装扮', openDress)) : null, refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))].filter(Boolean),
-    first: () => show(cur), feed: () => cur, refresh: () => refresh.querySelector(`[data-job="feed:${cur}"]`).click() };
+    right: [navBtn('search', '搜索', () => openSearch('')), refresh, h('span.as-fo-navpost', navBtn('edit', word('forum.post.new'), () => compose(R.feed)))].filter(Boolean),
+    first: () => show(cur), feed: () => cur };
 }
 /* ---------- 消息：动态（关注的人新发的）/ 提醒（评论、赞）/ 私信；样子定有哪几栏 ---------- */
 const mine = by => by.k === 'me';
@@ -353,13 +353,13 @@ function inboxPane() {
 function mePane(p) {
   const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
   R.mePaint = v.paint;
-  return { el: h('div.as-fo-me', ...v.els), title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('gear', '设置', openSettings)] };
+  return { el: h('div.as-fo-me', ...v.els), title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('palette', '装扮', openDress), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
 function blocksPane(kind, title) {
   const bl = look().layout[kind] || [], top = kind === 'discover' && bl[0] === 'search';
   const right = kind === 'discover' ? [jobBtn('feed:global', () => [icon('repeat', 20, 1.9)], () => feedTo('global'))] : [];
-  return { el: h('div.as-fo-blocks', (top ? bl.slice(1) : bl).map(b => BLOCK[b]())), title: top ? BLOCK.search() : title, right, refresh: right[0] && (() => right[0].click()) };
+  return { el: h('div.as-fo-blocks', (top ? bl.slice(1) : bl).map(b => BLOCK[b]())), title: top ? BLOCK.search() : title, right };
 }
 /** 微博首页左上角「超话」：小组页单独打开 */
 function openGroups() {
@@ -382,7 +382,7 @@ export function open() {
     /^img:/.test(t.icon) ? h('i.as-fo-tab__img', { style: { backgroundImage: `var(--fo-img-${t.icon.slice(4)})` } }) : icon(t.icon || 'grid', 24, 1.7), h('span', t.text))));
   let cur = -1;
   function show(i) {
-    if (i === cur) { panes[i].refresh?.(); return; }   // 再点一下正在看的标签 = 刷新（再点取消）
+    if (i === cur) return;
     cur = i;
     bar.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i));
     if (!panes[i]) { panes[i] = make[tabs[i].page](tabs[i]); panes[i].el.classList.add('as-fo-pane'); p.body.append(panes[i].el); panes[i].first?.(); }
@@ -529,7 +529,7 @@ function openHot() {
   const list = h('div.as-fo-hotlist');
   const draw = () => list.replaceChildren(...(state.forum.hot || []).map(hotItem), (state.forum.hot || []).length ? null : empty('还没有热榜，刷新一下'));
   hots.add({ el: list, draw }); draw();
-  pg.body.append(h('div.as-fo-banner', W('forum.hot.title', 'b')), list);
+  pg.body.append(list);
   nav.push(pg.el); applyTexts();
 }
 /* ---------- 搜索：先在存着的帖子里找；「全网搜」按这个词刷一批（一次调用） ---------- */
