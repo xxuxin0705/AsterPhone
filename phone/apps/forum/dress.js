@@ -56,7 +56,7 @@ async function upload(k, has, all = {}) {
     const how = await actionSheet(t, [{ value: 'img', label: has ? '换一张图' : '用图片', icon: 'image' }, has && { value: 'edit', label: '调整这张图', icon: 'edit' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }].filter(Boolean)); if (!how) return null;
     // 抠过的图（蕾丝边这种）透明的地方露出底下的纯色 / 渐变，两样一起留着；整张照片就只用一样
     if (how === 'fill') { const f = await pickFill(t); return f && { [k + 'fill']: f, ...(!all[k + 'cut'] && { [k]: '' }) }; }
-    const cut = how === 'edit' ? all[k + 'cut'] : await actionSheet('这张图', [{ value: '', label: '直接用（框哪块就用哪块）', icon: 'image' }, { value: '1', label: '抠掉底色（只留花纹，底色透明）', icon: 'edit' }]); if (cut == null) return null;
+    const cut = how === 'edit' ? all[k + 'cut'] || '' : await actionSheet('这张图', [{ value: '', label: '直接用（框哪块就用哪块）', icon: 'image' }, { value: '1', label: '抠掉底色（只留花纹，底色透明）', icon: 'edit' }]); if (cut == null) return null;
     const r = await bgCrop(k, how === 'edit' && all, ratio, size, cut); return r && { ...r, [k + 'cut']: cut, ...(!cut && { [k + 'fill']: '' }) };
   }
   if (png && has && k !== 'btn') {
