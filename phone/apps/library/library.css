@@ -38,3 +38,5 @@
 .as-lib-chatskins__mock.is-aster::before { left: 7px; top: 24px; width: 46%; }
 .as-lib-chatskins__mock.is-aster::after { right: 7px; top: 42px; width: 40%; background: var(--as-color-accent); }
 .as-lib-chatskins em { display: block; font: 400 12px/1.2 var(--font-ui); font-style: normal; margin-top: 5px; }
+
+.as-lib-framefit { display: grid; place-items: center; height: 300px; margin: 8px 16px 16px; border-radius: 18px; border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface); touch-action: none; cursor: grab; }

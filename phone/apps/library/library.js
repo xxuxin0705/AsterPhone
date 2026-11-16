@@ -2,7 +2,7 @@
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
-import { deco, addFrame, paintBubble, pack, unpack } from '../../core/deco.js';
+import { deco, addFrame, paintBubble, pack, unpack, fitFrame } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import * as time from '../../core/time.js';
@@ -105,7 +105,7 @@ async function addDeco(k, redraw) {
   if (v === 'new') editBubble(null, redraw);
   if (v === 'img') {
     const f = await pickFile('image/*'); if (!f) return;
-    deco().frames.push({ id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', src: await fileToDataURL(f, 320, 'image/png') }); commit('deco'); redraw();
+    deco().frames.push({ id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', ...await fitFrame(await fileToDataURL(f, 480, 'image/png')) }); commit('deco'); redraw();
   }
   if (v === 'file') {
     const f = await pickFile('*/*'); if (!f) return;
@@ -114,15 +114,29 @@ async function addDeco(k, redraw) {
   }
 }
 async function decoMenu(k, x, redraw) {
-  const v = await actionSheet(x.name, [...(k === 'bubbles' ? [{ value: 'edit', label: '编辑', icon: 'edit' }] : [{ value: 'name', label: '改名', icon: 'edit' }]),
+  const v = await actionSheet(x.name, [...(k === 'bubbles' ? [{ value: 'edit', label: '编辑', icon: 'edit' }] : [{ value: 'fit', label: '调位置和大小', icon: 'image' }, { value: 'name', label: '改名', icon: 'edit' }]),
     { value: 'out', label: '导出', icon: 'box' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
   if (v === 'edit') editBubble(x, redraw);
+  if (v === 'fit') fitFrameEdit(x, redraw);
   if (v === 'name') { const n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 20); commit('deco'); redraw(); } }
   if (v === 'out') {
     const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(pack(k, [x]))], { type: 'application/json' })), download: `AsterPhone-${KIND[k]}-${x.name}.json` });
     document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
   }
   if (v === 'del' && await dialog({ title: `删除「${x.name}」？`, text: '戴着它的人会换回没有的样子。', confirm: '删除', danger: true })) { deco()[k].splice(deco()[k].indexOf(x), 1); commit('deco'); redraw(); }
+}
+/** 头像框微调：添加时已经自动对齐过；这里拖预览挪位置，滑条调大小 */
+function fitFrameEdit(f, redraw) {
+  const d = { inset: f.inset ?? -22, dx: f.dx || 0, dy: f.dy || 0 }, a = addFrame(avatar('', '我', 150), f.id);
+  const paint = () => { a.style.setProperty('--frame-in', d.inset + '%'); a.style.setProperty('--frame-at', `${d.dx}% ${d.dy}%`); };
+  const stage = h('div.as-lib-framefit', a); let s = null;
+  stage.onpointerdown = e => { stage.setPointerCapture(e.pointerId); s = { x: e.clientX, y: e.clientY, dx: d.dx, dy: d.dy }; };
+  // 挪的量按框自己的大小算百分比（translate 的百分比是 ::after 自己的宽高）
+  stage.onpointermove = e => { if (!s) return; const W = 150 * (1 - 2 * d.inset / 100); d.dx = +(s.dx + (e.clientX - s.x) / W * 100).toFixed(1); d.dy = +(s.dy + (e.clientY - s.y) / W * 100).toFixed(1); paint(); };
+  stage.onpointerup = stage.onpointercancel = () => { s = null; };
+  const p = page({ app: 'library', id: 'library-framefit', title: f.name, back: true, right: navText('保存', () => { Object.assign(f, d); commit('deco'); toast('已保存'); nav.pop(); redraw(); }) });
+  p.body.append(stage, group('', [field('大小', slider({ min: 0, max: 70, step: .5, value: -d.inset, onInput: v => { d.inset = -v; paint(); } }))]));
+  paint(); nav.push(p.el);
 }
 /** 气泡编辑：上面是预览，下面调颜色、圆角、描边，或者换成一张图 */
 function editBubble(b, redraw) {

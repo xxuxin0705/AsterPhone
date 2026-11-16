@@ -6,7 +6,7 @@ import { state, commit, contact } from '../../core/store.js';
 import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
-import { addFrame } from '../../core/deco.js';
+import { addFrame, pickDeco, decoName } from '../../core/deco.js';
 import { LANGS, langName } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
@@ -69,7 +69,7 @@ const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('ch
 function ava(by, size, framed) {
   if (by.anon) return h('span.as-avatar.as-fo-anon', { style: { width: size + 'px', height: size + 'px' } }, icon('user', Math.round(size * .5), 1.8));
   const w = E.who(by), a = avatar(w.avatar, w.name, size);
-  return framed ? addFrame(a, by.k === 'c' ? contact(by.id)?.frame : by.k === 'me' ? state.me?.frame : '') : a;   // 头像框用资源库「个性装扮」里给这个人选的
+  return framed ? addFrame(a, by.k === 'c' ? contact(by.id)?.frame : by.k === 'me' ? E.F().accounts.find(x => x.id === by.id)?.frame ?? state.me?.frame : '') : a;   // 头像框用资源库「个性装扮」里给这个人选的；我的号各自选，没选过跟着聊天里我的
 }
 /** 正文里的 #话题#、@网名 标成蓝色：点话题搜这个话题，点 @ 进这个人的主页 */
 const AT = /@([^\s@#：:，,。！？!?、（）()]{1,20})/g;
@@ -652,7 +652,11 @@ function accFields(d) {
   // 粉丝 / 关注 / 转评赞：能写「3.3万」「1.04亿」，空着就照原来的算
   const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
   const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
-  return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio),
+  const fr = item({ title: '头像框', value: decoName('frames', d.frame ?? state.me?.frame) || '不戴', chevron: true, onClick: async () => {
+    const v = await pickDeco('frames', d.frame ?? state.me?.frame); if (v == null) return;
+    d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴';
+  } });
+  return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), fr, field('网名', name), field('简介', bio),
     field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };

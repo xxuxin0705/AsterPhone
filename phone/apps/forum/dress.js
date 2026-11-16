@@ -5,6 +5,7 @@ import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
 import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
+import { loadImg, cutout } from '../../core/deco.js';
 
 // [编号, 叫法, 宽÷高, 长边像素, 留透明]
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1], ['tabline', '标签下的花边', 4, 320, 1],
@@ -139,35 +140,6 @@ function editSet(s, isNew, done) {
   })));
   nav.push(p.el);
 }
-/* ---------- 抠图：要透明的部件（头像框、小图标…）传的图没有透明，就把和四周连着、颜色差不多的底色抠掉（纯色、渐变底好用，花底抠不干净） ---------- */
-const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
-/** 抠底色：从图的四边、还有已经透明的地方往里走，和走过来的那一格颜色接近（t，渐变也跟得上）、离出发那一格的颜色也不太远（g）就当底色去掉 */
-function flood(x, w, H, t, g = 999) {
-  const d = x.getImageData(0, 0, w, H), a = d.data, at = (i, j) => (j * w + i) * 4, seen = new Uint8Array(w * H), q = [];
-  const far = (p, f) => Math.abs(a[p] - a[f]) + Math.abs(a[p + 1] - a[f + 1]) + Math.abs(a[p + 2] - a[f + 2]);
-  for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) {
-    const p = at(i, j);
-    if (a[p + 3] === 0) { for (const [u, v] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (u >= 0 && v >= 0 && u < w && v < H) q.push([u, v, at(u, v), at(u, v)]); }
-    else if (!i || !j || i === w - 1 || j === H - 1) q.push([i, j, p, p]);
-  }
-  while (q.length) {
-    const [i, j, from, s0] = q.pop(); if (i < 0 || j < 0 || i >= w || j >= H || seen[j * w + i]) continue;
-    const p = at(i, j); if (!a[p + 3] || far(p, from) >= t || far(p, s0) >= g) continue;
-    seen[j * w + i] = 1; a[p + 3] = 0;
-    q.push([i + 1, j, p, s0], [i - 1, j, p, s0], [i, j + 1, p, s0], [i, j - 1, p, s0]);
-  }
-  x.putImageData(d, 0, 0);
-}
-async function cutout(url) {
-  if (!/^data:image\//.test(url)) return url;
-  const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
-  x.drawImage(im, 0, 0);
-  const top = x.getImageData(0, 0, w, 1).data, bot = x.getImageData(0, H - 1, w, 1).data;
-  for (let i = 3; i < top.length; i += 4) if (top[i] < 250 || bot[i] < 250) return url;   // 本来就有透明，不动
-  flood(x, w, H, 60);
-  return c.toDataURL('image/png');
-}
-
 /* ---------- 从截图拆：整张截图铺开，按微博主页常见的位置先摆好几个框，拖一拖、拉一拉大小，点「完成」一次切好变成一个新套装 ---------- */
 // 框：[部件, 叫法, 左, 上, 宽, 高]，都是截图宽度的几分之几；top 从内容最上面量、bottom 从最下面量
 const BOXES = [['cover', '背景', 0, .25, 1, .22, 'top'], ['tab', '标签小图', .36, .95, .07, .065, 'top'],
