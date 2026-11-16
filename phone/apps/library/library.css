@@ -40,3 +40,5 @@
 .as-lib-chatskins em { display: block; font: 400 12px/1.2 var(--font-ui); font-style: normal; margin-top: 5px; }
 
 .as-lib-framefit { display: grid; place-items: center; height: 300px; margin: 8px 16px 16px; border-radius: 18px; border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface); touch-action: none; cursor: grab; }
+.as-lib-fitmode { display: flex; gap: 10px; align-items: center; }
+.as-lib-fitmode > :first-child { flex: 1; }
