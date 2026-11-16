@@ -598,7 +598,7 @@ async function recommend(by) {
   applyTexts();
 }
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
-const ph = t => h('i.as-fo-ph', t);   // 编辑主页时空着的地方：淡淡的字，点了能填
+const ph = t => h('i.as-fo-ph', '+ ' + t);   // 编辑主页时空着的地方：淡淡的「+ 认证」，点了能填；不在编辑时空着的就不占地方
 const solids = new Map();
 /** 底栏穿上装扮：背景（图 / 纯色 / 渐变，透明度亮度）、按钮小图、字的颜色。我的穿在论坛最下面那条导航上（一打开论坛就穿上），别人的穿在 TA 主页底下那条 */
 function paintBar(u0, dr) {
@@ -679,9 +679,10 @@ function userView(by, host) {
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id), O = () => acc || E.over(by);   // 我的号的资料 / 我给别人改过的资料
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
   let editing = false;
-  const certOf = () => O().cert || (b ? b.topic : acc ? '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
+  // 改过（哪怕改成空的）就照改的来，空就是没有；我的号没填就是没有
+  const certOf = () => 'cert' in O() ? O().cert : acc ? '' : (b ? b.topic : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
   const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
-    w.v || o.cert || editing ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), w.v || o.cert ? certOf() : ph('认证')) : null,
+    (w.v || o.cert) && certOf() || editing ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), (w.v || o.cert) && certOf() || ph('认证')) : null,
     w.ip || editing ? h('div.as-fo-user__cert.is-ip', w.ip ? 'IP属地：' + w.ip : ph('IP 属地')) : null,
     h('div.as-fo-user__bio', (o.bio ?? (b ? b.bio : '')) || (editing ? ph('简介') : '')), tagsOf(),
     h('div.as-fo-user__nums', n(o.fans ?? fans, 'forum.fans'), n(o.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(o.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
