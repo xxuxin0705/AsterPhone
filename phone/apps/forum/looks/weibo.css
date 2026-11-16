@@ -194,7 +194,7 @@
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) .as-fo-user__tabs { position: sticky; top: calc(var(--as-sb-h, 0px) + 48px); z-index: 1; }
 
 /* 穿了套装的主页（照真微博）：背景图只占最上面一截；图下沿淡进「图下沿的颜色（调浅）」，这颜色再慢慢变白，名字、粉丝数压在这层淡色上，不压在图上；
-   装扮都是照浅色画的，夜间这一块也用浅色 */
+   夜间的样子见文件最后 */
 .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #fff; --fo-ink: #1a1a1a; --fo-line: #ededed; color: var(--fo-ink); }
 .is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -202px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 212px, #fff) !important; }
 .is-dressed .as-fo-user__coverimg:not([hidden]) { position: relative; width: 100%; height: 212px; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
@@ -254,3 +254,13 @@
 /* 底栏换了按钮小图：照真微博装扮过的底栏量的，小图 34、字 14（没装扮的照旧小字小图标） */
 [data-as-app="forum"] :is(.as-fo-tabbar, .as-fo-ubar):has(.has-pic) :is(.as-fo-tab, .as-fo-ubar__item) { gap: 2px; font-size: 14px; }
 [data-as-app="forum"] .as-fo-user__tabs { gap: 44px; }   /* 两个标签之间放得下浮在字左边的小图 */
+/* 夜间穿了装扮：背景图下沿过渡到深色（渐变色压暗），名字、数字换浅色，和下面的帖子接上；置顶条、底栏的图也压暗一点，不再一块亮一块黑 */
+.as-phone[data-mode="night"] .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #161616; --fo-ink: #dcdcdc; --fo-line: #262626; }
+.as-phone[data-mode="night"] .is-dressed .as-fo-user__cover { background: linear-gradient(color-mix(in srgb, var(--fo-tint, #161616) 30%, #161616) 212px, #161616) !important; }
+.as-phone[data-mode="night"] .is-dressed.no-fade .as-fo-user__cover { background: none !important; }
+.as-phone[data-mode="night"] .is-dressed .as-fo-user__tags span { background: rgba(255, 255, 255, .1); }
+.as-phone[data-mode="night"] .is-dressed .as-fo-ubar__item { text-shadow: none; }
+.as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-list.is-user .as-fo-post .as-fo-post__pinbg { filter: brightness(calc(var(--fo-pinbr, 1) * .7)); -webkit-mask-image: linear-gradient(#000 30%, transparent); mask-image: linear-gradient(#000 30%, transparent); }   /* 夜间置顶条往下淡进深色，不是一条灰带 */
+.as-phone[data-mode="night"] [data-as-app="forum"] .has-img > .as-fo-barbg { filter: brightness(calc(var(--fo-barbr, 1) * .55)); }
+.as-phone[data-mode="night"] [data-as-app="forum"] :is(.as-fo-tabbar, .as-fo-ubar).has-ink :is(.as-fo-tab, .as-fo-ubar__item) { color: var(--fo-btnink); }   /* 自己挑的按钮字色夜间也照用 */
+.as-phone[data-mode="night"] .as-fo-editbar { background: rgba(22, 22, 22, .62); box-shadow: 0 .5px 0 rgba(255, 255, 255, .08); }   /* 编辑条夜间用深色毛玻璃，字才看得清 */
