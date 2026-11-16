@@ -3,7 +3,7 @@
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
+import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, dressOne, keep, fillCss, COVERS, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, setOwn, keep, fillCss, COVERS, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -599,6 +599,8 @@ async function recommend(by) {
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
 const ph = t => h('i.as-fo-ph', t);   // 编辑主页时空着的地方：淡淡的字，点了能填
 const solids = new Map();
+/** 标签：小图大小、距离，下面那条线的样子和颜色（装扮里没写就用默认：和字差不多大、橙色短横线） */
+const tabStyle = (el, dr) => { el.style.setProperty('--fo-tabz', (dr.tabsize || 20) + 'px'); el.style.setProperty('--fo-tabgap', (dr.tabgap ?? 4) + 'px'); el.style.setProperty('--fo-markc', dr.tabmarkcolor || ''); el.dataset.mark = dr.tabmark || 'bar'; };
 const solid = u => u ? solids.get(u) ?? solids.set(u, loadImg(u).then(im => { const c = document.createElement('canvas'), w = c.width = Math.min(200, im.naturalWidth), H = c.height = Math.max(1, Math.round(im.naturalHeight * w / im.naturalWidth)), x = c.getContext('2d'); x.drawImage(im, 0, 0, w, H);
   const a = x.getImageData(0, 0, w, H).data; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i] > 128) n++; return n > a.length / 4 * .04; }).catch(() => true)).get(u) : Promise.resolve(false);
 function userView(by, host) {
@@ -656,7 +658,8 @@ function userView(by, host) {
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
     // 标签小图：图里几乎是空的（截图拆出来只剩几粒点）就当没有
-    solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
+    solid(dr.tab).then(ok => { img(sticker, ok && dr.tab); tabs.classList.toggle('has-sticker', !!ok); });
+    tabStyle(tabs, dr);
     // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
     for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', [dr.pinbg && `url("${dr.pinbg}")`, fillCss(dr.pinbgfill)].filter(Boolean).join()], ['pinink', dr.pincolor], ['pinop', fx('pinbg')[0]], ['pinbr', fx('pinbg')[1]]]) list.style.setProperty('--fo-' + k, v || '');
     list.classList.toggle('has-pinbg', !!(dr.pinbg || dr.pinbgfill));
@@ -713,7 +716,11 @@ function userView(by, host) {
       if (x === 'fade') { setFade(key); paint(); }
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
-    } else if (is('.as-fo-user__tabs')) dressOne(key, 'tab', paint);
+    } else if (is('.as-fo-user__tabs')) {
+      const x = await actionSheet('标签', [{ value: 'tab', label: '标签小图', icon: 'image' }, dressOf(key).tab && { value: 'fit', label: '小图大小、距离', icon: 'expand' }, { value: 'mark', label: '下面的线', icon: 'palette' }].filter(Boolean));
+      if (x === 'tab') dressOne(key, 'tab', paint);
+      if (x === 'fit' || x === 'mark') tabSheet(x);
+    }
     else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
     else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
@@ -723,6 +730,17 @@ function userView(by, host) {
     if (k === 'pincolor') { const box = h('div.' + list.className.split(' ').join('.'), { style: list.style.cssText }, h('article.as-fo-post', list.querySelector('.as-fo-post__pin')?.cloneNode(true), h('span.as-fo-post__name' + (list.querySelector('article:has(> .as-fo-post__pin) .as-fo-post__name.is-vip') ? '.is-vip' : ''), { hidden: true })));
       return { el: app(box), live: c => box.style.setProperty('--fo-pinink', c) }; }
     if (k === 'btncolor' && tb) { const bar = tb.cloneNode(true); return { el: app(bar), live: c => { bar.classList.add('has-ink'); bar.style.setProperty('--fo-btnink', c); } }; }
+  };
+  // 标签的小图大小、和字的距离、下面那条线（短横线 / 波浪线 / 三个点 / 不要，能换颜色）：抽屉顶上放一份标签的复制，拖着马上看到
+  const tabSheet = mode => {
+    const d = { ...dressOf(key) }, pv = tabs.cloneNode(true), set = (k, v) => { d[k] = v; tabStyle(pv, d); };
+    const rows = mode === 'fit' ? [fxRow('大小', +(d.tabsize || 20), 20, { min: 12, max: 40, step: 1, fmt: v => v + '' }, v => set('tabsize', String(v))),
+      fxRow('距离', +(d.tabgap ?? 4), 4, { min: 0, max: 16, step: 1, fmt: v => v + '' }, v => set('tabgap', String(v)))]
+      : [h('div.as-fo-markrow', segmented([['bar', '短横线'], ['wave', '波浪线'], ['dots', '三个点'], ['none', '不要']], d.tabmark || 'bar', v => set('tabmark', v)),
+        h('button.as-deco-dot', { 'aria-label': '线的颜色', style: { background: d.tabmarkcolor || '#ff8200' }, onclick: e => { const dot = e.currentTarget; sheet({ title: '线的颜色', content: h('div.as-mu-color', colorWheel(d.tabmarkcolor || '#ff8200', c => { dot.style.background = c; set('tabmarkcolor', c); })) }); } }))];
+    tabStyle(pv, d);
+    const s = sheet({ title: mode === 'fit' ? '小图大小、距离' : '下面的线', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv), ...rows,
+      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, Object.fromEntries(['tabsize', 'tabgap', 'tabmark', 'tabmarkcolor'].filter(k => d[k]).map(k => [k, d[k]]))); paint(); }))) });
   };
   const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint, inkPv(k));
   };

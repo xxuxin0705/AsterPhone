@@ -13,11 +13,11 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut',
+export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut', 'tabsize', 'tabgap', 'tabmark', 'tabmarkcolor',
   ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
-export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /cut$/.test(k) ? /^1$/ : /^data:image\//).test(x);
+export const keep = (k, x) => typeof x === 'string' && (/size$|gap$/.test(k) ? /^\d+$/ : k === 'tabmark' ? /^(bar|wave|dots|none)$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /cut$/.test(k) ? /^1$/ : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
@@ -208,6 +208,8 @@ function ownOf(key) {
   const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
   return own;
 }
+/** 直接改几样设置（大小、距离、线的样子…），记在我单独的那份上 */
+export async function setOwn(key, o) { Object.assign(ownOf(key).imgs, o); await saveSets(); commit('forum'); }
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint, pv) {
   const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k], pv) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k], pv) : await upload(k, dressOf(key)[k], dressOf(key)); if (!got) return;

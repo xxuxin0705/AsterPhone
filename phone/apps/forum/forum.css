@@ -281,3 +281,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-inkpv { margin: 0 -16px 12px; overflow: hidden; pointer-events: none; }   /* 挑字色时抽屉顶上那份预览 */
 /* 有的按钮换了小图、有的没换：字都落在同一条线上（小图高，往上长） */
 .as-fo-tab, .as-fo-ubar__item { align-content: end; }
+.as-fo-markrow { display: flex; align-items: center; gap: 10px; }
+.as-fo-markrow .as-segmented { flex: 1; }
+.as-fo-markrow .as-deco-dot { flex: none; }
