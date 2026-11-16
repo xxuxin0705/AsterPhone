@@ -6,7 +6,7 @@ import { state, commit, contact } from '../../core/store.js';
 import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
-import { addFrame, pickDeco, decoName } from '../../core/deco.js';
+import { addFrame, pickDeco, decoName, loadImg } from '../../core/deco.js';
 import { LANGS, langName } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
@@ -551,6 +551,9 @@ async function recommend(by) {
   applyTexts();
 }
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
+const solids = new Map();
+const solid = u => u ? solids.get(u) ?? solids.set(u, loadImg(u).then(im => { const c = document.createElement('canvas'), w = c.width = Math.min(200, im.naturalWidth), H = c.height = Math.max(1, Math.round(im.naturalHeight * w / im.naturalWidth)), x = c.getContext('2d'); x.drawImage(im, 0, 0, w, H);
+  const a = x.getImageData(0, 0, w, H).data; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i] > 128) n++; return n > a.length / 4 * .04; }).catch(() => true)).get(u) : Promise.resolve(false);
 function userView(by, host) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
   const decorate = () => dressMenu(key, paint);
@@ -601,8 +604,9 @@ function userView(by, host) {
     host.classList.toggle('no-fade', !fade(key));
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
-    img(sticker, dr.tab);
-    tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);
+    // 标签小图、花边：图里几乎是空的（截图拆出来只剩几粒点）就当没有
+    solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
+    solid(dr.tabline).then(ok => { tabs.style.setProperty('--fo-tabline', ok ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', ok); });
     ubar.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; ubar.classList.toggle('has-img', !!dr.bar);
     ubar.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
   }
