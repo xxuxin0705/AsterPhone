@@ -649,7 +649,7 @@ function accFields(d) {
   const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
   const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
   return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio),
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
@@ -695,7 +695,7 @@ function editBot(b, done) {
 function openPeople() {
   const pg = page({ app: 'forum', id: 'forum-people', title: '熟人', back: true });
   const F = E.F(), P = id => (F.people[id] = F.people[id] || {});
-  const VS = [['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '红 V']], label = c => P(c.id).off ? '不上论坛' : (VS.find(x => x[0] === E.isV(c)) || VS[0])[1].replace('不加', '');
+  const VS = [['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], label = c => P(c.id).off ? '不上论坛' : (VS.find(x => x[0] === E.isV(c)) || VS[0])[1].replace('不加', '');
   pg.body.append(h('div.as-fo-set', state.contacts.length ? group('', state.contacts.map(c => {
     const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: nameOf(c), value: label(c), chevron: true, onClick: () => {
       const d = { ...P(c.id) }, nick = input({ value: d.name || '', placeholder: '网名' });
