@@ -337,3 +337,10 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-deco-tone:empty { display: none; }
 .as-deco-tone .as-segmented { flex: none; width: 150px; }
 .as-deco-dot { width: 26px; height: 26px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .15); }
+/* 修抠图：图下面垫棋盘格看得出哪里透明；涂的那一笔画在上面一层 */
+.as-touch__box { display: grid; gap: 12px; }
+.as-touch { position: relative; justify-self: center; max-width: 100%; background: repeating-conic-gradient(#e8ecf0 0 25%, #fff 0 50%) 0 0 / 16px 16px; touch-action: none; }
+.as-touch__img { display: block; max-width: 100%; max-height: 300px; }
+.as-touch__ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.as-touch__bar { display: flex; gap: 8px; align-items: center; }
+.as-touch__bar .as-segmented { flex: 1; }

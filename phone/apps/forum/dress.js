@@ -5,7 +5,7 @@ import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
 import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, sheet, slider, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { loadImg, cutout, flood } from '../../core/deco.js';
+import { loadImg, cutout, flood, touchUp } from '../../core/deco.js';
 
 // [编号, 叫法, 宽÷高, 长边像素, 留透明]
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1], ['tabline', '标签下的花边', 4, 320, 1],
@@ -45,9 +45,15 @@ async function shrink(f, max) {
   const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
   c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/png');
 }
-/** 换一样：返回 { 部件: 图 }（'' 是去掉），null 是没选。底栏背景、按钮小图不裁剪，按钮小图一次多选 */
+/** 换一样：返回 { 部件: 图 }（'' 是去掉），null 是没选。has 是现在的图。底栏背景、按钮小图不裁剪，按钮小图一次多选；要抠底色的抠完先给你修一下 */
 async function upload(k, has) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
+  if (png && has && k !== 'btn') {
+    const a = await actionSheet(t, [{ value: 'pick', label: '换图', icon: 'image' }, { value: 'fix', label: '修图', icon: 'edit' }, { value: 'del', label: '去掉', icon: 'trash', danger: true }]); if (!a) return null;
+    if (a === 'del') return { [k]: '' };
+    if (a === 'fix') { const u = await touchUp(has, t); return u && { [k]: u }; }
+    has = false;
+  }
   if (k === 'cover') {
     const a = has ? await actionSheet(t, [{ value: 'pick', label: '换图' }, { value: 'del', label: '去掉', danger: true }]) : 'pick'; if (!a) return null;
     if (a === 'del') return Object.fromEntries(COVERS.map(c => [c, '']));
@@ -61,13 +67,13 @@ async function upload(k, has) {
     if (how === 'sheet') return pickBtns(size);
     const fs = (await pickMany()).slice(0, 3); if (!fs.length) return null;
     const out = Object.fromEntries(BTNS.map(b => [b, '']));
-    for (const [i, f] of fs.entries()) out[BTNS[i]] = await cutout(await shrink(f, size).catch(() => ''));
+    for (const [i, f] of fs.entries()) { const u = await cutout(await shrink(f, size).catch(() => '')); out[BTNS[i]] = u && (await touchUp(u, `第 ${i + 1} 个按钮`) || u); }
     return out;
   }
   let u;
   if (!ratio) { const f = await pickFile('image/*'); if (!f) return null; u = await shrink(f, size).catch(() => null); if (u == null) { toast('这张图打不开'); return null; } }
-  else { u = await pickImage(t, { ratio, size, png: !!png, has }); if (u == null) return null; }
-  if (u && png) u = await cutout(u);
+  else { u = await pickImage(t, { ratio, size, png: !!png, has: !!has }); if (u == null) return null; }
+  if (u && png) { u = await touchUp(await cutout(u), t); if (u == null) return null; }
   return { [k]: u };
 }
 
@@ -118,10 +124,11 @@ async function pickBtns(size) {
       grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });
       bar.replaceChildren(...[0, 1, 2].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
     };
-    const grid = h('div.as-fo-btnpick', all.map((u, i) => h('button', { 'aria-label': '第 ' + (i + 1) + ' 个', onclick: () => {
+    const grid = h('div.as-fo-btnpick', all.map((u, i) => { const img = h('img', { src: u, alt: '' }); return h('button', { 'aria-label': '第 ' + (i + 1) + ' 个', onclick: e => {
+      if (e.target.closest('.as-fo-btnpick__fix')) return;
       const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (on.length < 3) on.push(i); else { toast('最多三个'); return; }
       paint();
-    } }, h('img', { src: u, alt: '' }))));
+    } }, img, h('i.as-fo-btnpick__fix', { role: 'button', 'aria-label': '修图', onclick: async () => { const v = await touchUp(all[i], '修这个'); if (v) { all[i] = img.src = v; paint(); } } }, '修')); }));
     const s = sheet({ title: '选底栏按钮', content: h('div.as-fo-compose', grid, bar, field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { if (!on.length) { toast('点几个当按钮'); return; } ok = true; s.close(); }))),
       onClose: () => done(ok ? { ...Object.fromEntries(BTNS.map((b, i) => [b, on[i] == null ? '' : all[on[i]]])), btnsize: String(z) } : null) });
@@ -154,7 +161,7 @@ export async function saveSet(key) {
 
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint) {
-  const got = k === 'btncolor' ? await pickInk(dressOf(key).btncolor) : await upload(k, !!dressOf(key)[k]); if (!got) return;
+  const got = k === 'btncolor' ? await pickInk(dressOf(key).btncolor) : await upload(k, dressOf(key)[k]); if (!got) return;
   const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
   for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
   await saveSets(); commit('forum'); repaint();
@@ -197,7 +204,7 @@ function editSet(s, isNew, done) {
   const rows = PIECES.map(([k, t]) => {
     const prev = h('img.as-fo-lookimg', { alt: '', hidden: !imgs[k] }); if (imgs[k]) prev.src = imgs[k];
     return item({ title: t, right: prev, chevron: true, onClick: async () => {
-      const got = await upload(k, !!imgs[k]); if (!got) return;
+      const got = await upload(k, imgs[k]); if (!got) return;
       for (const [x, u] of Object.entries(got)) if (u) imgs[x] = u; else delete imgs[x];
       prev.hidden = !imgs[k]; if (imgs[k]) prev.src = imgs[k];
     } });

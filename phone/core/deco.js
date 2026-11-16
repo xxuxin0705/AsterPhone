@@ -113,6 +113,52 @@ export async function cutout(url, g) {
   return c.toDataURL('image/png');
 }
 
+/** 修抠图：手不用很准。「擦掉」随手涂一块：涂到三成以上的那一小块（水印、零星的点）整块去掉，别的只擦涂到的地方；
+ *  「圈出要的」圈一圈：圈外的去掉，大半在圈里的那块整块留下（圈歪了也不会切掉边）。能撤销、重来。返回新图，取消返回 null */
+export async function touchUp(url, title = '修图') {
+  const { sheet, btn, segmented } = await import('./ui.js'), im = await loadImg(url), W = im.naturalWidth, H = im.naturalHeight;
+  const c = h('canvas.as-touch__img', { width: W, height: H }), ink = h('canvas.as-touch__ink', { width: W, height: H }), x = c.getContext('2d'), g = ink.getContext('2d');
+  x.drawImage(im, 0, 0);
+  const first = x.getImageData(0, 0, W, H), hist = [];
+  let mode = 'erase', pts = null, k = 1;
+  const at = e => { const r = c.getBoundingClientRect(); k = W / r.width; return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; };
+  const trace = (ctx, close) => { ctx.beginPath(); pts.forEach(([u, v], i) => (i ? ctx.lineTo(u, v) : ctx.moveTo(u, v))); if (close) ctx.closePath(); };
+  const draw = () => { g.clearRect(0, 0, W, H); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = mode === 'erase' ? 'rgba(255,70,90,.45)' : 'rgba(40,140,255,.9)'; g.lineWidth = mode === 'erase' ? 28 * k : 3 * k; if (mode === 'keep') g.setLineDash([8 * k, 6 * k]); else g.setLineDash([]); trace(g); g.stroke(); };
+  function apply() {
+    const m = document.createElement('canvas'); m.width = W; m.height = H; const mx = m.getContext('2d');
+    mx.lineCap = mx.lineJoin = 'round';
+    if (mode === 'erase') { mx.lineWidth = 28 * k; trace(mx); mx.stroke(); if (pts.length === 1) { mx.arc(pts[0][0], pts[0][1], 14 * k, 0, 7); mx.fill(); } }
+    else { if (pts.length < 3) return; trace(mx, true); mx.fill(); }
+    const d = x.getImageData(0, 0, W, H), a = d.data, md = mx.getImageData(0, 0, W, H).data, lab = new Int32Array(W * H), tot = [0], hit = [0];
+    // 一块一块找出来（不透明、连在一起的算一块），数每块有多少被涂到 / 圈到
+    for (let p = 0, n = 0; p < W * H; p++) if (!lab[p] && a[p * 4 + 3] > 40) {
+      n++; tot[n] = hit[n] = 0; const q = [p]; lab[p] = n;
+      while (q.length) {
+        const v = q.pop(), i = v % W, j = (v - i) / W; tot[n]++; if (md[v * 4 + 3]) hit[n]++;
+        for (const u of [v - 1, v + 1, v - W, v + W]) if (u >= 0 && u < W * H && !lab[u] && Math.abs((u % W) - i) <= 1 && a[u * 4 + 3] > 40) { lab[u] = n; q.push(u); }
+      }
+    }
+    hist.push(d.data.slice());
+    for (let p = 0; p < W * H; p++) {
+      if (!a[p * 4 + 3]) continue;
+      const l = lab[p], f = l ? hit[l] / tot[l] : 0, on = md[p * 4 + 3] > 0;
+      if (mode === 'erase' ? f >= .3 || on : !(on || f >= .6)) a[p * 4 + 3] = 0;
+    }
+    x.putImageData(d, 0, 0);
+  }
+  c.onpointerdown = e => { c.setPointerCapture(e.pointerId); pts = [at(e)]; draw(); };
+  c.onpointermove = e => { if (!pts) return; pts.push(at(e)); draw(); };
+  c.onpointerup = c.onpointercancel = () => { if (!pts) return; apply(); pts = null; g.clearRect(0, 0, W, H); };
+  const back = () => { const u = hist.pop(); if (u) x.putImageData(new ImageData(u, W, H), 0, 0); };
+  return new Promise(done => {
+    let out = null;
+    const s = sheet({ title, content: h('div.as-touch__box', h('div.as-touch', c, ink),
+      h('div.as-touch__bar', segmented([['erase', '擦掉'], ['keep', '圈出要的']], mode, v => { mode = v; }), btn('撤销', 'secondary', back), btn('重来', 'secondary', () => { hist.push(x.getImageData(0, 0, W, H).data.slice()); x.putImageData(first, 0, 0); })),
+      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { out = c.toDataURL('image/png'); s.close(); }))),
+      onClose: () => done(out) });
+  });
+}
+
 /** 头像框：没透明就抠掉外面和中间的底色；再找到中间的洞，挪到正中间、按洞的大小记下框要比头像大多少（inset，头像的百分之几），这样头像正好填满洞 */
 export async function fitFrame(url) {
   const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');

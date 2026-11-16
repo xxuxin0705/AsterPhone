@@ -267,3 +267,5 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 /* 置顶：只在主页上显示 */
 .as-fo-post__pin { display: none; }
 .as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; margin-bottom: 8px; color: var(--fo-accent); font: 600 13px/1 var(--font-ui); }
+.as-fo-btnpick__fix { display: none; position: absolute; top: 6px; left: 6px; padding: 3px 7px; border-radius: 10px; background: rgba(0,0,0,.45); color: #fff; font: 500 11px/1.2 var(--font-ui); font-style: normal; }
+.as-fo-btnpick button.is-on .as-fo-btnpick__fix { display: block; }

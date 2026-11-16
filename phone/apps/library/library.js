@@ -2,7 +2,7 @@
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
-import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame, refreshFrame, loadImg } from '../../core/deco.js';
+import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame, refreshFrame, touchUp } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import * as time from '../../core/time.js';
@@ -135,30 +135,22 @@ async function decoMenu(k, x, redraw) {
 function fitFrameEdit(f, redraw) {
   const d = { inset: f.inset ?? -22, dx: f.dx || 0, dy: f.dy || 0, tint: f.tint ? 'on' : '', dark: f.dark || (f.tint === 'heavy' ? '#000000' : f.color) || '#2f5fa8', light: f.light || (f.tint === 'light' ? '#ffffff' : f.color) || '#ffffff', view: f.view || '', src: f.src }, a = addFrame(avatar(state.me?.avatar || '', state.me?.nick || '我', 150), f.id);
   const paint = () => { a.style.setProperty('--frame-in', d.inset + '%'); a.style.setProperty('--frame-at', `${d.dx}% ${d.dy}%`); a.style.setProperty('--frame', `url("${d.view || d.src}")`); };
-  // 橡皮擦擦在两张画布上：原图（染色从它算）和染过色的那张（预览用的）
-  const cv = () => document.createElement('canvas'), es = cv(), ev = cv(), load = (c, u) => loadImg(u).then(im => { c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); });
-  load(es, d.src); if (d.view) load(ev, d.view);
   // 染色要重新算一张图：拖色盘时只用最后一次的
-  let job = 0; const recolor = async () => { const n = ++job, v = d.tint ? await tintFrame(d.src, d.dark, d.light) : ''; if (n !== job) return; d.view = v; if (v) await load(ev, v); paint(); };
-  let mode = 'move', s = null, raf = 0; const undo = [];
+  let job = 0; const recolor = async () => { const n = ++job, v = d.tint ? await tintFrame(d.src, d.dark, d.light) : ''; if (n !== job) return; d.view = v; paint(); };
+  let s = null;
   const stage = h('div.as-lib-framefit', a);
-  const rub = e => {   // 手指在框图上的位置：框比头像大 -inset%，再挪 dx/dy（按框自己的宽）
-    const r = a.getBoundingClientRect(), W = r.width * (1 - 2 * d.inset / 100), L = r.left + r.width * d.inset / 100 + W * d.dx / 100, T = r.top + r.width * d.inset / 100 + W * d.dy / 100;
-    for (const c of d.view ? [es, ev] : [es]) { const k = c.width / W, x = c.getContext('2d'); x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.arc((e.clientX - L) * k, (e.clientY - T) * k, 9 * k, 0, 7); x.fill(); }
-    if (!raf) raf = requestAnimationFrame(() => { raf = 0; a.style.setProperty('--frame', `url("${(d.view ? ev : es).toDataURL()}")`); });
-  };
-  stage.onpointerdown = e => { stage.setPointerCapture(e.pointerId); s = { x: e.clientX, y: e.clientY, dx: d.dx, dy: d.dy }; if (mode === 'erase') { undo.push([d.src, d.view]); rub(e); } };
+  stage.onpointerdown = e => { stage.setPointerCapture(e.pointerId); s = { x: e.clientX, y: e.clientY, dx: d.dx, dy: d.dy }; };
   // 挪的量按框自己的大小算百分比（translate 的百分比是 ::after 自己的宽高）
-  stage.onpointermove = e => { if (!s) return; if (mode === 'erase') return rub(e); const W = 150 * (1 - 2 * d.inset / 100); d.dx = +(s.dx + (e.clientX - s.x) / W * 100).toFixed(1); d.dy = +(s.dy + (e.clientY - s.y) / W * 100).toFixed(1); paint(); };
-  stage.onpointerup = stage.onpointercancel = () => { if (s && mode === 'erase') { d.src = es.toDataURL(); if (d.view) d.view = ev.toDataURL(); paint(); } s = null; };
-  const back = btn('撤销', 'secondary', () => { const u = undo.pop(); if (!u) return; [d.src, d.view] = u; load(es, d.src); if (d.view) load(ev, d.view); paint(); });
-  back.hidden = true;
+  stage.onpointermove = e => { if (!s) return; const W = 150 * (1 - 2 * d.inset / 100); d.dx = +(s.dx + (e.clientX - s.x) / W * 100).toFixed(1); d.dy = +(s.dy + (e.clientY - s.y) / W * 100).toFixed(1); paint(); };
+  stage.onpointerup = stage.onpointercancel = () => { s = null; };
+  // 没抠干净：修图（随手涂掉、圈出要的），修的是原图，染了色再按原图重新染
   const p = page({ app: 'library', id: 'library-framefit', title: f.name, back: true, right: navText('保存', () => { Object.assign(f, d); commit('deco'); toast('已保存'); nav.pop(); redraw(); refreshFrame(f.id); }) });
   // 两个颜色：框里最深的地方染成「深处」、最浅的染成「浅处」，中间按深浅过渡
   const tone = (k, label) => { const dot = h('span.as-lib-dot', { style: { background: d[k] } });
     const r = item({ title: label, right: dot, onClick: () => sheet({ title: label, content: h('div.as-mu-color', colorWheel(d[k], v => { d[k] = v; dot.style.background = v; recolor(); })) }) }); r.hidden = !d.tint; return r; };
   const picks = [tone('dark', '深处的颜色'), tone('light', '浅处的颜色')];
-  p.body.append(stage, group('', [field('操作', h('div.as-lib-fitmode', segmented([['move', '挪动'], ['erase', '橡皮擦']], mode, v => { mode = v; back.hidden = v !== 'erase'; }), back)),
+  const fix = item({ title: '修图', chevron: true, onClick: async () => { const u = await touchUp(d.src, f.name); if (u) { d.src = u; if (d.tint) recolor(); else paint(); } } });
+  p.body.append(stage, group('', [fix,
       field('大小', slider({ min: 0, max: 70, step: .5, value: -d.inset, onInput: v => { d.inset = -v; paint(); } }))]),
     group('', [field('染色', segmented([['', '不染'], ['on', '染色']], d.tint, v => { d.tint = v; picks.forEach(x => { x.hidden = !v; }); recolor(); })), ...picks]));
   paint(); nav.push(p.el);
