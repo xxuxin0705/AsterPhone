@@ -3,11 +3,11 @@
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
+import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
-import { LANGS, langName } from '../../core/translate.js';
+import { LANGS, langName, translate } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
@@ -226,14 +226,23 @@ function compose(b0) {
   const where = h('div.as-fo-pick', E.boards().map(g => h('button' + (g.id === board ? '.is-on' : ''), { dataset: { b: g.id }, onclick: () => {
     board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
   } }, g.base ? W('forum.tab.' + g.id) : g.name)));
+  // 发成哪种语言：选了外语就先机翻（免费翻译，不花 API），发出去是外语，中文原文当翻译挂在下面
+  let lang = 'none';
+  const lb = h('button.as-fo-acc', { onclick: async e => {
+    e.stopPropagation();
+    const v = await actionSheet('发成哪种语言', [['none', '不翻译'], ...LANGS.filter(l => l[0] !== 'zh-CN')].map(([value, label]) => ({ value, label, active: value === lang }))); if (!v) return;
+    lang = v; lb.textContent = v === 'none' ? '不翻译' : langName(v);
+  } }, '不翻译');
+  const send = btn('发布', 'primary', () => busy(send, async signal => {
+    const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
+    const t = lang === 'none' ? '' : await translate(text, lang); if (signal.aborted) return;
+    s.close();
+    const p = await E.post({ board, title: title.value.trim(), text: t || text, tr: t && text, pic });
+    landed([p]); openPost(p); if (t) toast('翻好发出去了');
+  }, lang === 'none' ? '' : '正在翻译…').catch(() => toast('没翻译成，还没发')));
   const s = sheet({ title: word('forum.post.new'), content: h('div.as-fo-compose', where, title, body, pv,
-    h('div.as-fo-compose__row', accChip(), atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
-    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('发布', 'primary', async () => {
-      const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
-      s.close();
-      const p = await E.post({ board, title: title.value.trim(), text, pic });
-      landed([p]); openPost(p);
-    }))) });
+    h('div.as-fo-compose__row', accChip(), lb, atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
+    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), send)) });
   applyTexts();
 }
 
