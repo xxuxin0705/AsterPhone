@@ -28,6 +28,7 @@ export async function load() {
 }
 export async function save() { await kvSet('forum:' + Dkey, D); commit('forum'); }
 export const postOf = id => D && D.posts.find(p => p.id === id);
+export async function removePost(id) { D.posts = D.posts.filter(p => p.id !== id); await save(); }
 // 最多留 300 条：超了删最旧的，收藏的不删
 function prune() {
   const keep = new Set(F().favs || []);
@@ -60,10 +61,17 @@ export const meBy = anon => ({ k: 'me', id: curAcc().id, ...(anon ? { anon: true
 /** 帖子、楼层上的 by → 显示用的 { name, avatar, v } */
 // 会员：自己选过的照选的；没选过的有认证的号多半是 VIP / SVIP（同一个号每次一样），没认证的没有
 const club = (x, id, v) => x?.vip ?? (v ? ['vip', 'svip', 'vip'][[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % 3] : '');
+export const keyOf = by => by.k === 'me' ? 'me:' + by.id : by.k === 'n' ? 'n:' + by.name : (by.k === 'bot' ? 'b:' : 'c:') + by.id;
+/** 我在主页上给别人改过的资料（名字、头像、V、会员、简介、认证、小字、数字、来自、头像框）；没改过是空的 */
+export const over = by => (F().over ||= {})[keyOf(by)] || {};
 export function who(by) {
+  const w = who0(by), o = !by.anon && by.k !== 'me' ? over(by) : {};
+  return { ...w, name: o.name || w.name, avatar: o.avatar || w.avatar, v: o.v ?? w.v, vip: o.vip ?? w.vip, dev: o.dev ?? w.dev };
+}
+function who0(by) {
   if (by.anon) return { name: by.no ? `匿名 ${by.no} 号` : '匿名', anon: true };
   if (by.k === 'bot') { const b = botOf(by.id); const v = b && (b.v ?? (b.fans >= 2e5 ? 'r' : 'y')); return b ? { name: b.name, avatar: b.avatar, v, vip: club(b, b.id, v), sub: b.topic } : { name: by.name || '已删除的号' }; }
-  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '', vip: a.vip || '' } : { name: '已注销', me: true }; }
+  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '', vip: a.vip || '', dev: a.dev || '' } : { name: '已注销', me: true }; }
   if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c), vip: club(P(c.id), c.id, isV(c)) } : { name: by.name || '用户' }; }
   return { name: by.name || '网友' };
 }
@@ -250,9 +258,9 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   return add;
 }
 /** 我发帖：马上存好、返回这条（别人的回复由页面接着找 AI） */
-export async function post({ board, title = '', text, pic = '' }) {
+export async function post({ board, title = '', text, pic = '', rp = '' }) {
   await load();
-  const p = { id: uid('fp'), board, by: meBy(board === 'anon'), title: title.slice(0, 40), text, tr: '', img: '', pic, likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
+  const p = { id: uid('fp'), board, by: meBy(board === 'anon'), title: title.slice(0, 40), text, tr: '', img: '', pic, rp, likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
   D.posts.unshift(p); prune(); await save();
   return p;
 }

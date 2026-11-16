@@ -233,3 +233,10 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-tagin { display: grid; gap: 8px; }
 .as-fo-tagin.is-3 { grid-template-columns: repeat(3, 1fr); }
 .as-fo-vip { display: none; }
+.as-fo-hud { position: absolute; left: 50%; top: 45%; z-index: 90; display: grid; justify-items: center; gap: 10px; min-width: 120px; padding: 18px 16px 14px; border-radius: 12px; background: rgba(40, 40, 40, .82); color: #fff; font: 400 14px/1.2 var(--font-ui); transform: translate(-50%, -50%); animation: fo-hud .22s ease-out; transition: opacity .3s; pointer-events: none; }
+.as-fo-hud.is-out { opacity: 0; }
+@keyframes fo-hud { from { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+.as-fo-post__rp { display: block; margin-top: 2px; padding: 10px 12px; border-radius: 4px; background: var(--fo-soft); font: 400 14px/1.55 var(--font-ui); color: var(--fo-ink); overflow-wrap: anywhere; }
+.as-fo-post__rp > b { display: inline; color: var(--fo-link, #eb7350); font-weight: 400; }
+.as-fo-demo { pointer-events: none; }
+.as-fo-editme .as-fo-set { padding-top: 10px; }
