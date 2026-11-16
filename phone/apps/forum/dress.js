@@ -5,7 +5,7 @@ import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
 import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { loadImg, cutout } from '../../core/deco.js';
+import { loadImg, cutout, flood } from '../../core/deco.js';
 
 // [编号, 叫法, 宽÷高, 长边像素, 留透明]
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1], ['tabline', '标签下的花边', 4, 320, 1],
@@ -184,7 +184,12 @@ async function split(done) {
       if (up) { const row = document.createElement('canvas'); row.width = 6; row.height = 1; row.getContext('2d').drawImage(im, sx, sy, sw, 8, 0, 0, 6, 1); g.drawImage(row, 0, 0, 6, 1, 0, 0, o.width, up); }   // 缩成 6 个点再拉开：只留颜色，不把星星拉成竖条
       // 头像框：圈外不要，从外往里把底色抠掉，再把中间头像那一圈挖空。小图标也抠底色
       const png = PIECES.find(z2 => z2[0] === k)[4];
-      if (png) flood(g, o.width, o.height, 25, 60);   // 截图里的底是花的，抠得保守一点
+      if (png) {
+        flood(g, o.width, o.height, 25, 60);   // 截图里的底是花的，抠得保守一点
+        // 抠完只剩零星几个点（那一块其实没装扮）：不要，不然标签下面会多出几粒小黑点
+        const a = g.getImageData(0, 0, o.width, o.height).data; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i] > 128) n++;
+        if (n < a.length / 4 * .04) continue;
+      }
       imgs[k] = png ? o.toDataURL('image/png') : o.toDataURL('image/jpeg', .9);
     }
     if (!Object.keys(imgs).length) { toast('没有框'); return; }
