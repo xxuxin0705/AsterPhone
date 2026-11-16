@@ -429,8 +429,7 @@ function replySheet(p, to, floors) {
     const f = await E.reply(p, text, to);
     floors.append(floorEl(p, f, p.floors.length - 1));
     const tn = to ? E.floorWho(p, p.floors.find(x => x.id === to)) : '';
-    // 不自动出：记下我刚回了谁，点评论键时让被回的人来回
-    p.ask = `${myName()}（${E.who(f.by).name}）刚在 ${p.floors.length} 楼${tn ? '回复了' + tn : '说'}：「${text}」。${tn ? '被回复的人要回 TA，' : ''}别人想回就回。${atNote(text)}`; E.save();
+    // 不自动出：点评论键时，楼里我还没人回的那几层会让被我回的人来回（看 ask）
   }))) });
   setTimeout(() => t.focus(), 300);
 }
@@ -439,8 +438,12 @@ function openPost(p) {
   pg.el.dataset.post = p.id;
   const floors = h('div.as-fo-floors', (p.floors || []).map((f, i) => floorEl(p, f, i)));
   // 出评论只在点了才出（右上的评论键、底下「再来一些」）：自己发的帖、投的稿也一样
-  const ask = () => { const q = p.ask; delete p.ask;
-    return runThread(p, q ? { focus: q, count: '3～6' } : (p.floors || []).length ? {} : { count: '10～15', focus: [p.sub ? `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。` : '', atNote(p.text)].filter(Boolean).join('') }); };
+  // 楼里我说过、还没人接的那几层：直接从楼层里找，不另外记
+  const ask = () => {
+    const fl = p.floors || [], wait = fl.map((f, i) => [f, i]).filter(([f, i]) => mine(floorBy(p, f)) && !fl.slice(i + 1).some(x => !mine(floorBy(p, x)) && (x.to === f.id || !f.to)));   // 我说的那层后面还没有别人回它（没指名回谁的，后面有人说话就算接了）
+    const q = wait.map(([f, i]) => { const up = f.to && f.to !== 'op' && fl.find(x => x.id === f.to); return `${myName()}（${E.who(f.by).name}）在 ${i + 1} 楼${up ? '回复了' + E.floorWho(p, up) : '说'}：「${f.text}」。${up ? '被回复的人要回 TA。' : ''}${atNote(f.text)}`; }).join('\n');
+    return runThread(p, q ? { focus: q + '\n别人想回就回。', count: '3～6' } : fl.length ? {} : { count: '10～15', focus: [p.sub ? `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。` : '', atNote(p.text)].filter(Boolean).join('') });
+  };
   const more = jobBtn('thread:' + p.id, () => [(p.floors || []).length ? '再来一些' : '出' + word('forum.act.comment')], ask, 'button.as-btn.as-btn--secondary.as-fo-morebtn');
   const stat = (k, n, on) => h('button.as-fo-stat__item' + (on ? '.is-on' : ''), W(k), h('span', E.fmt(n)));
   const onlyOp = h('button.as-fo-sort__op', { onclick: () => { floors.classList.toggle('is-op-only'); onlyOp.classList.toggle('is-on'); } }, W('forum.only.op'));
