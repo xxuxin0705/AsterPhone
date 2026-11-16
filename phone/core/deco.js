@@ -5,11 +5,14 @@ import { uid } from './util.js';
 export const deco = () => (state.deco = state.deco || { frames: [], bubbles: [] });
 const find = (k, id) => id && deco()[k].find(x => x.id === id);
 
+/** 头像框换色：整张转色相、调浓淡和明暗，样式不变 */
+export const tone = f => `hue-rotate(${f.hue || 0}deg) saturate(${f.sat ?? 1}) brightness(${f.lit ?? 1})`;
 /** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加。id 也可以直接是一张图（论坛装扮套装里的框） */
 export function addFrame(ava, id) {
   const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id); if (!f) return ava;
   ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${f.src}")`); if (f.inset != null) ava.style.setProperty('--frame-in', f.inset + '%');
   if (f.dx || f.dy) ava.style.setProperty('--frame-at', `${f.dx || 0}% ${f.dy || 0}%`);
+  if (f.hue || f.sat || f.lit) ava.style.setProperty('--frame-tone', tone(f));
   return ava;
 }
 /** 气泡：颜色、圆角、描边写进这一个气泡；有图就用九宫格拉伸（四个角不变形）。b 是编号，编辑时预览也可以直接传气泡本身 */
