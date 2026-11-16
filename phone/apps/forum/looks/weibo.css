@@ -32,10 +32,10 @@
 [data-as-app="forum"] .as-fo-post { grid-template-columns: 42px 1fr auto; column-gap: 10px; padding: 14px 15px 0; }
 [data-as-app="forum"] .as-fo-post__badge { display: block; position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; color: #fff; box-shadow: 0 0 0 1.5px #fff; }
 [data-as-app="forum"] .as-fo-post__badge::after { content: ''; position: absolute; inset: 0; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6.4 7 10 13.8 13.6 7' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100%; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6.4 7 10 13.8 13.6 7' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100%; }
-/* 照真微博三种 V：黄 V 黄底白 V、蓝 V（官方）蓝底白 V、橙 V 红底黄圈黄 V */
+/* 照真微博三种 V：黄 V 黄底白 V、蓝 V（官方）蓝底白 V、橙 V 橙红底带一道浅橙、亮黄圈黄 V */
 [data-as-app="forum"] .as-fo-post__badge.is-y { background: #fbc90c; }
 [data-as-app="forum"] .as-fo-post__badge.is-b { background: #1a9eed; }
-[data-as-app="forum"] .as-fo-post__badge.is-r { background: #dd2100; color: #ffe076; box-shadow: 0 0 0 1.5px #ffe076; }
+[data-as-app="forum"] .as-fo-post__badge.is-r { background: linear-gradient(100deg, #f5a03c 40%, #f33c04 40%); color: #fff47a; box-shadow: 0 0 0 1.5px #fff35c, 0 0 2px 1.5px rgba(255, 235, 60, .7); }
 [data-as-app="forum"] .as-fo-post__v { display: none; }
 [data-as-app="forum"] .as-fo-post__head { align-self: center; gap: 0 4px; }
 [data-as-app="forum"] .as-fo-post__name { font-size: 16.5px; font-weight: 500; line-height: 1.35; }
@@ -173,7 +173,7 @@
 [data-as-app="forum"] .as-fo-user__main > :not(.as-fo-user__ava, .as-fo-user__name) { grid-column: 1 / -1; }
 [data-as-app="forum"] .as-fo-user__ava { margin-top: -24px; box-shadow: 0 0 0 3px var(--fo-card); }
 [data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge { width: 16px; height: 16px; right: 1px; bottom: 1px; box-shadow: 0 0 0 2px #fff; }
-[data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge.is-r { box-shadow: 0 0 0 2px #ffe076; }
+[data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge.is-r { box-shadow: 0 0 0 2px #fff35c, 0 0 3px 2px rgba(255, 235, 60, .7); }
 [data-as-app="forum"] .as-fo-user__name { align-self: start; margin-top: 18px; font: 500 19px/1.3 var(--font-ui); }
 [data-as-app="forum"] .as-fo-user__name .as-fo-post__v { display: none; }
 [data-as-app="forum"] .as-fo-user__nums { gap: 20px; margin-top: 17px; font-size: 14px; color: #999; }
@@ -199,7 +199,7 @@
    橙色短条换成套装里的花边。装扮都是照浅色画的，夜间这一块也用浅色 */
 .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #fff; --fo-ink: #1a1a1a; --fo-line: #ededed; color: var(--fo-ink); }
 .is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -202px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 212px, #fff) !important; }
-.is-dressed .as-fo-user__coverimg:not([hidden]) { display: block; width: 100%; height: 212px; object-fit: cover; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
+.is-dressed .as-fo-user__coverimg:not([hidden]) { position: relative; width: 100%; height: 212px; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
 .is-dressed .as-fo-user__ava { box-shadow: none; }
 .is-dressed .as-fo-user__main { background: none; border-radius: 0; }
 .is-dressed .as-fo-user__ava { margin-top: 0; }

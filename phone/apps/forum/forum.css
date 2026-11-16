@@ -212,7 +212,11 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-split__box[data-k="frame"] { border-radius: 50%; }
 .as-fo-split__x { position: absolute; right: -10px; top: -10px; width: 20px; height: 20px; border-radius: 50%; background: #333; color: #fff; font: 600 14px/20px var(--font-ui); text-align: center; font-style: normal; cursor: pointer; }
 .as-fo-split__size { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 50%; background: #ff8200; box-shadow: 0 0 0 2px #fff; cursor: nwse-resize; }
-.as-fo-user__coverimg { display: none; }
+.as-fo-user__cover { position: relative; overflow: hidden; }
+.as-fo-user__coverimg { position: absolute; inset: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.as-fo-user__coverimg[hidden] { display: none; }
+.as-fo-user__coverimg::-webkit-scrollbar { display: none; }
+.as-fo-user__coverimg img { flex: none; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: start; }
 .as-fo-user__ava { display: grid; }
 .as-fo-user__tabs span span::after { display: none; }   /* 短条只画在标签上，不画在里面那层字上 */
 /* 主页：V 分颜色（营销号蓝），背景不要渐变，相册只看有图的，标签小图跳过去，底栏背景横着铺、三格平分，推荐 */

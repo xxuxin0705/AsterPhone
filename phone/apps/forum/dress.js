@@ -10,7 +10,9 @@ import * as nav from '../../core/nav.js';
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1], ['tabline', '标签下的花边', 4, 320, 1],
   ['bar', '底栏背景', 0, 1200], ['btn', '底栏按钮小图', 0, 160, 1], ['like', '点赞特效', 1, 300, 1]];
 // 底栏按钮一次传三张，按勾的顺序从左到右
-const BTNS = ['btn', 'btn2', 'btn3'], KEYS = [...PIECES.map(p => p[0]), 'btn2', 'btn3'];
+// 主页背景最多九张，左右滑、自己轮播
+const BTNS = ['btn', 'btn2', 'btn3'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1)];
+export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
 const saveSets = () => kvSet('forumSets', SETS).catch(e => { toast('装扮没存上'); log('error', '论坛', '装扮没存上：' + e.message); });
@@ -20,7 +22,9 @@ const D = key => (state.forum.decos = state.forum.decos || {})[key] || {};
 /** 这个人身上的装扮：以前单独换的背景、底栏、头像框 ← 穿的套装 ← 后来单独换的 */
 export function dressOf(key) {
   const d = D(key), old = Object.fromEntries(['cover', 'bar', 'frame'].filter(k => d[k]).map(k => [k, d[k]]));
-  return { ...old, ...setOf(d.set)?.imgs, ...setOf(d.own)?.imgs };
+  const own = setOf(d.own)?.imgs || {}, base = { ...old, ...setOf(d.set)?.imgs };
+  if (own.cover) COVERS.forEach(k => delete base[k]);   // 单独换了背景：套装里的那几张不再混进来
+  return { ...base, ...own };
 }
 export const dressed = key => !!setOf(D(key).set);
 /** 主页背景下沿往页面底色淡过去：默认开，有的装扮自带过渡就关掉 */
@@ -39,6 +43,14 @@ async function shrink(f, max) {
 /** 换一样：返回 { 部件: 图 }（'' 是去掉），null 是没选。底栏背景、按钮小图不裁剪，按钮小图一次多选 */
 async function upload(k, has) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
+  if (k === 'cover') {
+    const a = has ? await actionSheet(t, [{ value: 'pick', label: '换图' }, { value: 'del', label: '去掉', danger: true }]) : 'pick'; if (!a) return null;
+    if (a === 'del') return Object.fromEntries(COVERS.map(c => [c, '']));
+    const fs = (await pickMany()).slice(0, 9); if (!fs.length) return null;
+    const out = Object.fromEntries(COVERS.map(c => [c, '']));
+    for (const [i, f] of fs.entries()) out[COVERS[i]] = await shrink(f, size).catch(() => '');
+    return out;
+  }
   if (k === 'btn') {
     const fs = (await pickMany()).slice(0, 3); if (!fs.length) return null;
     const out = Object.fromEntries(BTNS.map(b => [b, '']));

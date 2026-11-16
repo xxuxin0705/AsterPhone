@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, setTiles, hooks } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, setTiles, hooks, covers } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -500,7 +500,10 @@ function userView(by, host) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
   const decorate = () => dressMenu(key, paint);
   // 点背景图：整张大图铺满看
-  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } }, h('img.as-fo-user__coverimg', { alt: '', hidden: true }));
+  const track = h('div.as-fo-user__coverimg', { hidden: true }), at = () => Math.round(track.scrollLeft / (track.clientWidth || 1));
+  const cover = h('div.as-fo-user__cover', { onclick: () => { const u = track.children[at()]?.src; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } }, track);
+  // 背景好几张：左右滑，也每 4 秒自己往下一张；页面关掉就停
+  const spin = setInterval(() => { if (!track.isConnected) return clearInterval(spin); const n = track.children.length; if (n > 1 && track.offsetParent && !track.matches(':active')) track.scrollTo({ left: (at() + 1) % n * track.clientWidth, behavior: 'smooth' }); }, 4000);
   const avaBox = h('span.as-fo-user__ava'), sticker = h('img.as-fo-user__tabimg', { alt: '' });
   // 微博 / 相册：点哪个，标签小图就跳到哪个；相册只是把没配图的帖子藏起来，不重画
   const tabOf = (txt, pics) => h('span', { onclick: e => { const t = e.currentTarget; if (t.classList.contains('is-on')) return;
@@ -541,7 +544,8 @@ function userView(by, host) {
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
     host.classList.toggle('is-dressed', dressed(key));
-    cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover); img(cover.firstChild, dr.cover);
+    const cs = covers(dr); cover.classList.toggle('has-img', !!cs.length); track.hidden = !cs.length;
+    if (cs.join() !== [...track.children].map(i => i.src).join()) track.replaceChildren(...cs.map(u => h('img', { src: u, alt: '' })));
     host.classList.toggle('no-fade', !fade(key));
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
