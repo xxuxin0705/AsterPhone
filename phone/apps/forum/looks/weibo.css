@@ -236,8 +236,9 @@
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin { padding-top: 0; background: var(--fo-pinbg, url('assets/forum/pin-bg.jpg')) center / cover no-repeat; }
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin i { display: block; width: 24px; height: 22px; background: var(--fo-pinicon, url('assets/forum/pin-crown.png')) center / contain no-repeat; }
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(> .as-fo-post__pin) { padding-top: 50px; }
-/* 背景不要渐变：上面整张背景图，下面白底圆角盖上来一点（真微博不带渐变的那种） */
+/* 背景不要渐变：上面整张背景图，白底圆角从图下沿开始，头像有小半个露在图上（照真微博不带渐变的那种量的） */
 .is-dressed.no-fade .as-fo-user__cover { background: none !important; }
-.is-dressed.no-fade .as-fo-user__cover::after { content: ''; position: absolute; left: 0; right: 0; top: 194px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--fo-card, #fff); }
+.is-dressed.no-fade .as-fo-user__coverimg:not([hidden]) { height: 232px; }   /* 图垫到白底圆角下面，圆角外露的是图 */
+.is-dressed.no-fade .as-fo-user__cover::after { content: ''; position: absolute; left: 0; right: 0; top: 212px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--fo-card, #fff); }
 /* 「置顶」两个字用真微博那张图里抠的字形当遮罩，字体一模一样，颜色照样能换 */
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin span { width: 28px; height: 15px; font-size: 0; background: var(--fo-pinink, #ff8200); -webkit-mask: url('assets/forum/pin-text.png') center / contain no-repeat; mask: url('assets/forum/pin-text.png') center / contain no-repeat; }
