@@ -32,7 +32,7 @@
 [data-as-app="forum"] .as-fo-post { grid-template-columns: 42px 1fr auto; column-gap: 10px; padding: 14px 15px 0; }
 [data-as-app="forum"] .as-fo-post__badge { display: grid; place-items: center; position: absolute; right: -1px; bottom: -1px; width: 15px; height: 15px; border-radius: 50%; background: var(--fo-v); box-shadow: 0 0 0 1.5px var(--fo-card); }
 [data-as-app="forum"] .as-fo-post__badge::after { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6.3 6.8 10 14l3.7-7.2' fill='none' stroke='%23fff' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; }
-/* 三种 V：黄 V 个人、蓝 V 机构和营销号、红 V 大 V */
+/* 三种 V：黄 V 个人和营销号、蓝 V 官方、红 V 大 V（粉丝多的营销号） */
 [data-as-app="forum"] .as-fo-post__badge.is-y { background: linear-gradient(#ffc93c, #ff9500); }
 [data-as-app="forum"] .as-fo-post__badge.is-b { background: linear-gradient(#5ab4ff, #1a82ec); }
 [data-as-app="forum"] .as-fo-post__badge.is-r { background: linear-gradient(#ff6b4a, #ee2a24); }

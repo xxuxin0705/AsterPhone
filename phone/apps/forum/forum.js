@@ -429,7 +429,8 @@ function replySheet(p, to, floors) {
     const f = await E.reply(p, text, to);
     floors.append(floorEl(p, f, p.floors.length - 1));
     const tn = to ? E.floorWho(p, p.floors.find(x => x.id === to)) : '';
-    runThread(p, { focus: `${myName()}（${E.who(f.by).name}）刚在 ${p.floors.length} 楼${tn ? '回复了' + tn : '说'}：「${text}」。${tn ? '被回复的人要回 TA，' : ''}别人想回就回。${atNote(text)}`, count: '2～5' });
+    // 不自动出：记下我刚回了谁，点评论键时让被回的人来回
+    p.ask = `${myName()}（${E.who(f.by).name}）刚在 ${p.floors.length} 楼${tn ? '回复了' + tn : '说'}：「${text}」。${tn ? '被回复的人要回 TA，' : ''}别人想回就回。${atNote(text)}`; E.save();
   }))) });
   setTimeout(() => t.focus(), 300);
 }
@@ -438,7 +439,8 @@ function openPost(p) {
   pg.el.dataset.post = p.id;
   const floors = h('div.as-fo-floors', (p.floors || []).map((f, i) => floorEl(p, f, i)));
   // 出评论只在点了才出（右上的评论键、底下「再来一些」）：自己发的帖、投的稿也一样
-  const ask = () => runThread(p, (p.floors || []).length ? {} : { count: '10～15', focus: [p.sub ? `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。` : '', atNote(p.text)].filter(Boolean).join('') });
+  const ask = () => { const q = p.ask; delete p.ask;
+    return runThread(p, q ? { focus: q, count: '3～6' } : (p.floors || []).length ? {} : { count: '10～15', focus: [p.sub ? `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。` : '', atNote(p.text)].filter(Boolean).join('') }); };
   const more = jobBtn('thread:' + p.id, () => [(p.floors || []).length ? '再来一些' : '出' + word('forum.act.comment')], ask, 'button.as-btn.as-btn--secondary.as-fo-morebtn');
   const stat = (k, n, on) => h('button.as-fo-stat__item' + (on ? '.is-on' : ''), W(k), h('span', E.fmt(n)));
   const onlyOp = h('button.as-fo-sort__op', { onclick: () => { floors.classList.toggle('is-op-only'); onlyOp.classList.toggle('is-on'); } }, W('forum.only.op'));
@@ -633,7 +635,7 @@ function editAcc(a, done) {
   const name = input({ value: d.name, placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
   const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
   editSheet(a ? '编辑' : '新建小号', [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio),
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))], () => {
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))], () => {
     d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60);
     d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     if (!a && !d.name) { toast('起个网名'); return false; }
@@ -664,11 +666,11 @@ function editBot(b, done) {
 function openPeople() {
   const pg = page({ app: 'forum', id: 'forum-people', title: '熟人', back: true });
   const F = E.F(), P = id => (F.people[id] = F.people[id] || {});
-  const label = c => P(c.id).off ? '不上论坛' : P(c.id).v ? '有认证' : '';
+  const VS = [['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '红 V']], label = c => P(c.id).off ? '不上论坛' : (VS.find(x => x[0] === E.isV(c)) || VS[0])[1].replace('不加', '');
   pg.body.append(h('div.as-fo-set', state.contacts.length ? group('', state.contacts.map(c => {
     const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: nameOf(c), value: label(c), chevron: true, onClick: () => {
       const d = { ...P(c.id) }, nick = input({ value: d.name || '', placeholder: '网名' });
-      editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), toggleItem({ title: '有认证' }, !!d.v, v => { d.v = v; }), field('网名', nick)], () => {
+      editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('网名', nick)], () => {
         d.name = nick.value.trim().slice(0, 20); Object.assign(P(c.id), d); commit('forum'); row.querySelector('.as-list-item__value').textContent = label(c);
       });
     } });

@@ -60,7 +60,7 @@ export const meBy = anon => ({ k: 'me', id: curAcc().id, ...(anon ? { anon: true
 /** 帖子、楼层上的 by → 显示用的 { name, avatar, v } */
 export function who(by) {
   if (by.anon) return { name: by.no ? `匿名 ${by.no} 号` : '匿名', anon: true };
-  if (by.k === 'bot') { const b = botOf(by.id); return b ? { name: b.name, avatar: b.avatar, v: 'b', sub: b.topic } : { name: by.name || '已删除的号' }; }
+  if (by.k === 'bot') { const b = botOf(by.id); return b ? { name: b.name, avatar: b.avatar, v: b.fans >= 2e5 ? 'r' : 'y', sub: b.topic } : { name: by.name || '已删除的号' }; }
   if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '' } : { name: '已注销', me: true }; }
   if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c) } : { name: by.name || '用户' }; }
   return { name: by.name || '网友' };
