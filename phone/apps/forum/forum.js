@@ -144,8 +144,10 @@ function postMenu(p) {
   const by = p.by, k = keyOf(by), other = !by.anon && by.k !== 'me';
   return h('button.as-fo-post__menu', { 'aria-label': '更多', onclick: async e => {
     e.stopPropagation();
-    const v = await actionSheet(E.who(by).name, [...(other ? [{ value: 'f', label: following(k) ? '取消关注' : '关注', icon: 'user' }] : []), { value: 'edit', label: '编辑', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
+    const v = await actionSheet(E.who(by).name, [...(other ? [{ value: 'f', label: following(k) ? '取消关注' : '关注', icon: 'user' }] : []), ...(by.k === 'me' && !by.anon ? [{ value: 'top', label: p.top ? '取消置顶' : '置顶', icon: 'star' }] : []),
+      { value: 'edit', label: '编辑', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
     if (v === 'f') doFollow(k, E.who(by).name);
+    if (v === 'top') pin(p);
     if (v === 'edit') editPost(p);
     if (v === 'del' && await dialog({ title: '删掉这条？', confirm: '删除', danger: true })) {
       await E.removePost(p.id); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.remove());
@@ -161,6 +163,14 @@ function editPost(p) {
     p.title = title.value.trim().slice(0, 40); p.dev = from.value; if (t !== p.text) { p.text = t; p.tr = ''; }
     E.save(); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.replaceWith(card(p, a.classList.contains('is-full')))); applyTexts();
   });
+}
+/** 置顶：一个号只置顶一条；主页上挪到最前面，只换这几张卡片 */
+async function pin(p) {
+  const on = !p.top, redo = x => document.querySelectorAll(`article.as-fo-post[data-id="${x.id}"]`).forEach(a => a.replaceWith(card(x, a.classList.contains('is-full'))));
+  for (const x of (await E.load()).posts) if (x.top && x !== p && same(x.by, p.by)) { x.top = false; redo(x); }
+  p.top = on; await E.save(); redo(p); applyTexts();
+  if (on) document.querySelectorAll(`.as-fo-list.is-user > article[data-id="${p.id}"]`).forEach(a => a.parentNode.prepend(a));
+  toast(on ? '已置顶' : '已取消置顶');
 }
 /** 转发：写一句话（可以不写），发成我的一条，下面带着原帖 */
 function repost(p) {
@@ -182,6 +192,7 @@ function card(p, full) {
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
   return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
+    p.top ? h('div.as-fo-post__pin', '置顶') : null,
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
@@ -542,6 +553,14 @@ function openPost(p) {
 /* ---------- 主页：右上角「…」装扮（穿套装、单独换一样）；穿了套装主页换成装扮的样子（.is-dressed） ---------- */
 // 背景图看得见的那块的下沿是什么颜色（调浅一点）：图下面那层渐变就用它，像真微博那样接上
 const tints = new Map();
+// 底栏按钮的字：没自己挑颜色就跟着底栏图的颜色走（取平均色，调成看得清的深浅）
+const inks = new Map();
+const inkOf = u => inks.get(u) || inks.set(u, loadImg(u).then(i => {
+  const c = document.createElement('canvas'), g = c.getContext('2d'); c.width = c.height = 1; g.drawImage(i, 0, 0, 1, 1);
+  const [r, gg, b] = g.getImageData(0, 0, 1, 1).data, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), d = mx - mn;
+  const hue = !d ? 0 : mx === r ? (gg - b) / d % 6 : mx === gg ? (b - r) / d + 2 : (r - gg) / d + 4;
+  return d < 8 ? '#555' : `hsl(${Math.round(hue * 60 + 360) % 360}, 65%, 58%)`;
+}).catch(() => '')).get(u);
 const tintOf = u => tints.get(u) || tints.set(u, new Promise(ok => {
   const i = new Image();
   i.onload = () => {
@@ -606,7 +625,7 @@ function userView(by, host) {
     return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x))) : editing ? h('div.as-fo-user__tags', h('span', ph('橙色小字'))) : null;
   };
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
-  const list = h('div.as-fo-list');
+  const list = h('div.as-fo-list.is-user');
   const more = mine ? null : jobBtn('more:' + key, () => ['看看 TA 还发了什么'], () => go('more:' + key, '正在刷新…', s => E.feed(b ? 'global' : 'local', {
     count: 3, only: by.k === 'bot' ? ['b:' + by.id] : by.k === 'c' ? ['c:' + by.id] : [], pick: `只由「${w.name}」发，${by.k === 'n' ? '这是一个普通网友，' : ''}写 TA 最近会发的` }, s)).then(got => { if (got) { landed(got); toast('刷到了'); } }),
   'button.as-btn.as-btn--secondary.as-fo-morebtn');
@@ -641,13 +660,15 @@ function userView(by, host) {
     for (const u0 of [ubar, pv].filter(Boolean)) {
       u0.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; u0.classList.toggle('has-img', !!dr.bar);
       u0.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+      u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
+      (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
     }
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id), O = () => acc || E.over(by);   // 我的号的资料 / 我给别人改过的资料
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
   let editing = false;
   const certOf = () => O().cert || (b ? b.topic : acc ? '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
-  const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span' + (w.vip ? '.is-vip' : ''), w.name), vipEl(w), w.v ? vMark() : null),
+  const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
     w.v || o.cert || editing ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), w.v || o.cert ? certOf() : ph('认证')) : null,
     w.ip || editing ? h('div.as-fo-user__cert.is-ip', w.ip ? 'IP属地：' + w.ip : ph('IP 属地')) : null,
     h('div.as-fo-user__bio', (o.bio ?? (b ? b.bio : '')) || (editing ? ph('简介') : '')), tagsOf(),
@@ -686,16 +707,16 @@ function userView(by, host) {
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
     } else if (is('.as-fo-user__tabs')) pickPiece('标签', ['tab', 'tabline']);
-    else if (is('.as-fo-ubar--pv')) pickPiece('底栏', ['bar', 'btn']);
+    else if (is('.as-fo-ubar--pv')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
-  const pickPiece = async (title, ks) => { const k = await actionSheet(title, PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' }))); if (k) dressOne(key, k, paint);
+  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint);
   };
   const head = h('div.as-fo-user', cover, main);
   [head, tabs, pv].forEach(x => x?.addEventListener('click', onEdit, true));
   const edit = on => { editing = on; host.classList.toggle('is-editing', on); refresh(); };
   const els = [head, tabs, more, list].filter(Boolean);
   paint();
-  E.load().then(d => { fill(list, d.posts.filter(p => same(p.by, by))); applyTexts(); });
+  E.load().then(d => { const ps = d.posts.filter(p => same(p.by, by)); fill(list, [...ps.filter(p => p.top), ...ps.filter(p => !p.top)]); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
   return { els, ubar, pv, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
 }
@@ -847,7 +868,7 @@ async function importMe() {
   const a = E.curAcc(), key = 'me:' + a.id;
   for (const k of ACC_KEYS) if (k in d.acc) a[k] = d.acc[k];
   if (d.frame && /^data:image\//.test(d.frame.src || '')) { const f = { ...d.frame, id: 'f' + Date.now().toString(36), name: String(d.frame.name || '头像框').slice(0, 20) }; deco().frames.push(f); commit('deco'); a.frame = f.id; }
-  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([, u]) => typeof u === 'string' && /^data:image\//.test(u)));
+  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([k, u]) => typeof u === 'string' && (k === 'btnsize' ? /^\d+$/ : /^data:image\//).test(u)));
   if (Object.keys(imgs).length) await wearNew(key, (d.acc.name || '导入') + '的装扮', imgs);
   accSaved(); toast('导入好了');
 }

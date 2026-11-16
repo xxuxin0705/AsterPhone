@@ -199,7 +199,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__tabimg { height: 24px; width: auto; margin-right: 4px; vertical-align: -6px; }
 .as-fo-user__tabs.has-line span.is-on::after { width: 60px; height: 12px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
 .as-fo-ubar__item.has-pic svg { display: none; }
-.as-fo-ubar__item.has-pic::before { content: ''; width: 36px; height: 36px; background: var(--fo-btnimg) center / contain no-repeat; }
+.as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: var(--fo-btnimg) center / contain no-repeat; }
 
 /* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
 .as-fo-tab { position: relative; }
@@ -255,3 +255,15 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-navbar:has(> .as-fo-editbar:not([hidden])) > :not(.as-fo-editbar) { visibility: hidden; }
 .as-fo-compose__row.is-chips { justify-content: flex-start; gap: 8px; }
 .as-fo-acc:not(:has(> span)) { padding: 6px 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+/* 从一张图里抠底栏按钮：抠出来的小图一格一格，点了右上角标第几个；下面是三个按钮排出来的样子 */
+.as-fo-btnpick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.as-fo-btnpick button { position: relative; display: grid; place-items: center; aspect-ratio: 1; padding: 10px; border: 1.5px solid transparent; border-radius: 14px; background: var(--as-color-surface-2); cursor: pointer; }
+.as-fo-btnpick button.is-on { border-color: var(--as-color-accent); }
+.as-fo-btnpick img { width: 100%; height: 100%; object-fit: contain; }
+.as-fo-btnpick button.is-on::after { content: attr(data-n); position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--as-color-accent); color: #fff; font: 600 12px/20px var(--font-ui); text-align: center; }
+.as-fo-btnpv { display: flex; justify-content: space-around; align-items: center; height: 64px; border-radius: 14px; background: var(--as-color-surface-2); }
+.as-fo-btnpv i { width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: center / contain no-repeat; }
+[data-as-app="forum"] .as-fo-ubar.has-ink .as-fo-ubar__item:not(.as-fo-ubar__follow) { color: var(--fo-btnink); }
+/* 置顶：只在主页上显示 */
+.as-fo-post__pin { display: none; }
+.as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; margin-bottom: 8px; color: var(--fo-accent); font: 600 13px/1 var(--font-ui); }

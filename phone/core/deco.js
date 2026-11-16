@@ -104,12 +104,12 @@ export function flood(x, w, H, t, g = 999) {
   x.putImageData(d, 0, 0);
 }
 const opaque = (x, w, H) => { const top = x.getImageData(0, 0, w, 1).data, bot = x.getImageData(0, H - 1, w, 1).data; for (let i = 3; i < top.length; i += 4) if (top[i] < 250 || bot[i] < 250) return false; return true; };
-export async function cutout(url) {
+export async function cutout(url, g) {
   if (!/^data:image\//.test(url)) return url;
   const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
   x.drawImage(im, 0, 0);
   if (!opaque(x, w, H)) return url;   // 本来就有透明，不动
-  flood(x, w, H, 60);
+  flood(x, w, H, 60, g);
   return c.toDataURL('image/png');
 }
 

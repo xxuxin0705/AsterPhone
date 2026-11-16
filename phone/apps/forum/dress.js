@@ -3,7 +3,7 @@
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
-import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage } from '../../core/ui.js';
+import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, sheet, slider, colorWheel } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { loadImg, cutout, flood } from '../../core/deco.js';
 
@@ -12,7 +12,9 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['bar', '底栏背景', 0, 1200], ['btn', '底栏按钮小图', 0, 160, 1], ['like', '点赞特效', 1, 300, 1]];
 // 底栏按钮一次传三张，按勾的顺序从左到右
 // 主页背景最多九张，左右滑、自己轮播
-const BTNS = ['btn', 'btn2', 'btn3'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1)];
+const BTNS = ['btn', 'btn2', 'btn3'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor'];
+// 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
+const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : k === 'btncolor' ? /^#[\da-f]{6}$/i : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
@@ -55,6 +57,8 @@ async function upload(k, has) {
     return out;
   }
   if (k === 'btn') {
+    const how = await actionSheet(t, [{ value: 'one', label: '一张一张传', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null;
+    if (how === 'sheet') return pickBtns(size);
     const fs = (await pickMany()).slice(0, 3); if (!fs.length) return null;
     const out = Object.fromEntries(BTNS.map(b => [b, '']));
     for (const [i, f] of fs.entries()) out[BTNS[i]] = await cutout(await shrink(f, size).catch(() => ''));
@@ -65,6 +69,64 @@ async function upload(k, has) {
   else { u = await pickImage(t, { ratio, size, png: !!png, has }); if (u == null) return null; }
   if (u && png) u = await cutout(u);
   return { [k]: u };
+}
+
+/** 底栏按钮的字的颜色：色盘挑；「跟着底栏」就是不挑，按底栏图的颜色 */
+const pickInk = cur => new Promise(done => {
+  let c = cur || '#ff8200', v = null;
+  const s = sheet({ title: '底栏按钮的字', content: h('div', h('div.as-mu-color', colorWheel(c, x => { c = x; })),
+    h('div.as-lib-actions.is-two', btn('跟着底栏', 'secondary', () => { v = ''; s.close(); }), btn('确定', 'primary', () => { v = c; s.close(); }))), onClose: () => done(v == null ? null : { btncolor: v }) });
+});
+/** 一张图里排着好几个小图：抠掉底色，按一块一块找出来（挨得近的并成一个），裁成小图 */
+async function chop(url, size) {
+  const im = await loadImg(url), W = im.naturalWidth, H = im.naturalHeight, k = Math.min(1, 240 / Math.max(W, H)), w = Math.round(W * k) || 1, hh = Math.round(H * k) || 1;
+  const c = document.createElement('canvas'); c.width = w; c.height = hh; const x = c.getContext('2d'); x.drawImage(im, 0, 0, w, hh);
+  const a = x.getImageData(0, 0, w, hh).data, seen = new Uint8Array(w * hh), solid = n => a[n * 4 + 3] > 40;
+  let boxes = [];
+  for (let p = 0; p < w * hh; p++) if (!seen[p] && solid(p)) {
+    const q = [p], b = [w, hh, 0, 0]; seen[p] = 1;
+    while (q.length) {
+      const v = q.pop(), i = v % w, j = (v - i) / w; b[0] = Math.min(b[0], i); b[1] = Math.min(b[1], j); b[2] = Math.max(b[2], i); b[3] = Math.max(b[3], j);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj, n = jj * w + ii; if (ii >= 0 && jj >= 0 && ii < w && jj < hh && !seen[n] && solid(n)) { seen[n] = 1; q.push(n); } }
+    }
+    boxes.push(b);
+  }
+  // 翅膀的左右两半、爱心旁边的小星星：隔得近就算一个
+  const g = Math.round(Math.max(w, hh) * .025), near = (A, B) => A[0] - g <= B[2] && B[0] - g <= A[2] && A[1] - g <= B[3] && B[1] - g <= A[3];
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) if (near(boxes[i], boxes[j])) {
+    const A = boxes[i], B = boxes.splice(j, 1)[0]; boxes[i] = [Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.max(A[2], B[2]), Math.max(A[3], B[3])]; i = -1; break;
+  }
+  // 太小、太细的（水印、分隔线、零星的点）不要；按从上到下、从左到右排
+  const min = Math.max(w, hh) * .04, row = b => Math.floor((b[1] + b[3]) / 2 / (hh * .2));
+  boxes = boxes.filter(b => b[2] - b[0] >= min && b[3] - b[1] >= min).sort((A, B) => row(A) - row(B) || A[0] - B[0]);
+  return boxes.map(b => {
+    const sx = Math.max(0, b[0] / k - 2), sy = Math.max(0, b[1] / k - 2), sw = Math.min(W - sx, (b[2] + 1) / k + 4 - sx), sh = Math.min(H - sy, (b[3] + 1) / k + 4 - sy), z = Math.min(1, size / Math.max(sw, sh));
+    const o = document.createElement('canvas'); o.width = Math.round(sw * z) || 1; o.height = Math.round(sh * z) || 1;
+    o.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, o.width, o.height); return o.toDataURL('image/png');
+  });
+}
+/** 底栏按钮：传一张排着好几个小图的图，抠出来，点几个（按点的顺序从左到右，最多三个），调大小 */
+async function pickBtns(size) {
+  const f = await pickFile('image/*'); if (!f) return null;
+  const all = await chop(await cutout(await shrink(f, 1200), 36), size).catch(e => { log('warn', '论坛', '抠按钮小图失败：' + e.message); return []; });
+  if (!all.length) { toast('这张图里没抠出东西'); return null; }
+  return new Promise(done => {
+    const on = [];
+    let z = 36, ok = false;
+    const bar = h('div.as-fo-btnpv'), set = () => bar.style.setProperty('--fo-btnz', z + 'px');
+    const paint = () => {
+      grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });
+      bar.replaceChildren(...[0, 1, 2].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
+    };
+    const grid = h('div.as-fo-btnpick', all.map((u, i) => h('button', { 'aria-label': '第 ' + (i + 1) + ' 个', onclick: () => {
+      const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (on.length < 3) on.push(i); else { toast('最多三个'); return; }
+      paint();
+    } }, h('img', { src: u, alt: '' }))));
+    const s = sheet({ title: '选底栏按钮', content: h('div.as-fo-compose', grid, bar, field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),
+      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { if (!on.length) { toast('点几个当按钮'); return; } ok = true; s.close(); }))),
+      onClose: () => done(ok ? { ...Object.fromEntries(BTNS.map((b, i) => [b, on[i] == null ? '' : all[on[i]]])), btnsize: String(z) } : null) });
+    set(); paint();
+  });
 }
 
 /** 主页右上「…」→ 装扮：穿套装 / 脱下 / 单独换一样 / 存成套装 */
@@ -84,7 +146,7 @@ export async function dressMenu(key, repaint) {
 }
 /** 把身上这一身存成套装（存好在套装里能导出） */
 export async function saveSet(key) {
-  const imgs = Object.fromEntries(Object.entries(dressOf(key)).filter(([, x]) => /^data:image\//.test(x)));
+  const imgs = Object.fromEntries(Object.entries(dressOf(key)).filter(([k, x]) => keep(k, x)));
   if (!Object.keys(imgs).length) { toast('还没有装扮'); return; }
   const name = ((await dialog({ title: '套装的名字', input: { placeholder: '名字' } })) || '').trim(); if (!name) return;
   SETS.push({ id: uid('fd'), name: name.slice(0, 20), imgs }); await saveSets(); toast('存好了');
@@ -92,7 +154,7 @@ export async function saveSet(key) {
 
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint) {
-  const got = await upload(k, !!dressOf(key)[k]); if (!got) return;
+  const got = k === 'btncolor' ? await pickInk(dressOf(key).btncolor) : await upload(k, !!dressOf(key)[k]); if (!got) return;
   const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
   for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
   await saveSets(); commit('forum'); repaint();
@@ -122,7 +184,7 @@ export function setTiles() {
   async function importSet() {
     const f = await pickFile('*/*'); if (!f) return;
     let d = null; try { d = JSON.parse(await f.text()); } catch (e) { /* 下面统一说 */ }
-    const imgs = d && d.asterphone === 'forumDeco' && d.imgs ? Object.fromEntries(KEYS.map(k => [k, d.imgs[k]]).filter(([, x]) => typeof x === 'string' && /^data:image\//.test(x))) : {};
+    const imgs = d && d.asterphone === 'forumDeco' && d.imgs ? Object.fromEntries(KEYS.map(k => [k, d.imgs[k]]).filter(([k, x]) => keep(k, x))) : {};
     if (!Object.keys(imgs).length) { toast('这不是 AsterPhone 的论坛装扮'); return; }
     SETS.push({ id: uid('fd'), name: String(d.name || '套装').slice(0, 20), imgs }); await saveSets(); draw(); toast(`导入了「${String(d.name || '套装').slice(0, 20)}」`);
   }
