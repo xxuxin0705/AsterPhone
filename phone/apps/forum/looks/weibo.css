@@ -223,11 +223,11 @@
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
 [data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
 /* 会员牌子（从真微博截图抠的，去掉了等级数字），紧跟在名字后面；有会员的名字在帖子和评论里是橙色 */
-[data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 30px; height: 12.5px; margin-left: 2px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
-[data-as-app="forum"] .as-fo-vip.is-svip { width: 34px; background-image: url('assets/forum/svip.png'); }
-/* 大小照真微博量的：主页名字后 12.5px 高，帖子里 15px 高（帖子里的反而大一点） */
-[data-as-app="forum"] .as-fo-vip.is-mini { width: 36px; height: 15px; }
-[data-as-app="forum"] .as-fo-vip.is-mini.is-svip { width: 40px; }
+[data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 46px; height: 19px; margin-left: 2px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
+[data-as-app="forum"] .as-fo-vip.is-svip { width: 51px; background-image: url('assets/forum/svip.png'); }
+/* 真微博的牌子（连王冠）跟名字的字差不多高：主页、帖子都按名字的字高来 */
+[data-as-app="forum"] .as-fo-vip.is-mini { width: 44px; height: 18px; }
+[data-as-app="forum"] .as-fo-vip.is-mini.is-svip { width: 48px; }
 [data-as-app="forum"] :is(.as-fo-post__name, .as-fo-floor__name).is-vip { color: var(--fo-vip); }
 /* 橙 V 上那道浅橙的光一直扫过去（真微博是动的） */
 @keyframes fo-vshine { 0%, 15% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
