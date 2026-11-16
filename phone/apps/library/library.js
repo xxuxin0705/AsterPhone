@@ -2,7 +2,7 @@
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
-import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame } from '../../core/deco.js';
+import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame, refreshFrame } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import * as time from '../../core/time.js';
@@ -123,7 +123,7 @@ async function decoMenu(k, x, redraw) {
     const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(pack(k, [x]))], { type: 'application/json' })), download: `AsterPhone-${KIND[k]}-${x.name}.json` });
     document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
   }
-  if (v === 'del' && await dialog({ title: `删除「${x.name}」？`, text: '戴着它的人会换回没有的样子。', confirm: '删除', danger: true })) { deco()[k].splice(deco()[k].indexOf(x), 1); commit('deco'); redraw(); }
+  if (v === 'del' && await dialog({ title: `删除「${x.name}」？`, text: '戴着它的人会换回没有的样子。', confirm: '删除', danger: true })) { deco()[k].splice(deco()[k].indexOf(x), 1); commit('deco'); redraw(); if (k === 'frames') refreshFrame(x.id); }
 }
 /** 头像框微调：添加时已经自动对齐过；这里拖预览挪位置，滑条调大小，还能染色 */
 function fitFrameEdit(f, redraw) {
@@ -136,7 +136,7 @@ function fitFrameEdit(f, redraw) {
   // 挪的量按框自己的大小算百分比（translate 的百分比是 ::after 自己的宽高）
   stage.onpointermove = e => { if (!s) return; const W = 150 * (1 - 2 * d.inset / 100); d.dx = +(s.dx + (e.clientX - s.x) / W * 100).toFixed(1); d.dy = +(s.dy + (e.clientY - s.y) / W * 100).toFixed(1); paint(); };
   stage.onpointerup = stage.onpointercancel = () => { s = null; };
-  const p = page({ app: 'library', id: 'library-framefit', title: f.name, back: true, right: navText('保存', () => { Object.assign(f, d); commit('deco'); toast('已保存'); nav.pop(); redraw(); }) });
+  const p = page({ app: 'library', id: 'library-framefit', title: f.name, back: true, right: navText('保存', () => { Object.assign(f, d); commit('deco'); toast('已保存'); nav.pop(); redraw(); refreshFrame(f.id); }) });
   const dot = h('span.as-lib-dot', { style: { background: d.color } });
   const pick = item({ title: '颜色', right: dot, onClick: () => sheet({ title: '颜色', content: h('div.as-mu-color', colorWheel(d.color, v => { d.color = v; dot.style.background = v; recolor(); })) }) });
   pick.hidden = !d.tint;

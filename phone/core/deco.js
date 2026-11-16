@@ -7,11 +7,16 @@ const find = (k, id) => id && deco()[k].find(x => x.id === id);
 
 /** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加。id 也可以直接是一张图（论坛装扮套装里的框） */
 export function addFrame(ava, id) {
-  const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id); if (!f) return ava;
-  ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${f.view || f.src}")`); if (f.inset != null) ava.style.setProperty('--frame-in', f.inset + '%');
-  if (f.dx || f.dy) ava.style.setProperty('--frame-at', `${f.dx || 0}% ${f.dy || 0}%`);
+  const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id), st = ava.style;
+  if (!f) { if (ava.dataset.frame) { ava.classList.remove('has-frame'); delete ava.dataset.frame; } return ava; }
+  ava.classList.add('has-frame'); if (f.id) ava.dataset.frame = f.id;
+  st.setProperty('--frame', `url("${f.view || f.src}")`);
+  if (f.inset != null) st.setProperty('--frame-in', f.inset + '%'); else st.removeProperty('--frame-in');
+  if (f.dx || f.dy) st.setProperty('--frame-at', `${f.dx || 0}% ${f.dy || 0}%`); else st.removeProperty('--frame-at');
   return ava;
 }
+/** 资源库里改了 / 删了一个框：已经画出来戴着它的头像马上换（只改那几个头像的样式） */
+export const refreshFrame = id => document.querySelectorAll(`[data-frame="${id}"]`).forEach(el => addFrame(el, id));
 /** 气泡：颜色、圆角、描边写进这一个气泡；有图就用九宫格拉伸（四个角不变形）。b 是编号，编辑时预览也可以直接传气泡本身 */
 export function paintBubble(el, b) {
   if (typeof b === 'string') b = find('bubbles', b); if (!b) return el;
