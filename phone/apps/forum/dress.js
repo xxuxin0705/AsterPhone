@@ -3,7 +3,7 @@
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
-import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, sheet, slider, colorWheel } from '../../core/ui.js';
+import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, sheet, slider, colorWheel, fxRow, segmented } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { loadImg, cutout, flood, touchUp } from '../../core/deco.js';
 
@@ -13,9 +13,10 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor'];
+const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'coverfx', 'barfx', 'pinbgfx', 'barfill', 'pinbgfill'];
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
-const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /^data:image\//).test(x);
+// 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
+export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
@@ -50,6 +51,10 @@ async function shrink(f, max) {
 /** 换一样：返回 { 部件: 图 }（'' 是去掉），null 是没选。has 是现在的图。底栏背景、按钮小图不裁剪，按钮小图一次多选；要抠底色的抠完先给你修一下 */
 async function upload(k, has) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
+  if (FILLS.includes(k)) {
+    const how = await actionSheet(t, [{ value: 'img', label: '用图片', icon: 'image' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }]); if (!how) return null;
+    if (how === 'fill') { const f = await pickFill(t); return f && { [k]: '', [k + 'fill']: f }; }
+  }
   if (png && has && k !== 'btn') {
     const a = await actionSheet(t, [{ value: 'pick', label: '换图', icon: 'image' }, { value: 'fix', label: '修图', icon: 'edit' }, { value: 'del', label: '去掉', icon: 'trash', danger: true }]); if (!a) return null;
     if (a === 'del') return { [k]: '' };
@@ -77,9 +82,21 @@ async function upload(k, has) {
   if (!ratio) { const f = await pickFile('image/*'); if (!f) return null; u = await shrink(f, size).catch(() => null); if (u == null) { toast('这张图打不开'); return null; } }
   else { u = await pickImage(t, { ratio, size, png: !!png, has: !!has }); if (u == null) return null; }
   if (u && png) { u = await touchUp(await cutout(u), t); if (u == null) return null; }
-  return { [k]: u };
+  return { [k]: u, ...(FILLS.includes(k) && { [k + 'fill']: '' }) };
 }
 
+// 底栏、置顶的横条：不用图也能用纯色、渐变（从左到右）
+const FILLS = ['bar', 'pinbg'];
+export const fillCss = v => v ? `linear-gradient(90deg, ${v.includes(',') ? v : v + ',' + v})` : '';
+/** 挑纯色 / 渐变：上面一条预览，选「渐变」多出右边那个颜色；点圆点开色盘（带吸管） */
+const pickFill = title => new Promise(done => {
+  const c = ['#cfe6f5', '#f3f9fc']; let grad = false, v = null;
+  const pv = h('div.as-fo-fillpv'), paint = () => { pv.style.background = fillCss(grad ? c.join() : c[0]); dots[1].hidden = !grad; dots.forEach((d, i) => { d.style.background = c[i]; }); };
+  const dots = c.map((_, i) => h('button.as-deco-dot', { 'aria-label': i ? '右边的颜色' : grad ? '左边的颜色' : '颜色', onclick: () => sheet({ title: i ? '右边' : grad ? '左边' : '颜色', content: h('div.as-mu-color', colorWheel(c[i], x => { c[i] = x; paint(); })) }) }));
+  const s = sheet({ title, content: h('div.as-fo-compose', pv, h('div.as-deco-tone', segmented([['', '纯色'], ['g', '渐变']], '', x => { grad = !!x; paint(); }), ...dots),
+    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { v = grad ? c.join() : c[0]; s.close(); }))), onClose: () => done(v) });
+  paint();
+});
 /** 字的颜色（底栏按钮、置顶）：色盘挑；左边那个按钮是不挑，用默认（底栏按钮跟着底栏图的颜色） */
 const pickInk = (k, title, none, cur) => new Promise(done => {
   let c = cur || '#ff8200', v = null;
@@ -163,10 +180,23 @@ export async function saveSet(key) {
   SETS.push({ id: uid('fd'), name: name.slice(0, 20), imgs }); await saveSets(); toast('存好了');
 }
 
+/** 单独换的那份（不动穿着的套装）：没有就新建一份 */
+function ownOf(key) {
+  const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
+  return own;
+}
+/** 背景图调透明度、亮度（和音乐播放页背景一样的滑条），拖着就看得到；关上才存 */
+export function dressFx(key, k, title, repaint) {
+  const own = ownOf(key), [op, br] = (dressOf(key)[k + 'fx'] || '1,1').split(',').map(Number), cur = { op, br };
+  const put = () => { own.imgs[k + 'fx'] = +cur.op.toFixed(2) + ',' + +cur.br.toFixed(2); repaint(); };
+  sheet({ title, content: h('div', fxRow('透明度', +(1 - op).toFixed(2), 0, { min: 0, max: .9, step: .05, fmt: v => v ? Math.round(v * 100) + '%' : '不透明' }, v => { cur.op = 1 - v; put(); }),
+    fxRow('亮度', br, 1, { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }, v => { cur.br = v; put(); })),
+  onClose: () => { saveSets(); commit('forum'); } });
+}
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint) {
   const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k]) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k]) : await upload(k, dressOf(key)[k]); if (!got) return;
-  const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
+  const own = ownOf(key);
   for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
   await saveSets(); commit('forum'); repaint();
 }

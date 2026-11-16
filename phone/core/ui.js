@@ -99,6 +99,14 @@ export function slider({ min = 0, max = 1, step = .01, value = 0, onInput, id })
   s.addEventListener('input', () => onInput(parseFloat(s.value)));
   return s;
 }
+/** 调图的一行滑条（亮度、透明度、模糊…）：调过了（不是默认值）右边出一个恢复键，点了只恢复这一行。o 是 slider 的范围 + fmt 显示 */
+export function fxRow(label, value, def, o, onSet) {
+  const out = h('output', o.fmt(value)), sl = slider({ ...o, value, onInput: v => set(v) });
+  const back = h('button.as-fx-undo', { 'aria-label': '恢复' + label, onclick: () => { set(def); sl.value = def; } }, icon('undo', 16, 2));
+  const set = v => { out.textContent = o.fmt(v); back.style.visibility = v === def ? 'hidden' : ''; onSet(v); };
+  back.style.visibility = value === def ? 'hidden' : '';   // 藏起来也占着位置，滑条不会忽长忽短
+  return h('div.as-settings-slider-row', h('span.as-fx-label', label), sl, out, back);
+}
 /** 圆形色轮：手指按到哪就是哪个颜色（越往外越鲜艳），下面一条调亮暗。onChange 收到 #rrggbb。所有选颜色的地方都用它 */
 /** alpha：多一根「透明度」（气泡用），出来的是 #rrggbbaa */
 export function colorWheel(hex, onChange, alpha) {

@@ -3,7 +3,7 @@
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
 import { state, commit, contact, kvGet, kvSet, kvDel, subscribe } from '../../core/store.js';
-import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, waiting, sortable, wheelField } from '../../core/ui.js';
+import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, fxRow, waiting, sortable, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
 import { shell } from '../../core/shell.js';
@@ -1146,14 +1146,7 @@ export function openPlayer() {
     const mark = () => {
       [...grid.children].forEach(x => x.classList.toggle('is-on', x.dataset.id === (S.bgId || '')));
       const cur = bgs().find(b => b.id === S.bgId);
-      // 每行调过了（不是默认值）右边出一个恢复键，点了只恢复这一行
-      const row = (label, k, def, o) => {
-        const out = h('output', o.fmt(cur[k])), sl = slider({ ...o, value: cur[k], onInput: v => set(v) });
-        const back = h('button.as-mp-bgs__undo', { 'aria-label': '恢复' + label, onclick: () => { set(def); sl.value = def; } }, icon('undo', 16, 2));
-        const set = v => { cur[k] = v; out.textContent = o.fmt(v); back.style.visibility = v === def ? 'hidden' : ''; paintFx(cur); commit('music'); };
-        back.style.visibility = cur[k] === def ? 'hidden' : '';   // 藏起来也占着位置，滑条不会忽长忽短
-        return h('div.as-settings-slider-row', h('span', label), sl, out, back);
-      };
+      const row = (label, k, def, o) => fxRow(label, cur[k], def, o, v => { cur[k] = v; paintFx(cur); commit('music'); });
       adj.replaceChildren(...(cur ? [
         row('模糊', 'blur', 0, { min: 0, max: 20, step: 1, fmt: v => v ? v + '' : '不模糊' }),
         row('亮度', 'bright', 1, { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }),
