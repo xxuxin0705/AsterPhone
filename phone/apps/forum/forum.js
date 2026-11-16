@@ -660,13 +660,15 @@ function userView(by, host) {
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
-    host.classList.toggle('is-dressed', dressed(key));
-    const cs = covers(dr); cover.classList.toggle('has-img', !!cs.length); track.hidden = !cs.length;
+    const cs = covers(dr);
+    host.classList.toggle('is-dressed', dressed(key) || !!cs.length);   // 自己单独换了背景图（没穿套装）也照装扮过的样子排，渐变开关才有用
+    cover.classList.toggle('has-img', !!cs.length); track.hidden = !cs.length;
     if (cs.join() !== [...track.children].map(i => i.src).join()) track.replaceChildren(...cs.map(u => h('img', { src: u, alt: '' })));
     host.classList.toggle('no-fade', !fade(key));
     const fx = k => (dr[k + 'fx'] || '1,1').split(',');
     [...track.children].forEach((im, i) => { const [o, b] = fx(COVERS.filter(c => dr[c])[i]); im.style.opacity = o; im.style.filter = +b !== 1 ? `brightness(${b})` : ''; });
-    if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
+    // 渐变往下过渡的颜色：自己挑过就用挑的，不然取背景图下沿的颜色调浅（最自然）
+    if (dr.fadecolor) host.style.setProperty('--fo-tint', dr.fadecolor); else if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
     // 标签小图：图里几乎是空的（截图拆出来只剩几粒点）就当没有
     solid(dr.tab).then(ok => { img(sticker, ok && dr.tab); tabs.classList.toggle('has-sticker', !!ok); });
@@ -715,10 +717,17 @@ function userView(by, host) {
       const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
       editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
     } else if (is('.as-fo-user__cover')) {
-      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '背景图（最多 9 张）', icon: 'image' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
+      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '背景图（最多 9 张）', icon: 'image' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' }, has && fade(key) && { value: 'fadec', label: '渐变的颜色', icon: 'palette' },
         { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }].filter(Boolean));
       if (x === 'cover') dressOne(key, 'cover', paint);
       if (x === 'fade') { setFade(key); paint(); }
+      if (x === 'fadec') {   // 拖色盘时页面上的渐变马上跟着变；「自动」= 取背景图的颜色
+        const cur = dressOf(key).fadecolor; let v = null, c = cur || getComputedStyle(host).getPropertyValue('--fo-tint').trim();
+        const hex = /^#/.test(c) ? c : '#' + (c.match(/\d+/g) || [255, 255, 255]).slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
+        const s = sheet({ title: '渐变的颜色', content: h('div', h('div.as-mu-color', colorWheel(hex, x2 => { c = x2; host.style.setProperty('--fo-tint', x2); })),
+          h('div.as-lib-actions.is-two', btn('自动', 'secondary', () => { v = ''; s.close(); }), btn('确定', 'primary', () => { v = c; s.close(); }))),
+          onClose: async () => { if (v != null) await setOwn(key, { fadecolor: v }); paint(); } });
+      }
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
     } else if (is('.as-fo-user__tabs')) {

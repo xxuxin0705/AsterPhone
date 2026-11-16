@@ -13,7 +13,7 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut', 'tabsize', 'tabx', 'taby', ...BTNS.map(b => b + 'size'), 'tabmark', 'tabmarkcolor',
+export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut', 'fadecolor', 'tabsize', 'tabx', 'taby', ...BTNS.map(b => b + 'size'), 'tabmark', 'tabmarkcolor',
   ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
@@ -87,9 +87,11 @@ const FILLS = ['bar', 'pinbg'];
 export const fillCss = v => v ? `linear-gradient(90deg, ${v.includes(',') ? v : v + ',' + v})` : '';
 /** 挑纯色 / 渐变：上面一条预览，选「渐变」多出右边那个颜色；点圆点开色盘（带吸管） */
 const pickFill = title => new Promise(done => {
-  const c = ['#cfe6f5', '#f3f9fc']; let grad = false, v = null;
+  // 渐变右边默认跟着左边自己配：同一个颜色往白里调浅，过渡最自然；自己挑过右边就不再跟
+  const soft = x => '#' + [1, 3, 5].map(i => Math.round(parseInt(x.slice(i, i + 2), 16) * .35 + 255 * .65).toString(16).padStart(2, '0')).join('');
+  const c = ['#cfe6f5', soft('#cfe6f5')]; let grad = false, v = null, own2 = false;
   const pv = h('div.as-fo-fillpv'), paint = () => { pv.style.background = fillCss(grad ? c.join() : c[0]); dots[1].hidden = !grad; dots.forEach((d, i) => { d.style.background = c[i]; }); };
-  const dots = c.map((_, i) => h('button.as-deco-dot', { 'aria-label': i ? '右边的颜色' : grad ? '左边的颜色' : '颜色', onclick: () => sheet({ title: i ? '右边' : grad ? '左边' : '颜色', content: h('div.as-mu-color', colorWheel(c[i], x => { c[i] = x; paint(); })) }) }));
+  const dots = c.map((_, i) => h('button.as-deco-dot', { 'aria-label': i ? '右边的颜色' : grad ? '左边的颜色' : '颜色', onclick: () => sheet({ title: i ? '右边' : grad ? '左边' : '颜色', content: h('div.as-mu-color', colorWheel(c[i], x => { c[i] = x; if (i) own2 = true; else if (!own2) c[1] = soft(x); paint(); })) }) }));
   const s = sheet({ title, content: h('div.as-fo-compose', pv, h('div.as-deco-tone', segmented([['', '纯色'], ['g', '渐变']], '', x => { grad = !!x; paint(); }), ...dots),
     h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { v = grad ? c.join() : c[0]; s.close(); }))), onClose: () => done(v) });
   paint();
