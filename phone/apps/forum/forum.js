@@ -3,7 +3,7 @@
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
+import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
@@ -90,13 +90,12 @@ function rich(text) {
     : /^@/.test(s) ? h('span.as-fo-topic', { onclick: e => { e.stopPropagation(); openUser(byAt(s.slice(1))); } }, s) : s);
 }
 /** 「@」按钮：从熟人、营销号、关注的人里点一个，插到光标那里 */
-function atBtn(t) {
-  return btn('@', 'secondary', async () => {
-    const ns = [...new Set([...E.onForum().map(E.netName), ...E.F().bots.map(b => b.name), ...(state.forum.follows || []).filter(k => k.startsWith('n:')).map(k => k.slice(2))])];
-    if (!ns.length) { toast('还没有可以 @ 的人'); return; }
-    const n = await actionSheet('@ 谁', ns.map(x => ({ value: x, label: x }))); if (!n) return;
-    t.setRangeText('@' + n + ' ', t.selectionStart, t.selectionEnd, 'end'); t.focus();
-  });
+const atBtn = t => btn('@', 'secondary', () => atPick(t));
+async function atPick(t) {
+  const ns = [...new Set([...E.onForum().map(E.netName), ...E.F().bots.map(b => b.name), ...(state.forum.follows || []).filter(k => k.startsWith('n:')).map(k => k.slice(2))])];
+  if (!ns.length) { toast('还没有可以 @ 的人'); return; }
+  const n = await actionSheet('@ 谁', ns.map(x => ({ value: x, label: x }))); if (!n) return;
+  t.setRangeText('@' + n + ' ', t.selectionStart, t.selectionEnd, 'end'); t.focus();
 }
 /** 我 @ 了谁：出评论时让 TA 来 */
 const atNote = text => { const ns = [...new Set([...text.matchAll(AT)].map(m => m[1]))]; return ns.length ? `里面 @ 了 ${ns.join('、')}，被 @ 的人看到了会来回（用 TA 的网名）。` : ''; };
@@ -243,32 +242,50 @@ function accChip() {
   } });
   paint(b); return b;
 }
-/** 发帖：选版块 / 小组、标题（可以不写）、正文、配图；发出去马上显示，再找 AI 出别人的回复 */
+/** 发帖：照真微博是整页的。左上取消、中间「发微博」和用哪个号（点了换号）、右上发送；底下一排小图标：配图、@、#、发成哪种语言、来自。
+ *  选了外语：一边打字一边机翻（免费，不花 API），翻好的显示在正文下面对照着看，发出去的就是这份；@ 的网名不翻 */
 function compose(b0) {
-  let board = ['follow', 'all'].includes(b0) || !E.groupOf(b0) ? 'global' : b0, pic = '';
-  const title = input({ placeholder: '标题' }), body = textarea({ placeholder: '正文', rows: 5 });
+  let board = ['follow', 'all'].includes(b0) || !E.groupOf(b0) ? 'global' : b0, pic = '', lang = 'none', tr = '', trOf = '', seq = 0, tm = 0;
+  const title = noTitle() ? null : h('input.as-fo-cp__title', { placeholder: '标题' });
+  const body = h('textarea.as-fo-cp__body', { placeholder: noTitle() ? '分享新鲜事…' : '正文', oninput: () => { send.disabled = !body.value.trim(); live(); } });
   const pv = h('img.as-fo-compose__pic', { hidden: true, alt: '配图', onclick: () => { pic = ''; pv.hidden = true; } });
+  const trBox = h('div.as-fo-cp__tr', { hidden: true }), from = fromChip('');
   const where = h('div.as-fo-pick', E.boards().map(g => h('button' + (g.id === board ? '.is-on' : ''), { dataset: { b: g.id }, onclick: () => {
     board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
   } }, g.base ? W('forum.tab.' + g.id) : g.name)));
-  // 发成哪种语言：选了外语就先机翻（免费翻译，不花 API），发出去是外语，中文原文当翻译挂在下面
-  let lang = 'none'; const from = fromChip('');
-  const lb = h('button.as-fo-acc', { onclick: async e => {
-    e.stopPropagation();
+  // 机翻会把 @ 的网名也翻掉：先换成 @0、@1…（数字机翻不动），翻完再换回来
+  const trKeep = async text => { const ats = []; const out = await translate(text.replace(AT, m => '@' + (ats.push(m) - 1)), lang); return out.replace(/@\s?(\d+)/g, (m, n) => ats[n] ?? m); };
+  const paintTr = (t, wait) => { trBox.hidden = lang === 'none' || !body.value.trim(); trBox.replaceChildren(h('b', langName(lang)), wait ? h('span.as-spin') : h('span', t)); };
+  // 停手 0.6 秒再翻；后打的字翻好了才算，早先发出去的结果回来了也不用
+  function live() {
+    clearTimeout(tm); if (lang === 'none') return; const text = body.value.trim(), my = ++seq;
+    if (!text) { trBox.hidden = true; return; }
+    if (text === trOf) return paintTr(tr);
+    paintTr('', true);
+    tm = setTimeout(() => trKeep(text).then(t => { if (my === seq) { tr = t; trOf = text; paintTr(t); } }, () => { if (my === seq) paintTr('没翻译成，详情见日志'); }), 600);
+  }
+  const lb = h('button.as-fo-cp__tool', { 'aria-label': '发成哪种语言', onclick: async () => {
     const v = await actionSheet('发成哪种语言', [['none', '不翻译'], ...LANGS.filter(l => l[0] !== 'zh-CN')].map(([value, label]) => ({ value, label, active: value === lang }))); if (!v) return;
-    lang = v; lb.textContent = v === 'none' ? '不翻译' : langName(v);
-  } }, '不翻译');
-  const send = btn('发布', 'primary', () => busy(send, async signal => {
-    const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
-    const t = lang === 'none' ? '' : await translate(text, lang); if (signal.aborted) return;
-    s.close();
-    const p = await E.post({ board, title: title.value.trim(), text: t || text, tr: t && text, pic, dev: from.value });
-    landed([p]); openPost(p); if (t) toast('翻好发出去了');
-  }, lang === 'none' ? '' : '正在翻译…').catch(() => toast('没翻译成，还没发')));
-  const s = sheet({ title: word('forum.post.new'), content: h('div.as-fo-compose', where, title, body, pv,
-    h('div.as-fo-compose__row.is-chips', lb, from), h('div.as-fo-compose__row', accChip(), atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
-    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), send)) });
-  applyTexts();
+    lang = v; trOf = ''; lb.classList.toggle('is-on', v !== 'none'); lb.lastChild.textContent = v === 'none' ? '' : langName(v); trBox.hidden = true; live();
+  } }, icon('globe', 24), h('small'));
+  const tag = h('button.as-fo-cp__tool', { 'aria-label': '话题', onclick: () => { body.setRangeText('##', body.selectionStart, body.selectionEnd, 'end'); body.selectionStart = body.selectionEnd = body.selectionEnd - 1; body.focus(); } }, icon('hash', 24));
+  const at = h('button.as-fo-cp__tool', { 'aria-label': '@', onclick: () => atPick(body) }, icon('at', 24));
+  const img = h('button.as-fo-cp__tool', { 'aria-label': '配图', onclick: async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; } }, icon('image', 24));
+  const who = h('button.as-fo-cp__acc', { onclick: async () => {
+    const v = await actionSheet('用哪个号', E.F().accounts.map(a => ({ value: a.id, label: E.accName(a), active: a.id === E.F().cur }))); if (!v) return;
+    E.F().cur = v; commit('forum'); who.textContent = E.accName(E.curAcc());
+  } }, E.accName(E.curAcc()));
+  const send = h('button.as-fo-cp__send', { disabled: true, onclick: () => busy(send, async signal => {
+    const text = body.value.trim(); if (!text) return;
+    const t = lang === 'none' ? '' : text === trOf ? tr : await trKeep(text); if (signal.aborted) return;
+    const p = await E.post({ board, title: title ? title.value.trim() : '', text: t || text, tr: t && text, pic, dev: from.value });
+    nav.back(); landed([p]); openPost(p);
+  }, lang === 'none' || body.value.trim() === trOf ? '' : '正在翻译…').catch(() => toast('没翻译成，还没发')) }, '发送');
+  const pg = page({ app: 'forum', id: 'forum-compose', title: h('div.as-fo-cp__head', W('forum.post.new', 'b'), who), right: [send] });
+  pg.nav.firstChild.replaceWith(navText('取消', () => nav.back()));
+  pg.el.classList.add('as-fo-cp');
+  pg.body.append(title || '', body, trBox, pv, h('div.as-fo-cp__chips', where, from), h('div.as-fo-cp__tools', img, at, tag, lb));
+  nav.push(pg.el); applyTexts(); body.focus();
 }
 
 /* ---------- 积木 ---------- */

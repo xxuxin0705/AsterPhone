@@ -288,3 +288,24 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-markrow .as-segmented { flex: 1; }
 .as-fo-markrow .as-deco-dot { flex: none; }
 .as-fo-post__pinbg { display: none; }   /* 置顶那条的底（会员才有），真的小元素：吸管吸得到 */
+/* 发帖整页（照真微博）：正文占满，底下话题小组一排、工具一排 */
+.as-fo-cp .as-page__body { display: flex; flex-direction: column; padding: 0; background: var(--fo-card); }
+.as-fo-cp__head { display: grid; justify-items: center; gap: 2px; line-height: 1.2; }
+.as-fo-cp__head b { font-size: 17px; }
+.as-fo-cp__acc { border: 0; background: none; padding: 0; font: 400 12px/1.2 var(--font-ui); color: var(--as-color-text-2); cursor: pointer; }
+.as-fo-cp__send { border: 0; border-radius: 6px; padding: 7px 14px; background: var(--fo-accent); color: #fff; font: 600 15px/1 var(--font-ui); cursor: pointer; }
+.as-fo-cp__send:disabled { opacity: .45; cursor: default; }
+.as-fo-cp__title, .as-fo-cp__body { border: 0; background: none; color: inherit; outline: none; padding: 14px 16px; }
+.as-fo-cp__title { border-bottom: 1px solid var(--fo-line); font: 600 17px/1.4 var(--font-ui); }
+.as-fo-cp__body { min-height: 140px; field-sizing: content; resize: none; font: 16px/1.6 var(--font-ui); }
+.as-fo-cp__tr { margin: 0 16px 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--fo-ink) 6%, var(--fo-card)); color: var(--as-color-text-2); font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.as-fo-cp__tr b { display: block; margin-bottom: 4px; color: var(--fo-accent); font-size: 12px; }
+.as-fo-cp .as-fo-compose__pic { margin: 0 16px 10px; align-self: flex-start; }
+.as-fo-cp__chips { display: flex; gap: 6px; margin-top: auto; padding: 8px 16px; overflow-x: auto; scrollbar-width: none; }
+.as-fo-cp__chips .as-fo-pick { flex-wrap: nowrap; }
+.as-fo-cp__chips button { flex: none; white-space: nowrap; }
+.as-fo-cp__chips .as-fo-acc { padding: 5px 11px; border: 1px solid var(--as-color-border); background: none; color: var(--as-color-text-2); font: 400 13px/1 var(--font-ui); }   /* 「来自」和小组一个样子 */
+.as-fo-cp__tools { display: flex; justify-content: space-around; padding: 8px 8px 10px; border-top: 1px solid var(--fo-line); }
+.as-fo-cp__tool { position: relative; display: grid; place-items: center; padding: 6px; border: 0; background: none; color: var(--as-color-text-2); cursor: pointer; }
+.as-fo-cp__tool.is-on { color: var(--fo-accent); }
+.as-fo-cp__tool small { position: absolute; top: 0; left: 75%; font-size: 10px; white-space: nowrap; }
