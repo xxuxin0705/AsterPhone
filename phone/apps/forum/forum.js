@@ -730,8 +730,9 @@ function accFields(d, onChange = () => {}) {
   } });
   const pick = avaPick(() => d.avatar || me?.avatar || '', u => { d.avatar = u; onChange(); }, d.name || '号', () => d.frame ?? (d.id ? state.me?.frame : ''));
   [name, bio, cert, t1, t2, ...nums.map(x => x[1])].forEach(x => x.addEventListener('input', onChange));
+  // 资料一行一项：名字在左、要填的在右
   return { rows: [pick, fr, field('网名', name), field('简介', bio), ip,
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; onChange(); })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; onChange(); })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], d.v || '', v => { d.v = v; onChange(); })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; onChange(); })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
@@ -767,10 +768,10 @@ function openEditMe() {
     hooks.worn = worn;
     if (!saved) { Object.keys(a).forEach(k => { if (!(k in orig)) delete a[k]; }); Object.assign(a, orig); R?.meRefresh?.(); }
   };
-  pg.body.append(v.els[0], demo, h('div.as-fo-set', group('资料', [h('div.as-fo-compose', ...f.rows)]), setTiles(),
+  // 上面的预览固定不动，下面的资料、装扮自己滚
+  pg.body.append(h('div.as-fo-editme__pv', v.els[0], demo), h('div.as-fo-set.as-fo-editme__form', group('资料', [h('div.as-fo-compose', ...f.rows)]), setTiles(),
     group('', [item({ icon: 'image', title: '单独换一样', chevron: true, onClick: () => dressMenu(key, v.paint) })]),
     h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { f.read(); Object.assign(a, d); saved = true; accSaved(); nav.pop(); toast('已保存'); }))));
-  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });
   nav.push(pg.el); applyTexts();
 }
 function openBots() {
