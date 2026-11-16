@@ -192,7 +192,7 @@ function card(p, full) {
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
   return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
-    p.top ? h('div.as-fo-post__pin', h('i'), h('span', '置顶')) : null,
+    p.top ? h('div.as-fo-post__pin', h('b.as-fo-post__pinbg'), h('i'), h('span', '置顶')) : null,
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
@@ -603,10 +603,11 @@ const solids = new Map();
 /** 底栏穿上装扮：背景（图 / 纯色 / 渐变，透明度亮度）、按钮小图、字的颜色。我的穿在论坛最下面那条导航上（一打开论坛就穿上），别人的穿在 TA 主页底下那条 */
 function paintBar(u0, dr) {
   const fx = (dr.barfx || '1,1').split(',');
+  if (!u0.querySelector(':scope > .as-fo-barbg')) u0.prepend(h('i.as-fo-barbg'));
   u0.style.setProperty('--fo-barimg', [dr.bar && `url("${dr.bar}")`, fillCss(dr.barfill)].filter(Boolean).join()); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
   u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill?.includes(','));   // 只有渐变才往上淡开，纯色就是纯色
   u0.style.setProperty('--fo-barop', fx[0]); u0.style.setProperty('--fo-barbr', fx[1]);
-  u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[BTNS[i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); const z = dr[BTNS[i] + 'size']; x.style.setProperty('--fo-btnz', z ? z + 'px' : ''); });   // 每个按钮能单独调大小，没单独调的跟着整条的
+  u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[BTNS[i]]; if (!x.querySelector('.as-fo-btnpic')) x.firstChild.after(h('i.as-fo-btnpic')); x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); const z = dr[BTNS[i] + 'size']; x.style.setProperty('--fo-btnz', z ? z + 'px' : ''); });   // 每个按钮能单独调大小，没单独调的跟着整条的
   u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
   (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
 }
@@ -759,7 +760,7 @@ function userView(by, host) {
   // 底栏按钮小图大小：不用重新传图，抽屉顶上放一份底栏的复制，拖着马上看到
   // 先选是哪个按钮，再拖它的大小；每个按钮各调各的
   const btnSheet = () => {
-    const dr = dressOf(key), pv = tb.cloneNode(true), items = [...pv.children], sz = {};
+    const dr = dressOf(key), pv = tb.cloneNode(true), items = [...pv.querySelectorAll('.as-fo-tab')], sz = {};
     const has = BTNS.map((b, i) => [b, items[i]]).filter(([b, x]) => dr[b] && x);
     let cur = has[0][0], row = h('div');
     const rowOf = b => fxRow('大小', +(sz[b] ?? dr[b + 'size'] ?? dr.btnsize ?? 34), 34, { min: 18, max: 48, step: 1, fmt: v => v + '' }, v => { sz[b] = v; items[BTNS.indexOf(b)].style.setProperty('--fo-btnz', v + 'px'); });

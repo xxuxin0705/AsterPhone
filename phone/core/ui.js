@@ -159,8 +159,8 @@ export function dropper(onPick, { doc = document, hide } = {}) {
   const cover = h('div.as-drop', { 'data-no-swipe': '', style: `position:${ph ? 'absolute' : 'fixed'};inset:0;z-index:${ph ? 88 : 2147483002};touch-action:none` }, ring);
   let n = 0, last = '';
   const at = e => {
-    const b = ph ? root.getBoundingClientRect() : { left: 0, top: 0, width: 1 }, k = ph ? b.width / root.offsetWidth : 1, x = e.clientX, y = e.clientY - 64 * k, me = ++n;   // 圈在手指上面，不被手指挡住
-    ring.style.left = (x - b.left) / k + 'px'; ring.style.top = (y - b.top) / k + 'px';
+    const b = ph ? root.getBoundingClientRect() : { left: 0, top: 0, width: 1 }, k = ph ? b.width / root.offsetWidth : 1, x = e.clientX, y = e.clientY, me = ++n;
+    ring.style.left = (x - b.left) / k + 'px'; ring.style.top = (y - b.top) / k - 64 + 'px';   // 吸的是手指按着的那一点；圈画在手指上面显示吸到的颜色，不被手指挡住
     return colorAt(doc, x, y).then(c => { if (me === n && c) { last = c; ring.style.borderColor = c; } return c; });
   };
   const end = c => { cover.remove(); root.classList.remove('is-dropping'); hide.forEach(e => { e.style.visibility = ''; }); if (ph) toastEl?.classList.remove('is-open'); if (c) onPick(c); };
@@ -182,7 +182,7 @@ async function pixel(el, cs, x, y) {
   else if (!c || c.key !== key) {
     const im = new Image(); im.crossOrigin = 'anonymous'; im.src = src;
     await im.decode();
-    const cv = h('canvas', { width: Math.round(r.width), height: Math.round(r.height) }), x2 = cv.getContext('2d', { willReadFrequently: true }), k = Math.max(r.width / im.width, r.height / im.height);
+    const cv = h('canvas', { width: Math.round(r.width), height: Math.round(r.height) }), x2 = cv.getContext('2d', { willReadFrequently: true }), k = (/contain/.test(cs.backgroundSize) ? Math.min : Math.max)(r.width / im.width, r.height / im.height);   // 按 contain 放的小图标按 contain 算
     x2.filter = cs.filter.replace(/url\([^)]*\)/g, '').trim() || 'none';
     x2.drawImage(im, (r.width - im.width * k) / 2, (r.height - im.height * k) / 2, im.width * k, im.height * k);
     shots.set(el, c = { key, x: x2, w: 1, hh: 1 });
