@@ -17,7 +17,7 @@ export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345
   ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
-export const keep = (k, x) => typeof x === 'string' && (/size$/.test(k) ? /^\d+$/ : k === 'tabx' || k === 'taby' ? /^-?\d+$/ : k === 'tabmark' ? /^(bar|wave|dots|none)$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /cut$/.test(k) ? /^1$/ : /^data:image\//).test(x);
+export const keep = (k, x) => typeof x === 'string' && (/size$/.test(k) ? /^\d+$/ : k === 'tabx' || k === 'taby' ? /^-?\d+$/ : k === 'tabmark' ? /^(bar|dots|none)$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /cut$/.test(k) ? /^1$/ : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];

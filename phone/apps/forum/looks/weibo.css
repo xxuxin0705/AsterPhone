@@ -245,9 +245,8 @@
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin span { width: 29px; height: 15px; font-size: 0; background: var(--fo-pinink, #ff8200); -webkit-mask: url('assets/forum/pin-text.png') center / contain no-repeat; mask: url('assets/forum/pin-text.png') center / contain no-repeat; }
 /* 自己换的置顶背景（图、纯色、渐变）：和默认那条一样往下淡成白，不是一块硬边的色块 */
 [data-as-app="forum"] .as-fo-list.is-user.has-pinbg .as-fo-post__pin::before { -webkit-mask-image: linear-gradient(#000 35%, transparent); mask-image: linear-gradient(#000 35%, transparent); }
-/* 标签小图：浮在字左边，不占地方，所以有没有小图、挪到哪，几个标签的字都一样高、一样排；默认和字差不多大，大小、位置能调。下面那条线在字正下方，样子：短横线 / 波浪线 / 三个点 / 不要 */
+/* 标签小图：浮在字左边，不占地方，所以有没有小图、挪到哪，几个标签的字都一样高、一样排；默认和字差不多大，大小、位置能调。下面那条线在字正下方，样子：短横线 / 三个点 / 不要 */
 [data-as-app="forum"] .as-fo-user__tabimg { position: absolute; right: calc(100% + 4px); top: 50%; width: var(--fo-tabz, 20px); height: var(--fo-tabz, 20px); margin: calc(var(--fo-tabz, 20px) / -2) 0 0; object-fit: contain; translate: var(--fo-tabat, 0 0); }
 [data-as-app="forum"] .as-fo-user__tabs span.is-on::after { background: var(--fo-markc, #ff8200); }
 [data-as-app="forum"] .as-fo-user__tabs[data-mark="none"] span.is-on::after { display: none; }
 [data-as-app="forum"] .as-fo-user__tabs[data-mark="dots"] span.is-on::after { width: 20px; height: 4px; margin-left: -10px; border-radius: 0; background: radial-gradient(circle, var(--fo-markc, #ff8200) 1.9px, transparent 2.3px) 0 0 / 7px 4px repeat-x; }
-[data-as-app="forum"] .as-fo-user__tabs[data-mark="wave"] span.is-on::after { width: 24px; height: 6px; margin-left: -12px; border-radius: 0; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 6'%3E%3Cpath d='M1 4Q4 0 7 3t6 0 6 0 4 0' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / 100% 100%; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 6'%3E%3Cpath d='M1 4Q4 0 7 3t6 0 6 0 4 0' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / 100% 100%; }

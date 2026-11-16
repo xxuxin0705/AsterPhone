@@ -735,13 +735,13 @@ function userView(by, host) {
       return { el: app(box), live: c => box.style.setProperty('--fo-pinink', c) }; }
     if (k === 'btncolor' && tb) { const bar = tb.cloneNode(true); return { el: app(bar), live: c => { bar.classList.add('has-ink'); bar.style.setProperty('--fo-btnink', c); } }; }
   };
-  // 标签的小图大小、位置（摇杆）、下面那条线（短横线 / 波浪线 / 三个点 / 不要，能换颜色）：抽屉顶上放一份标签的复制，拖着马上看到
+  // 标签的小图大小、位置（摇杆）、下面那条线（短横线 / 三个点 / 不要，能换颜色）：抽屉顶上放一份标签的复制，拖着马上看到
   const tabSheet = mode => {
     const d = { ...dressOf(key) }, pv = tabs.cloneNode(true), set = (k, v) => { d[k] = v; tabStyle(pv, d); };
     const rows = mode === 'fit' ? [fxRow('大小', +(d.tabsize || 20), 20, { min: 12, max: 40, step: 1, fmt: v => v + '' }, v => set('tabsize', String(v))),
       h('div.as-fo-joyrow', joystick((dx, dy) => { const c = v => Math.max(-30, Math.min(30, v)); d.x = c((d.x ?? +(d.tabx || 0)) + dx); d.y = c((d.y ?? +(d.taby || 0)) + dy); set('tabx', String(Math.round(d.x))); set('taby', String(Math.round(d.y))); }),
         btn('回到原位', 'secondary', () => { d.x = d.y = 0; set('tabx', '0'); set('taby', '0'); }))]
-      : [h('div.as-fo-markrow', segmented([['bar', '短横线'], ['wave', '波浪线'], ['dots', '三个点'], ['none', '不要']], d.tabmark || 'bar', v => set('tabmark', v)),
+      : [h('div.as-fo-markrow', segmented([['bar', '短横线'], ['dots', '三个点'], ['none', '不要']], d.tabmark || 'bar', v => set('tabmark', v)),
         h('button.as-deco-dot', { 'aria-label': '线的颜色', style: { background: d.tabmarkcolor || '#ff8200' }, onclick: e => { const dot = e.currentTarget; sheet({ title: '线的颜色', content: h('div.as-mu-color', colorWheel(d.tabmarkcolor || '#ff8200', c => { dot.style.background = c; set('tabmarkcolor', c); })) }); } }))];
     tabStyle(pv, d);
     const s = sheet({ title: mode === 'fit' ? '小图大小、位置' : '下面的线', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv), ...rows,
