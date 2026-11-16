@@ -1,7 +1,7 @@
 // 论坛的数据和找 AI。号、bot、地区这些小的放 state.forum（跟着窗口走）；帖子大，放 kv 的 forum:窗口。
 // 两种调用：刷一批帖（forumFeed）、出楼层（forumThread），点一下只调一次
 import { uid } from '../../core/util.js';
-import { state, win, kvGet, kvSet, commit, contact } from '../../core/store.js';
+import { state, win, kvGet, kvSet, commit, contact, chatForContact } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
@@ -273,11 +273,40 @@ export async function reply(p, text, to = '', tr = '') {
   await save();
   return f;
 }
-/** 给营销号投稿：营销号马上发出来（不写是谁投的） */
-export async function submit(bot, text) {
-  await load();
-  const p = { id: uid('fp'), board: 'global', by: { k: 'bot', id: bot.id }, sub: true, title: '', text: '【投稿】' + text, tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
+/* ---------- 私信：我的一个号和一个人一串（照真微博）。{ by, list: [{ id, me, text, tr, pic, at }], sub: 上次投稿投到第几条 } ---------- */
+const dmKey = by => curAcc().id + '>' + keyOf(by);
+export async function dmOf(by) { await load(); const k = dmKey(by); return (D.dms ||= {})[k] || (D.dms[k] = { by, list: [], sub: 0 }); }
+export async function dmList() { await load(); const me = curAcc().id + '>'; return Object.entries(D.dms || {}).filter(([k, d]) => k.startsWith(me) && d.list.length).map(([, d]) => d).sort((a, b) => b.list.at(-1).at - a.list.at(-1).at); }
+// TA 回过一次就能一直发；之前只能发 2 条文字（照真微博）。营销号一般开着自动回复，第一条发过去就回
+export const dmOpen = d => d.list.some(m => !m.me);
+const say = (d, text, more) => d.list.push({ id: uid('fd'), me: false, text, tr: '', ...more, ...time.stamp() });
+const AUTO = ['【自动回复】感谢投稿～内容直接发这里，小编看到会第一时间处理！', '【自动回复】您好，投稿请直接发文字或图片，不保证每条都发哦～', '【自动回复】收到私信啦，小编不定时上线，耐心等等～'];
+export async function dmSend(d, m) {
+  d.list.push({ id: uid('fd'), me: true, text: '', tr: '', pic: '', ...m, ...time.stamp() });
+  if (d.by.k === 'bot' && !dmOpen(d)) say(d, AUTO[rnd(AUTO.length)]);
+  await save();
+}
+/** 给营销号投稿：上次投完以后发的都合成一篇，营销号回一句「收到」就发出来（不写是谁投的）；不找 AI */
+export async function dmSubmit(d) {
+  const ms = d.list.slice(d.sub).filter(m => m.me);
+  if (!ms.length) throw new Error('先把要投的内容发给 TA');
+  say(d, ['1', '收到', '已收到', '收到啦', '好的宝'][rnd(5)]); d.sub = d.list.length;
+  const p = { id: uid('fp'), board: 'global', by: d.by, sub: true, title: '', text: '【投稿】' + ms.map(m => m.text).filter(Boolean).join('\n'), tr: '', img: '', pic: (ms.find(m => m.pic) || {}).pic || '', likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
   D.posts.unshift(p); prune(); await save();
   return p;
+}
+/** 让 TA 回私信：只在我点了才找 AI，点一下调一次 */
+export async function dmReply(d, stop) {
+  const w = who(d.by), c = d.by.k === 'c' && contact(d.by.id), st = story();
+  const l = langFor('forum', c && chatForContact(c.id, false)?.cfg.speak);
+  const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
+    prompt: compose('forumDm', { who: c ? `${netName(c)}（真名：${c.name || nameOf(c)}）${personaOf(c) ? '\n' + personaOf(c).slice(0, 800) : ''}` : d.by.k === 'bot' ? `营销号「${w.name}」，主题：${w.sub || ''}` : `${w.name}（一个普通网友）`,
+      me: accName(curAcc()), platform: platform(), story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [])).world,
+      history: d.list.slice(-30).map(m => `${m.me ? accName(curAcc()) : w.name}：${m.text || '[图片]'}`).join('\n'),
+      lang: isZh(l) ? '' : `\n- 用${langName(l)}写，每条末尾附 [翻译：简体中文意思]。` }) });
+  const got = clean(raw).split('\n').map(x => x.trim()).map(x => [w.name + '：', w.name + ':'].some(n => x.startsWith(n)) ? x.slice(w.name.length + 1).trim() : x).filter(x => x && !/^[（(]?不回[）)]?$/.test(x)).slice(0, 6);
+  got.forEach(x => { const [text, tr] = takeTr(x); say(d, text, { tr }); });
+  await save();
+  return got.length;
 }
 export const fmt = n => (n >= 1e4 ? (n / 1e4).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + '万' : String(n || 0));

@@ -446,15 +446,50 @@ function dynRows(d) {
 function inboxPane() {
   const kinds = look().layout.inbox?.length ? look().layout.inbox : ['notice', 'dm'];
   const dyn = h('div.as-fo-dyns'), rows = (ic, k) => h('button.as-fo-nrow', { dataset: { k }, onclick: () => openNotes(k) }, h('span.as-fo-nrow__ic', icon(ic, 26, 1.8)), W('forum.inbox.' + k, 'span.as-fo-nrow__t'), h('span.as-fo-nrow__end', icon('chevron', 16, 2)));
-  const dms = () => h('div.as-fo-dms', kinds.includes('dm') ? empty('还没有私信') : null);   // 私信下一步做
+  const dmBox = h('div.as-fo-dms'), dms = () => dmBox;
   const make = { activity: () => dyn, notice: () => h('div.as-fo-notice', rows('at', 'at'), rows('chatdots', 'cmts'), rows('thumb', 'likes'), kinds.includes('dm') ? null : dms()), dm: dms };
   const panes = kinds.map(k => make[k]());
   const sw = h('div.as-fo-switch', kinds.map((k, i) => h('button', { dataset: { k }, onclick: () => pick(i) }, W('forum.inbox.' + k))));
   function pick(i) { sw.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === i)); panes.forEach((x, j) => { x.hidden = j !== i; }); }
   pick(Math.max(0, kinds.indexOf('notice')));
   let sig = '';
-  const onShow = () => { markBadges(); E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); }); };   // 有新东西才重画
+  let dsig = null;
+  const onShow = () => {
+    markBadges(); E.load().then(d => { if (sigOf(d) === sig) return; sig = sigOf(d); dyn.replaceChildren(...dynRows(d)); applyTexts(); });   // 有新东西才重画
+    E.dmList().then(ds => { const g = ds.map(x => keyOf(x.by) + x.list.length).join(); if (g === dsig) return; dsig = g; dmBox.replaceChildren(...(ds.length ? ds.map(dmRow) : [empty('还没有私信')])); });
+  };
   return { el: h('div.as-fo-inbox', ...panes), title: sw, onShow, right: [navBtn('gear', '设置', openSettings)] };
+}
+/* ---------- 私信（照真微博） ---------- */
+const dmRow = d => { const m = d.list.at(-1); return h('button.as-fo-dmrow', { onclick: () => openDm(d.by) }, ava(d.by, 48, true), h('span.as-fo-dmrow__main', h('b', E.who(d.by).name), h('small', m.pic ? '[图片]' : m.text)), h('small.as-fo-dmrow__at', when(m.at))); };
+/** 一个人的私信：TA 回过以前只能发 2 条文字；发出去不自动回，点「让 TA 回」才找 AI。营销号那个键是「投稿」：上次投完以后发的合成一篇，营销号回句「收到」就发出来 */
+async function openDm(by) {
+  const d = await E.dmOf(by), w = E.who(by), k = keyOf(by), bot = by.k === 'bot';
+  const pg = page({ app: 'forum', id: 'forum-dm', title: w.name, back: true });
+  const bubble = m => h('div.as-fo-dm__msg' + (m.me ? '.is-me' : ''), m.me ? null : h('span', { onclick: () => openUser(by) }, ava(by, 36, true)),
+    h('div.as-fo-dm__bub', m.pic ? h('img', { src: m.pic, alt: '' }) : m.text, m.tr ? h('small', m.tr) : null));
+  const list = h('div.as-fo-dm__list', d.list.map(bubble));
+  const add = () => { list.append(...d.list.slice(list.children.length).map(bubble)); pg.body.scrollTop = pg.body.scrollHeight; paint(); };
+  const note = h('div.as-fo-dm__note', '在对方回复你之前，你只能发送 2 条文字消息。');
+  const fbar = !following(k) && h('div.as-fo-dm__fol', h('button', { 'aria-label': '关闭', onclick: () => fbar.remove() }, icon('close', 18)), h('span', '关注 TA，方便以后常聊'),
+    h('button.as-fo-dm__folbtn', { onclick: async () => { if (await doFollow(k, w.name)) fbar.remove(); } }, '+ 关注'));
+  const t = h('textarea.as-fo-dm__in', { rows: 1, oninput: () => paint() });
+  const send = async m => { await E.dmSend(d, m); t.value = ''; add(); };
+  const plus = h('button.as-fo-dm__tool', { 'aria-label': '发图片', onclick: async () => { const f = await pickFile('image/*'); if (f) send({ pic: await fileToDataURL(f, 1080) }); } }, icon('image', 24));
+  const sendB = h('button.as-fo-dm__send', { onclick: () => t.value.trim() && send({ text: t.value.trim() }) }, '发送');
+  const ask = bot ? h('button.as-fo-dm__send', { onclick: () => E.dmSubmit(d).then(p => { add(); landed([p]); toast('投稿发出来了'); }, e => toast(e.message)) }, '投稿')
+    : jobBtn('dm:' + k, () => ['让 TA 回'], () => go('dm:' + k, `等 ${w.name} 回…`, s => E.dmReply(d, s)).then(n => {
+      if (n == null) return; document.querySelectorAll(`[data-dm="${CSS.escape(k)}"]`).forEach(el => el._add()); toast(n ? 'TA 回你了' : 'TA 没回你');
+    }), 'button.as-fo-dm__send');
+  function paint() {
+    const open = E.dmOpen(d), left = open ? 1 : 2 - d.list.filter(m => m.me).length, typed = !!t.value.trim();
+    note.hidden = open; t.disabled = left <= 0; t.placeholder = left <= 0 ? '等 TA 回了才能再发' : ''; plus.hidden = !open;
+    sendB.hidden = !typed; ask.hidden = typed;
+  }
+  pg.el.dataset.dm = k; pg.el._add = add; pg.el.classList.add('as-fo-dm');
+  pg.body.append(fbar || '', note, list);
+  pg.el.append(h('div.as-fo-dm__bar', plus, t, sendB, ask));
+  paint(); nav.push(pg.el); applyTexts(); pg.body.scrollTop = pg.body.scrollHeight;
 }
 /** 我：就是我自己的主页（照真微博），右上搜索、设置；我的号、营销号、熟人在设置里 */
 function mePane(p) {
@@ -663,19 +698,11 @@ function userView(by, host) {
   const more = mine ? null : jobBtn('more:' + key, () => ['看看 TA 还发了什么'], () => go('more:' + key, '正在刷新…', s => E.feed(b ? 'global' : 'local', {
     count: 3, only: by.k === 'bot' ? ['b:' + by.id] : by.k === 'c' ? ['c:' + by.id] : [], pick: `只由「${w.name}」发，${by.k === 'n' ? '这是一个普通网友，' : ''}写 TA 最近会发的` }, s)).then(got => { if (got) { landed(got); toast('刷到了'); } }),
   'button.as-btn.as-btn--secondary.as-fo-morebtn');
-  const sub = b && h('button', { onclick: () => {
-    const t = textarea({ placeholder: '投稿内容', rows: 5 });
-    const s = sheet({ title: '投稿给「' + b.name + '」', content: h('div.as-fo-compose', t, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('投稿', 'primary', async () => {
-      const text = t.value.trim(); if (!text) { toast('写点什么'); return; }
-      s.close(); const p = await E.submit(b, text); landed([p]);
-      openPost(p);
-    }))) });
-  } });
   const bi = (ic, label, onclick) => h('button.as-fo-ubar__item', { onclick }, icon(ic, 20, 1.8), label);
   const fol = !mine && bi('user', h('span'), () => doFollow(key, w.name));
   if (fol) { fol.dataset.key = key; paintFol(fol); }
   const ubar = h('div.as-fo-ubar', mine ? bi('palette', h('span', '装扮'), decorate)
-    : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
+    : [b ? bi('edit', h('span', '投稿'), () => openDm(by)) : bi('chat', W('forum.dm'), () => openDm(by)), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
   // 我的装扮里的底栏（背景、四个按钮小图、字的颜色）穿在论坛最下面那条导航上（首页 · 发现 · 消息 · 我）；别人的穿在 TA 主页底下那条（留言 · 推荐 · 关注）
   const tb = mine ? host.querySelector(':scope > .as-fo-tabbar') : null;
   // 只改图和几个开关，不重画整页

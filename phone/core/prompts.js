@@ -8,6 +8,7 @@
 /** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
 export const VAR_INFO = {
   char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上岁岁砂里 TA 记得的事（没有就是空的）', memory: '岁岁砂里 TA 这会儿想起的事（每次不一样，放在后面；提示词里没写它的话，会放进 {{world}}）', lines: '岁岁砂里已经有的故事线',
+  who: '回私信的是谁（网名、人设）', me: '我在论坛上叫什么',
   story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', lang: '谁说外语：用自己的语言写、后面附中文（按各人私聊里「TA 说的语言」自动填，都说中文就是空的）', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
   group: '群名', members: '群里的人和各自的人设', intro: '群介绍', post: '要评论的那条动态', people: '能看到这条动态的人', gap: '你离开了多久',
   text: '你发的朋友验证里写的话', cards: '酒馆里的角色卡', existing: '已经有的（别重复）', require: '你写的额外要求', withGroups: '要不要连群聊一起想（自动填）',
@@ -52,7 +53,8 @@ export const PROMPT_CATS = [
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] },
     { id: 'intReview', name: '复盘会', vars: ['user', 'kp', 'mood', 'title', 'ending', 'secret', 'acts', 'pc', 'cast', 'players', 'rels', 'log'] }] },
   { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
-    { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] }] },
+    { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
+    { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -410,6 +412,19 @@ ${FORUM_STYLE}
 名字：这一层的话
 名字 回复 楼号：回某一楼的话（楼号写数字；回楼主写「回复 楼主」）{{likes}}
 只输出这些行。` },
+  forumDm: { name: '回私信', cats: ['forumDm'], on: true, main: true,
+    text: `你在替一个故事世界里的人回论坛私信。{{platform}}
+
+【回私信的人】{{who}}
+{{world}}
+【最近的事】
+{{story}}
+
+【现在】{{time}}（每个人现在几岁、什么身份、互相认不认识，都照正文到这一刻，不照原作后来的样子）
+【私信记录】（{{user}} 在论坛上叫「{{me}}」）
+{{history}}
+
+用 TA 的口吻回 {{user}}：像真人在手机上打字，一次 1～4 条，每条单独一行，只写消息本身，不写名字。不认识、不想理的可以不回，那就只写「（不回）」。{{lang}}` },
   proactive: { name: '主动消息', cats: ['proactive'], on: true, main: true,
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
   verify: { name: '好友验证', cats: ['verify'], on: true, main: true,
