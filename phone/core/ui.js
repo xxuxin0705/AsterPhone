@@ -356,7 +356,7 @@ export async function pickImage(title, { ratio = 1, size = 320, has = false, png
   const f = await pickFile();
   return f ? cropImage(f, ratio === 'screen' ? root.clientWidth / root.clientHeight : ratio, size, png) : null;
 }
-function cropImage(file, ratio, size, png) {
+export function cropImage(file, ratio, size, png) {
   return new Promise(res => {
     // 相册原图动辄四千像素，直接拖着缩放手机会卡：先缩到最长边 2048（存下来最多 1100，够用）画在画布上，拖的是这张小的
     const url = URL.createObjectURL(file), pic = new Image(), img = h('canvas.as-crop__img');

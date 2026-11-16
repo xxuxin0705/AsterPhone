@@ -3,7 +3,7 @@
 import { h, uid, pickFile } from '../../core/util.js';
 import { state, commit, kvGet, kvSet } from '../../core/store.js';
 import { log } from '../../core/log.js';
-import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, sheet, slider, colorWheel, fxRow, segmented } from '../../core/ui.js';
+import { page, group, item, input, field, btn, toast, actionSheet, dialog, icon, empty, pickImage, cropImage, sheet, slider, colorWheel, fxRow, segmented } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { loadImg, cutout, flood, touchUp } from '../../core/deco.js';
 
@@ -49,7 +49,7 @@ async function shrink(f, max) {
   c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/png');
 }
 /** 换一样：返回 { 部件: 图 }（'' 是去掉），null 是没选。has 是现在的图。底栏背景、按钮小图不裁剪，按钮小图一次多选；要抠底色的抠完先给你修一下 */
-async function upload(k, has) {
+async function upload(k, has, all = {}) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
   if (FILLS.includes(k)) {
     const how = await actionSheet(t, [{ value: 'img', label: '用图片', icon: 'image' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }]); if (!how) return null;
@@ -62,14 +62,7 @@ async function upload(k, has) {
     has = false;
   }
   if (k === 'tab') { const how = await actionSheet(t, [{ value: 'one', label: '传一张', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null; if (how === 'sheet') return pickFrom(k, size); }
-  if (k === 'cover') {
-    const a = has ? await actionSheet(t, [{ value: 'pick', label: '换图' }, { value: 'del', label: '去掉', danger: true }]) : 'pick'; if (!a) return null;
-    if (a === 'del') return Object.fromEntries(COVERS.map(c => [c, '']));
-    const fs = (await pickMany()).slice(0, 9); if (!fs.length) return null;
-    const out = Object.fromEntries(COVERS.map(c => [c, '']));
-    for (const [i, f] of fs.entries()) out[COVERS[i]] = await shrink(f, size).catch(() => '');
-    return out;
-  }
+  if (k === 'cover') return pickCovers(covers(all), size);
   if (k === 'btn') {
     const how = await actionSheet(t, [{ value: 'one', label: '一张一张传', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null;
     if (how === 'sheet') return pickFrom(k, size);
@@ -102,6 +95,20 @@ const pickInk = (k, title, none, cur) => new Promise(done => {
   let c = cur || '#ff8200', v = null;
   const s = sheet({ title, content: h('div', h('div.as-mu-color', colorWheel(c, x => { c = x; })),
     h('div.as-lib-actions.is-two', btn(none, 'secondary', () => { v = ''; s.close(); }), btn('确定', 'primary', () => { v = c; s.close(); }))), onClose: () => done(v == null ? null : { [k]: v }) });
+});
+/** 主页背景：最多九张，一格一格排着，「+」加（一次能多选，一张一张框选区域），右上 × 去掉；左右滑的顺序就是这里的顺序 */
+const pickCovers = (cur, size) => new Promise(done => {
+  const list = [...cur]; let ok = false;
+  const grid = h('div.as-fo-btnpick.is-covers'), draw = () => grid.replaceChildren(...list.map((u, i) => h('button', { 'aria-label': '第 ' + (i + 1) + ' 张' }, h('img', { src: u, alt: '' }),
+    h('i.as-fo-btnpick__del', { role: 'button', 'aria-label': '去掉', onclick: () => { list.splice(i, 1); draw(); } }, '×'))),
+    list.length < 9 ? h('button.is-add', { 'aria-label': '加图', onclick: async () => {
+      const fs = (await pickMany()).slice(0, 9 - list.length);
+      for (const f of fs) { const u = await cropImage(f, 1.83, size); if (u) list.push(u); }   // 背景那一截照真微博是 393 × 212 左右
+      draw();
+    } }, icon('plus', 22, 2)) : null);
+  const s = sheet({ title: '主页背景（最多 9 张）', content: h('div.as-fo-compose', grid, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { ok = true; s.close(); }))),
+    onClose: () => done(ok ? Object.fromEntries(COVERS.map((c, i) => [c, list[i] || ''])) : null) });
+  draw();
 });
 /** 一张图里排着好几个小图：抠掉底色，按一块一块找出来（挨得近的并成一个），裁成小图 */
 async function chop(url, size) {
@@ -195,7 +202,7 @@ export function dressFx(key, k, title, repaint) {
 }
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint) {
-  const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k]) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k]) : await upload(k, dressOf(key)[k]); if (!got) return;
+  const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k]) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k]) : await upload(k, dressOf(key)[k], dressOf(key)); if (!got) return;
   const own = ownOf(key);
   for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
   await saveSets(); commit('forum'); repaint();
@@ -238,7 +245,7 @@ function editSet(s, isNew, done) {
   const rows = PIECES.map(([k, t]) => {
     const prev = h('img.as-fo-lookimg', { alt: '', hidden: !imgs[k] }); if (imgs[k]) prev.src = imgs[k];
     return item({ title: t, right: prev, chevron: true, onClick: async () => {
-      const got = await upload(k, imgs[k]); if (!got) return;
+      const got = await upload(k, imgs[k], imgs); if (!got) return;
       for (const [x, u] of Object.entries(got)) if (u) imgs[x] = u; else delete imgs[x];
       prev.hidden = !imgs[k]; if (imgs[k]) prev.src = imgs[k];
     } });

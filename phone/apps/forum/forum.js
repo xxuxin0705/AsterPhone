@@ -705,7 +705,7 @@ function userView(by, host) {
       const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
       editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
     } else if (is('.as-fo-user__cover')) {
-      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '换背景图', icon: 'image' }, has && { value: 'fx', label: '透明度、亮度', icon: 'eye' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
+      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '背景图（最多 9 张）', icon: 'image' }, has && { value: 'fx', label: '透明度、亮度', icon: 'eye' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
         { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }].filter(Boolean));
       if (x === 'cover') dressOne(key, 'cover', paint);
       if (x === 'fade') { setFade(key); paint(); }
