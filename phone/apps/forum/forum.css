@@ -197,7 +197,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .as-fo-user__tabs { background: var(--fo-card); }
 .as-fo-user__tabimg { height: 24px; width: auto; margin-right: 4px; vertical-align: -6px; }
-.as-fo-user__tabs.has-line span.is-on::after { width: 60px; height: 12px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
 .as-fo-ubar__item.has-pic svg { display: none; }
 .as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: var(--fo-btnimg) center / contain no-repeat; }
 
@@ -266,6 +265,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 [data-as-app="forum"] .as-fo-ubar.has-ink .as-fo-ubar__item { color: var(--fo-btnink); }
 /* 置顶：只在主页上显示 */
 .as-fo-post__pin { display: none; }
-.as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; margin-bottom: 8px; color: var(--fo-accent); font: 600 13px/1 var(--font-ui); }
+.as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; color: var(--fo-pinink, var(--fo-accent)); margin-bottom: 8px; font: 600 13px/1 var(--font-ui); }
 .as-fo-btnpick__fix { display: none; position: absolute; top: 6px; left: 6px; padding: 3px 7px; border-radius: 10px; background: rgba(0,0,0,.45); color: #fff; font: 500 11px/1.2 var(--font-ui); font-style: normal; }
 .as-fo-btnpick button.is-on .as-fo-btnpick__fix { display: block; }

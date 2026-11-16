@@ -194,7 +194,7 @@
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) .as-fo-user__tabs { position: sticky; top: calc(var(--as-sb-h, 0px) + 48px); z-index: 1; }
 
 /* 穿了套装的主页（照真微博）：背景图只占最上面一截；图下沿淡进「图下沿的颜色（调浅）」，这颜色再慢慢变白，名字、粉丝数压在这层淡色上，不压在图上；
-   橙色短条换成套装里的花边。装扮都是照浅色画的，夜间这一块也用浅色 */
+   装扮都是照浅色画的，夜间这一块也用浅色 */
 .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #fff; --fo-ink: #1a1a1a; --fo-line: #ededed; color: var(--fo-ink); }
 .is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -202px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 212px, #fff) !important; }
 .is-dressed .as-fo-user__coverimg:not([hidden]) { position: relative; width: 100%; height: 212px; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
@@ -221,7 +221,6 @@
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__bio { grid-area: 2 / 2; align-self: start; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 [data-as-app="forum"] .as-fo-user__cert svg { color: #9a9a9a; }
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
-[data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
 /* 会员牌子（从真微博截图抠的，去掉了等级数字），比名字的字稍小一点，紧挨着名字 */
 [data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 40px; height: 16px; margin-left: 1px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
 [data-as-app="forum"] .as-fo-vip.is-svip { width: 47px; background-image: url('assets/forum/svip.png'); }
@@ -231,10 +230,12 @@
 /* 橙 V 上那道浅橙的光一直扫过去（真微博是动的） */
 @keyframes fo-vshine { 0%, 15% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
 /* 主页底栏的「+ 关注」：右边一个橙色大按钮（真微博那样），关注了变回普通的「已关注」 */
-/* 置顶：会员是真微博那条橙色渐变（抠的图），不是会员就一行橙字 */
+/* 置顶：会员是真微博那条（皇冠图标 + 橙字 + 橙色渐变底，三样都能换），不是会员就一行字 */
+[data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin { position: absolute; grid-column: auto; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 5px; height: 36px; padding: 6px 15px 0; margin: 0; font: 700 16px/1 var(--font-ui); color: var(--fo-pinink, #ff8200); }
+[data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin i { display: none; }
+[data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin { padding-top: 0; background: var(--fo-pinbg, url('assets/forum/pin-bg.jpg')) center / cover no-repeat; }
+[data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin i { display: block; width: 24px; height: 22px; background: var(--fo-pinicon, url('assets/forum/pin-crown.png')) center / contain no-repeat; }
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(> .as-fo-post__pin) { padding-top: 50px; }
-[data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin { position: absolute; grid-column: auto; left: 0; right: 0; top: 0; height: 36px; padding: 14px 15px 0; margin: 0; font: 600 15px/1 var(--font-ui); color: #ff8200; }
-[data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin { padding: 0; font-size: 0; background: url('assets/forum/pin-vip.jpg') left center / cover no-repeat; }
 /* 背景不要渐变：上面整张背景图，下面白底圆角盖上来一点（真微博不带渐变的那种） */
 .is-dressed.no-fade .as-fo-user__cover { background: none !important; }
 .is-dressed.no-fade .as-fo-user__cover::after { content: ''; position: absolute; left: 0; right: 0; top: 194px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--fo-card, #fff); }

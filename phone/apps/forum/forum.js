@@ -192,7 +192,7 @@ function card(p, full) {
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
   return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
-    p.top ? h('div.as-fo-post__pin', '置顶') : null,
+    p.top ? h('div.as-fo-post__pin', h('i'), h('span', '置顶')) : null,
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
@@ -653,9 +653,10 @@ function userView(by, host) {
     host.classList.toggle('no-fade', !fade(key));
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
-    // 标签小图、花边：图里几乎是空的（截图拆出来只剩几粒点）就当没有
+    // 标签小图：图里几乎是空的（截图拆出来只剩几粒点）就当没有
     solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
-    solid(dr.tabline).then(ok => { tabs.style.setProperty('--fo-tabline', ok ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', ok); });
+    // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
+    for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', dr.pinbg && `url("${dr.pinbg}")`], ['pinink', dr.pincolor]]) list.style.setProperty('--fo-' + k, v || '');
     for (const u0 of [ubar, pv].filter(Boolean)) {
       u0.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; u0.classList.toggle('has-img', !!dr.bar);
       u0.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
@@ -707,13 +708,15 @@ function userView(by, host) {
       if (x === 'fade') { setFade(key); paint(); }
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
-    } else if (is('.as-fo-user__tabs')) pickPiece('标签', ['tab', 'tabline']);
+    } else if (is('.as-fo-user__tabs')) dressOne(key, 'tab', paint);
+    else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
     else if (is('.as-fo-ubar--pv')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
   const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint);
   };
   const head = h('div.as-fo-user', cover, main);
   [head, tabs, pv].forEach(x => x?.addEventListener('click', onEdit, true));
+  list.addEventListener('click', e => { if (e.target.closest('.as-fo-post__pin')) onEdit(e); }, true);   // 置顶那条：编辑时点它换图标、字色、背景
   const edit = on => { editing = on; host.classList.toggle('is-editing', on); refresh(); };
   const els = [head, tabs, more, list].filter(Boolean);
   paint();
@@ -872,7 +875,7 @@ async function importMe() {
   const a = E.curAcc(), key = 'me:' + a.id;
   for (const k of ACC_KEYS) if (k in d.acc) a[k] = d.acc[k];
   if (d.frame && /^data:image\//.test(d.frame.src || '')) { const f = { ...d.frame, id: 'f' + Date.now().toString(36), name: String(d.frame.name || '头像框').slice(0, 20) }; deco().frames.push(f); commit('deco'); a.frame = f.id; }
-  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([k, u]) => typeof u === 'string' && (k === 'btnsize' ? /^\d+$/ : k === 'btncolor' ? /^#[\da-f]{6}$/i : /^data:image\//).test(u)));
+  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([k, u]) => typeof u === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /^data:image\//).test(u)));
   if (Object.keys(imgs).length) await wearNew(key, (d.acc.name || '导入') + '的装扮', imgs);
   accSaved(); toast('导入好了');
 }
