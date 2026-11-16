@@ -261,6 +261,12 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-spin::after { left: calc(var(--gap) / 2); animation-delay: -.45s; }
 @keyframes as-spin { 50% { transform: scaleY(1); } }
 .as-btn.is-loading .as-spin { width: 14px; height: 12px; --gap: 7.33px; }
+/* 不找 AI 的等待（机翻、读文件、歌在缓冲…）是一个转圈；有 AI 调用在跑时（core/log.js 给根元素加 .as-ai-on）才是上面的小竖条。
+   转圈晚 0.15 秒才露出来：找 AI 的在拼提示词那一下还没开始调用，不让它先闪一下圈 */
+:root:not(.as-ai-on) .as-spin { box-sizing: border-box; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: as-ring .7s linear infinite, as-show 0s .15s backwards; }
+:root:not(.as-ai-on) .as-spin::before, :root:not(.as-ai-on) .as-spin::after { display: none; }
+@keyframes as-ring { to { rotate: 1turn; } }
+@keyframes as-show { from { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
 

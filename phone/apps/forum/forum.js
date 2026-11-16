@@ -17,6 +17,7 @@ import { dressOf, dressed, fade, dressMenu, dressOne, setOwn, keep, fillCss, COV
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
+const noTitle = () => word('forum.title.need') === 'no';
 const W = (k, tag = 'span') => h(tag, { dataset: { asText: k } }, defWord(k));   // 跟着样子、皮肤换字的一小段
 const keyOf = E.keyOf;
 const hash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -157,10 +158,10 @@ function postMenu(p) {
   } }, icon('down', 16, 1.6));
 }
 function editPost(p) {
-  const title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: p.text, rows: 6, placeholder: '正文' }), from = fromChip(p.dev);
-  editSheet('编辑', [field('标题', title), field('正文', body), field('来自', from)], () => {
+  const nt = noTitle() && p.title, title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: nt ? p.title + '\n' + p.text : p.text, rows: 6, placeholder: '正文' }), from = fromChip(p.dev);
+  editSheet('编辑', [noTitle() ? null : field('标题', title), field('正文', body), field('来自', from)].filter(Boolean), () => {
     const t = body.value.trim(); if (!t) { toast('写点什么'); return false; }
-    p.title = title.value.trim().slice(0, 40); p.dev = from.value; if (t !== p.text) { p.text = t; p.tr = ''; }
+    p.title = noTitle() ? '' : title.value.trim().slice(0, 40); p.dev = from.value; if (t !== p.text) { p.text = t; p.tr = ''; }
     E.save(); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.replaceWith(card(p, a.classList.contains('is-full')))); applyTexts();
   });
 }
@@ -198,8 +199,8 @@ function card(p, full) {
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
       h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev || w.ip ? h('span.as-fo-post__from', '来自 ', h('b', p.dev || w.ip)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p),
-    p.title ? h('div.as-fo-post__title', p.title) : null,
-    ...tx(p, 'as-fo-post__text'),
+    p.title && !noTitle() ? h('div.as-fo-post__title', p.title) : null,
+    ...tx(p.title && noTitle() ? { ...p, text: p.title + '\n' + p.text } : p, 'as-fo-post__text'),   // 微博没有标题：以前带标题的帖，标题当正文第一行
     picEl(p), p.rp ? rpEl(p) : null,
     top ? h('div.as-fo-post__hotcmt', h('b', E.floorWho(p, top) + '：'), top.text) : null,
     h('span.as-fo-post__count', E.fmt(p.cmts)),

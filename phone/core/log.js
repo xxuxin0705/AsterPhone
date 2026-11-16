@@ -44,12 +44,13 @@ export function apiLog(level, app, msg, detail) {
 function safe(o) { try { return o instanceof Error ? (o.stack || o.message) : JSON.stringify(o, null, 2); } catch (e) { return String(o); } }
 
 /** 开始一次调用。返回 { id, signal, part(收到的字), done(结果说明, 收到的字), fail(原因) }；signal 给 fetch 用，点「中止」就断掉 */
+const busyMark = () => document.documentElement.classList.toggle('as-ai-on', running.size > 0);   // 等待图标看这个分「找 AI 的」和「不找的」（core/base.css .as-spin）
 export function startCall({ app, what = '生成', src = '', model = '', req = '' }) {
   const ac = new AbortController();
   const e = push({ id: Date.now() + Math.random(), at: Date.now(), kind: 'call', run: true, level: 'info', app, what, src, model, req: cut(req), res: '', msg: `${what}中…` });
-  running.set(e.id, ac);
+  running.set(e.id, ac); busyMark();
   let pend = 0;
-  const end = () => { running.delete(e.id); e.run = false; e.ms = Date.now() - e.at; save(); tell(e, 'update'); };
+  const end = () => { running.delete(e.id); busyMark(); e.run = false; e.ms = Date.now() - e.at; save(); tell(e, 'update'); };
   return {
     id: e.id, signal: ac.signal,
     // 流式：收到一段就更新，最多每 0.2 秒刷一次界面
