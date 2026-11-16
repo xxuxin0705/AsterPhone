@@ -16,8 +16,8 @@ async function ask(path, signal) {
   return r.json();
 }
 
-/** 选好返回 { name 地名, cc 国家代码 }；点「按正文定」返回 { name: '' }；退出返回 null */
-export function pickPlace(title = '选地区') {
+/** 选好返回 { name 地名, cc 国家代码, ip 照微博 IP 属地的写法（国内写省，国外写国家） }；点左下（默认「按正文定」）返回 { name: '' }；退出返回 null */
+export function pickPlace(title = '选地区', none = '按正文定') {
   return new Promise(done => {
     let z = 3, cx, cy, end = v => { end = () => {}; done(v); };
     [cx, cy] = px(35, 115, z);
@@ -70,11 +70,11 @@ export function pickPlace(title = '选地区') {
       if (signal.aborted || !r) return;
       if (!r.address) { toast('这里没有地名，挪一挪'); return; }
       const a = r.address, place = a.city || a.town || a.state || a.county || a.province || '';
-      nav.pop(); end({ name: ((a.country || '') + (place && place !== a.country ? place : '')).slice(0, 20), cc: a.country_code || '' });
+      nav.pop(); end({ name: ((a.country || '') + (place && place !== a.country ? place : '')).slice(0, 20), cc: a.country_code || '', ip: (a.country_code === 'cn' ? a.state || a.province || place : a.country || '').slice(0, 12) });
     }));
     const p = page({ app: 'settings', id: 'map-pick', title, back: true, onBack: () => { nav.pop(); end(null); } });
     p.body.append(h('div.as-map-pick', h('div.as-map-pick__search', q, go), map,
-      h('div.as-lib-actions.is-two', btn('按正文定', 'secondary', () => { nav.pop(); end({ name: '' }); }), use)));
+      h('div.as-lib-actions.is-two', btn(none, 'secondary', () => { nav.pop(); end({ name: '' }); }), use)));
     nav.push(p.el);
     requestAnimationFrame(draw);
   });

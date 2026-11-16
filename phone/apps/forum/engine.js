@@ -62,16 +62,16 @@ export const meBy = anon => ({ k: 'me', id: curAcc().id, ...(anon ? { anon: true
 // 会员：自己选过的照选的；没选过的有认证的号多半是 VIP / SVIP（同一个号每次一样），没认证的没有
 const club = (x, id, v) => x?.vip ?? (v ? ['vip', 'svip', 'vip'][[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % 3] : '');
 export const keyOf = by => by.k === 'me' ? 'me:' + by.id : by.k === 'n' ? 'n:' + by.name : (by.k === 'bot' ? 'b:' : 'c:') + by.id;
-/** 我在主页上给别人改过的资料（名字、头像、V、会员、简介、认证、小字、数字、来自、头像框）；没改过是空的 */
+/** 我在主页上给别人改过的资料（名字、头像、V、会员、简介、认证、小字、数字、IP 属地、头像框）；没改过是空的 */
 export const over = by => (F().over ||= {})[keyOf(by)] || {};
 export function who(by) {
   const w = who0(by), o = !by.anon && by.k !== 'me' ? over(by) : {};
-  return { ...w, name: o.name || w.name, avatar: o.avatar || w.avatar, v: o.v ?? w.v, vip: o.vip ?? w.vip, dev: o.dev ?? w.dev };
+  return { ...w, name: o.name || w.name, avatar: o.avatar || w.avatar, v: o.v ?? w.v, vip: o.vip ?? w.vip, ip: o.ip ?? w.ip };
 }
 function who0(by) {
   if (by.anon) return { name: by.no ? `匿名 ${by.no} 号` : '匿名', anon: true };
   if (by.k === 'bot') { const b = botOf(by.id); const v = b && (b.v ?? (b.fans >= 2e5 ? 'r' : 'y')); return b ? { name: b.name, avatar: b.avatar, v, vip: club(b, b.id, v), sub: b.topic } : { name: by.name || '已删除的号' }; }
-  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '', vip: a.vip || '', dev: a.dev || '' } : { name: '已注销', me: true }; }
+  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '', vip: a.vip || '', ip: a.ip || '' } : { name: '已注销', me: true }; }
   if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c), vip: club(P(c.id), c.id, isV(c)) } : { name: by.name || '用户' }; }
   return { name: by.name || '网友' };
 }

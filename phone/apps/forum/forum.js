@@ -185,7 +185,7 @@ function card(p, full) {
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
-      h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), (w.dev || p.dev) ? h('span.as-fo-post__from', '来自 ', h('b', w.dev || p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
+      h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, w.ip ? h('span.as-fo-post__from', '发布于 ' + w.ip) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p),
     p.title ? h('div.as-fo-post__title', p.title) : null,
     ...tx(p, 'as-fo-post__text'),
@@ -611,6 +611,7 @@ function userView(by, host) {
   const certOf = () => O().cert || (b ? b.topic : acc ? '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
   const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
     w.v ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), certOf()) : null,
+    w.ip ? h('div.as-fo-user__cert.is-ip', h('i.as-fo-user__ipic', 'IP'), 'IP属地：' + w.ip) : null,
     h('div.as-fo-user__bio', o.bio ?? (b ? b.bio : '')), tagsOf(),
     h('div.as-fo-user__nums', n(o.fans ?? fans, 'forum.fans'), n(o.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(o.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
   let main = mainOf();
@@ -696,15 +697,16 @@ function editSheet(title, rows, save, extra) {
   const s = sheet({ title, content: h('div.as-fo-compose', ...rows, extra, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => { if (save() !== false) s.close(); }))) });
   return s;
 }
-function avaPick(get, set, name) {
-  const b = h('button.as-fo-avapick', { 'aria-label': '换头像', onclick: async () => { const u = await pickImage('头像', { ratio: 1, size: 320, has: !!get() }); if (u == null) return; set(u); b.replaceChildren(avatar(u, name, 64)); } }, avatar(get(), name, 64));
-  return b;
+function avaPick(get, set, name, frame = () => '') {
+  const b = h('button.as-fo-avapick', { 'aria-label': '换头像', onclick: async () => { const u = await pickImage('头像', { ratio: 1, size: 320, has: !!get() }); if (u == null) return; set(u); b.paint(); } });
+  b.paint = () => b.replaceChildren(addFrame(avatar(get(), name, 64), frame()));   // 戴着选的框给你看
+  b.paint(); return b;
 }
 /** 改别人的资料：先填上现在看到的样子，保存后这个人的主页、帖子、评论一起换 */
 function editUser(by, v) {
   const w = E.who(by), o = E.over(by), now = v.now(), c = by.k === 'c' && contact(by.id);
-  const d = { name: w.name, avatar: w.avatar || '', v: w.v || '', vip: w.vip || '', dev: o.dev || '', cert: now.cert, bio: now.bio, tag1: now.tags[0] || '', tag2: now.tags[1] || '',
-    fans: o.fans, follows: o.follows, likes: o.likes, frame: (c ? c.frame : o.frame) || '' }, f = accFields(d);
+  const d = { name: w.name, avatar: w.avatar || '', v: w.v || '', vip: w.vip || '', cert: now.cert, bio: now.bio, tag1: now.tags[0] || '', tag2: now.tags[1] || '',
+    fans: o.fans, follows: o.follows, likes: o.likes, ip: o.ip || '', frame: (c ? c.frame : o.frame) || '' }, f = accFields(d);
   editSheet('编辑资料', f.rows, () => {
     f.read(); const { frame, ...rest } = d;
     if (c) { if (frame) c.frame = frame; else delete c.frame; commit('contacts'); } else rest.frame = frame;
@@ -713,18 +715,24 @@ function editUser(by, v) {
   });
 }
 function accFields(d, onChange = () => {}) {
-  const name = input({ value: d.name, placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
+  const me = d.id && E.who({ k: 'me', id: d.id });   // 大号没单独设过头像 / 网名时，用的是聊天里我的
+  const name = input({ value: d.name || me?.name || '', placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
   // 粉丝 / 关注 / 转评赞：能写「3.3万」「1.04亿」，空着就照原来的算
   const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
-  const dev = input({ value: d.dev || '', placeholder: '来自' }), cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
+  const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
   const fr = item({ title: '头像框', value: decoName('frames', d.frame ?? state.me?.frame) || '不戴', chevron: true, onClick: async () => {
     const v = await pickDeco('frames', d.frame ?? state.me?.frame, { src: d.avatar || E.who({ k: 'me', id: d.id }).avatar, name: d.name }); if (v == null) return;
-    d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴'; onChange();
+    d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴'; pick.paint(); onChange();
   } });
-  [name, bio, dev, cert, t1, t2, ...nums.map(x => x[1])].forEach(x => x.addEventListener('input', onChange));
-  return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; onChange(); }, d.name || '号'), fr, field('网名', name), field('简介', bio), field('来自', dev),
+  const ip = item({ title: 'IP 属地', value: d.ip || '不显示', chevron: true, onClick: async () => {
+    const r = await (await import('../../core/mappick.js')).pickPlace('IP 属地', '不显示'); if (!r) return;
+    d.ip = r.ip || r.name; ip.querySelector('.as-list-item__value').textContent = d.ip || '不显示'; onChange();
+  } });
+  const pick = avaPick(() => d.avatar || me?.avatar || '', u => { d.avatar = u; onChange(); }, d.name || '号', () => d.frame ?? (d.id ? state.me?.frame : ''));
+  [name, bio, cert, t1, t2, ...nums.map(x => x[1])].forEach(x => x.addEventListener('input', onChange));
+  return { rows: [pick, fr, field('网名', name), field('简介', bio), ip,
     field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; onChange(); })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; onChange(); })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
-  read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.dev = dev.value.trim().slice(0, 24); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
+  read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
 const accSaved = () => { commit('forum'); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); R?.meRefresh?.(); repaintBy('me:'); };

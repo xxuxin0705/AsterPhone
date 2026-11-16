@@ -212,6 +212,7 @@
 .is-dressed .as-fo-user__tags span { background: rgba(255,255,255,.85); }
 [data-as-app="forum"] .as-fo-user__tags svg { margin-left: auto; flex: none; color: #b5b5b5; }
 [data-as-app="forum"] .as-fo-user__cert { order: 3; }
+[data-as-app="forum"] .as-fo-user__cert.is-ip { margin-top: 8px; }
 /* 简介在名字下面（头像右边两行），认证放在橙色小字下面 */
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__ava { grid-row: 1 / 3; }
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__name { grid-area: 1 / 2; }
