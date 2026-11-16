@@ -350,9 +350,15 @@ function inboxPane() {
 }
 /** 我：就是我自己的主页（照真微博），右上搜索、设置；我的号、营销号、熟人在设置里 */
 function mePane(p) {
-  const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
-  R.mePaint = v.paint; R.meRefresh = v.refresh; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
-  return { el: h('div.as-fo-me', ...v.els), title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', openEditMe), navBtn('gear', '设置', openSettings)] };
+  const box = h('div.as-fo-me');
+  // 换了号：「我」整个换成那个号的主页（先画好再一次换上）
+  const build = () => {
+    const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
+    R.mePaint = v.paint; R.meRefresh = v.refresh; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
+    box.replaceChildren(...v.els); applyTexts();
+  };
+  build(); R.meSwitch = build;
+  return { el: box, title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', openEditMe), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
 function blocksPane(kind, title) {
@@ -621,7 +627,7 @@ function openAccounts() {
   const draw = () => box.replaceChildren(group('', [...F.accounts.map(a => item({ title: E.accName(a) + (a.id === 'main' ? '（大号）' : ''), right: a.id === F.cur ? icon('check', 18, 2.2) : null,
     onClick: async () => {
       const v = await actionSheet(E.accName(a), [{ value: 'use', label: '用这个号', icon: 'check' }, { value: 'edit', label: '编辑', icon: 'edit' }, a.id !== 'main' && { value: 'del', label: '删除', icon: 'trash', danger: true }].filter(Boolean));
-      if (v === 'use') { F.cur = a.id; commit('forum'); draw(); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); }
+      if (v === 'use') { F.cur = a.id; commit('forum'); draw(); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); R?.meSwitch?.(); }
       if (v === 'edit') editAcc(a, draw);
       if (v === 'del' && await dialog({ title: `删除「${E.accName(a)}」？`, confirm: '删除', danger: true })) { F.accounts.splice(F.accounts.indexOf(a), 1); if (F.cur === a.id) F.cur = 'main'; commit('forum'); draw(); }
     } })), item({ icon: 'plus', title: '新建小号', onClick: () => editAcc(null, draw) })]));
