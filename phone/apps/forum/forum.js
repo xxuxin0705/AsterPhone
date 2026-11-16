@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, dressOne, setOwn, keep, fillCss, COVERS, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, setOwn, keep, fillCss, COVERS, BTNS, loadSets, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -492,6 +492,7 @@ export function open() {
   p.body.addEventListener('scroll', () => p.el.classList.toggle('is-up', p.body.scrollTop > 200), { passive: true });   // 「我」：背景图翻上去了，顶栏变白
   R = { el: p.el, feed: 'global' };
   show(0); markBadges();
+  loadSets().then(() => paintBar(bar, dressOf('me:' + E.F().cur)));
   return p.el;
 }
 
@@ -599,6 +600,16 @@ async function recommend(by) {
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
 const ph = t => h('i.as-fo-ph', t);   // 编辑主页时空着的地方：淡淡的字，点了能填
 const solids = new Map();
+/** 底栏穿上装扮：背景（图 / 纯色 / 渐变，透明度亮度）、按钮小图、字的颜色。我的穿在论坛最下面那条导航上（一打开论坛就穿上），别人的穿在 TA 主页底下那条 */
+function paintBar(u0, dr) {
+  const fx = (dr.barfx || '1,1').split(',');
+  u0.style.setProperty('--fo-barimg', [dr.bar && `url("${dr.bar}")`, fillCss(dr.barfill)].filter(Boolean).join()); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
+  u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill?.includes(','));   // 只有渐变才往上淡开，纯色就是纯色
+  u0.style.setProperty('--fo-barop', fx[0]); u0.style.setProperty('--fo-barbr', fx[1]);
+  u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[BTNS[i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+  u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
+  (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
+}
 /** 标签：小图大小、距离，下面那条线的样子和颜色（装扮里没写就用默认：和字差不多大、橙色短横线） */
 const tabStyle = (el, dr) => { el.style.setProperty('--fo-tabz', (dr.tabsize || 20) + 'px'); el.style.setProperty('--fo-tabgap', (dr.tabgap ?? 4) + 'px'); el.style.setProperty('--fo-markc', dr.tabmarkcolor || ''); el.dataset.mark = dr.tabmark || 'bar'; };
 const solid = u => u ? solids.get(u) ?? solids.set(u, loadImg(u).then(im => { const c = document.createElement('canvas'), w = c.width = Math.min(200, im.naturalWidth), H = c.height = Math.max(1, Math.round(im.naturalHeight * w / im.naturalWidth)), x = c.getContext('2d'); x.drawImage(im, 0, 0, w, H);
@@ -663,14 +674,7 @@ function userView(by, host) {
     // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
     for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', [dr.pinbg && `url("${dr.pinbg}")`, fillCss(dr.pinbgfill)].filter(Boolean).join()], ['pinink', dr.pincolor], ['pinop', fx('pinbg')[0]], ['pinbr', fx('pinbg')[1]]]) list.style.setProperty('--fo-' + k, v || '');
     list.classList.toggle('has-pinbg', !!(dr.pinbg || dr.pinbgfill));
-    for (const u0 of [ubar, tb].filter(Boolean)) {
-      u0.style.setProperty('--fo-barimg', [dr.bar && `url("${dr.bar}")`, fillCss(dr.barfill)].filter(Boolean).join()); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
-      u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill?.includes(','));   // 只有渐变才往上淡开，纯色就是纯色
-      u0.style.setProperty('--fo-barop', fx('bar')[0]); u0.style.setProperty('--fo-barbr', fx('bar')[1]);
-      u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3', 'btn4'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
-      u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
-      (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
-    }
+    [ubar, tb].forEach(u0 => u0 && paintBar(u0, dr));
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id), O = () => acc || E.over(by);   // 我的号的资料 / 我给别人改过的资料
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
