@@ -2,7 +2,7 @@
 // 每条帖子、每层楼把零件全备齐（头像、V、名字、来自、小组、+关注、标题、正文、话题、配图、热门回复、回应数、转评赞…），显示哪些、怎么排交给样子的 CSS。
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, commit } from '../../core/store.js';
+import { state, commit, contact } from '../../core/store.js';
 import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, dressMenu, openDress, hooks } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, openDress, hooks } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -69,7 +69,7 @@ const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('ch
 function ava(by, size, framed) {
   if (by.anon) return h('span.as-avatar.as-fo-anon', { style: { width: size + 'px', height: size + 'px' } }, icon('user', Math.round(size * .5), 1.8));
   const w = E.who(by), a = avatar(w.avatar, w.name, size);
-  return framed ? addFrame(a, dressOf(keyOf(by)).frame) : a;
+  return framed ? addFrame(a, by.k === 'c' ? contact(by.id)?.frame : by.k === 'me' ? state.me?.frame : '') : a;   // 头像框用资源库「个性装扮」里给这个人选的
 }
 /** 正文里的 #话题#、@网名 标成蓝色：点话题搜这个话题，点 @ 进这个人的主页 */
 const AT = /@([^\s@#：:，,。！？!?、（）()]{1,20})/g;
@@ -128,14 +128,13 @@ function postMenu(by) {
   } }, icon('down', 16, 1.6));
 }
 function card(p, full) {
-  const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); }, dr = p.by.anon ? {} : dressOf(keyOf(p.by));
+  const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); };
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
-  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : '') + (dr.card ? '.has-cardimg' : ''),
-    { dataset: { id: p.id, board: p.board }, style: dr.card ? { '--fo-cardimg': `url("${dr.card}")` } : null, onclick: full ? null : () => openPost(p) },
-    dr.sticker ? h('img.as-fo-post__sticker', { src: dr.sticker, alt: '' }) : null,
+  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
+    { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
-    h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge') : null),
-    h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null, dr.badge ? h('img.as-fo-dbadge', { src: dr.badge, alt: '' }) : null,
+    h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge' + (p.by.k === 'bot' ? '.is-blue' : '')) : null),
+    h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null,
       h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p.by),
     p.title ? h('div.as-fo-post__title', p.title) : null,
@@ -407,8 +406,7 @@ const views = new Map();   // 帖子 id → 开着的帖子页（出完评论填
 function floorEl(p, f, i) {
   const w = f.by.op ? E.who(p.by) : E.who(f.by), up = f.to && f.to !== 'op' && p.floors.find(x => x.id === f.to);
   const to = f.to === 'op' ? word('forum.op') : up ? E.floorWho(p, up) : '', no = word('forum.floor');
-  const bub = !f.by.anon && dressOf(keyOf(f.by.op ? p.by : f.by)).bubble;
-  return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : '') + (bub ? '.has-bubble' : ''), { dataset: { id: f.id }, style: bub ? { '--fo-bubble': `url("${bub}")` } : null },
+  return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : ''), { dataset: { id: f.id } },
     h('span.as-fo-floor__ava', { onclick: e => { e.stopPropagation(); if (!f.by.op && !f.by.anon) openUser(f.by); } }, ava(f.by.op ? p.by : f.by, 32, true)),
     h('div.as-fo-floor__main',
       h('div.as-fo-floor__who', h('span.as-fo-floor__name', w.name), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
@@ -461,20 +459,37 @@ function openUser(by) {
   pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
   nav.push(pg.el); applyTexts();
 }
+/** 主页底栏「推荐」：论坛里出现过的别的人，横着一排，可以直接关注；不找 AI */
+async function recommend(by) {
+  const k0 = keyOf(by), seen = new Set([k0]), out = [];
+  const add = b => { const k = keyOf(b); if (seen.has(k) || b.anon || b.k === 'me') return; seen.add(k); out.push(b); };
+  E.F().bots.forEach(x => add({ k: 'bot', id: x.id })); E.onForum().forEach(c => add({ k: 'c', id: c.id }));
+  (await E.load()).posts.forEach(p => add(p.by));
+  const pick = out.sort((a, b) => hash(k0 + keyOf(a)) - hash(k0 + keyOf(b))).slice(0, 8);
+  if (!pick.length) { toast('还没有别人'); return; }
+  const s = sheet({ title: `关注 ${E.who(by).name} 的人也关注了`, content: h('div.as-fo-recs', pick.map(x => h('div.as-fo-rec', { onclick: () => { s.close(); openUser(x); } },
+    ava(x, 56, true), h('b.as-fo-rec__name', E.who(x).name), followBtn(x)))) });
+  applyTexts();
+}
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
 function userView(by, host) {
   const w = E.who(by), key = keyOf(by), b = by.k === 'bot' && E.botOf(by.id), mine = by.k === 'me';
   const decorate = () => dressMenu(key, paint);
   // 点背景图：整张大图铺满看
   const cover = h('div.as-fo-user__cover', { onclick: () => { const u = dressOf(key).cover; if (u) { const v = h('div.as-fo-viewer', { onclick: () => v.remove() }, h('img', { src: u, alt: '' })); host.append(v); } } }, h('img.as-fo-user__coverimg', { alt: '', hidden: true }));
-  const avaBox = h('span.as-fo-user__ava'), badge = h('img.as-fo-dbadge', { alt: '' }), tab = h('span.is-on', h('img.as-fo-user__tabimg', { alt: '' }), W('forum.user.tab'));
+  const avaBox = h('span.as-fo-user__ava'), sticker = h('img.as-fo-user__tabimg', { alt: '' });
+  // 微博 / 相册：点哪个，标签小图就跳到哪个；相册只是把没配图的帖子藏起来，不重画
+  const tabOf = (txt, pics) => h('span', { onclick: e => { const t = e.currentTarget; if (t.classList.contains('is-on')) return;
+    tabs.querySelector('.is-on')?.classList.remove('is-on'); t.classList.add('is-on'); t.prepend(sticker); sticker.classList.remove('is-hop'); void sticker.offsetWidth; sticker.classList.add('is-hop');
+    list.classList.toggle('is-pics', pics); } }, txt);
+  const tab = tabOf(W('forum.user.tab'), false); tab.classList.add('is-on'); tab.prepend(sticker);
   const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list');
   const more = mine ? null : jobBtn('more:' + key, () => ['看看 TA 还发了什么'], () => go('more:' + key, '正在刷新…', s => E.feed(b ? 'global' : 'local', {
     count: 3, only: by.k === 'bot' ? ['b:' + by.id] : by.k === 'c' ? ['c:' + by.id] : [], pick: `只由「${w.name}」发，${by.k === 'n' ? '这是一个普通网友，' : ''}写 TA 最近会发的` }, s)).then(got => { if (got) { landed(got); toast('刷到了'); } }),
   'button.as-btn.as-btn--secondary.as-fo-morebtn');
-  const sub = b && btn('投稿', 'primary', () => {
+  const sub = b && h('button', { onclick: () => {
     const t = textarea({ placeholder: '投稿内容', rows: 5 });
     const s = sheet({ title: '投稿给「' + b.name + '」', content: h('div.as-fo-compose', t, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('投稿', 'primary', async () => {
       const text = t.value.trim(); if (!text) { toast('写点什么'); return; }
@@ -482,27 +497,33 @@ function userView(by, host) {
       runThread(p, { focus: `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。`, count: '6～10' });
       openPost(p);
     }))) });
+  } });
+  const bi = (ic, label, onclick) => h('button.as-fo-ubar__item', { onclick }, icon(ic, 20, 1.8), label);
+  // 关注了再点：问一下再取消
+  const fol = !mine && bi('user', W(following(key) ? 'forum.followed' : 'forum.follow'), async () => {
+    if (following(key) && !await actionSheet(w.name, [{ value: 'off', label: '取消关注', icon: 'close' }])) return;
+    toggleFollow(key); fol.lastChild.replaceWith(W(following(key) ? 'forum.followed' : 'forum.follow')); applyTexts();
   });
-  const ubar = h('div.as-fo-ubar', mine ? h('button.as-fo-ubar__item', { onclick: decorate }, icon('palette', 20, 1.8), h('span', '装扮')) : h('button.as-fo-ubar__item', { onclick: () => toast('私信下一步做') }, icon('chat', 20, 1.8), W('forum.dm')),
-    sub, mine ? null : followBtn(by));
+  const ubar = h('div.as-fo-ubar', mine ? bi('palette', h('span', '装扮'), decorate)
+    : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
     host.classList.toggle('is-dressed', dressed(key));
     cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover); img(cover.firstChild, dr.cover);
-    avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge') : null);
-    img(badge, dr.badge); img(tab.firstChild, dr.tab);
+    host.classList.toggle('no-fade', !fade(key));
+    avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge' + (b ? '.is-blue' : '')) : null);
+    img(sticker, dr.tab);
     tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);
     ubar.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; ubar.classList.toggle('has-img', !!dr.bar);
-    ubar.querySelectorAll('.as-fo-ubar__item').forEach(x => x.classList.toggle('has-pic', !!dr.btn)); ubar.style.setProperty('--fo-btnimg', dr.btn ? `url("${dr.btn}")` : '');
-    ubar.style.setProperty('--fo-followimg', dr.follow ? `url("${dr.follow}")` : ''); ubar.classList.toggle('has-follow', !!dr.follow);
+    ubar.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
   }
-  const tabs = h('div.as-fo-user__tabs', tab), acc = mine && E.accOf(by.id);
+  const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id);
   const nameEl = h('span', w.name), bio = h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : '');
   // 我自己：「编辑个人资料」改网名、简介、头像，改完只换这几处
   const edit = acc && h('button.as-fo-user__edit', { onclick: () => editAcc(acc, () => { nameEl.textContent = E.who(by).name; bio.textContent = acc.bio || ''; paint(); }) }, icon('edit', 15, 1.8), '编辑个人资料');
   const els = [h('div.as-fo-user', cover,
-    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', nameEl, w.v ? vMark() : null, badge),
+    h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', nameEl, w.v ? vMark() : null),
       b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null, bio,
       h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')), edit)),
     tabs, more, list].filter(Boolean);

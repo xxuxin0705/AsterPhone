@@ -94,5 +94,3 @@
 [data-as-app="forum"] .as-fo-user__tabs { gap: 0; }
 [data-as-app="forum"] .as-fo-user__tabs span { flex: 1; text-align: center; }
 [data-as-app="forum"] .as-fo-user__tabs span::after { width: 56px; margin-left: -28px; height: 4px; background: var(--fo-accent); }
-[data-as-app="forum"] .as-fo-ubar > .as-fo-follow { display: block; background: var(--fo-ink); color: var(--fo-card); }
-[data-as-app="forum"] .as-fo-ubar > .as-fo-follow.is-on { background: none; color: var(--fo-ink); box-shadow: inset 0 0 0 1px #cfd9de; }

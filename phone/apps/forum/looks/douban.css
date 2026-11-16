@@ -88,4 +88,3 @@
 [data-as-app="forum"] .as-fo-user__nums { order: 2; font-size: 12.5px; }
 [data-as-app="forum"] .as-fo-user__nums .as-fo-user__num:last-child { display: none; }
 [data-as-app="forum"] .as-fo-user__tabs span::after { background: var(--fo-ink); }
-[data-as-app="forum"] .as-fo-ubar > .as-fo-follow { border-radius: 4px; }

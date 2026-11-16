@@ -151,13 +151,9 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__num b { margin-right: 4px; color: var(--fo-ink); font-size: 16px; }
 .as-fo-user__tabs { display: flex; gap: 24px; padding: 10px 16px 0; box-shadow: inset 0 -.5px 0 var(--fo-line); }
 .as-fo-user__tabs span { position: relative; padding-bottom: 10px; font: 600 15px/1 var(--font-ui); }
-.as-fo-user__tabs span::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
+.as-fo-user__tabs span.is-on::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--fo-accent); }
 .as-fo-ubar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 16px max(8px, env(safe-area-inset-bottom, 0px)); background: var(--fo-head) center / cover; box-shadow: 0 -.5px 0 var(--fo-line); }
 .as-fo-ubar__item { display: grid; justify-items: center; gap: 2px; border: 0; background: none; color: var(--fo-ink); font: 400 11px/1.2 var(--font-ui); cursor: pointer; }
-.as-fo-ubar > .as-fo-follow, .as-fo-ubar > .as-btn { flex: 1; height: 40px; border-radius: 20px; font-size: 15px; }
-.as-fo-ubar > .as-fo-follow { border: 0; background: var(--fo-accent); color: #fff; }
-.as-fo-ubar > .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
-.as-fo-ubar > .as-btn--primary { background: color-mix(in srgb, var(--fo-accent) 14%, var(--fo-card)); color: var(--fo-accent); box-shadow: none; }
 
 /* 小组页、热榜页、搜索 */
 .as-fo-boardhead { display: flex; align-items: center; gap: 12px; padding: 18px 16px; background: var(--fo-card); margin-bottom: var(--fo-gap); }
@@ -194,10 +190,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 /* 主页装扮套装（dress.js）：图都从套装里来，没有就不显示 */
 .as-fo-navdress { display: contents; }
 .as-fo-settile { background: var(--as-color-surface-2) center / cover; }
-.as-fo-dbadge { height: 16px; width: auto; vertical-align: middle; }
-.as-fo-post.has-cardimg { background: var(--fo-card) var(--fo-cardimg) center / cover; }
-.as-fo-post__sticker { position: absolute; right: 36px; top: 4px; width: 56px; height: 56px; object-fit: contain; pointer-events: none; }
-.as-fo-floor.has-bubble .as-fo-floor__text { width: fit-content; max-width: 100%; padding: 8px 14px; background: var(--fo-bubble) center / 100% 100% no-repeat; }
 .as-fo-act { position: relative; }
 .as-fo-likefx { position: absolute; left: 50%; bottom: 55%; width: 64px; height: 64px; margin-left: -32px; object-fit: contain; pointer-events: none; animation: as-fo-likefx .9s ease-out forwards; }
 @keyframes as-fo-likefx { 0% { transform: scale(.3); opacity: 0; } 30% { transform: scale(1.1); opacity: 1; } 100% { transform: translateY(-34px) scale(1); opacity: 0; } }
@@ -208,7 +200,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__tabs.has-line span.is-on::after { width: 60px; height: 12px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
 .as-fo-ubar__item.has-pic svg { display: none; }
 .as-fo-ubar__item.has-pic::before { content: ''; width: 36px; height: 36px; background: var(--fo-btnimg) center / contain no-repeat; }
-.as-page[data-as-app="forum"] .as-fo-ubar.has-follow > .as-fo-follow { background: var(--fo-followimg) center / 100% 100% no-repeat; color: #444; }
 
 /* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
 .as-fo-user__edit { justify-self: center; display: inline-flex; align-items: center; gap: 5px; margin-top: 16px; padding: 9px 26px; border: 0; border-radius: 20px; box-shadow: inset 0 0 0 1px var(--fo-line); background: none; color: var(--fo-ink-2); font: 400 14.5px/1 var(--font-ui); cursor: pointer; }
@@ -225,3 +216,15 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__coverimg { display: none; }
 .as-fo-user__ava { display: grid; }
 .as-fo-user__tabs span span::after { display: none; }   /* 短条只画在标签上，不画在里面那层字上 */
+/* 主页：V 分颜色（营销号蓝），背景不要渐变，相册只看有图的，标签小图跳过去，底栏背景横着铺、三格平分，推荐 */
+.as-fo-post__badge.is-blue { --fo-v: #1d9bf0; }
+.no-fade .as-fo-user__coverimg { -webkit-mask-image: none !important; mask-image: none !important; }
+.as-fo-list.is-pics > .as-fo-post:not(.has-media) { display: none; }
+.as-fo-user__tabs span:not(.is-on) { color: var(--fo-ink-2); font-weight: 400; }
+.as-fo-user__tabimg.is-hop { animation: as-fo-hop .35s ease-out; }
+@keyframes as-fo-hop { 0% { transform: translateY(0) scale(.6); } 50% { transform: translateY(-8px) scale(1.1); } 100% { transform: none; } }
+.as-fo-ubar.has-img { background-size: auto 100%; background-repeat: repeat-x; }
+.as-fo-ubar__item { flex: 1; }
+.as-fo-recs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px 16px; scroll-snap-type: x mandatory; }
+.as-fo-rec { flex: none; display: grid; justify-items: center; gap: 6px; width: 104px; padding: 14px 8px; border-radius: 12px; background: var(--as-color-surface-2); scroll-snap-align: start; }
+.as-fo-rec__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px/1.3 var(--font-ui); }
