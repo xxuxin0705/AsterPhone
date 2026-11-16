@@ -167,21 +167,21 @@
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) > .as-navbar .as-navbar__back { color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) > .as-navbar .as-navbar__btn { width: 33px; height: 33px; background: rgba(0,0,0,.22); color: #fff; }
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) .as-page__body { padding-top: 0; }
-[data-as-app="forum"] .as-fo-user__cover { height: 190px; margin-bottom: -16px; background-image: linear-gradient(170deg, #c9d6e3, #e8edf2); }
+[data-as-app="forum"] .as-fo-user__cover { height: 228px; margin-bottom: -16px; background-image: linear-gradient(170deg, #c9d6e3, #e8edf2); }
 .as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-user__cover { background-image: linear-gradient(170deg, #2b3138, #1b1e22); }
 [data-as-app="forum"] .as-fo-user__main { position: relative; grid-template-columns: auto 1fr; align-items: center; column-gap: 12px; row-gap: 0; padding: 0 15px 16px; border-radius: 16px 16px 0 0; background: var(--fo-card); }
 [data-as-app="forum"] .as-fo-user__main > :not(.as-fo-user__ava, .as-fo-user__name) { grid-column: 1 / -1; }
 [data-as-app="forum"] .as-fo-user__ava { margin-top: -24px; box-shadow: 0 0 0 3px var(--fo-card); }
 [data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge { width: 22px; height: 22px; right: 0; bottom: 0; }
 [data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge::after { font-size: 13px; }
-[data-as-app="forum"] .as-fo-user__name { align-self: start; margin-top: 18px; font: 500 22px/1.3 var(--font-ui); }
+[data-as-app="forum"] .as-fo-user__name { align-self: start; margin-top: 18px; font: 500 19px/1.3 var(--font-ui); }
 [data-as-app="forum"] .as-fo-user__name .as-fo-post__v { display: none; }
-[data-as-app="forum"] .as-fo-user__nums { gap: 20px; margin-top: 14px; font-size: 14.5px; color: #999; }
-[data-as-app="forum"] .as-fo-user__num b { margin-right: 5px; font-size: 18px; font-weight: 500; }
-[data-as-app="forum"] .as-fo-user__cert { margin-top: 14px; font-size: 14.5px; color: #8a8a8a; }
-[data-as-app="forum"] .as-fo-user__bio { margin-top: 8px; font-size: 14.5px; color: #8a8a8a; }
+[data-as-app="forum"] .as-fo-user__nums { gap: 20px; margin-top: 17px; font-size: 14px; color: #999; }
+[data-as-app="forum"] .as-fo-user__num b { margin-right: 5px; font-size: 16px; font-weight: 500; }
+[data-as-app="forum"] .as-fo-user__cert { margin-top: 12px; font-size: 14px; color: #8a8a8a; }
+[data-as-app="forum"] .as-fo-user__bio { margin-top: 6px; font-size: 14px; color: #8a8a8a; }
 [data-as-app="forum"] .as-fo-user__tabs { justify-content: center; height: 48px; padding: 0; align-items: center; border-bottom: 10px solid var(--fo-bg); box-shadow: none; }
-[data-as-app="forum"] .as-fo-user__tabs span { padding: 0; font-size: 18.5px; font-weight: 700; }
+[data-as-app="forum"] .as-fo-user__tabs span { padding: 0; font-size: 16.5px; font-weight: 700; }
 [data-as-app="forum"] .as-fo-user__tabs span::after { bottom: -9px; width: 18px; height: 4px; margin-left: -9px; }
 [data-as-app="forum"] .as-fo-ubar { gap: 0; height: 60px; padding: 0 0 env(safe-area-inset-bottom, 0px); }
 [data-as-app="forum"] .as-fo-ubar__item { gap: 4px; font-size: 12.5px; color: #333; }
@@ -198,8 +198,8 @@
 /* 穿了套装的主页（照真微博）：背景图只占最上面一截；图下沿淡进「图下沿的颜色（调浅）」，这颜色再慢慢变白，名字、粉丝数压在这层淡色上，不压在图上；
    橙色短条换成套装里的花边。装扮都是照浅色画的，夜间这一块也用浅色 */
 .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #fff; --fo-ink: #1a1a1a; --fo-line: #ededed; color: var(--fo-ink); }
-.is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -215px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 215px, #fff) !important; }
-.is-dressed .as-fo-user__coverimg:not([hidden]) { display: block; width: 100%; height: 215px; object-fit: cover; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
+.is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -202px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 212px, #fff) !important; }
+.is-dressed .as-fo-user__coverimg:not([hidden]) { display: block; width: 100%; height: 212px; object-fit: cover; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
 .is-dressed .as-fo-user__ava { box-shadow: none; }
 .is-dressed .as-fo-user__main { background: none; border-radius: 0; }
 .is-dressed .as-fo-user__ava { margin-top: 0; }
@@ -210,7 +210,8 @@
 /* 主页里几行的先后照真微博：数字 → 认证 → 简介 → 编辑个人资料；消息里的红色数字大一点 */
 [data-as-app="forum"] .as-fo-user__nums { order: 1; }
 [data-as-app="forum"] .as-fo-user__tags { order: 2; display: flex; align-items: center; gap: 8px; margin-top: 14px; overflow: hidden; }
-[data-as-app="forum"] .as-fo-user__tags span { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 12px; border-radius: 15px; background: rgba(255,236,224,.85); color: #ff6a00; font: 400 14.5px/1.2 var(--font-ui); }
+[data-as-app="forum"] .as-fo-user__tags span { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 11px; border-radius: 12px; background: #fff7f2; color: #ff6a00; font: 400 12.5px/1.3 var(--font-ui); }
+.is-dressed .as-fo-user__tags span { background: rgba(255,255,255,.85); }
 [data-as-app="forum"] .as-fo-user__tags svg { margin-left: auto; flex: none; color: #b5b5b5; }
 [data-as-app="forum"] .as-fo-user__cert { order: 3; }
 [data-as-app="forum"] .as-fo-user__bio { order: 4; }

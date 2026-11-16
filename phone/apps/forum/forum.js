@@ -507,7 +507,8 @@ function userView(by, host) {
     tabs.querySelector('.is-on')?.classList.remove('is-on'); t.classList.add('is-on'); t.prepend(sticker); sticker.classList.remove('is-hop'); void sticker.offsetWidth; sticker.classList.add('is-hop');
     list.classList.toggle('is-pics', pics); } }, txt);
   const tab = tabOf(W('forum.user.tab'), false); tab.classList.add('is-on'); tab.prepend(sticker);
-  const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
+  // 主页的数照真微博多留一位小数（32.3万、1.04亿）
+  const n = (v, k) => h('span.as-fo-user__num', h('b', v >= 1e8 ? +(v / 1e8).toFixed(2) + '亿' : v >= 1e4 ? +(v / 1e4).toFixed(1) + '万' : String(v)), W(k));
   // 橙色小字（真微博数字下面那一两条）：我自己写的；别人的随手编一两条，同一个人每次一样
   const tagsOf = () => {
     const r = i => (seed >> i) % 9 + 1;
@@ -554,7 +555,7 @@ function userView(by, host) {
   const mainOf = () => { const w = E.who(by); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), w.v ? vMark() : null),
     w.v ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), b ? b.topic : acc ? acc.cert || '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主') : null,
     h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : ''), tagsOf(),
-    h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes'))); };
+    h('div.as-fo-user__nums', n(acc?.fans ?? fans, 'forum.fans'), n(acc?.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(acc?.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
   let main = mainOf();
   const refresh = () => { const m = mainOf(); main.replaceWith(m); main = m; paint(); applyTexts(); };
   const els = [h('div.as-fo-user', cover, main),
@@ -644,10 +645,13 @@ function avaPick(get, set, name) {
 }
 function accFields(d) {
   const name = input({ value: d.name, placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
+  // 粉丝 / 关注 / 转评赞：能写「3.3万」「1.04亿」，空着就照原来的算
+  const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
   const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
   return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio),
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
-  read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24); } };
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
+  read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
+    for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
 const accSaved = () => { commit('forum'); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); R?.meRefresh?.(); };
 function editAcc(a, done) {
