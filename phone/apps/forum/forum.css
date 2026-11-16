@@ -198,7 +198,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__tabs { background: var(--fo-card); }
 .as-fo-user__tabimg { height: 24px; width: auto; margin-right: 4px; vertical-align: -6px; }
 .as-fo-ubar__item.has-pic svg, .as-fo-tab.has-pic > :first-child { display: none; }
-.as-fo-tab.has-pic::before, .as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 26px); height: var(--fo-btnz, 26px); background: var(--fo-btnimg) center / contain no-repeat; }
+.as-fo-tab.has-pic::before, .as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 34px); height: var(--fo-btnz, 34px); background: var(--fo-btnimg) center / contain no-repeat; }
 
 /* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
 .as-fo-tab { position: relative; }
@@ -262,7 +262,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-btnpick img { width: 100%; height: 100%; object-fit: contain; }
 .as-fo-btnpick button.is-on::after { content: attr(data-n); position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--as-color-accent); color: #fff; font: 600 12px/20px var(--font-ui); text-align: center; }
 .as-fo-btnpv { display: flex; justify-content: space-around; align-items: center; height: 64px; border-radius: 14px; background: var(--as-color-surface-2); }
-.as-fo-btnpv i { width: var(--fo-btnz, 26px); height: var(--fo-btnz, 26px); background: center / contain no-repeat; }
+.as-fo-btnpv i { width: var(--fo-btnz, 34px); height: var(--fo-btnz, 34px); background: center / contain no-repeat; }
 [data-as-app="forum"] :is(.as-fo-ubar, .as-fo-tabbar).has-ink :is(.as-fo-ubar__item, .as-fo-tab) { color: var(--fo-btnink); }
 /* 置顶：只在主页上显示 */
 .as-fo-post__pin { display: none; }
@@ -285,6 +285,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-markrow .as-segmented { flex: 1; }
 .as-fo-markrow .as-deco-dot { flex: none; }
 /* 按钮小图比原来的图标大：往上长出去，底栏高度和没装扮时一样 */
-.as-fo-tab.has-pic::before, .as-fo-ubar__item.has-pic::before { margin-top: calc(24px - var(--fo-btnz, 26px)); }
+.as-fo-tab.has-pic::before, .as-fo-ubar__item.has-pic::before { margin-top: calc(24px - var(--fo-btnz, 34px)); }
 .as-fo-joyrow { display: grid; justify-items: center; gap: 10px; }
 .as-fo-joyrow .as-btn { width: auto; min-height: 0; padding: 7px 16px; font-size: 13px; }

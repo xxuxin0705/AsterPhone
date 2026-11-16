@@ -754,7 +754,7 @@ function userView(by, host) {
     const dr = dressOf(key), pv = tb.cloneNode(true), items = [...pv.children], sz = {};
     const has = BTNS.map((b, i) => [b, items[i]]).filter(([b, x]) => dr[b] && x);
     let cur = has[0][0], row = h('div');
-    const rowOf = b => fxRow('大小', +(sz[b] ?? dr[b + 'size'] ?? dr.btnsize ?? 26), 26, { min: 18, max: 44, step: 1, fmt: v => v + '' }, v => { sz[b] = v; items[BTNS.indexOf(b)].style.setProperty('--fo-btnz', v + 'px'); });
+    const rowOf = b => fxRow('大小', +(sz[b] ?? dr[b + 'size'] ?? dr.btnsize ?? 34), 34, { min: 18, max: 48, step: 1, fmt: v => v + '' }, v => { sz[b] = v; items[BTNS.indexOf(b)].style.setProperty('--fo-btnz', v + 'px'); });
     const pick = b => { cur = b; const r = rowOf(b); row.replaceWith(r); row = r; };
     row = rowOf(cur);
     const s = sheet({ title: '按钮小图大小', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv),

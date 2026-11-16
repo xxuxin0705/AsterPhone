@@ -162,7 +162,7 @@ async function pickFrom(k, size) {
   const many = k === 'btn';
   return new Promise(done => {
     const on = [];
-    let z = 26, ok = false;   // 和原来的图标差不多大
+    let z = 34, ok = false;   // 照真微博装扮底栏量的
     const bar = h('div.as-fo-btnpv'), set = () => bar.style.setProperty('--fo-btnz', z + 'px');
     const paint = () => {
       grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });

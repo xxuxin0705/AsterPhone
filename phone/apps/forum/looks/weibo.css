@@ -251,3 +251,5 @@
 [data-as-app="forum"] .as-fo-user__tabs[data-mark="none"] span.is-on::after { display: none; }
 [data-as-app="forum"] .as-fo-user__tabs[data-mark="dots"] span.is-on::after { width: 20px; height: 4px; margin-left: -10px; border-radius: 0; background: radial-gradient(circle, var(--fo-markc, #ff8200) 1.9px, transparent 2.3px) 0 0 / 7px 4px repeat-x; }
 [data-as-app="forum"] .as-fo-user__cert.is-ip { padding-left: 2px; }   /* 盾牌图标自带一点留白：IP 属地的字往右挪 2px，和盾牌看得见的左边对齐 */
+/* 底栏换了按钮小图：照真微博装扮过的底栏量的，小图 34、字 14（没装扮的照旧小字小图标） */
+[data-as-app="forum"] :is(.as-fo-tabbar, .as-fo-ubar):has(.has-pic) :is(.as-fo-tab, .as-fo-ubar__item) { gap: 2px; font-size: 14px; }
