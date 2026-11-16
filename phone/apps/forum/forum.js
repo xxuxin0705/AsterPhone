@@ -658,10 +658,11 @@ function userView(by, host) {
     // 标签小图：图里几乎是空的（截图拆出来只剩几粒点）就当没有
     solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
     // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
-    for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', dr.pinbg ? `url("${dr.pinbg}")` : fillCss(dr.pinbgfill)], ['pinink', dr.pincolor], ['pinop', fx('pinbg')[0]], ['pinbr', fx('pinbg')[1]]]) list.style.setProperty('--fo-' + k, v || '');
+    for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', [dr.pinbg && `url("${dr.pinbg}")`, fillCss(dr.pinbgfill)].filter(Boolean).join()], ['pinink', dr.pincolor], ['pinop', fx('pinbg')[0]], ['pinbr', fx('pinbg')[1]]]) list.style.setProperty('--fo-' + k, v || '');
     list.classList.toggle('has-pinbg', !!(dr.pinbg || dr.pinbgfill));
     for (const u0 of [ubar, tb].filter(Boolean)) {
-      u0.style.setProperty('--fo-barimg', dr.bar ? `url("${dr.bar}")` : fillCss(dr.barfill)); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill)); u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill);
+      u0.style.setProperty('--fo-barimg', [dr.bar && `url("${dr.bar}")`, fillCss(dr.barfill)].filter(Boolean).join()); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
+      u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill?.includes(','));   // 只有渐变才往上淡开，纯色就是纯色
       u0.style.setProperty('--fo-barop', fx('bar')[0]); u0.style.setProperty('--fo-barbr', fx('bar')[1]);
       u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3', 'btn4'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
       u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
@@ -716,7 +717,14 @@ function userView(by, host) {
     else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
     else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
-  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint);
+  // 挑字色时抽屉里放一份页面上那块的复制（置顶那条 / 底栏），带着现在的背景、图标，拖色盘马上看到
+  const inkPv = k => {
+    const app = x => h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, x);
+    if (k === 'pincolor') { const box = h('div.' + list.className.split(' ').join('.'), { style: list.style.cssText }, h('article.as-fo-post', list.querySelector('.as-fo-post__pin')?.cloneNode(true), h('span.as-fo-post__name' + (list.querySelector('article:has(> .as-fo-post__pin) .as-fo-post__name.is-vip') ? '.is-vip' : ''), { hidden: true })));
+      return { el: app(box), live: c => box.style.setProperty('--fo-pinink', c) }; }
+    if (k === 'btncolor' && tb) { const bar = tb.cloneNode(true); return { el: app(bar), live: c => { bar.classList.add('has-ink'); bar.style.setProperty('--fo-btnink', c); } }; }
+  };
+  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint, inkPv(k));
   };
   const head = h('div.as-fo-user', cover, main);
   [head, tabs, tb].forEach(x => x?.addEventListener('click', onEdit, true));

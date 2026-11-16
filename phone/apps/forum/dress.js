@@ -13,11 +13,11 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill',
+export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut',
   ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
-export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /^data:image\//).test(x);
+export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /cut$/.test(k) ? /^1$/ : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
@@ -54,8 +54,10 @@ async function upload(k, has, all = {}) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
   if (FILLS.includes(k)) {
     const how = await actionSheet(t, [{ value: 'img', label: has ? '换一张图' : '用图片', icon: 'image' }, has && { value: 'edit', label: '调整这张图', icon: 'edit' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }].filter(Boolean)); if (!how) return null;
-    if (how === 'fill') { const f = await pickFill(t); return f && { [k]: '', [k + 'fill']: f }; }
-    const r = await bgCrop(k, how === 'edit' && all, ratio, size); return r && { ...r, [k + 'fill']: '' };
+    // 抠过的图（蕾丝边这种）透明的地方露出底下的纯色 / 渐变，两样一起留着；整张照片就只用一样
+    if (how === 'fill') { const f = await pickFill(t); return f && { [k + 'fill']: f, ...(!all[k + 'cut'] && { [k]: '' }) }; }
+    const cut = how === 'edit' ? all[k + 'cut'] : await actionSheet('这张图', [{ value: '', label: '整张照片', icon: 'image' }, { value: '1', label: '抠掉底色（蕾丝边这种）', icon: 'edit' }]); if (cut == null) return null;
+    const r = await bgCrop(k, how === 'edit' && all, ratio, size, cut); return r && { ...r, [k + 'cut']: cut, ...(!cut && { [k + 'fill']: '' }) };
   }
   if (png && has && k !== 'btn') {
     const a = await actionSheet(t, [{ value: 'pick', label: '换图', icon: 'image' }, { value: 'fix', label: '修图', icon: 'edit' }, { value: 'del', label: '去掉', icon: 'trash', danger: true }]); if (!a) return null;
@@ -93,16 +95,19 @@ const pickFill = title => new Promise(done => {
   paint();
 });
 /** 字的颜色（底栏按钮、置顶）：色盘挑；左边那个按钮是不挑，用默认（底栏按钮跟着底栏图的颜色） */
-const pickInk = (k, title, none, cur) => new Promise(done => {
+// pv = { el 上面一条照着页面上那块复制的预览, live(颜色) 拖色盘时让预览马上变 }：抽屉会挡住页面上那块，不放预览就不知道挑的是什么样
+const pickInk = (k, title, none, cur, pv) => new Promise(done => {
   let c = cur || '#ff8200', v = null;
-  const s = sheet({ title, content: h('div', h('div.as-mu-color', colorWheel(c, x => { c = x; })),
+  pv?.live(c);
+  const s = sheet({ title, content: h('div', pv?.el, h('div.as-mu-color', colorWheel(c, x => { c = x; pv?.live(x); })),
     h('div.as-lib-actions.is-two', btn(none, 'secondary', () => { v = ''; s.close(); }), btn('确定', 'primary', () => { v = c; s.close(); }))), onClose: () => done(v == null ? null : { [k]: v }) });
 });
 /** 背景图（底栏、置顶、主页背景）：框选区域 + 透明度、亮度。from 给了就是调整已有的那张：从原图重新框（老图没存原图就拿框好的那张） */
-async function bgCrop(k, from, ratio, size) {
+async function bgCrop(k, from, ratio, size, cut) {
   const get = x => from && from[k + x], f = from ? get('src') || get('') : await pickFile('image/*'); if (!f) return null;
-  const r = await cropImage(f, ratio, size, false, { fx: (get('fx') || '1,1').split(',').map(Number), box: get('src') && get('box') && get('box').split(',').map(Number) });
-  return r && { [k]: r.img, [k + 'src']: r.src, [k + 'box']: r.box.join(), [k + 'fx']: r.fx.join() };
+  const r = await cropImage(f, ratio, size, !!cut, { fx: (get('fx') || '1,1').split(',').map(Number), box: get('src') && get('box') && get('box').split(',').map(Number) });
+  const img = r && cut ? await touchUp(await cutout(r.img), '抠图') : r?.img; if (!img) return null;   // 抠：框好以后抠掉底色，再给你修一下
+  return { [k]: img, [k + 'src']: r.src, [k + 'box']: r.box.join(), [k + 'fx']: r.fx.join() };
 }
 /** 主页背景：最多九张，一格一格排着，「+」加（一次能多选，一张一张框选区域），右上 × 去掉；左右滑的顺序就是这里的顺序 */
 const pickCovers = (all, size) => new Promise(done => {
@@ -204,8 +209,8 @@ function ownOf(key) {
   return own;
 }
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
-export async function dressOne(key, k, repaint) {
-  const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k]) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k]) : await upload(k, dressOf(key)[k], dressOf(key)); if (!got) return;
+export async function dressOne(key, k, repaint, pv) {
+  const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k], pv) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k], pv) : await upload(k, dressOf(key)[k], dressOf(key)); if (!got) return;
   const own = ownOf(key);
   // 去掉的那样：穿着的套装里也有，就记成空的盖住它（不然换成纯色了，套装里的图还露出来）
   const base = { ...setOf(D(key).set)?.imgs, ...state.forum.decos[key] };

@@ -225,8 +225,8 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__tabimg.is-hop { animation: as-fo-hop .35s ease-out; }
 @keyframes as-fo-hop { 0% { transform: translateY(0) scale(.6); } 50% { transform: translateY(-8px) scale(1.1); } 100% { transform: none; } }
 .as-fo-tabbar.has-img, .as-fo-ubar.has-img { position: relative; isolation: isolate; }
-/* 底栏背景图垫在下面一层：透明度、亮度只动图，不动按钮 */
-:is(.as-fo-tabbar, .as-fo-ubar).has-img::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--fo-barimg) left center / auto 100% repeat-x; opacity: var(--fo-barop, 1); filter: brightness(var(--fo-barbr, 1)); pointer-events: none; }
+/* 底栏背景图垫在下面一层：透明度、亮度只动图，不动按钮；抠过的图（蕾丝边）下面还能垫一层纯色 / 渐变，两层一样铺 */
+:is(.as-fo-tabbar, .as-fo-ubar).has-img::before { content: ''; position: absolute; inset: 0; z-index: -1; background: left center / auto 100% repeat-x; background-image: var(--fo-barimg); opacity: var(--fo-barop, 1); filter: brightness(var(--fo-barbr, 1)); pointer-events: none; }
 .as-fo-ubar__item { flex: 1; }
 .as-fo-recs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px 16px; scroll-snap-type: x mandatory; }
 .as-fo-rec { flex: none; display: grid; justify-items: center; gap: 6px; width: 104px; padding: 14px 8px; border-radius: 12px; background: var(--as-color-surface-2); scroll-snap-align: start; }
@@ -278,3 +278,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 /* 底栏用纯色 / 渐变：上沿往上淡开，和页面自然接上，不是一块硬边的色块 */
 [data-as-app="forum"] :is(.as-fo-tabbar, .as-fo-ubar).has-fill { box-shadow: none; background: none; }
 :is(.as-fo-tabbar, .as-fo-ubar).has-fill::before { top: -14px; -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }
+.as-fo-inkpv { margin: 0 -16px 12px; overflow: hidden; pointer-events: none; }   /* 挑字色时抽屉顶上那份预览 */
+/* 有的按钮换了小图、有的没换：字都落在同一条线上（小图高，往上长） */
+.as-fo-tab, .as-fo-ubar__item { align-content: end; }
