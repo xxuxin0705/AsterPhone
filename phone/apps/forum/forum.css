@@ -275,3 +275,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-btnpick.is-covers img { object-fit: cover; }
 .as-fo-btnpick__del { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; font: 400 16px/22px var(--font-ui); font-style: normal; text-align: center; }
 .as-fo-btnpick button.is-add { color: var(--as-color-text-2); }
+/* 底栏用纯色 / 渐变：上沿往上淡开，和页面自然接上，不是一块硬边的色块 */
+[data-as-app="forum"] :is(.as-fo-tabbar, .as-fo-ubar).has-fill { box-shadow: none; background: none; }
+:is(.as-fo-tabbar, .as-fo-ubar).has-fill::before { top: -14px; -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }

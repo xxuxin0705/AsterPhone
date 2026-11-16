@@ -356,10 +356,12 @@ export async function pickImage(title, { ratio = 1, size = 320, has = false, png
   const f = await pickFile();
   return f ? cropImage(f, ratio === 'screen' ? root.clientWidth / root.clientHeight : ratio, size, png) : null;
 }
-export function cropImage(file, ratio, size, png) {
+/** more = { fx: [不透明度, 亮度], box }：背景图用。框下面多两条「透明度、亮度」，拖着就看到；box 是上次框的地方（重新框时摆回去）。
+ *  这时返回 { img 框好的, src 框之前的原图（以后回来重新框）, box, fx }，透明度、亮度不烧进图里，只记两个数 */
+export function cropImage(file, ratio, size, png, more) {
   return new Promise(res => {
     // 相册原图动辄四千像素，直接拖着缩放手机会卡：先缩到最长边 2048（存下来最多 1100，够用）画在画布上，拖的是这张小的
-    const url = URL.createObjectURL(file), pic = new Image(), img = h('canvas.as-crop__img');
+    const url = typeof file === 'string' ? file : URL.createObjectURL(file), pic = new Image(), img = h('canvas.as-crop__img'), fx = more?.fx && [...more.fx];
     const fw = Math.min(root.clientWidth - 48, (root.clientHeight - 200) * ratio), fh = fw / ratio;
     const frame = h('div.as-crop__frame', { style: { width: fw + 'px', height: fh + 'px' } }, img);
     let s = 1, min = 1, x = 0, y = 0, gap = 0;   // 图片缩放倍数、左上角在框里的位置
@@ -367,12 +369,14 @@ export function cropImage(file, ratio, size, png) {
     pic.onload = () => {
       const k = Math.min(1, 2048 / Math.max(pic.naturalWidth, pic.naturalHeight));
       img.width = Math.round(pic.naturalWidth * k); img.height = Math.round(pic.naturalHeight * k); img.getContext('2d').drawImage(pic, 0, 0, img.width, img.height);
-      min = s = Math.max(fw / img.width, fh / img.height); x = (fw - img.width * s) / 2; y = (fh - img.height * s) / 2; fit();
+      min = s = Math.max(fw / img.width, fh / img.height); x = (fw - img.width * s) / 2; y = (fh - img.height * s) / 2;
+      if (more?.box) { const [bx, by, bw] = more.box; s = fw / bw; x = -bx * s; y = -by * s; }
+      fit();
     };
     pic.onerror = () => { toast('这张图打不开'); done(null); };
     // 一根手指拖，两根手指捏着缩放（围着框的中间缩）；框外面的图也看得见（压暗），在哪儿拖都行
     const pts = new Map();
-    const box = h('div.as-crop.is-pick');
+    const box = h('div.as-crop.is-pick' + (fx ? '.has-fx' : ''));
     box.onpointerdown = e => { if (e.target.closest('button')) return; box.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); gap = 0; };
     box.onpointermove = e => {
       const old = pts.get(e.pointerId); if (!old) return; pts.set(e.pointerId, e);
@@ -383,13 +387,17 @@ export function cropImage(file, ratio, size, png) {
     };
     box.onpointerup = box.onpointercancel = e => { pts.delete(e.pointerId); gap = 0; };
     box.onwheel = e => { e.preventDefault(); const ns = Math.max(min, s * (e.deltaY < 0 ? 1.1 : .9)), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; fit(); };
-    box.append(frame, h('div.as-crop__bar', btn('取消', 'secondary', () => done(null)), btn('确定', 'primary', () => {
+    const look = () => { img.style.opacity = fx[0]; img.style.filter = fx[1] !== 1 ? `brightness(${fx[1]})` : ''; };
+    if (fx) look();
+    box.append(frame, fx ? h('div.as-crop__fx', fxRow('透明度', +(1 - fx[0]).toFixed(2), 0, { min: 0, max: .9, step: .05, fmt: v => v ? Math.round(v * 100) + '%' : '不透明' }, v => { fx[0] = +(1 - v).toFixed(2); look(); }),
+      fxRow('亮度', fx[1], 1, { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }, v => { fx[1] = v; look(); })) : '', h('div.as-crop__bar', btn('取消', 'secondary', () => done(null)), btn('确定', 'primary', () => {
       const k = size / Math.max(fw, fh), c = document.createElement('canvas');
       c.width = Math.round(fw * k); c.height = Math.round(fh * k);
       c.getContext('2d').drawImage(img, -x / s, -y / s, fw / s, fh / s, 0, 0, c.width, c.height);
-      done(png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .86));
+      const out = png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .86);
+      done(fx ? { img: out, src: img.toDataURL('image/jpeg', .86), box: [-x / s, -y / s, fw / s].map(Math.round), fx } : out);
     })));
-    function done(v) { URL.revokeObjectURL(url); box.remove(); root.classList.remove('is-cropping'); res(v); }
+    function done(v) { if (url !== file) URL.revokeObjectURL(url); box.remove(); root.classList.remove('is-cropping'); res(v); }
     root.classList.add('is-cropping'); root.append(box); pic.src = url;   // is-cropping：底下的动画（下雨天的雨和字）先停，不然拖图会卡
   });
 }

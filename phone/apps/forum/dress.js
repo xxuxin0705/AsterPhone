@@ -13,10 +13,11 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'coverfx', 'barfx', 'pinbgfx', 'barfill', 'pinbgfill'];
+export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill',
+  ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」
-export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /^data:image\//).test(x);
+export const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /fx$/.test(k) ? /^[\d.]+,[\d.]+$/ : /fill$/.test(k) ? /^#[\da-f]{6}(,#[\da-f]{6})?$/i : /box$/.test(k) ? /^\d+,\d+,\d+$/ : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
 let SETS = null;
 export const loadSets = async () => SETS ??= (await kvGet('forumSets').catch(e => { log('warn', '论坛', '读不到装扮：' + e.message); return null; })) || [];
@@ -52,8 +53,9 @@ async function shrink(f, max) {
 async function upload(k, has, all = {}) {
   const [, t, ratio, size, png] = PIECES.find(x => x[0] === k);
   if (FILLS.includes(k)) {
-    const how = await actionSheet(t, [{ value: 'img', label: '用图片', icon: 'image' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }]); if (!how) return null;
+    const how = await actionSheet(t, [{ value: 'img', label: has ? '换一张图' : '用图片', icon: 'image' }, has && { value: 'edit', label: '调整这张图', icon: 'edit' }, { value: 'fill', label: '纯色 / 渐变', icon: 'palette' }].filter(Boolean)); if (!how) return null;
     if (how === 'fill') { const f = await pickFill(t); return f && { [k]: '', [k + 'fill']: f }; }
+    const r = await bgCrop(k, how === 'edit' && all, ratio, size); return r && { ...r, [k + 'fill']: '' };
   }
   if (png && has && k !== 'btn') {
     const a = await actionSheet(t, [{ value: 'pick', label: '换图', icon: 'image' }, { value: 'fix', label: '修图', icon: 'edit' }, { value: 'del', label: '去掉', icon: 'trash', danger: true }]); if (!a) return null;
@@ -61,8 +63,8 @@ async function upload(k, has, all = {}) {
     if (a === 'fix') { const u = await touchUp(has, t); return u && { [k]: u }; }
     has = false;
   }
-  if (k === 'tab') { const how = await actionSheet(t, [{ value: 'one', label: '传一张', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null; if (how === 'sheet') return pickFrom(k, size); }
-  if (k === 'cover') return pickCovers(covers(all), size);
+  if (['tab', 'pinicon', 'like'].includes(k)) { const how = await actionSheet(t, [{ value: 'one', label: '传一张', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null; if (how === 'sheet') return pickFrom(k, size); }
+  if (k === 'cover') return pickCovers(all, size);
   if (k === 'btn') {
     const how = await actionSheet(t, [{ value: 'one', label: '一张一张传', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null;
     if (how === 'sheet') return pickFrom(k, size);
@@ -75,7 +77,7 @@ async function upload(k, has, all = {}) {
   if (!ratio) { const f = await pickFile('image/*'); if (!f) return null; u = await shrink(f, size).catch(() => null); if (u == null) { toast('这张图打不开'); return null; } }
   else { u = await pickImage(t, { ratio, size, png: !!png, has: !!has }); if (u == null) return null; }
   if (u && png) { u = await touchUp(await cutout(u), t); if (u == null) return null; }
-  return { [k]: u, ...(FILLS.includes(k) && { [k + 'fill']: '' }) };
+  return { [k]: u };
 }
 
 // 底栏、置顶的横条：不用图也能用纯色、渐变（从左到右）
@@ -96,18 +98,27 @@ const pickInk = (k, title, none, cur) => new Promise(done => {
   const s = sheet({ title, content: h('div', h('div.as-mu-color', colorWheel(c, x => { c = x; })),
     h('div.as-lib-actions.is-two', btn(none, 'secondary', () => { v = ''; s.close(); }), btn('确定', 'primary', () => { v = c; s.close(); }))), onClose: () => done(v == null ? null : { [k]: v }) });
 });
+/** 背景图（底栏、置顶、主页背景）：框选区域 + 透明度、亮度。from 给了就是调整已有的那张：从原图重新框（老图没存原图就拿框好的那张） */
+async function bgCrop(k, from, ratio, size) {
+  const get = x => from && from[k + x], f = from ? get('src') || get('') : await pickFile('image/*'); if (!f) return null;
+  const r = await cropImage(f, ratio, size, false, { fx: (get('fx') || '1,1').split(',').map(Number), box: get('src') && get('box') && get('box').split(',').map(Number) });
+  return r && { [k]: r.img, [k + 'src']: r.src, [k + 'box']: r.box.join(), [k + 'fx']: r.fx.join() };
+}
 /** 主页背景：最多九张，一格一格排着，「+」加（一次能多选，一张一张框选区域），右上 × 去掉；左右滑的顺序就是这里的顺序 */
-const pickCovers = (cur, size) => new Promise(done => {
-  const list = [...cur]; let ok = false;
-  const grid = h('div.as-fo-btnpick.is-covers'), draw = () => grid.replaceChildren(...list.map((u, i) => h('button', { 'aria-label': '第 ' + (i + 1) + ' 张' }, h('img', { src: u, alt: '' }),
+const pickCovers = (all, size) => new Promise(done => {
+  const list = COVERS.filter(c => all[c]).map(c => Object.fromEntries(['', 'src', 'box', 'fx'].map(x => [x, all[c + x] || '']))); let ok = false;
+  const grid = h('div.as-fo-btnpick.is-covers'), draw = () => grid.replaceChildren(...list.map((e, i) => h('button', { 'aria-label': '第 ' + (i + 1) + ' 张', onclick: async ev => {
+      if (ev.target.closest('.as-fo-btnpick__del')) return;
+      const r = await bgCrop('', e, 1.83, size); if (r) { list[i] = r; draw(); }   // 点一张：回去重新框、调透明度亮度
+    } }, h('img', { src: e[''], alt: '' }),
     h('i.as-fo-btnpick__del', { role: 'button', 'aria-label': '去掉', onclick: () => { list.splice(i, 1); draw(); } }, '×'))),
     list.length < 9 ? h('button.is-add', { 'aria-label': '加图', onclick: async () => {
       const fs = (await pickMany()).slice(0, 9 - list.length);
-      for (const f of fs) { const u = await cropImage(f, 1.83, size); if (u) list.push(u); }   // 背景那一截照真微博是 393 × 212 左右
+      for (const f of fs) { const r = await cropImage(f, 1.83, size, false, { fx: [1, 1] }); if (r) list.push({ '': r.img, src: r.src, box: r.box.join(), fx: r.fx.join() }); }   // 背景那一截照真微博是 393 × 212 左右
       draw();
     } }, icon('plus', 22, 2)) : null);
   const s = sheet({ title: '主页背景（最多 9 张）', content: h('div.as-fo-compose', grid, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { ok = true; s.close(); }))),
-    onClose: () => done(ok ? Object.fromEntries(COVERS.map((c, i) => [c, list[i] || ''])) : null) });
+    onClose: () => done(ok ? Object.fromEntries(COVERS.flatMap((c, i) => ['', 'src', 'box', 'fx'].map(x => [c + x, list[i]?.[x] || '']))) : null) });
   draw();
 });
 /** 一张图里排着好几个小图：抠掉底色，按一块一块找出来（挨得近的并成一个），裁成小图 */
@@ -157,7 +168,7 @@ async function pickFrom(k, size) {
       const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < 4) on.push(i); else { toast('最多四个'); return; }
       paint();
     } }, img, h('i.as-fo-btnpick__fix', { role: 'button', 'aria-label': '修图', onclick: async () => { const v = await touchUp(all[i], '修这个'); if (v) { all[i] = img.src = v; paint(); } } }, '修')); }));
-    const s = sheet({ title: many ? '选底栏按钮' : '选标签小图', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),
+    const s = sheet({ title: many ? '选底栏按钮' : '选一个', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { if (!on.length) { toast('点一个'); return; } ok = true; s.close(); }))),
       onClose: () => done(!ok ? null : many ? { ...Object.fromEntries(BTNS.map((b, i) => [b, on[i] == null ? '' : all[on[i]]])), btnsize: String(z) } : { [k]: all[on[0]] }) });
     set(); paint();
@@ -192,19 +203,13 @@ function ownOf(key) {
   const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
   return own;
 }
-/** 背景图调透明度、亮度（和音乐播放页背景一样的滑条），拖着就看得到；关上才存 */
-export function dressFx(key, k, title, repaint) {
-  const own = ownOf(key), [op, br] = (dressOf(key)[k + 'fx'] || '1,1').split(',').map(Number), cur = { op, br };
-  const put = () => { own.imgs[k + 'fx'] = +cur.op.toFixed(2) + ',' + +cur.br.toFixed(2); repaint(); };
-  sheet({ title, content: h('div', fxRow('透明度', +(1 - op).toFixed(2), 0, { min: 0, max: .9, step: .05, fmt: v => v ? Math.round(v * 100) + '%' : '不透明' }, v => { cur.op = 1 - v; put(); }),
-    fxRow('亮度', br, 1, { min: .3, max: 1.5, step: .05, fmt: v => Math.round(v * 100) + '%' }, v => { cur.br = v; put(); })),
-  onClose: () => { saveSets(); commit('forum'); } });
-}
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
 export async function dressOne(key, k, repaint) {
   const got = k === 'btncolor' ? await pickInk(k, '底栏按钮的字', '跟着底栏', dressOf(key)[k]) : k === 'pincolor' ? await pickInk(k, '「置顶」两个字', '用默认', dressOf(key)[k]) : await upload(k, dressOf(key)[k], dressOf(key)); if (!got) return;
   const own = ownOf(key);
-  for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
+  // 去掉的那样：穿着的套装里也有，就记成空的盖住它（不然换成纯色了，套装里的图还露出来）
+  const base = { ...setOf(D(key).set)?.imgs, ...state.forum.decos[key] };
+  for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else if (base[x]) own.imgs[x] = ''; else delete own.imgs[x];
   await saveSets(); commit('forum'); repaint();
 }
 

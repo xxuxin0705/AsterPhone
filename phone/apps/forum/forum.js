@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, dressOne, dressFx, keep, fillCss, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, keep, fillCss, COVERS, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -651,16 +651,17 @@ function userView(by, host) {
     const cs = covers(dr); cover.classList.toggle('has-img', !!cs.length); track.hidden = !cs.length;
     if (cs.join() !== [...track.children].map(i => i.src).join()) track.replaceChildren(...cs.map(u => h('img', { src: u, alt: '' })));
     host.classList.toggle('no-fade', !fade(key));
-    const fx = k => (dr[k + 'fx'] || '1,1').split(','), [cop, cbr] = fx('cover');
-    track.style.opacity = cop; track.style.filter = +cbr !== 1 ? `brightness(${cbr})` : '';
+    const fx = k => (dr[k + 'fx'] || '1,1').split(',');
+    [...track.children].forEach((im, i) => { const [o, b] = fx(COVERS.filter(c => dr[c])[i]); im.style.opacity = o; im.style.filter = +b !== 1 ? `brightness(${b})` : ''; });
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
     // 标签小图：图里几乎是空的（截图拆出来只剩几粒点）就当没有
     solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
     // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
     for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', dr.pinbg ? `url("${dr.pinbg}")` : fillCss(dr.pinbgfill)], ['pinink', dr.pincolor], ['pinop', fx('pinbg')[0]], ['pinbr', fx('pinbg')[1]]]) list.style.setProperty('--fo-' + k, v || '');
+    list.classList.toggle('has-pinbg', !!(dr.pinbg || dr.pinbgfill));
     for (const u0 of [ubar, tb].filter(Boolean)) {
-      u0.style.setProperty('--fo-barimg', dr.bar ? `url("${dr.bar}")` : fillCss(dr.barfill)); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
+      u0.style.setProperty('--fo-barimg', dr.bar ? `url("${dr.bar}")` : fillCss(dr.barfill)); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill)); u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill);
       u0.style.setProperty('--fo-barop', fx('bar')[0]); u0.style.setProperty('--fo-barbr', fx('bar')[1]);
       u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3', 'btn4'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
       u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
@@ -705,18 +706,17 @@ function userView(by, host) {
       const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
       editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
     } else if (is('.as-fo-user__cover')) {
-      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '背景图（最多 9 张）', icon: 'image' }, has && { value: 'fx', label: '透明度、亮度', icon: 'eye' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
+      const has = covers(dressOf(key)).length, x = await actionSheet('背景', [{ value: 'cover', label: '背景图（最多 9 张）', icon: 'image' }, has && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
         { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }].filter(Boolean));
       if (x === 'cover') dressOne(key, 'cover', paint);
       if (x === 'fade') { setFade(key); paint(); }
-      if (x === 'fx') dressFx(key, 'cover', '背景', paint);
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
     } else if (is('.as-fo-user__tabs')) dressOne(key, 'tab', paint);
-    else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'fx:pinbg', label: '背景的透明度、亮度', icon: 'eye' }, { value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
-    else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [(dressOf(key).bar || dressOf(key).barfill) && { value: 'fx:bar', label: '背景的透明度、亮度', icon: 'eye' }, { value: 'btncolor', label: '按钮的字', icon: 'palette' }].filter(Boolean));
+    else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
+    else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
-  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k?.startsWith('fx:')) dressFx(key, k.slice(3), title, paint); else if (k) dressOne(key, k, paint);
+  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint);
   };
   const head = h('div.as-fo-user', cover, main);
   [head, tabs, tb].forEach(x => x?.addEventListener('click', onEdit, true));
