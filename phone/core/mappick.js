@@ -1,12 +1,12 @@
 // 在地图上选地区：搜「日本」地图就移过去，拖一拖、放大缩小，点「用这里」。
-// 地图图块用 CARTO（OpenStreetMap 的数据），搜地名、认地名用 Nominatim，都是网页直接连，不用后端，两边酒馆都一样
+// 地图图块用 OpenStreetMap 自己的（CARTO 现在要密钥了），搜地名、认地名用 Nominatim，都是网页直接连，不用后端，两边酒馆都一样
 import { h } from './util.js';
 import { page, btn, toast, icon, busy } from './ui.js';
 import { log } from './log.js';
 import * as nav from './nav.js';
 
 const T = 256, N = 'https://nominatim.openstreetmap.org/';
-const tile = (z, x, y) => `https://basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}@2x.png`;
+const tile = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 // 经纬度 ↔ 第 z 层地图上的像素
 const px = (lat, lng, z) => { const s = T * 2 ** z, r = lat * Math.PI / 180; return [(lng + 180) / 360 * s, (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * s]; };
 const ll = (x, y, z) => { const s = T * 2 ** z, n = Math.PI - 2 * Math.PI * y / s; return [180 / Math.PI * Math.atan(Math.sinh(n)), x / s * 360 - 180]; };
@@ -23,7 +23,7 @@ export function pickPlace(title = '选地区', none = '按正文定') {
     [cx, cy] = px(35, 115, z);
     const tiles = new Map(), layer = h('div.as-map__tiles'), map = h('div.as-map', layer, h('i.as-map__pin'),
       h('div.as-map__zoom', h('button', { 'aria-label': '放大', onclick: () => zoom(1) }, '+'), h('button', { 'aria-label': '缩小', onclick: () => zoom(-1) }, '−')),
-      h('small.as-map__credit', '© OpenStreetMap · © CARTO'));
+      h('small.as-map__credit', '© OpenStreetMap'));
     function draw() {
       const W = map.clientWidth, H = map.clientHeight, n = 2 ** z, seen = new Set();
       for (let ty = Math.floor((cy - H / 2) / T); ty <= Math.floor((cy + H / 2) / T); ty++) for (let tx = Math.floor((cx - W / 2) / T); tx <= Math.floor((cx + W / 2) / T); tx++) {

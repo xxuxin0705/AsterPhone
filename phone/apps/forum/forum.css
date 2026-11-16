@@ -242,6 +242,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-editme .as-page__body { display: flex; flex-direction: column; overflow: hidden; }
 .as-fo-editme__pv { flex: none; }
 .as-fo-editme__form { flex: 1; min-height: 0; overflow-y: auto; padding-top: 10px; }
-.as-fo-editme .as-fo-compose > .as-field { grid-template-columns: 4.2em 1fr; align-items: center; column-gap: 10px; }
-.as-fo-editme .as-fo-compose > .as-field > .as-field__label { font-size: .95em; color: var(--as-color-text); }
+.as-fo-compose > .as-field:not(:has(textarea)) { grid-template-columns: 4.6em 1fr; align-items: center; column-gap: 10px; }
+.as-fo-compose > .as-field:not(:has(textarea)) > .as-field__label { font-size: .95em; color: var(--as-color-text); }
 .as-fo-user__ipic { display: inline-grid; place-items: center; width: 15px; height: 15px; border: 1.3px solid currentColor; border-radius: 50%; font: 600 7px/1 var(--font-ui); font-style: normal; }

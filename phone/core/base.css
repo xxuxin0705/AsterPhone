@@ -173,6 +173,10 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-field + .as-field { border-top: 1px solid var(--as-color-border); }
 .as-field__label { font: 400 .85em/1.2 var(--font-ui); color: var(--as-color-text-2); }
 .as-field__hint { font: 400 .78em/1.45 var(--font-ui); color: var(--as-color-text-2); }
+/* 单行输入框：名字在左、框在右，一行一项（同一组里框都从同一条线开始） */
+.as-field:has(> input.as-input) { grid-template-columns: 4.6em 1fr; align-items: center; column-gap: 10px; }
+.as-field:has(> input.as-input) > .as-field__label { font-size: .95em; color: var(--as-color-text); }
+.as-field:has(> input.as-input) > .as-field__hint { grid-column: 1 / -1; }
 .as-btn { position: relative; overflow: hidden; border: 1px solid transparent; border-radius: var(--as-radius-m); padding: 12px 20px; font: 600 1em/1 var(--font-ui); cursor: pointer; transition: transform var(--as-dur-fast) var(--as-ease-standard), opacity var(--as-dur-base), box-shadow var(--as-dur-base); }
 .as-btn::before { content: ""; position: absolute; inset: 0; height: 50%; background: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,.05)); pointer-events: none; }
 .as-btn:active { transform: scale(.95); }

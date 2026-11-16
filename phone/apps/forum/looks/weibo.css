@@ -172,7 +172,7 @@
 [data-as-app="forum"] .as-fo-user__ava { margin-top: -24px; box-shadow: 0 0 0 3px var(--fo-card); }
 [data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge { width: 16px; height: 16px; right: 1px; bottom: 1px; box-shadow: 0 0 0 2px #fff; }
 [data-as-app="forum"] .as-fo-user__ava .as-fo-post__badge.is-r { box-shadow: 0 0 0 2px #fff35c, 0 0 3px 2px rgba(255, 235, 60, .7); }
-[data-as-app="forum"] .as-fo-user__name { align-self: start; margin-top: 18px; font: 500 19px/1.3 var(--font-ui); }
+[data-as-app="forum"] .as-fo-user__name { align-self: end; font: 500 19px/1.3 var(--font-ui); }
 [data-as-app="forum"] .as-fo-user__name .as-fo-post__v { display: none; }
 [data-as-app="forum"] .as-fo-user__nums { gap: 20px; margin-top: 17px; font-size: 14px; color: #999; }
 [data-as-app="forum"] .as-fo-user__num b { margin-right: 5px; font-size: 16px; font-weight: 500; }
@@ -201,7 +201,6 @@
 .is-dressed .as-fo-user__ava { box-shadow: none; }
 .is-dressed .as-fo-user__main { background: none; border-radius: 0; }
 .is-dressed .as-fo-user__ava { margin-top: 0; }
-.is-dressed .as-fo-user__name { margin-top: 0; align-self: end; }
 .is-dressed .as-fo-ubar.has-img { box-shadow: none; }
 .is-dressed .as-fo-ubar__item { text-shadow: 0 0 3px #fff; }
 
@@ -214,6 +213,8 @@
 [data-as-app="forum"] .as-fo-user__cert { order: 3; }
 [data-as-app="forum"] .as-fo-user__cert.is-ip { margin-top: 8px; }
 /* 简介在名字下面（头像右边两行），认证放在橙色小字下面 */
+/* 头像占两行、两行一样高：名字压在头像中线上面、简介在下面 */
+[data-as-app="forum"] .as-fo-user__main { grid-template-rows: 1fr 1fr; }
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__ava { grid-row: 1 / 3; }
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__name { grid-area: 1 / 2; }
 [data-as-app="forum"] .as-fo-user__main > .as-fo-user__bio { grid-area: 2 / 2; align-self: start; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
