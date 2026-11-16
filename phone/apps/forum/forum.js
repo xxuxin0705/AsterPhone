@@ -3,7 +3,7 @@
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact } from '../../core/store.js';
-import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, joystick } from '../../core/ui.js';
+import { page, navBtn, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
@@ -610,7 +610,7 @@ function paintBar(u0, dr) {
   u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
   (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
 }
-/** 标签：小图大小、位置（摇杆挪的上下左右），下面那条线的样子和颜色（装扮里没写就用默认：和字差不多大、橙色短横线） */
+/** 标签：小图大小、位置（上下左右挪），下面那条线的样子和颜色（装扮里没写就用默认：和字差不多大、橙色短横线） */
 const tabStyle = (el, dr) => { el.style.setProperty('--fo-tabz', (dr.tabsize || 20) + 'px'); el.style.setProperty('--fo-tabat', `${dr.tabx || 0}px ${dr.taby || 0}px`); el.style.setProperty('--fo-markc', dr.tabmarkcolor || ''); el.dataset.mark = dr.tabmark || 'bar'; };
 const solid = u => u ? solids.get(u) ?? solids.set(u, loadImg(u).then(im => { const c = document.createElement('canvas'), w = c.width = Math.min(200, im.naturalWidth), H = c.height = Math.max(1, Math.round(im.naturalHeight * w / im.naturalWidth)), x = c.getContext('2d'); x.drawImage(im, 0, 0, w, H);
   const a = x.getImageData(0, 0, w, H).data; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i] > 128) n++; return n > a.length / 4 * .04; }).catch(() => true)).get(u) : Promise.resolve(false);
@@ -736,12 +736,11 @@ function userView(by, host) {
       return { el: app(box), live: c => box.style.setProperty('--fo-pinink', c) }; }
     if (k === 'btncolor' && tb) { const bar = tb.cloneNode(true); return { el: app(bar), live: c => { bar.classList.add('has-ink'); bar.style.setProperty('--fo-btnink', c); } }; }
   };
-  // 标签的小图大小、位置（摇杆）、下面那条线（短横线 / 三个点 / 不要，能换颜色）：抽屉顶上放一份标签的复制，拖着马上看到
+  // 标签的小图大小、位置（上下左右一下挪 1 像素）、下面那条线（短横线 / 三个点 / 不要，能换颜色）：抽屉顶上放一份标签的复制，拖着马上看到
   const tabSheet = mode => {
     const d = { ...dressOf(key) }, pv = tabs.cloneNode(true), set = (k, v) => { d[k] = v; tabStyle(pv, d); };
     const rows = mode === 'fit' ? [fxRow('大小', +(d.tabsize || 20), 20, { min: 12, max: 40, step: 1, fmt: v => v + '' }, v => set('tabsize', String(v))),
-      h('div.as-fo-joyrow', joystick((dx, dy) => { const c = v => Math.max(-30, Math.min(30, v)); d.x = c((d.x ?? +(d.tabx || 0)) + dx); d.y = c((d.y ?? +(d.taby || 0)) + dy); set('tabx', String(Math.round(d.x))); set('taby', String(Math.round(d.y))); }),
-        btn('回到原位', 'secondary', () => { d.x = d.y = 0; set('tabx', '0'); set('taby', '0'); }))]
+      nudger((dx, dy) => { const c = v => String(Math.max(-30, Math.min(30, v))); set('tabx', c(+(d.tabx || 0) + dx)); set('taby', c(+(d.taby || 0) + dy)); }, () => { set('tabx', '0'); set('taby', '0'); })]
       : [h('div.as-fo-markrow', segmented([['bar', '短横线'], ['dots', '三个点'], ['none', '不要']], d.tabmark || 'bar', v => set('tabmark', v)),
         h('button.as-deco-dot', { 'aria-label': '线的颜色', style: { background: d.tabmarkcolor || '#ff8200' }, onclick: e => { const dot = e.currentTarget; sheet({ title: '线的颜色', content: h('div.as-mu-color', colorWheel(d.tabmarkcolor || '#ff8200', c => { dot.style.background = c; set('tabmarkcolor', c); })) }); } }))];
     tabStyle(pv, d);

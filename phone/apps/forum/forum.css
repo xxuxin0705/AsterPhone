@@ -284,5 +284,3 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-markrow { display: flex; align-items: center; gap: 10px; }
 .as-fo-markrow .as-segmented { flex: 1; }
 .as-fo-markrow .as-deco-dot { flex: none; }
-.as-fo-joyrow { display: grid; justify-items: center; gap: 10px; }
-.as-fo-joyrow .as-btn { width: auto; min-height: 0; padding: 7px 16px; font-size: 13px; }

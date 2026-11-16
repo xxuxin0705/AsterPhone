@@ -161,25 +161,26 @@ async function chop(url, size) {
   });
 }
 /** 传一张排着好几个小图的图，抠出来让你挑：底栏按钮点几个（按点的顺序从左到右，最多四个）还能调大小；标签小图挑一个 */
-async function pickFrom(k, size) {
-  const f = await pickFile('image/*'); if (!f) return null;
-  const all = await chop(await cutout(await shrink(f, 1200), 36), size).catch(e => { log('warn', '论坛', '抠按钮小图失败：' + e.message); return []; });
+// given：直接从这几张里挑（套装穿到别人身上：四个按钮小图挑三个），不用传图
+async function pickFrom(k, size, given, max = k === 'btn' ? 4 : 1) {
+  const f = !given && await pickFile('image/*'); if (!given && !f) return null;
+  const all = given || await chop(await cutout(await shrink(f, 1200), 36), size).catch(e => { log('warn', '论坛', '抠按钮小图失败：' + e.message); return []; });
   if (!all.length) { toast('这张图里没抠出东西'); return null; }
-  const many = k === 'btn';
+  const many = max > 1;
   return new Promise(done => {
     const on = [];
     let z = 34, ok = false;   // 照真微博装扮底栏量的
     const bar = h('div.as-fo-btnpv'), set = () => bar.style.setProperty('--fo-btnz', z + 'px');
     const paint = () => {
       grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });
-      bar.replaceChildren(...[0, 1, 2, 3].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
+      bar.replaceChildren(...[...Array(max).keys()].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
     };
     const grid = h('div.as-fo-btnpick', all.map((u, i) => { const img = h('img', { src: u, alt: '' }); return h('button', { 'aria-label': '第 ' + (i + 1) + ' 个', onclick: e => {
       if (e.target.closest('.as-fo-btnpick__fix')) return;
-      const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < 4) on.push(i); else { toast('最多四个'); return; }
+      const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < max) on.push(i); else { toast(`最多${max}个`); return; }
       paint();
     } }, img, h('i.as-fo-btnpick__fix', { role: 'button', 'aria-label': '修图', onclick: async () => { const v = await touchUp(all[i], '修这个'); if (v) { all[i] = img.src = v; paint(); } } }, '修')); }));
-    const s = sheet({ title: many ? '选底栏按钮' : '选一个', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 18, max: 44, step: 1, value: z, onInput: v => { z = v; set(); } })),
+    const s = sheet({ title: given ? 'TA 的底栏只有三个按钮，挑三个' : many ? '选底栏按钮' : '选一个', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 18, max: 44, step: 1, value: z, onInput: v => { z = v; set(); } })),
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { if (!on.length) { toast('点一个'); return; } ok = true; s.close(); }))),
       onClose: () => done(!ok ? null : many ? { ...Object.fromEntries(BTNS.map((b, i) => [b, on[i] == null ? '' : all[on[i]]])), btnsize: String(z) } : { [k]: all[on[0]] }) });
     set(); paint();
@@ -194,7 +195,11 @@ export async function dressMenu(key, repaint) {
   if (v === 'set') {
     if (!sets().length) { toast('还没有套装，先去「装扮」里新建或导入'); return; }
     const id = await actionSheet('穿哪套', sets().map(s => ({ value: s.id, label: s.name, active: s.id === d.set }))); if (!id) return;
-    wear(key, id); repaint();
+    wear(key, id);
+    // 别人主页底下只有三个按钮（留言 · 推荐 · 关注）：套装里有四个按钮小图就挑三个，按挑的顺序放
+    const imgs = setOf(id).imgs, pics = BTNS.map(b => imgs[b]).filter(Boolean);
+    if (key !== meKey() && pics.length > 3) { const got = await pickFrom('btn', 160, pics, 3); if (got) { Object.assign(ownOf(key).imgs, got); await saveSets(); commit('forum'); } }
+    repaint();
   }
   if (v === 'off') { wear(key, ''); repaint(); }
   if (v === 'fade') { setFade(key); repaint(); }

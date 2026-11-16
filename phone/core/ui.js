@@ -107,17 +107,14 @@ export function fxRow(label, value, def, o, onSet) {
   back.style.visibility = value === def ? 'hidden' : '';   // 藏起来也占着位置，滑条不会忽长忽短
   return h('div.as-settings-slider-row', h('span.as-fx-label', label), sl, out, back);
 }
-/** 摇杆：按住往哪边推，就一直往哪边挪（推得越远挪得越快），松手弹回中间。onMove(dx, dy) 每一帧给一次要挪的像素 */
-export function joystick(onMove) {
-  const knob = h('i.as-joy__knob'), pad = h('div.as-joy', { 'data-no-swipe': '' }, knob);
-  let v = null, raf = 0;
-  const tick = () => { if (!v) return; onMove(v[0] * 1.6, v[1] * 1.6); raf = requestAnimationFrame(tick); };
-  const at = e => { const r = pad.getBoundingClientRect(), R = r.width / 2, x = e.clientX - r.left - R, y = e.clientY - r.top - R, d = Math.min(1, Math.hypot(x, y) / (R * .7)), a = Math.atan2(y, x);
-    v = [Math.cos(a) * d, Math.sin(a) * d]; knob.style.transform = `translate(${v[0] * R * .55}px, ${v[1] * R * .55}px)`; };
-  pad.onpointerdown = e => { pad.setPointerCapture(e.pointerId); at(e); cancelAnimationFrame(raf); tick(); };
-  pad.onpointermove = e => { if (v) at(e); };
-  pad.onpointerup = pad.onpointercancel = () => { v = null; knob.style.transform = ''; };
-  return pad;
+/** 上下左右四个小按钮：点一下挪 1 像素，按住一直挪；中间是「回到原位」。onMove(dx, dy) */
+export function nudger(onMove, onReset) {
+  let t = 0;
+  const stop = () => clearInterval(t);
+  const arrow = (label, dx, dy, rot) => h('button.as-nudge__btn', { type: 'button', 'aria-label': label,
+    onpointerdown: e => { e.preventDefault(); onMove(dx, dy); stop(); t = setTimeout(() => { t = setInterval(() => onMove(dx, dy), 60); }, 350); },
+    onpointerup: stop, onpointerleave: stop, onpointercancel: stop }, h('span', { style: { rotate: rot + 'deg' } }, icon('chevron', 18, 2.2)));
+  return h('div.as-nudge', arrow('往上', 0, -1, -90), arrow('往左', -1, 0, 180), h('button.as-nudge__mid', { type: 'button', onclick: onReset }, '原位'), arrow('往右', 1, 0, 0), arrow('往下', 0, 1, 90));
 }
 /** 圆形色轮：手指按到哪就是哪个颜色（越往外越鲜艳），下面一条调亮暗。onChange 收到 #rrggbb。所有选颜色的地方都用它 */
 /** alpha：多一根「透明度」（气泡用），出来的是 #rrggbbaa */
