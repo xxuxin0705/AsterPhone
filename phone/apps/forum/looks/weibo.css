@@ -222,13 +222,12 @@
 [data-as-app="forum"] .as-fo-user__cert svg { color: #9a9a9a; }
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
 [data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
-/* 会员牌子（照真微博的样子画的）：左边一个金王冠，后面一块斜体字的小牌子；紧挨着名字（王冠往左探一点，跟名字只空一点点） */
-[data-as-app="forum"] .as-fo-vip { flex: none; position: relative; display: inline-flex; align-items: center; height: 17px; margin-left: 1px; padding: 0 8px 0 22px; border-radius: 3px 9px 9px 3px; background: linear-gradient(#ffe892, #ffb92e); box-shadow: inset 0 0 0 .5px rgba(201, 106, 0, .55); color: #e0261b; font: italic 900 12.5px/1 Arial, sans-serif; letter-spacing: .3px; vertical-align: -2px; }
-[data-as-app="forum"] .as-fo-vip::before { content: ''; position: absolute; left: -3px; top: -6px; width: 24px; height: 22px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 21'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff1a8'/%3E%3Cstop offset='.55' stop-color='%23ffc22e'/%3E%3Cstop offset='1' stop-color='%23f08a00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M2.5 7.5l5.2 3.8L12 3.2l4.3 8.1 5.2-3.8-1.9 9.6H4.4z' fill='url%28%23g%29' stroke='%23c96a00' stroke-width='1.1' stroke-linejoin='round'/%3E%3Cpath d='M12 9.4l2.6 2.4-2.6 3-2.6-3z' fill='%23ec2d2d' stroke='%23a3100f' stroke-width='.6'/%3E%3Ccircle cx='2.5' cy='6.8' r='1.7' fill='%23ffd84a' stroke='%23c96a00' stroke-width='.6'/%3E%3Ccircle cx='12' cy='2.3' r='1.7' fill='%23ffd84a' stroke='%23c96a00' stroke-width='.6'/%3E%3Ccircle cx='21.5' cy='6.8' r='1.7' fill='%23ffd84a' stroke='%23c96a00' stroke-width='.6'/%3E%3Crect x='4' y='17.2' width='16' height='2.6' rx='1.1' fill='%23f6a300' stroke='%23c96a00' stroke-width='.6'/%3E%3C/svg%3E") center / contain no-repeat; }
-[data-as-app="forum"] .as-fo-vip.is-svip { background: linear-gradient(#4b4b4b, #191919); box-shadow: inset 0 0 0 .5px #c9a14a; color: #f7d77c; }
-[data-as-app="forum"] .as-fo-vip.is-mini { height: 15px; padding: 0 7px 0 19px; font-size: 11px; }
-[data-as-app="forum"] .as-fo-vip.is-mini::before { width: 21px; height: 19px; top: -5px; }
-[data-as-app="forum"] :is(.as-fo-post__name, .as-fo-floor__name).is-vip { color: var(--fo-vip); }
+/* 会员牌子（从真微博截图抠的，去掉了等级数字），比名字的字稍小一点，紧挨着名字 */
+[data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 40px; height: 16px; margin-left: 1px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
+[data-as-app="forum"] .as-fo-vip.is-svip { width: 47px; background-image: url('assets/forum/svip.png'); }
+[data-as-app="forum"] .as-fo-vip.is-mini { width: 35px; height: 14px; }
+[data-as-app="forum"] .as-fo-vip.is-mini.is-svip { width: 41px; }
+[data-as-app="forum"] :is(.as-fo-post__name, .as-fo-floor__name, .as-fo-user__name > span).is-vip { color: var(--fo-vip); }
 /* 橙 V 上那道浅橙的光一直扫过去（真微博是动的） */
 @keyframes fo-vshine { 0%, 15% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
 /* 主页底栏的「+ 关注」：右边一个橙色大按钮（真微博那样），关注了变回普通的「已关注」 */

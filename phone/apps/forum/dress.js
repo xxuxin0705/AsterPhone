@@ -79,19 +79,21 @@ export async function dressMenu(key, repaint) {
   }
   if (v === 'off') { wear(key, ''); repaint(); }
   if (v === 'fade') { state.forum.decos[key] = { ...D(key), fade: !fade(key) }; commit('forum'); repaint(); }
-  if (v === 'one') {
-    const k = await actionSheet('换哪一样', PIECES.map(([k, t]) => ({ value: k, label: t }))); if (!k) return;
-    const got = await upload(k, !!dressOf(key)[k]); if (!got) return;
-    let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...D(key), own: own.id }; }
-    for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
-    await saveSets(); commit('forum'); repaint();
-  }
+  if (v === 'one') { const k = await actionSheet('换哪一样', PIECES.map(([k, t]) => ({ value: k, label: t }))); if (k) await dressOne(key, k, repaint); }
   if (v === 'save') {
     const name = ((await dialog({ title: '套装的名字', input: { placeholder: '名字' } })) || '').trim(); if (!name) return;
     const imgs = Object.fromEntries(Object.entries(dressOf(key)).filter(([, x]) => /^data:image\//.test(x)));
     if (!Object.keys(imgs).length) { toast('还没有装扮'); return; }
     SETS.push({ id: uid('fd'), name: name.slice(0, 20), imgs }); await saveSets(); toast('存好了');
   }
+}
+
+/** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */
+export async function dressOne(key, k, repaint) {
+  const got = await upload(k, !!dressOf(key)[k]); if (!got) return;
+  const d = D(key); let own = setOf(d.own); if (!own) { own = { id: uid('fd'), own: true, name: '', imgs: {} }; SETS.push(own); state.forum.decos[key] = { ...d, own: own.id }; }
+  for (const [x, u] of Object.entries(got)) if (u) own.imgs[x] = u; else { delete own.imgs[x]; delete state.forum.decos[key][x]; }
+  await saveSets(); commit('forum'); repaint();
 }
 
 /* ---------- 套装卡片：资源库 → 应用 → 论坛、论坛首页右上「装扮」两个地方都是这个。点一下穿到我身上（只换勾），「…」编辑 / 导出 / 删除 ---------- */

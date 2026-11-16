@@ -55,10 +55,30 @@ export async function pickDeco(k, cur, face) {
   const name = k === 'frames' ? '头像框' : '气泡', list = deco()[k];
   if (!list.length) { toast(`还没有${name}，去「资源库 → 个性装扮」添加`); return null; }
   // 头像框：一格一格戴在这个人头像上给你看，点哪个选哪个
+  // 头像框：上面一个大头像戴着选中的框给你看，下面一格一格选；选中了还能就地调色（改的是这个框本身，戴它的人都跟着变），点「确定」才算
   if (k === 'frames') return new Promise(res => {
-    const { sheet, avatar } = ui; let v = null;
-    const tile = (id, label) => h('button.as-deco-pick' + ((cur || 'none') === id ? '.is-on' : ''), { onclick: () => { v = id; s.close(); } }, addFrame(avatar(face?.src || '', face?.name || '我', 52), id === 'none' ? '' : id), h('span', label));
-    const s = sheet({ title: name, content: h('div.as-deco-picks', tile('none', '不戴'), ...list.map(x => tile(x.id, x.name))), onClose: () => res(v) });
+    const { sheet, avatar, btn, segmented, colorWheel } = ui; let pick = cur || 'none', ok = false;
+    const tones = {}; let job = 0;   // 这次调过色的框：id → { tint, dark, light, view }
+    const pv = h('div.as-deco-pv'), toneBox = h('div.as-deco-tone'), grid = h('div.as-deco-picks');
+    const paint = () => {
+      const f = find('frames', pick), t = tones[pick], a = addFrame(avatar(face?.src || '', face?.name || '我', 96), f ? pick : '');
+      if (t) a.style.setProperty('--frame', `url("${t.view || f.src}")`);
+      pv.replaceChildren(a);
+      grid.querySelectorAll('.as-deco-pick').forEach(b => b.classList.toggle('is-on', b.dataset.id === pick));
+      toneBox.replaceChildren(); if (!f) return;
+      const t0 = t || { tint: f.tint ? 'on' : '', dark: f.dark || '#2f5fa8', light: f.light || '#ffffff', view: f.view || '' };
+      const redo = async () => { const n = ++job, v = t0.tint ? await tintFrame(f.src, t0.dark, t0.light) : ''; if (n !== job) return; t0.view = v; tones[f.id] = t0; paint(); };   // 拖色盘时只用最后一次
+      const dot = (k2, label) => h('button.as-deco-dot', { 'aria-label': label, style: { background: t0[k2] }, onclick: () => sheet({ title: label, content: h('div.as-mu-color', colorWheel(t0[k2], c => { t0[k2] = c; redo(); })) }) });
+      toneBox.append(segmented([['', '不染'], ['on', '染色']], t0.tint, x => { t0.tint = x; redo(); }), ...(t0.tint ? [dot('dark', '深处的颜色'), dot('light', '浅处的颜色')] : []));
+    };
+    const tile = (id, label) => h('button.as-deco-pick', { dataset: { id }, onclick: () => { pick = id; paint(); } }, addFrame(avatar(face?.src || '', face?.name || '我', 52), id === 'none' ? '' : id), h('span', label));
+    grid.append(tile('none', '不戴'), ...list.map(x => tile(x.id, x.name)));
+    const s = sheet({ title: name, content: h('div.as-deco-pickbox', pv, toneBox, grid, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => {
+      for (const [id, t] of Object.entries(tones)) { const f = find('frames', id); if (f) { Object.assign(f, { tint: t.tint, dark: t.dark, light: t.light, view: t.view }); refreshFrame(id); } }
+      if (Object.keys(tones).length) commit('deco');
+      ok = true; s.close();
+    }))), onClose: () => res(ok ? pick : null) });
+    paint();
   });
   return actionSheet(name, [{ value: 'none', label: '不戴', active: !cur }, ...list.map(x => ({ value: x.id, label: x.name, active: x.id === cur }))]);
 }

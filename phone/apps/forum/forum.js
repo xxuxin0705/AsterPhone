@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -72,8 +72,8 @@ function landed(got) {
 const feedTo = (b, opts = {}) => go('feed:' + b, '正在刷新…', s => E.feed(b, opts, s)).then(got => { if (got) { landed(got); toast(`刷到 ${got.length} 条`); } return got; });
 
 /* ---------- 零件 ---------- */
-// 会员牌子：名字后面那块 VIP / SVIP（帖子、评论里小一号）；样子在 looks/weibo.css 里画
-const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), w.vip.toUpperCase()) : null;
+// 会员牌子：名字后面那块 VIP / SVIP（帖子、评论里小一号）
+const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), { title: w.vip.toUpperCase() }) : null;
 const VIPS = [['', '不开'], ['vip', 'VIP'], ['svip', 'SVIP']];
 const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('check', 9, 3.4));
 function ava(by, size, framed) {
@@ -405,13 +405,13 @@ function mePane(p) {
   const build = () => {
     const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
     R.mePaint = v.paint; R.meRefresh = v.refresh; R.meEdit = v.edit; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
-    box.replaceChildren(...v.els); applyTexts();
+    box.replaceChildren(...v.els); p.el.querySelector('.as-fo-ubar--pv')?.remove(); p.el.append(v.pv); applyTexts();
   };
   build(); R.meSwitch = build;
   // 编辑主页：不换页，就在这一页上点哪改哪；顶上一条毛玻璃的条（导入 · 导出 · 完成），一直停在上面
   const bar = h('div.as-fo-editbar', { hidden: true }, h('span', h('button', { onclick: importMe }, '导入'), h('button', { onclick: exportMe }, '导出')), h('b', '编辑主页'), h('span', h('button.is-done', { onclick: () => edit(false) }, '完成')));
   const edit = on => { bar.hidden = !on; R.meEdit(on); if (!on) toast('已保存'); };
-  p.el.append(bar);
+  p.el.querySelector('.as-navbar').append(bar);   // 盖在原来的顶栏上，高度、位置都跟顶栏一样
   return { el: box, title: E.who({ k: 'me', id: E.curAcc().id }).name, onShow: () => {}, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', () => edit(true)), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
@@ -600,6 +600,9 @@ function userView(by, host) {
   if (fol) { fol.dataset.key = key; paintFol(fol); }
   const ubar = h('div.as-fo-ubar', mine ? bi('palette', h('span', '装扮'), decorate)
     : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
+  // 编辑我的主页时，底下换成别人进我主页看到的那条底栏，点它换底栏装扮
+  const pv = mine && h('div.as-fo-ubar.as-fo-ubar--pv', bi('chat', W('forum.dm')), bi('users', h('span', '推荐')), bi('user', W('forum.follow')));
+  pv?.lastChild.classList.add('as-fo-ubar__follow');
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
@@ -612,16 +615,18 @@ function userView(by, host) {
     // 标签小图、花边：图里几乎是空的（截图拆出来只剩几粒点）就当没有
     solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
     solid(dr.tabline).then(ok => { tabs.style.setProperty('--fo-tabline', ok ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', ok); });
-    ubar.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; ubar.classList.toggle('has-img', !!dr.bar);
-    ubar.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+    for (const u0 of [ubar, pv].filter(Boolean)) {
+      u0.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; u0.classList.toggle('has-img', !!dr.bar);
+      u0.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+    }
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id), O = () => acc || E.over(by);   // 我的号的资料 / 我给别人改过的资料
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
   let editing = false;
   const certOf = () => O().cert || (b ? b.topic : acc ? '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
-  const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
+  const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span' + (w.vip ? '.is-vip' : ''), w.name), vipEl(w), w.v ? vMark() : null),
     w.v || o.cert || editing ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), w.v || o.cert ? certOf() : ph('认证')) : null,
-    w.ip || editing ? h('div.as-fo-user__cert.is-ip', h('i.as-fo-user__ipic', 'IP'), w.ip ? 'IP属地：' + w.ip : ph('IP 属地')) : null,
+    w.ip || editing ? h('div.as-fo-user__cert.is-ip', w.ip ? 'IP属地：' + w.ip : ph('IP 属地')) : null,
     h('div.as-fo-user__bio', (o.bio ?? (b ? b.bio : '')) || (editing ? ph('简介') : '')), tagsOf(),
     h('div.as-fo-user__nums', n(o.fans ?? fans, 'forum.fans'), n(o.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(o.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
   let main = mainOf();
@@ -652,20 +657,24 @@ function userView(by, host) {
     } else if (is('.as-fo-user__tags')) {
       const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
       editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
-    } else if (is('.as-fo-user__cover') || is('.as-fo-user__tabs')) {
-      const x = await actionSheet('装扮', [{ value: 'set', label: '换套装', icon: 'palette' }, { value: 'one', label: '单独换一样', icon: 'image' }]);
+    } else if (is('.as-fo-user__cover')) {
+      const x = await actionSheet('背景', [{ value: 'cover', label: '换背景图', icon: 'image' }, { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }]);
+      if (x === 'cover') dressOne(key, 'cover', paint);
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
-      if (x === 'one') dressMenu(key, paint);
-    }
+      if (x === 'more') dressMenu(key, paint);
+    } else if (is('.as-fo-user__tabs')) pickPiece('标签', ['tab', 'tabline']);
+    else if (is('.as-fo-ubar--pv')) pickPiece('底栏', ['bar', 'btn']);
+  };
+  const pickPiece = async (title, ks) => { const k = await actionSheet(title, PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' }))); if (k) dressOne(key, k, paint);
   };
   const head = h('div.as-fo-user', cover, main);
-  head.addEventListener('click', onEdit, true); tabs.addEventListener('click', onEdit, true);
+  [head, tabs, pv].forEach(x => x?.addEventListener('click', onEdit, true));
   const edit = on => { editing = on; host.classList.toggle('is-editing', on); refresh(); };
   const els = [head, tabs, more, list].filter(Boolean);
   paint();
   E.load().then(d => { fill(list, d.posts.filter(p => same(p.by, by))); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
-  return { els, ubar, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
+  return { els, ubar, pv, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
 }
 
 /* ---------- 小组页（豆瓣的小组 / 微博的超话、同城、树洞 / 推特的社群） ---------- */
