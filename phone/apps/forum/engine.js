@@ -185,7 +185,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     if ((m = /^[[【]\s*翻译[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = m[1]; continue; }
     if ((m = /^数据[:：](.*)$/.exec(l))) { cur.likes = num((/赞\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.cmts = num((/评\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.reposts = num((/转\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); continue; }
     if (inFloors) { const fl = floorOf(l, cur, cur.floors, mine); if (fl) cur.floors.push(fl); continue; }
-    cur.text += (cur.text && !cur.text.endsWith('\n') ? '\n' : '') + l;
+    cur.text += (cur.text && !cur.text.endsWith('\n') ? '\n' : '') + (cur.text ? l : l.replace(/^正文[:：]\s*/, ''));   // 格式里写着「正文」，AI 常照抄成「正文：」
   }
   end();
   if (!got.length) { log('error', '论坛', 'AI 没有按格式写帖子', raw); throw new Error('AI 没有按格式写帖子'); }

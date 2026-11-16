@@ -42,9 +42,10 @@
 [data-as-app="forum"] .as-fo-post__meta { gap: 0; margin-top: 3px; font-size: 12.5px; color: var(--fo-ink-2); }
 [data-as-app="forum"] .as-fo-post__from { margin-left: 10px; }
 [data-as-app="forum"] .as-fo-post__from b { color: var(--fo-link); }
-[data-as-app="forum"] .as-fo-post__menu { display: grid; grid-column: 3; grid-row: 1; align-self: start; place-items: center; width: 24px; height: 24px; margin: -1px -4px 0 0; border: 0; background: none; color: #c2c2c2; cursor: pointer; }
+[data-as-app="forum"] .as-fo-post__menu { display: grid; grid-column: 3; grid-row: 1; align-self: start; justify-self: end; place-items: center; width: 24px; height: 24px; margin: -1px -4px 0 0; border: 0; background: none; color: #c2c2c2; cursor: pointer; }
 [data-as-app="forum"] .as-fo-list .as-fo-follow.is-on, [data-as-app="forum"] .as-fo-post.is-full .as-fo-post__menu { display: none; }
 [data-as-app="forum"] .as-fo-follow { border: 1px solid rgba(255, 130, 0, .55); border-radius: 14px; padding: 4px 10px; background: #fff; color: var(--fo-accent); font-size: 12.5px; }
+[data-as-app="forum"] .as-fo-post:not(.is-full) > .as-fo-follow:not(.is-on):has(~ .as-fo-post__menu) { margin-right: 26px; }   /* 「+关注」和「⌄」并排，不叠在一格里 */
 [data-as-app="forum"] .as-fo-follow:not(.is-on)::before { content: '+'; margin-right: 1px; font-weight: 700; }
 [data-as-app="forum"] .as-fo-follow.is-on { background: var(--fo-soft); color: var(--fo-ink-2); }
 .as-phone[data-mode="night"] [data-as-app="forum"] .as-fo-follow:not(.is-on) { background: #3a2410; }
