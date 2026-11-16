@@ -133,7 +133,7 @@ function card(p, full) {
   return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
-    h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge' + (p.by.k === 'bot' ? '.is-blue' : '')) : null),
+    h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null,
       h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p.by),
@@ -182,7 +182,7 @@ function compose(b0) {
       const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
       s.close();
       const p = await E.post({ board, title: title.value.trim(), text, pic });
-      landed([p]); runThread(p, { count: '10～15', focus: atNote(text) }); openPost(p);
+      landed([p]); openPost(p);
     }))) });
   applyTexts();
 }
@@ -434,10 +434,12 @@ function replySheet(p, to, floors) {
   setTimeout(() => t.focus(), 300);
 }
 function openPost(p) {
-  const pg = page({ app: 'forum', id: 'forum-post', title: E.groupName(p.board) || word('forum.act.comment'), back: true });
+  const pg = page({ app: 'forum', id: 'forum-post', title: E.groupName(p.board) || word('forum.act.comment'), back: true, right: [jobBtn('thread:' + p.id, () => [icon('chatdots', 22, 1.8)], () => ask())] });
   pg.el.dataset.post = p.id;
   const floors = h('div.as-fo-floors', (p.floors || []).map((f, i) => floorEl(p, f, i)));
-  const more = jobBtn('thread:' + p.id, () => [(p.floors || []).length ? '再来一些' : '看' + word('forum.act.comment')], () => runThread(p), 'button.as-btn.as-btn--secondary.as-fo-morebtn');
+  // 出评论只在点了才出（右上的评论键、底下「再来一些」）：自己发的帖、投的稿也一样
+  const ask = () => runThread(p, (p.floors || []).length ? {} : { count: '10～15', focus: [p.sub ? `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。` : '', atNote(p.text)].filter(Boolean).join('') });
+  const more = jobBtn('thread:' + p.id, () => [(p.floors || []).length ? '再来一些' : '出' + word('forum.act.comment')], ask, 'button.as-btn.as-btn--secondary.as-fo-morebtn');
   const stat = (k, n, on) => h('button.as-fo-stat__item' + (on ? '.is-on' : ''), W(k), h('span', E.fmt(n)));
   const onlyOp = h('button.as-fo-sort__op', { onclick: () => { floors.classList.toggle('is-op-only'); onlyOp.classList.toggle('is-on'); } }, W('forum.only.op'));
   floors.addEventListener('click', e => { const el = e.target.closest('.as-fo-floor'); if (!el || e.target.closest('button, .as-fo-floor__ava')) return; replySheet(p, el.dataset.id, floors); });
@@ -495,6 +497,13 @@ function userView(by, host) {
     list.classList.toggle('is-pics', pics); } }, txt);
   const tab = tabOf(W('forum.user.tab'), false); tab.classList.add('is-on'); tab.prepend(sticker);
   const n = (v, k) => h('span.as-fo-user__num', h('b', E.fmt(v)), W(k));
+  // 橙色小字（真微博数字下面那一两条）：我自己写的；别人的随手编一两条，同一个人每次一样
+  const tagsOf = () => {
+    const r = i => (seed >> i) % 9 + 1;
+    const all = [`昨日发博${r(2)}，阅读数${['1万+', '5万+', '10万+', '100万+'][seed % 4]}，互动数${r(3) * 137 + seed % 97}`, `视频累计播放量${r(4)}.${r(5)}万`, `${b ? b.topic : '生活'}领域 互动数飙升`];
+    const t = acc ? [acc.tag1, acc.tag2].filter(Boolean) : [...new Set([all[seed % 3], all[(seed >> 4) % 3]])];
+    return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x)), icon('down', 16, 1.6)) : null;
+  };
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list');
   const more = mine ? null : jobBtn('more:' + key, () => ['看看 TA 还发了什么'], () => go('more:' + key, '正在刷新…', s => E.feed(b ? 'global' : 'local', {
@@ -505,7 +514,6 @@ function userView(by, host) {
     const s = sheet({ title: '投稿给「' + b.name + '」', content: h('div.as-fo-compose', t, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('投稿', 'primary', async () => {
       const text = t.value.trim(); if (!text) { toast('写点什么'); return; }
       s.close(); const p = await E.submit(b, text); landed([p]);
-      runThread(p, { focus: `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。`, count: '10～15' });
       openPost(p);
     }))) });
   } });
@@ -524,7 +532,7 @@ function userView(by, host) {
     cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover); img(cover.firstChild, dr.cover);
     host.classList.toggle('no-fade', !fade(key));
     if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
-    avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge' + (b ? '.is-blue' : '')) : null);
+    const wv = E.who(by).v; avaBox.replaceChildren(ava(by, 80, true), wv ? h('i.as-fo-post__badge.is-' + wv) : null);
     img(sticker, dr.tab);
     tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);
     ubar.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; ubar.classList.toggle('has-img', !!dr.bar);
@@ -534,7 +542,7 @@ function userView(by, host) {
   const nameEl = h('span', w.name), bio = h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : '');
   const els = [h('div.as-fo-user', cover,
     h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', nameEl, w.v ? vMark() : null),
-      b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null, bio,
+      w.v ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), b ? b.topic : acc ? acc.cert || '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主') : null, bio, tagsOf(),
       h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')))),
     tabs, more, list].filter(Boolean);
   paint();
@@ -623,8 +631,11 @@ function avaPick(get, set, name) {
 function editAcc(a, done) {
   const d = a ? { ...a } : { id: 'a' + Date.now().toString(36), name: '', bio: '', avatar: '' };
   const name = input({ value: d.name, placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
-  editSheet(a ? '编辑' : '新建小号', [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio)], () => {
+  const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
+  editSheet(a ? '编辑' : '新建小号', [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), field('网名', name), field('简介', bio),
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '红 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))], () => {
     d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60);
+    d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     if (!a && !d.name) { toast('起个网名'); return false; }
     if (a) Object.assign(a, d); else E.F().accounts.push(d);
     commit('forum'); done(); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip()));

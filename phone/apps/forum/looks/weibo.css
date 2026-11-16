@@ -31,7 +31,11 @@
 /* 一条微博：头像右下黄 V，会员名字橙色，「昨天 21:04  来自 xx」，右上小箭头；超话小胶囊在底下；转发 · 评论 · 赞 */
 [data-as-app="forum"] .as-fo-post { grid-template-columns: 42px 1fr auto; column-gap: 10px; padding: 14px 15px 0; }
 [data-as-app="forum"] .as-fo-post__badge { display: grid; place-items: center; position: absolute; right: -1px; bottom: -1px; width: 15px; height: 15px; border-radius: 50%; background: var(--fo-v); box-shadow: 0 0 0 1.5px var(--fo-card); }
-[data-as-app="forum"] .as-fo-post__badge::after { content: 'V'; font: italic 800 9px/1 Arial, sans-serif; color: #fff; }
+[data-as-app="forum"] .as-fo-post__badge::after { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6.3 6.8 10 14l3.7-7.2' fill='none' stroke='%23fff' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; }
+/* 三种 V：黄 V 个人、蓝 V 机构和营销号、红 V 大 V */
+[data-as-app="forum"] .as-fo-post__badge.is-y { background: linear-gradient(#ffc93c, #ff9500); }
+[data-as-app="forum"] .as-fo-post__badge.is-b { background: linear-gradient(#5ab4ff, #1a82ec); }
+[data-as-app="forum"] .as-fo-post__badge.is-r { background: linear-gradient(#ff6b4a, #ee2a24); }
 [data-as-app="forum"] .as-fo-post__v { display: none; }
 [data-as-app="forum"] .as-fo-post__head { align-self: center; gap: 0 4px; }
 [data-as-app="forum"] .as-fo-post__name { font-size: 16.5px; font-weight: 500; line-height: 1.35; }
@@ -205,7 +209,11 @@
 
 /* 主页里几行的先后照真微博：数字 → 认证 → 简介 → 编辑个人资料；消息里的红色数字大一点 */
 [data-as-app="forum"] .as-fo-user__nums { order: 1; }
-[data-as-app="forum"] .as-fo-user__cert { order: 2; }
-[data-as-app="forum"] .as-fo-user__bio { order: 3; }
+[data-as-app="forum"] .as-fo-user__tags { order: 2; display: flex; align-items: center; gap: 8px; margin-top: 14px; overflow: hidden; }
+[data-as-app="forum"] .as-fo-user__tags span { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 12px; border-radius: 15px; background: rgba(255,236,224,.85); color: #ff6a00; font: 400 14.5px/1.2 var(--font-ui); }
+[data-as-app="forum"] .as-fo-user__tags svg { margin-left: auto; flex: none; color: #b5b5b5; }
+[data-as-app="forum"] .as-fo-user__cert { order: 3; }
+[data-as-app="forum"] .as-fo-user__bio { order: 4; }
+[data-as-app="forum"] .as-fo-user__cert svg { color: #9a9a9a; }
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
 [data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
