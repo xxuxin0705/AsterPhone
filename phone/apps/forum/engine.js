@@ -266,10 +266,10 @@ export async function post({ board, title = '', text, tr = '', pic = '', rp = ''
   return p;
 }
 /** 我回一层：to = 回哪一楼（'op' 楼主）；在自己的帖里回就是楼主 */
-export async function reply(p, text, to = '') {
+export async function reply(p, text, to = '', tr = '') {
   const by = p.by.k === 'me' && p.by.id === curAcc().id ? { ...p.by, op: true } : meBy(p.board === 'anon');
   if (by.anon && !by.op) by.no = p.myNo || (p.myNo = Math.max(0, ...(p.floors || []).map(f => f.by.no || 0)) + 1);
-  const f = { id: uid('ff'), by, to, text, tr: '', likes: 0, ...time.stamp() };
+  const f = { id: uid('ff'), by, to, text, tr, likes: 0, ...time.stamp() };
   (p.floors = p.floors || []).push(f); p.cmts++;
   await save();
   return f;

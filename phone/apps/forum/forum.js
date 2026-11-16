@@ -90,7 +90,6 @@ function rich(text) {
     : /^@/.test(s) ? h('span.as-fo-topic', { onclick: e => { e.stopPropagation(); openUser(byAt(s.slice(1))); } }, s) : s);
 }
 /** 「@」按钮：从熟人、营销号、关注的人里点一个，插到光标那里 */
-const atBtn = t => btn('@', 'secondary', () => atPick(t));
 async function atPick(t) {
   const ns = [...new Set([...E.onForum().map(E.netName), ...E.F().bots.map(b => b.name), ...(state.forum.follows || []).filter(k => k.startsWith('n:')).map(k => k.slice(2))])];
   if (!ns.length) { toast('还没有可以 @ 的人'); return; }
@@ -174,16 +173,13 @@ async function pin(p) {
 }
 /** 转发：写一句话（可以不写），发成我的一条，下面带着原帖 */
 function repost(p) {
-  const body = textarea({ rows: 4, placeholder: '转发理由' });
-  const s = sheet({ title: word('forum.act.repost'), content: h('div.as-fo-compose', body, h('div.as-fo-compose__row', accChip(), atBtn(body)),
-    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('转发', 'primary', async () => {
-      s.close(); const o = p.rp && E.postOf(p.rp) || p;   // 转发的转发：带着最早那条
-      const mine = await E.post({ board: o.board === 'anon' ? 'global' : o.board, text: body.value.trim() || '转发微博', rp: o.id });
-      o.reposts = (o.reposts || 0) + 1; await E.save();
-      document.querySelectorAll(`article.as-fo-post[data-id="${o.id}"] .is-repost .as-fo-act__n`).forEach(n => { n.textContent = E.fmt(o.reposts); });
-      landed([mine]); toast('已转发');
-    }))) });
-  applyTexts();
+  writePage({ head: word('forum.act.repost'), ph: '说说分享心得…', empty: true, done: async ({ text, tr }) => {
+    const o = p.rp && E.postOf(p.rp) || p;   // 转发的转发：带着最早那条
+    const mine = await E.post({ board: o.board === 'anon' ? 'global' : o.board, text: text || '转发微博', tr, rp: o.id });
+    o.reposts = (o.reposts || 0) + 1; await E.save();
+    document.querySelectorAll(`article.as-fo-post[data-id="${o.id}"] .is-repost .as-fo-act__n`).forEach(n => { n.textContent = E.fmt(o.reposts); });
+    landed([mine]); toast('已转发');
+  } });
 }
 const rpEl = p => { const o = E.postOf(p.rp);
   return h('div.as-fo-post__rp', { onclick: e => { e.stopPropagation(); if (o) openPost(o); } }, o ? [h('b', '@' + E.who(o.by).name), '：', o.title ? o.title + ' ' : '', o.text, picEl(o)] : '原微博已删除'); };
@@ -242,17 +238,15 @@ function accChip() {
   } });
   paint(b); return b;
 }
-/** 发帖：照真微博是整页的。左上取消、中间「发微博」和用哪个号（点了换号）、右上发送；底下一排小图标：配图、@、#、发成哪种语言、来自。
- *  选了外语：一边打字一边机翻（免费，不花 API），翻好的显示在正文下面对照着看，发出去的就是这份；@ 的网名不翻 */
-function compose(b0) {
-  let board = ['follow', 'all'].includes(b0) || !E.groupOf(b0) ? 'global' : b0, pic = '', lang = 'none', tr = '', trOf = '', seq = 0, tm = 0;
-  const title = noTitle() ? null : h('input.as-fo-cp__title', { placeholder: '标题' });
-  const body = h('textarea.as-fo-cp__body', { placeholder: noTitle() ? '分享新鲜事…' : '正文', oninput: () => { send.disabled = !body.value.trim(); live(); } });
+/** 写东西的整页（发帖、转发、评论都用它，照真微博）：左上取消、中间标题和用哪个号（点了换号）、右上发送；底下一排小图标：@、#、发成哪种语言（发帖多配图）。
+ *  选了外语：一边打字一边机翻（免费，不花 API），翻好的显示在正文下面对照着看，发出去的就是这份；@ 的网名不翻。
+ *  o：{ head 标题, ph 占位字, title 要不要标题框, chips 正文下面那排, pic 能不能配图, empty 能不能不写, done({ title, text, tr, pic }) } */
+function writePage(o) {
+  let pic = '', lang = 'none', tr = '', trOf = '', seq = 0, tm = 0;
+  const title = o.title ? h('input.as-fo-cp__title', { placeholder: '标题' }) : null;
+  const body = h('textarea.as-fo-cp__body', { placeholder: o.ph, oninput: () => { if (!o.empty) send.disabled = !body.value.trim(); live(); } });
   const pv = h('img.as-fo-compose__pic', { hidden: true, alt: '配图', onclick: () => { pic = ''; pv.hidden = true; } });
-  const trBox = h('div.as-fo-cp__tr', { hidden: true }), from = fromChip('');
-  const where = h('div.as-fo-pick', E.boards().map(g => h('button' + (g.id === board ? '.is-on' : ''), { dataset: { b: g.id }, onclick: () => {
-    board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
-  } }, g.base ? W('forum.tab.' + g.id) : g.name)));
+  const trBox = h('div.as-fo-cp__tr', { hidden: true });
   // 机翻会把 @ 的网名也翻掉：先换成 @0、@1…（数字机翻不动），翻完再换回来
   const trKeep = async text => { const ats = []; const out = await translate(text.replace(AT, m => '@' + (ats.push(m) - 1)), lang); return out.replace(/@\s?(\d+)/g, (m, n) => ats[n] ?? m); };
   const paintTr = (t, wait) => { trBox.hidden = lang === 'none' || !body.value.trim(); trBox.replaceChildren(h('b', langName(lang)), wait ? h('span.as-spin') : h('span', t)); };
@@ -264,28 +258,40 @@ function compose(b0) {
     paintTr('', true);
     tm = setTimeout(() => trKeep(text).then(t => { if (my === seq) { tr = t; trOf = text; paintTr(t); } }, () => { if (my === seq) paintTr('没翻译成，详情见日志'); }), 600);
   }
-  const lb = h('button.as-fo-cp__tool', { 'aria-label': '发成哪种语言', onclick: async () => {
+  const tool = (ic, label, fn) => h('button.as-fo-cp__tool', { 'aria-label': label, onclick: fn }, icon(ic, 24));
+  const lb = tool('globe', '发成哪种语言', async () => {
     const v = await actionSheet('发成哪种语言', [['none', '不翻译'], ...LANGS.filter(l => l[0] !== 'zh-CN')].map(([value, label]) => ({ value, label, active: value === lang }))); if (!v) return;
     lang = v; trOf = ''; lb.classList.toggle('is-on', v !== 'none'); lb.lastChild.textContent = v === 'none' ? '' : langName(v); trBox.hidden = true; live();
-  } }, icon('globe', 24), h('small'));
-  const tag = h('button.as-fo-cp__tool', { 'aria-label': '话题', onclick: () => { body.setRangeText('##', body.selectionStart, body.selectionEnd, 'end'); body.selectionStart = body.selectionEnd = body.selectionEnd - 1; body.focus(); } }, icon('hash', 24));
-  const at = h('button.as-fo-cp__tool', { 'aria-label': '@', onclick: () => atPick(body) }, icon('at', 24));
-  const img = h('button.as-fo-cp__tool', { 'aria-label': '配图', onclick: async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; } }, icon('image', 24));
+  }); lb.append(h('small'));
+  const tools = [
+    o.pic && tool('image', '配图', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; }),
+    tool('at', '@', () => atPick(body)),
+    tool('hash', '话题', () => { body.setRangeText('##', body.selectionStart, body.selectionEnd, 'end'); body.selectionStart = body.selectionEnd = body.selectionEnd - 1; body.focus(); }),
+    lb].filter(Boolean);
   const who = h('button.as-fo-cp__acc', { onclick: async () => {
     const v = await actionSheet('用哪个号', E.F().accounts.map(a => ({ value: a.id, label: E.accName(a), active: a.id === E.F().cur }))); if (!v) return;
     E.F().cur = v; commit('forum'); who.textContent = E.accName(E.curAcc());
   } }, E.accName(E.curAcc()));
-  const send = h('button.as-fo-cp__send', { disabled: true, onclick: () => busy(send, async signal => {
-    const text = body.value.trim(); if (!text) return;
-    const t = lang === 'none' ? '' : text === trOf ? tr : await trKeep(text); if (signal.aborted) return;
-    const p = await E.post({ board, title: title ? title.value.trim() : '', text: t || text, tr: t && text, pic, dev: from.value });
-    nav.back(); landed([p]); openPost(p);
+  const send = h('button.as-fo-cp__send', { disabled: !o.empty, onclick: () => busy(send, async signal => {
+    const text = body.value.trim(); if (!text && !o.empty) return;
+    const t = lang === 'none' || !text ? '' : text === trOf ? tr : await trKeep(text); if (signal.aborted) return;
+    nav.back(); await o.done({ title: title ? title.value.trim() : '', text: t || text, tr: t && text, pic });
   }, lang === 'none' || body.value.trim() === trOf ? '' : '正在翻译…').catch(() => toast('没翻译成，还没发')) }, '发送');
-  const pg = page({ app: 'forum', id: 'forum-compose', title: h('div.as-fo-cp__head', W('forum.post.new', 'b'), who), right: [send] });
+  const pg = page({ app: 'forum', id: 'forum-write', title: h('div.as-fo-cp__head', h('b', o.head), who), right: [send] });
   pg.nav.firstChild.replaceWith(navText('取消', () => nav.back()));
   pg.el.classList.add('as-fo-cp');
-  pg.body.append(title || '', body, trBox, pv, h('div.as-fo-cp__chips', where, from), h('div.as-fo-cp__tools', img, at, tag, lb));
-  nav.push(pg.el); applyTexts(); body.focus();
+  pg.body.append(title || '', body, trBox, pv, h('div.as-fo-cp__chips', o.chips || ''), h('div.as-fo-cp__tools', tools));
+  nav.push(pg.el); body.focus();
+}
+/** 发帖：选版块 / 小组、来自；微博样式没有标题 */
+function compose(b0) {
+  let board = ['follow', 'all'].includes(b0) || !E.groupOf(b0) ? 'global' : b0;
+  const from = fromChip(''), where = h('div.as-fo-pick', E.boards().map(g => h('button' + (g.id === board ? '.is-on' : ''), { dataset: { b: g.id }, onclick: () => {
+    board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
+  } }, g.base ? word('forum.tab.' + g.id) : g.name)));
+  writePage({ head: word('forum.post.new'), ph: noTitle() ? '分享新鲜事…' : '正文', title: !noTitle(), pic: true, chips: [where, from], done: async x => {
+    const p = await E.post({ board, ...x, dev: from.value }); landed([p]); openPost(p);
+  } });
 }
 
 /* ---------- 积木 ---------- */
@@ -535,16 +541,11 @@ const runThread = (p, opts) => jobs['thread:' + p.id] ? null : go('thread:' + p.
 });
 /** 回帖：点底下那条、或者点某一层弹出来；to = 回哪一楼（'' 回帖子） */
 function replySheet(p, to, floors) {
-  const t = textarea({ placeholder: to ? '回复 ' + E.floorWho(p, p.floors.find(x => x.id === to)) : word('forum.reply.ph'), rows: 4 });
-  const s = sheet({ title: word('forum.act.comment'), content: h('div.as-fo-compose', t, h('div.as-fo-compose__row', accChip(), atBtn(t), btn('发送', 'primary', async () => {
-    const text = t.value.trim(); if (!text) return;
-    s.close();
-    const f = await E.reply(p, text, to);
+  writePage({ head: word('forum.act.comment'), ph: to ? '回复 ' + E.floorWho(p, p.floors.find(x => x.id === to)) : word('forum.reply.ph'), done: async ({ text, tr }) => {
+    const f = await E.reply(p, text, to, tr);
     floors.append(floorEl(p, f, p.floors.length - 1));
-    const tn = to ? E.floorWho(p, p.floors.find(x => x.id === to)) : '';
     // 不自动出：点评论键时，楼里我还没人回的那几层会让被我回的人来回（看 ask）
-  }))) });
-  setTimeout(() => t.focus(), 300);
+  } });
 }
 function openPost(p) {
   const pg = page({ app: 'forum', id: 'forum-post', title: E.groupName(p.board) || word('forum.act.comment'), back: true, right: [jobBtn('thread:' + p.id, () => [icon('chatdots', 22, 1.8)], () => ask())] });
