@@ -7,7 +7,7 @@ import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
-import { LANGS, langName, translate } from '../../core/translate.js';
+import { LANGS, langName, langFor, translate } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
@@ -242,7 +242,7 @@ function accChip() {
  *  选了外语：一边打字一边机翻（免费，不花 API），翻好的显示在正文下面对照着看，发出去的就是这份；@ 的网名不翻。
  *  o：{ head 标题, ph 占位字, title 要不要标题框, chips 正文下面那排, pic 能不能配图, empty 能不能不写, done({ title, text, tr, pic }) } */
 function writePage(o) {
-  let pic = '', lang = 'none', tr = '', trOf = '', seq = 0, tm = 0;
+  let pic = '', lang = langFor('forum') === 'zh-CN' ? 'none' : langFor('forum'), tr = '', trOf = '', seq = 0, tm = 0;   // 默认发成设置里论坛的语言
   const title = o.title ? h('input.as-fo-cp__title', { placeholder: '标题' }) : null;
   const body = h('textarea.as-fo-cp__body', { placeholder: o.ph, oninput: () => { if (!o.empty) send.disabled = !body.value.trim(); live(); } });
   const pv = h('img.as-fo-compose__pic', { hidden: true, alt: '配图', onclick: () => { pic = ''; pv.hidden = true; } });
@@ -259,10 +259,11 @@ function writePage(o) {
     tm = setTimeout(() => trKeep(text).then(t => { if (my === seq) { tr = t; trOf = text; paintTr(t); } }, () => { if (my === seq) paintTr('没翻译成，详情见日志'); }), 600);
   }
   const tool = (ic, label, fn) => h('button.as-fo-cp__tool', { 'aria-label': label, onclick: fn }, icon(ic, 24));
+  const paintLb = () => { lb.classList.toggle('is-on', lang !== 'none'); lb.lastChild.textContent = lang === 'none' ? '' : langName(lang); };
   const lb = tool('globe', '发成哪种语言', async () => {
     const v = await actionSheet('发成哪种语言', [['none', '不翻译'], ...LANGS.filter(l => l[0] !== 'zh-CN')].map(([value, label]) => ({ value, label, active: value === lang }))); if (!v) return;
-    lang = v; trOf = ''; lb.classList.toggle('is-on', v !== 'none'); lb.lastChild.textContent = v === 'none' ? '' : langName(v); trBox.hidden = true; live();
-  }); lb.append(h('small'));
+    lang = v; trOf = ''; paintLb(); trBox.hidden = true; live();
+  }); lb.append(h('small')); paintLb();
   const tools = [
     o.pic && tool('image', '配图', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; }),
     tool('at', '@', () => atPick(body)),
@@ -838,18 +839,14 @@ function openSearch(q0) {
 }
 
 /* ---------- 我：设置、我的号 ---------- */
-const CC = { cn: 'zh-CN', tw: 'zh-TW', hk: 'zh-TW', mo: 'zh-TW', jp: 'ja', kr: 'ko', fr: 'fr', be: 'fr', de: 'de', at: 'de', es: 'es', mx: 'es', ar: 'es', co: 'es', ru: 'ru', it: 'it', pt: 'pt', br: 'pt',
-  th: 'th', vn: 'vi', us: 'en', gb: 'en', au: 'en', ca: 'en', nz: 'en', ie: 'en', sg: 'en' };   // 国家 → 那里平时说的话
 function openSettings() {
   const F = E.F(), A = E.A();
   const pg = page({ app: 'forum', id: 'forum-settings', title: '设置', back: true });
-  const where = () => F.region ? `${F.region} · ${langName(F.lang || 'zh-CN')}` : '按正文定';
-  // 地区在地图上选（搜地名地图就移过去）；语言按那个国家平时说的话，不在列表里的再问
+  const where = () => F.region || '按正文定';
+  // 地区在地图上选（搜地名地图就移过去）；说什么语言在手机设置 → 语言里
   const region = item({ title: '地区', value: where(), chevron: true, onClick: async () => {
     const r = await (await import('../../core/mappick.js')).pickPlace('地区'); if (!r) return;
-    const l = !r.name ? '' : CC[r.cc] || await actionSheet('那里说什么语言', LANGS.map(([v, t]) => ({ value: v, label: t, active: v === F.lang })));
-    if (l == null) return;
-    F.region = r.name; F.lang = l; commit('forum');
+    F.region = r.name; commit('forum');
     region.querySelector('.as-list-item__value').textContent = where();
   } });
   pg.body.append(h('div.as-fo-set', group('', [item({ icon: 'user', title: '我的号', chevron: true, onClick: openAccounts }), item({ icon: 'star', color: 'orange', title: '营销号', chevron: true, onClick: openBots }),

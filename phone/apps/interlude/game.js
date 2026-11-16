@@ -10,7 +10,7 @@ import { uid } from '../../core/util.js';
 import * as R from './rules.js';
 import { connFor } from '../../core/voice.js';
 import { kindOf, hintFor, plain } from '../../core/act.js';
-import { langName } from '../../core/translate.js';
+import { langName, langFor } from '../../core/translate.js';
 
 export const CAP = 8;
 const GRADES = ['大成功', '极难成功', '困难成功', '普通成功', '失败', '大失败'];   // 每幕最多几回合，到了 KP 必须推到出口
@@ -64,7 +64,7 @@ const bag = p => (p.items || []).length ? `；随身：${p.items.map(itemText).j
 export const pcText = g => `${g.pc.name}（${g.pc.job}）：血 ${g.pc.hp}/${g.pc.hpMax}，理智 ${g.pc.san}/${g.pc.sanMax}${g.pc.mad ? `，临时疯狂·${g.pc.mad.name}（还剩 ${g.pc.mad.left} 回合）` : ''}；${attrsText(g.pc.attrs)}；技能：${topSkills(g.pc.skills)}${bag(g.pc)}${powers(g.pc)}`;
 export const isZh = l => !l || /^zh/.test(l);
 /** 这个人说什么语言：开局设置里改过的 → 聊天设置里让 TA 说的 → 中文 */
-export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; const cfg = (chatForContact(id, false) || { cfg: {} }).cfg; return (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
+export const langOf = id => { if (id === 'me' || id === 'sys') return 'zh-CN'; const cfg = (chatForContact(id, false) || { cfg: {} }).cfg; return langFor('interlude', cfg.speak); };
 // 台词开头怎么标语气：照这个人现在用的语音接口（和电台、正文朗读一样的那套标签）
 const toneOf = id => hintFor(kindOf(connFor(id))).replace(/每段/g, '台词').replace(/>> 开头的翻译行不写标签。/, 'zh 翻译不写标签。');
 // 旧存档没有 lang（开局时还没有「说什么语言」）：按开局时会给的默认语言

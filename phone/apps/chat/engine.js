@@ -11,7 +11,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
-import { translate, langName } from '../../core/translate.js';
+import { translate, langName, langFor } from '../../core/translate.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -116,9 +116,9 @@ export function replyCfg(chat) {
 export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
 /** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
 function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text, tr: p.tr } : p; }
-/* 说外语的 TA：私聊设置里「TA 说的语言」选了外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
+/* 说外语的 TA：私聊设置里「TA 说的语言」（没选就跟着聊天 App 的、再跟着设置里总的）是外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
    拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
-const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = ch && ch.cfg.theirLang; return l && l !== 'zh-CN' ? l : ''; };
+export const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = langFor('chat', ch && ch.cfg.speak); return l !== 'zh-CN' ? l : ''; };
 export const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
 const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}直接用自己的语言写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
 /** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
@@ -202,8 +202,9 @@ function touch(chat, m) {
 /* ---------- 发消息（不会自动回复） ---------- */
 export async function send(chat, text, extra = {}) {
   const msgs = await getMsgs(chat.id);
-  if (chat.cfg.sendTr && chat.cfg.theirLang) {
-    try { const t = await translate(text, chat.cfg.theirLang); if (t && t !== text) { extra = { ...extra, orig: text }; text = t; } }
+  const to = isGroup(chat) ? chat.cfg.theirLang : speakOf(chat.contactId);
+  if (chat.cfg.sendTr && to) {
+    try { const t = await translate(text, to); if (t && t !== text) { extra = { ...extra, orig: text }; text = t; } }
     catch (e) { /* 翻译失败就发原文 */ }
   }
   const m = { id: uid('m'), from: 'me', type: 'text', text, ...time.stamp(), ...extra };

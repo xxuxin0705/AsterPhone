@@ -12,7 +12,7 @@ import * as P from '../../core/promptstore.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
-import { LANGS, langName } from '../../core/translate.js';
+import { LANGS, langName, langFor } from '../../core/translate.js';
 import * as Mu from '../../core/music.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
@@ -456,10 +456,12 @@ export function replyGroup(chat, save) {
 
 /** 翻译设置（私聊、群聊共用）。私聊多一个「TA 说的语言」：选了外语，TA 直接说外语、AI 顺手写好中文，机器翻译那两项就不用了 */
 export function trGroup(cfg, save, draw, dm) {
-  const langs = LANGS.map(([v, l]) => [v, l]), foreign = dm && cfg.theirLang && cfg.theirLang !== 'zh-CN';
+  const langs = LANGS.map(([v, l]) => [v, l]), speak = langFor('chat', cfg.speak), foreign = dm && speak !== 'zh-CN';
   const pickLang = async (key, title) => { const v = await actionSheet(title, langs.map(([v, l]) => ({ value: v, label: l, active: cfg[key] === v }))); if (v) { cfg[key] = v; save(); draw(); } };
   return group(withInfo('翻译', '免费，不花你的 API。也可以长按任意一条消息 → 翻译。'), [
-    dm ? item({ title: withInfo('TA 说的语言', '选了外语，TA 就直接说这个语言，中文意思写在气泡下面。群聊、动态、评论里 TA 也这样说。'), value: foreign ? langName(cfg.theirLang) : '中文', chevron: true, onClick: () => pickLang('theirLang', 'TA 说的语言') }) : null,
+    dm ? item({ title: withInfo('TA 说的语言', '选了外语，TA 就直接说这个语言，中文意思写在气泡下面。群聊、动态、评论里 TA 也这样说。'), value: (cfg.speak ? '' : '跟着总的 · ') + langName(speak), chevron: true, onClick: async () => {
+      const v = await actionSheet('TA 说的语言', [['', '跟着总的'], ...langs].map(([value, label]) => ({ value, label, active: (cfg.speak || '') === value }))); if (v == null) return; cfg.speak = v; save(); draw();
+    } }) : null,
     foreign ? null : toggleItem({ title: withInfo('自动翻译 TA 的消息', '翻好的显示在 TA 的气泡下面。') }, !!cfg.autoTr, v => { cfg.autoTr = v; save(); draw(); }),
     foreign ? null : item({ title: '我看的语言', value: langName(cfg.myLang || 'zh-CN'), chevron: true, onClick: () => pickLang('myLang', '翻成什么语言给我看') }),
     dm && !foreign ? null : toggleItem({ title: withInfo('发送前把我的话翻成 TA 的语言', '原文显示在我的气泡下面。') }, !!cfg.sendTr, v => { cfg.sendTr = v; save(); draw(); }),

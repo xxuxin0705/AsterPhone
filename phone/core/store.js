@@ -43,7 +43,8 @@ export function defaults() {
       mode: 'auto', fontScale: 1, timeSrc: 'story', clockColor: 'auto',
       // 壁纸：锁屏、桌面各选各的；random = 每次锁屏 / 打开手机随机换；live = Live 图怎么动（press 按住播放 / loop 一直循环）
       walls: { lock: 'water', home: 'water', lockRandom: false, homeRandom: false, live: 'press', liveWake: true, list: [] },
-      clock: { lang: 'zh', h12: false, font: 'sf' },   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
+      clock: { lang: 'zh', h12: false, font: 'sf' },
+      lang: { all: 'zh-CN', apps: {} },   // 大家说什么语言：总的一个，每个 App 可以另选（core/translate.js 的 langFor）   // 时间显示：中文 / 英文、12 / 24 小时制、锁屏字体
       statusbar: { global: true, apps: {} },
       lock: { enabled: false, method: 'none', pin: '', digits: 4 },   // 默认不锁屏；开了也默认不设密码（上滑解锁）
       notify: { banner: true, sound: false, volume: .6, tone: 'twin', dnd: false, dndFrom: '23:00', dndTo: '08:00', badge: true },
@@ -117,6 +118,8 @@ export async function enterWindow(w) {
   if (entered) await saveNow();
   const d = (await kvGet('win:' + w.key).catch(() => null)) || {}, def = defaults();
   SCOPED.forEach(k => { state[k] = merge(def[k], d[k]); });
+  // 「TA 说的语言」以前默认就存着英语，分不出是不是本人选的 → 换成 speak，英语和中文都算没选（跟着聊天 App / 总的）
+  state.chats.forEach(c => { if (c.type === 'dm' && !('speak' in c.cfg)) c.cfg.speak = ['en', 'zh-CN'].includes(c.cfg.theirLang) ? '' : c.cfg.theirLang || ''; });
   const V = state.voice || (state.voice = { mode: 'one', useDefault: true, people: {}, readings: [] }), C = state.voiceCards || (state.voiceCards = {});
   if (V.card !== w.card) {
     if (V.card != null) C[V.card] = { people: V.people, readings: V.readings };
@@ -208,7 +211,7 @@ export function chatForContact(cid, create = true) {
     const d = state.apps.chat.defaults;
     c = { id: uid('c_'), type: 'dm', contactId: cid, pinned: false, muted: false, unread: 0, lastAt: 0, lastText: '',
       cfg: { linkMode: d.linkMode, injectCount: state.apps.chat.injectCount, showRead: true, showThink: false, conn: 'follow', temperature: null,
-        autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en',
+        autoTr: false, sendTr: false, myLang: 'zh-CN', theirLang: 'en', speak: '',
         avatarShape: 'round', showAvatar: true, bg: '', myAvatar: '', theirAvatar: '', streak: true } };
     state.chats.push(c); commit('chats');
   }

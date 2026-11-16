@@ -21,7 +21,7 @@ import { glass } from '../../core/glass.js';
 import * as PT from '../../core/portrait.js';
 import { plain, PRESETS, groupsFor, kindOf, hintFor, fitTags, profileOf, adapt, TENSIONS, PACES, PACE_SPEED, MM_EMOS } from '../../core/act.js';
 import { translate } from '../../core/translate.js';
-import { LANGS as ALL_LANGS, langName } from '../../core/translate.js';
+import { LANGS as ALL_LANGS, langName, langFor } from '../../core/translate.js';
 import LIB from './radiolib.js';
 
 const S = () => state.music.radio || (state.music.radio = { tts: 'ahead', say: true, len: 'mid', vol: {} });
@@ -46,7 +46,7 @@ const cur = () => D.who === 'all' ? null : contact(D.who) || state.contacts[0] |
 const textLang = t => /[぀-ヿ]/.test(t) ? 'ja' : /[가-힯]/.test(t) ? 'ko' : (t.match(/[a-z]/gi) || []).length > (t.match(/[一-鿿]/g) || []).length ? 'en' : 'zh-CN';
 /** 角色讲故事用的语言：在「讲什么」里换过就用换的；没换过跟着和 TA 聊天的设置里「TA 的语言」（只有打开了「发送前翻成 TA 的语言」才算数，
  *  不然那一格是新建聊天时默认填的英语，不是谁选的）；都没有就是中文 */
-const langOf = c => { const cfg = (chatForContact(c.id, false) || { cfg: {} }).cfg; return D.lang[c.id] || (cfg.sendTr && cfg.theirLang) || 'zh-CN'; };
+const langOf = c => { const cfg = (chatForContact(c.id, false) || { cfg: {} }).cfg; return D.lang[c.id] || langFor('radio', cfg.speak); };
 const lines = b => [...b.segs, ...(b.after || [])];
 const end = b => S().say ? lines(b).length : b.segs.length;
 

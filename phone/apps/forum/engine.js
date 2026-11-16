@@ -5,7 +5,7 @@ import { state, win, kvGet, kvSet, commit, contact } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
-import { LANGS, langName } from '../../core/translate.js';
+import { langName, langFor } from '../../core/translate.js';
 import { word } from './looks.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
@@ -86,20 +86,19 @@ export function byName(raw, board) {
 
 /* ---------- 语言 ---------- */
 const isZh = l => !l || l === 'zh-CN' || l === 'zh-TW';
-const localLang = () => (F().lang ? langName(F().lang) : '当地的语言');
 // tr：翻译附在哪（帖子另起一行，楼层同一行末尾）；what：一条里怎么用语言
 function langRule(board, tr, what) {
   if (board === 'anon') return '';
-  if (board !== 'global') return F().lang && isZh(F().lang) ? '' : `\n- 用${localLang()}写；不是中文的，${tr}。`;
-  const l = F().lang;
-  const mix = !l ? `大约三成中文、四成英文、三成${localLang()}` : isZh(l) ? '大约六成中文、四成英文' : l === 'en' ? '大约三成中文、七成英文' : `大约三成中文、四成英文、三成${langName(l)}`;
+  const l = langFor('forum');   // 设置 → 语言：论坛选的，没选跟着总的
+  if (board !== 'global') return isZh(l) ? '' : `\n- 用${langName(l)}写；不是中文的，${tr}。`;
+  const mix = isZh(l) ? '大约六成中文、四成英文' : l === 'en' ? '大约三成中文、七成英文' : `大约三成中文、四成英文、三成${langName(l)}`;
   return `\n- 语言混着来：${mix}，${what}；这个世界里没有的语言（比如古代、架空的世界没有英文）就不用，只用这个世界里有的。不是中文的，${tr}。`;
 }
 
 /* ---------- 刷帖 ---------- */
 function boardText(id) {
   const g = groupOf(id), nm = g && g.intro ? `「${g.name}」（${g.intro}）` : '';
-  if (id === 'local') return `${F().region || '故事发生的地方'}本地版${nm}：当地人用${localLang()}聊当地的事，剧情里的熟人也可能出现`;
+  if (id === 'local') return `${F().region || '故事发生的地方'}本地版${nm}：当地人聊当地的事，剧情里的熟人也可能出现`;
   if (id === 'global') return `全球版${nm}：各地的人都在看的大事、热门话题`;
   if (id === 'anon') return `匿名区${nm}：没人知道谁是谁，爆料、吐槽、怪事、不敢实名说的话；作者一律写「匿名」`;
   if (id === 'follow') return '关注：只由下面「可以发的号」里的人发';
@@ -115,7 +114,7 @@ const BOT_RULES = `
 - 主题跟着这个世界走（现代都市可以有恋爱、打工、美食；古风、奇幻世界换成那个世界里会有的）。`;
 function setup(board) {
   const f = F(), out = [], rules = [];
-  if (!f.region) out.push(`地区：地名｜语言（按正文判断故事发生在哪；语言是那个地方的人平时说的话，从这些里挑一个：${LANGS.map(l => l[1]).join('、')}）`);
+  if (!f.region) out.push('地区：地名（按正文判断故事发生在哪）');
   if (f.bots.length < 6 && board !== 'anon') { out.push(`号｜名字｜主题｜一句简介（再起 ${6 - f.bots.length} 个营销号，一行一个）`); rules.push(BOT_RULES); }
   if (board === 'global') out.push('热榜｜话题｜热度数字（最多 10 行，这个世界里现在大家在议论的事）');
   const need = ['local', 'global', 'anon'].filter(id => !f.groups.some(g => g.id === id)), more = f.groups.filter(g => !BASE[g.id]).length < 3;
@@ -154,8 +153,8 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     let m;
     if (/^={3,}$/.test(l)) { end(); continue; }
     if (!l) { if (cur) cur.text += '\n'; continue; }
-    if ((m = /^地区[:：]\s*(.+?)\s*[|｜]\s*(.+)$/.exec(l))) {
-      if (!f.region) { f.region = m[1].slice(0, 20); f.lang = (LANGS.find(x => x[1] === m[2].trim()) || LANGS.find(x => m[2].includes(x[1])) || LANGS[0])[0]; }
+    if ((m = /^地区[:：]\s*([^|｜]+)/.exec(l))) {
+      if (!f.region) f.region = m[1].trim().slice(0, 20);
       continue;
     }
     if ((m = /^号\s*[|｜](.+)$/.exec(l))) {

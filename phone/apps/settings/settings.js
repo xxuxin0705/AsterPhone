@@ -12,8 +12,9 @@ import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
+import { LANGS, langName } from '../../core/translate.js';
 
-export const VERSION = '0.8.522';
+export const VERSION = '0.8.523';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -66,6 +67,7 @@ export function open() {
         item({ icon: 'image', color: 'teal', title: '壁纸', value: wallLabel(), chevron: true, onClick: () => openWalls() }),
         item({ icon: 'lock', color: 'gray', title: '锁屏与密码', value: S().lock.enabled ? LOCK_LABEL[S().lock.method] : '关闭', chevron: true, onClick: openLock }),
         item({ icon: 'bell', color: 'red', title: '通知', chevron: true, onClick: openNotify }),
+        item({ icon: 'globe', color: 'blue', title: '语言', value: langName(S().lang.all), chevron: true, onClick: openLang }),
       ]),
       group('', [
         item({ icon: 'link', color: 'green', title: '联动方式与时间', value: (state.apps.chat.defaults.linkMode === 'online' ? '线上模式' : '正文互通') + ' · ' + (S().timeSrc === 'story' ? '剧情时间' : '现实时间'), chevron: true, onClick: openLinkTime }),
@@ -611,6 +613,24 @@ function openLock() {
       title: LOCK_LABEL[m],
       value: m === 'pin' && has('pin') ? `${(L.pin || '').length} 位` : '',
       right: L.method === m ? h('span.as-tag-accent', icon('check', 20, 2.4)) : null, onClick: () => choose(m) }))));
+  });
+}
+
+/* ================= 语言 ================= */
+// 大家说什么语言（文字、语音都照这个）：总的一个，每个应用可以另选；聊天里还能给每个人单独选（越具体越优先，core/translate.js 的 langFor）
+const LANG_APPS = [['chat', '聊天'], ['forum', '论坛'], ['radio', '电台'], ['interlude', '幕间']];
+function openLang() {
+  sub('lang', '语言', body => {
+    const L = S().lang;
+    const row = (title, get, set, follow) => {
+      const el = item({ title, value: get(), chevron: true, onClick: async () => {
+        const v = await actionSheet(title, [...(follow ? [['', '跟着总的']] : []), ...LANGS].map(([value, label]) => ({ value, label, active: get() === (value ? label : '跟着总的') }))); if (v == null) return;
+        set(v); commit('settings'); el.querySelector('.as-list-item__value').textContent = get();
+      } });
+      return el;
+    };
+    body.append(group('', [row('大家说的话', () => langName(L.all), v => { L.all = v; })]),
+      group(withInfo('每个应用', '没单独选的跟着总的。聊天里还能给每个人单独选。说外语的，下面都配中文。'), LANG_APPS.map(([k, n]) => row(n, () => L.apps[k] ? langName(L.apps[k]) : '跟着总的', v => { L.apps[k] = v; }, true))));
   });
 }
 

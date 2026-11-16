@@ -4,12 +4,15 @@
 // 3. 再不行就用 MyMemory 免费接口
 import { ctx, inTavern } from './bridge.js';
 import { log } from './log.js';
+import { state } from './store.js';
 
 export const LANGS = [
   ['zh-CN', '中文'], ['en', '英语'], ['ja', '日语'], ['ko', '韩语'], ['fr', '法语'], ['de', '德语'],
   ['es', '西班牙语'], ['ru', '俄语'], ['it', '意大利语'], ['pt', '葡萄牙语'], ['th', '泰语'], ['vi', '越南语'], ['zh-TW', '繁体中文'],
 ];
 export const langName = code => (LANGS.find(l => l[0] === code) || [code, code])[1];
+/** 说什么语言：某个人自己选的（own）> 这个 App 选的 > 设置里总的 */
+export const langFor = (app, own) => own || state.settings.lang.apps[app] || state.settings.lang.all;
 const cache = new Map();
 
 export async function translate(text, to = 'zh-CN') {
