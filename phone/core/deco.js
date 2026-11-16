@@ -160,18 +160,19 @@ export async function touchUp(url, title = '修图') {
 }
 
 /** 头像框：没透明就抠掉外面和中间的底色；再找到中间的洞，挪到正中间、按洞的大小记下框要比头像大多少（inset，头像的百分之几），这样头像正好填满洞 */
-export async function fitFrame(url) {
+// glow：黑底上发光的框，按亮度变透明（光晕留成半透明）；不然黑底也照浅底那样从四周和中间抠（画出来的框里的灰、黑不会被抠成白雾）
+export async function fitFrame(url, glow) {
   const im = await loadImg(url), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
   x.drawImage(im, 0, 0);
   let d = x.getImageData(0, 0, w, H), a = d.data;
   const cx0 = w >> 1, cy0 = H >> 1;
   if (opaque(x, w, H)) {
-    // 底色取四条边的平均：深色底（发光的框常见）按亮度变透明，光晕也能留成半透明；浅色底照旧从四周和中间抠
+    // 底色取四条边的平均：选了「发光的框」的深色底按亮度变透明，光晕也能留成半透明；别的从四周和中间抠
     const E = [[], [], []];
     for (let i = 0; i < w; i += 4) for (const j of [0, H - 1]) for (let k = 0; k < 3; k++) E[k].push(a[(j * w + i) * 4 + k]);
     for (let j = 0; j < H; j += 4) for (const i of [0, w - 1]) for (let k = 0; k < 3; k++) E[k].push(a[(j * w + i) * 4 + k]);
     const B = E.map(v => v.sort((m, n) => m - n)[Math.floor(v.length * .9)]);   // 底色常常上下深浅不一：取偏亮的那头，底上的暗处都算透明
-    if (B[0] * .299 + B[1] * .587 + B[2] * .114 < 80) {
+    if (glow && B[0] * .299 + B[1] * .587 + B[2] * .114 < 80) {
       for (let p = 0; p < a.length; p += 4) {
         let al = 0; for (let k = 0; k < 3; k++) al = Math.max(al, (a[p + k] - B[k]) / (255 - B[k]));
         al = Math.max(0, (al - .08) / .92);

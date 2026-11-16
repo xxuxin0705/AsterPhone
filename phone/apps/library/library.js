@@ -111,7 +111,7 @@ async function addDeco(k, redraw) {
   if (v === 'new') editBubble(null, redraw);
   if (v === 'img') {
     const f = await pickFile('image/*'); if (!f) return;
-    const x = { id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', ...await fitFrame(await fileToDataURL(f, 480, 'image/png')) }; deco().frames.push(x); commit('deco'); redraw(); fitFrameEdit(x, redraw);   // 加完直接进调整页
+    const raw = await fileToDataURL(f, 480, 'image/png'), x = { id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', ...await fitFrame(raw) }; deco().frames.push(x); commit('deco'); redraw(); fitFrameEdit(x, redraw, raw);   // 加完直接进调整页（带着原图：抠得不对能换抠法）
   }
   if (v === 'file') {
     const f = await pickFile('*/*'); if (!f) return;
@@ -132,7 +132,7 @@ async function decoMenu(k, x, redraw) {
   if (v === 'del' && await dialog({ title: `删除「${x.name}」？`, text: '戴着它的人会换回没有的样子。', confirm: '删除', danger: true })) { deco()[k].splice(deco()[k].indexOf(x), 1); commit('deco'); redraw(); if (k === 'frames') refreshFrame(x.id); }
 }
 /** 头像框微调：添加时已经自动对齐过；这里拖预览挪位置，滑条调大小，还能染色 */
-function fitFrameEdit(f, redraw) {
+function fitFrameEdit(f, redraw, raw) {
   const d = { inset: f.inset ?? -22, dx: f.dx || 0, dy: f.dy || 0, tint: f.tint ? 'on' : '', dark: f.dark || (f.tint === 'heavy' ? '#000000' : f.color) || '#2f5fa8', light: f.light || (f.tint === 'light' ? '#ffffff' : f.color) || '#ffffff', view: f.view || '', src: f.src }, a = addFrame(avatar(state.me?.avatar || '', state.me?.nick || '我', 150), f.id);
   const paint = () => { a.style.setProperty('--frame-in', d.inset + '%'); a.style.setProperty('--frame-at', `${d.dx}% ${d.dy}%`); a.style.setProperty('--frame', `url("${d.view || d.src}")`); };
   // 染色要重新算一张图：拖色盘时只用最后一次的
@@ -150,7 +150,9 @@ function fitFrameEdit(f, redraw) {
     const r = item({ title: label, right: dot, onClick: () => sheet({ title: label, content: h('div.as-mu-color', colorWheel(d[k], v => { d[k] = v; dot.style.background = v; recolor(); })) }) }); r.hidden = !d.tint; return r; };
   const picks = [tone('dark', '深处的颜色'), tone('light', '浅处的颜色')];
   const fix = item({ title: '修图', chevron: true, onClick: async () => { const u = await touchUp(d.src, f.name); if (u) { d.src = u; if (d.tint) recolor(); else paint(); } } });
-  p.body.append(stage, group('', [fix,
+  // 刚加的框能换抠法：黑底的画出来的框「按边抠」，黑底上发光的框「按亮度抠」（光晕留成半透明）
+  const how = raw && field('抠法', segmented([['', '按边抠'], ['glow', '发光的框']], '', async v => { Object.assign(d, await fitFrame(raw, !!v)); if (d.tint) recolor(); else paint(); }));
+  p.body.append(stage, group('', [how, fix,
       field('大小', slider({ min: 0, max: 70, step: .5, value: -d.inset, onInput: v => { d.inset = -v; paint(); } }))]),
     group('', [field('染色', segmented([['', '不染'], ['on', '染色']], d.tint, v => { d.tint = v; picks.forEach(x => { x.hidden = !v; }); recolor(); })), ...picks]));
   paint(); nav.push(p.el);
