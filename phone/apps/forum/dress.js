@@ -32,6 +32,8 @@ export const dressed = key => !!setOf(D(key).set);
 export const fade = key => D(key).fade !== false;
 const meKey = () => 'me:' + state.forum.cur;
 export const hooks = {};   // 论坛开着时：穿上 / 脱下以后让「我」那页换图
+/** 导入主页时：把带来的装扮存成一套新的，直接穿上 */
+export async function wearNew(key, name, imgs) { await loadSets(); const s = { id: uid('fd'), name, imgs }; SETS.push(s); await saveSets(); state.forum.decos[key] = { set: s.id }; commit('forum'); hooks.worn?.(key); }
 function wear(key, id) { state.forum.decos[key] = { ...D(key), set: id || '' }; commit('forum'); hooks.worn?.(key); }
 
 const pickMany = () => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = true; i.onchange = () => res([...i.files]); i.click(); });

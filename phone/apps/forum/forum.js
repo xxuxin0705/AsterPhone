@@ -6,14 +6,14 @@ import { state, commit, contact } from '../../core/store.js';
 import { page, navBtn, icon, avatar, empty, badge, toast, waiting, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
-import { addFrame, pickDeco, decoName, loadImg } from '../../core/deco.js';
+import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
 import { LANGS, langName } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, setTiles, hooks, covers } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -72,8 +72,8 @@ function landed(got) {
 const feedTo = (b, opts = {}) => go('feed:' + b, '正在刷新…', s => E.feed(b, opts, s)).then(got => { if (got) { landed(got); toast(`刷到 ${got.length} 条`); } return got; });
 
 /* ---------- 零件 ---------- */
-// 会员牌子：名字后面那块 VIP / SVIP（帖子、评论里小一号）
-const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), { title: w.vip.toUpperCase() }) : null;
+// 会员牌子：名字后面那块 VIP / SVIP（帖子、评论里小一号）；样子在 looks/weibo.css 里画
+const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), w.vip.toUpperCase()) : null;
 const VIPS = [['', '不开'], ['vip', 'VIP'], ['svip', 'SVIP']];
 const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('check', 9, 3.4));
 function ava(by, size, framed) {
@@ -404,11 +404,15 @@ function mePane(p) {
   // 换了号：「我」整个换成那个号的主页（先画好再一次换上）
   const build = () => {
     const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
-    R.mePaint = v.paint; R.meRefresh = v.refresh; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
+    R.mePaint = v.paint; R.meRefresh = v.refresh; R.meEdit = v.edit; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
     box.replaceChildren(...v.els); applyTexts();
   };
   build(); R.meSwitch = build;
-  return { el: box, title: E.who({ k: 'me', id: E.curAcc().id }).name, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', openEditMe), navBtn('gear', '设置', openSettings)] };
+  // 编辑主页：不换页，就在这一页上点哪改哪；顶上一条毛玻璃的条（导入 · 导出 · 完成），一直停在上面
+  const bar = h('div.as-fo-editbar', { hidden: true }, h('span', h('button', { onclick: importMe }, '导入'), h('button', { onclick: exportMe }, '导出')), h('b', '编辑主页'), h('span', h('button.is-done', { onclick: () => edit(false) }, '完成')));
+  const edit = on => { bar.hidden = !on; R.meEdit(on); if (!on) toast('已保存'); };
+  p.el.append(bar);
+  return { el: box, title: E.who({ k: 'me', id: E.curAcc().id }).name, onShow: () => {}, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', () => edit(true)), navBtn('gear', '设置', openSettings)] };
 }
 /** 发现 / 小组页：样子放哪些积木；发现页第一块是搜索框时放到顶栏 */
 function blocksPane(kind, title) {
@@ -551,6 +555,7 @@ async function recommend(by) {
   applyTexts();
 }
 /** 一个人的主页：host 是放它的那一页（穿了套装加 .is-dressed、大图铺在上面） */
+const ph = t => h('i.as-fo-ph', t);   // 编辑主页时空着的地方：淡淡的字，点了能填
 const solids = new Map();
 const solid = u => u ? solids.get(u) ?? solids.set(u, loadImg(u).then(im => { const c = document.createElement('canvas'), w = c.width = Math.min(200, im.naturalWidth), H = c.height = Math.max(1, Math.round(im.naturalHeight * w / im.naturalWidth)), x = c.getContext('2d'); x.drawImage(im, 0, 0, w, H);
   const a = x.getImageData(0, 0, w, H).data; let n = 0; for (let i = 3; i < a.length; i += 4) if (a[i] > 128) n++; return n > a.length / 4 * .04; }).catch(() => true)).get(u) : Promise.resolve(false);
@@ -575,7 +580,7 @@ function userView(by, host) {
     const r = i => (seed >>> i) % 9 + 1;
     const all = [`昨日发博${r(2)}，阅读数${['1万+', '5万+', '10万+', '100万+'][seed % 4]}，互动数${r(3) * 137 + seed % 97}`, `视频累计播放量${r(4)}.${r(5)}万`, `${b ? b.topic : '生活'}领域 互动数飙升`];
     const o = O(), t = acc || 'tag1' in o ? [o.tag1, o.tag2].filter(Boolean) : [...new Set([all[seed % 3], all[(seed >>> 4) % 3]])];
-    return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x))) : null;
+    return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x))) : editing ? h('div.as-fo-user__tags', h('span', ph('橙色小字'))) : null;
   };
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list');
@@ -612,20 +617,55 @@ function userView(by, host) {
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id), O = () => acc || E.over(by);   // 我的号的资料 / 我给别人改过的资料
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
+  let editing = false;
   const certOf = () => O().cert || (b ? b.topic : acc ? '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主');
   const mainOf = () => { const w = E.who(by), o = O(); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
-    w.v ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), certOf()) : null,
-    w.ip ? h('div.as-fo-user__cert.is-ip', h('i.as-fo-user__ipic', 'IP'), 'IP属地：' + w.ip) : null,
-    h('div.as-fo-user__bio', o.bio ?? (b ? b.bio : '')), tagsOf(),
+    w.v || o.cert || editing ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), w.v || o.cert ? certOf() : ph('认证')) : null,
+    w.ip || editing ? h('div.as-fo-user__cert.is-ip', h('i.as-fo-user__ipic', 'IP'), w.ip ? 'IP属地：' + w.ip : ph('IP 属地')) : null,
+    h('div.as-fo-user__bio', (o.bio ?? (b ? b.bio : '')) || (editing ? ph('简介') : '')), tagsOf(),
     h('div.as-fo-user__nums', n(o.fans ?? fans, 'forum.fans'), n(o.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(o.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
   let main = mainOf();
   const refresh = () => { const m = mainOf(); main.replaceWith(m); main = m; paint(); applyTexts(); };
-  const els = [h('div.as-fo-user', cover, main),
-    tabs, more, list].filter(Boolean);
+  // 编辑模式（只有我自己的主页）：点头像、名字、简介、数字、小字、认证、IP、背景、标签，哪里点哪里改，改完马上存
+  const changed = () => { accSaved(); };
+  const ask = async (title, k) => { const x = await dialog({ title, input: { value: acc[k] || '' } }); if (x == null) return; acc[k] = x.trim().slice(0, 60); changed(); };
+  const onEdit = async e => {
+    if (!editing) return; e.stopPropagation(); e.preventDefault();
+    const t = e.target, is = s => t.closest(s);
+    if (is('.as-fo-user__ava')) {
+      const x = await actionSheet('头像', [{ value: 'ava', label: '换头像', icon: 'image' }, { value: 'frame', label: '换头像框', icon: 'user' }]);
+      if (x === 'ava') { const u = await pickImage('头像', { ratio: 1, size: 320, has: !!acc.avatar }); if (u != null) { acc.avatar = u; changed(); } }
+      if (x === 'frame') { const f = await pickDeco('frames', acc.frame ?? state.me?.frame, { src: E.who(by).avatar, name: E.who(by).name }); if (f != null) { acc.frame = f === 'none' ? '' : f; changed(); } }
+    } else if (is('.as-fo-user__name')) {
+      const d = { v: acc.v || '', vip: acc.vip || '' }, nm = input({ value: E.who(by).name, placeholder: '网名' });
+      editSheet('名字', [field('网名', nm), field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], d.v, x => { d.v = x; })), field('会员', segmented(VIPS, d.vip, x => { d.vip = x; }))],
+        () => { acc.name = nm.value.trim().slice(0, 20); Object.assign(acc, d); changed(); });
+    } else if (is('.as-fo-user__bio')) ask('简介', 'bio');
+    else if (is('.is-ip')) { const r = await (await import('../../core/mappick.js')).pickPlace('IP 属地', '不显示'); if (r) { acc.ip = r.ip || r.name; changed(); } }
+    else if (is('.as-fo-user__cert')) ask('认证', 'cert');
+    else if (is('.as-fo-user__nums')) {
+      const ins = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, l]) => [k, l, input({ value: acc[k] == null ? '' : acc[k] >= 1e8 ? acc[k] / 1e8 + '亿' : acc[k] >= 1e4 ? acc[k] / 1e4 + '万' : String(acc[k]), placeholder: l, inputmode: 'decimal' })]);
+      editSheet('数字', ins.map(([, l, el]) => field(l, el)), () => {
+        for (const [k, , el] of ins) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) acc[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete acc[k]; }
+        changed();
+      });
+    } else if (is('.as-fo-user__tags')) {
+      const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
+      editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
+    } else if (is('.as-fo-user__cover') || is('.as-fo-user__tabs')) {
+      const x = await actionSheet('装扮', [{ value: 'set', label: '换套装', icon: 'palette' }, { value: 'one', label: '单独换一样', icon: 'image' }]);
+      if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
+      if (x === 'one') dressMenu(key, paint);
+    }
+  };
+  const head = h('div.as-fo-user', cover, main);
+  head.addEventListener('click', onEdit, true); tabs.addEventListener('click', onEdit, true);
+  const edit = on => { editing = on; host.classList.toggle('is-editing', on); refresh(); };
+  const els = [head, tabs, more, list].filter(Boolean);
   paint();
   E.load().then(d => { fill(list, d.posts.filter(p => same(p.by, by))); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
-  return { els, ubar, paint, decorate, refresh, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
+  return { els, ubar, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
 }
 
 /* ---------- 小组页（豆瓣的小组 / 微博的超话、同城、树洞 / 推特的社群） ---------- */
@@ -759,24 +799,25 @@ function editAcc(a, done) {
     accSaved(); done();
   });
 }
-/** 「我」右上的编辑主页：上面就是主页的样子（带一条示范微博），下面改资料、换装扮，改哪儿上面马上变；点保存才算，不保存退出就还原 */
-function openEditMe() {
-  const a = E.curAcc(), orig = { ...a }, d = { ...a }, key = 'me:' + a.id; let saved = false;
-  const pg = page({ app: 'forum', id: 'forum-user', title: '编辑主页', back: true, cls: 'as-fo-editme' });
-  const v = userView({ k: 'me', id: a.id }, pg.el);
-  const demoOf = () => h('div.as-fo-demo', card({ id: 'demo', board: 'global', by: { k: 'me', id: a.id }, title: '', text: '你好👋，很高兴遇见你！', likes: 0, cmts: 0, reposts: 0, floors: [], at: Date.now() }));
-  let demo = demoOf();
-  const f = accFields(d, () => { f.read(); Object.assign(a, d); v.refresh(); const x = demoOf(); demo.replaceWith(x); demo = x; applyTexts(); });
-  const worn = hooks.worn; hooks.worn = k => { worn?.(k); if (k === key) v.paint(); };
-  pg.el._onLeave = () => {
-    hooks.worn = worn;
-    if (!saved) { Object.keys(a).forEach(k => { if (!(k in orig)) delete a[k]; }); Object.assign(a, orig); R?.meRefresh?.(); }
-  };
-  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });
-  pg.body.append(v.els[0], demo, h('div.as-fo-set.as-fo-editme__form', group('资料', [h('div.as-fo-compose', ...f.rows)]), setTiles(),
-    group('', [item({ icon: 'image', title: '单独换一样', chevron: true, onClick: () => dressMenu(key, v.paint) })]),
-    h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { f.read(); Object.assign(a, d); saved = true; accSaved(); nav.pop(); toast('已保存'); }))));
-  nav.push(pg.el); applyTexts();
+/** 导出 / 导入我的主页：资料、戴的头像框、身上的装扮打成一个文件，换个窗口或者发给别人都能原样导进来 */
+const ACC_KEYS = ['name', 'avatar', 'bio', 'v', 'vip', 'cert', 'tag1', 'tag2', 'fans', 'follows', 'likes', 'ip'];
+function exportMe() {
+  const a = E.curAcc(), key = 'me:' + a.id, f = a.frame && deco().frames.find(x => x.id === a.frame);
+  const data = { asterphone: 'forumProfile', v: 1, acc: Object.fromEntries(ACC_KEYS.filter(k => a[k] != null && a[k] !== '').map(k => [k, a[k]])),
+    frame: f ? { name: f.name, src: f.src, view: f.view, inset: f.inset, dx: f.dx, dy: f.dy, tint: f.tint, dark: f.dark, light: f.light } : null, dress: dressOf(key), fade: fade(key) };
+  const el = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-论坛主页-${E.who({ k: 'me', id: a.id }).name}.json` });
+  document.body.appendChild(el); el.click(); el.remove(); toast('已导出');
+}
+async function importMe() {
+  const file = await pickFile('*/*'); if (!file) return;
+  let d = null; try { d = JSON.parse(await file.text()); } catch (e) { /* 下面统一说 */ }
+  if (!d || d.asterphone !== 'forumProfile' || typeof d.acc !== 'object') { toast('这不是 AsterPhone 的论坛主页文件'); return; }
+  const a = E.curAcc(), key = 'me:' + a.id;
+  for (const k of ACC_KEYS) if (k in d.acc) a[k] = d.acc[k];
+  if (d.frame && /^data:image\//.test(d.frame.src || '')) { const f = { ...d.frame, id: 'f' + Date.now().toString(36), name: String(d.frame.name || '头像框').slice(0, 20) }; deco().frames.push(f); commit('deco'); a.frame = f.id; }
+  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([, u]) => typeof u === 'string' && /^data:image\//.test(u)));
+  if (Object.keys(imgs).length) await wearNew(key, (d.acc.name || '导入') + '的装扮', imgs);
+  accSaved(); toast('导入好了');
 }
 function openBots() {
   const pg = page({ app: 'forum', id: 'forum-bots', title: '营销号', back: true });
