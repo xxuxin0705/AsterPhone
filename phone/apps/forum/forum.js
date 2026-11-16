@@ -72,7 +72,7 @@ function landed(got) {
 const feedTo = (b, opts = {}) => go('feed:' + b, '正在刷新…', s => E.feed(b, opts, s)).then(got => { if (got) { landed(got); toast(`刷到 ${got.length} 条`); } return got; });
 
 /* ---------- 零件 ---------- */
-// 会员牌子：名字后面那块 VIP / SVIP（帖子里只露王冠）
+// 会员牌子：名字后面那块 VIP / SVIP（帖子、评论里小一号）
 const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), { title: w.vip.toUpperCase() }) : null;
 const VIPS = [['', '不开'], ['vip', 'VIP'], ['svip', 'SVIP']];
 const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('check', 9, 3.4));

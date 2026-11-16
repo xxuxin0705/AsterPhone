@@ -221,10 +221,12 @@
 [data-as-app="forum"] .as-fo-user__cert svg { color: #9a9a9a; }
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
 [data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
-/* 会员牌子（从真微博截图抠的，去掉了等级数字）；有会员的名字在帖子和评论里是橙色 */
-[data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 38px; height: 15px; margin-left: 4px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
-[data-as-app="forum"] .as-fo-vip.is-svip { width: 42px; background-image: url('assets/forum/svip.png'); }
-[data-as-app="forum"] .as-fo-vip.is-mini { width: 16px; background-size: auto 100%; }
+/* 会员牌子（从真微博截图抠的，去掉了等级数字），紧跟在名字后面；有会员的名字在帖子和评论里是橙色 */
+[data-as-app="forum"] .as-fo-vip { flex: none; display: inline-block; width: 38px; height: 15px; vertical-align: -2px; background: url('assets/forum/vip.png') left center / contain no-repeat; }
+[data-as-app="forum"] .as-fo-vip.is-svip { width: 40px; background-image: url('assets/forum/svip.png'); }
+/* 帖子、评论里也是整块牌子，只是小一号（只露王冠会被切掉一角） */
+[data-as-app="forum"] .as-fo-vip.is-mini { width: 31px; height: 13px; }
+[data-as-app="forum"] .as-fo-vip.is-mini.is-svip { width: 35px; }
 [data-as-app="forum"] :is(.as-fo-post__name, .as-fo-floor__name).is-vip { color: var(--fo-vip); }
 /* 橙 V 上那道浅橙的光一直扫过去（真微博是动的） */
 @keyframes fo-vshine { 0%, 15% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
