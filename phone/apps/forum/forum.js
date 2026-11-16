@@ -653,7 +653,7 @@ function accFields(d) {
   const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
   const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
   const fr = item({ title: '头像框', value: decoName('frames', d.frame ?? state.me?.frame) || '不戴', chevron: true, onClick: async () => {
-    const v = await pickDeco('frames', d.frame ?? state.me?.frame); if (v == null) return;
+    const v = await pickDeco('frames', d.frame ?? state.me?.frame, { src: d.avatar || E.who({ k: 'me', id: d.id }).avatar, name: d.name }); if (v == null) return;
     d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴';
   } });
   return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), fr, field('网名', name), field('简介', bio),
@@ -661,7 +661,16 @@ function accFields(d) {
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
-const accSaved = () => { commit('forum'); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); R?.meRefresh?.(); };
+const accSaved = () => { commit('forum'); document.querySelectorAll('.as-fo-acc').forEach(b => b.replaceWith(accChip())); R?.meRefresh?.(); repaintMine(); };
+// 改了号的名字、头像、V、头像框：已经画出来的帖子、开着的帖子页里我的楼层跟着换（只换头像和名字那一块）
+function repaintMine() {
+  const isMe = by => by.k === 'me', swap = (el, n, cs) => cs.forEach(c => { const o = el.querySelector(c), x = n.querySelector(c); if (o && x) o.replaceWith(x); });
+  document.querySelectorAll('article.as-fo-post[data-id]').forEach(a => { const p = E.postOf(a.dataset.id); if (p && isMe(p.by)) swap(a, card(p, a.classList.contains('is-full')), ['.as-fo-post__ava', '.as-fo-post__head']); });
+  for (const [id, v] of views) {
+    const p = E.postOf(id); if (!p) continue;
+    v.el.querySelectorAll('.as-fo-floor[data-id]').forEach(el => { const i = p.floors.findIndex(f => f.id === el.dataset.id), f = p.floors[i]; if (f && isMe(f.by.op ? p.by : f.by)) swap(el, floorEl(p, f, i), ['.as-fo-floor__ava', '.as-fo-floor__who']); });
+  }
+}
 function editAcc(a, done) {
   const d = a ? { ...a } : { id: 'a' + Date.now().toString(36), name: '', bio: '', avatar: '' }, f = accFields(d);
   editSheet(a ? '编辑' : '新建小号', f.rows, () => {

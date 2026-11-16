@@ -484,7 +484,7 @@ function openAvatarPage(chat, after) {
       h('button', { onclick: () => pick('myAvatar', '我在这个聊天的头像') }, addFrame(chatAvatar(E.myAvatarIn(chat), state.me.nick || '我', { ...cfg, avatarSize: 72 }), state.me.frame), h('span', '我')));
     // 头像框、气泡跟着人走：在这里给 TA 选，TA 在所有聊天里都戴着
     const decoRow = (label, who, k, key) => { const r = item({ title: label, value: decoName(k, who[key]) || '不戴', chevron: true, onClick: async () => {
-      const v = await pickDeco(k, who[key]); if (v == null) return;
+      const v = await pickDeco(k, who[key], who === state.me ? { src: E.myAvatarIn(chat), name: state.me.nick } : { src: E.avatarOf(c, chat), name: E.nameOf(c) }); if (v == null) return;
       if (v === 'none') delete who[key]; else who[key] = v; commit(who === state.me ? 'me' : 'contacts'); draw();
     } }); return r; };
     const out = (v, u) => h('output', v + u);

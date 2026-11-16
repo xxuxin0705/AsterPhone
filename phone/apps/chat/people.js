@@ -95,7 +95,7 @@ export function openProfile(cid, { onMessage } = {}) {
       // 声音：和设置 → 连接 → 音色库里的是同一份
       item({ title: '声音', chevron: true, onClick: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }),
       ...[['头像框', 'frames', 'frame'], ['气泡', 'bubbles', 'bubble']].map(([label, k, key]) => { const r = item({ title: label, value: decoName(k, c[key]) || '不戴', chevron: true, onClick: async () => {
-        const v = await pickDeco(k, c[key]); if (v == null) return;
+        const v = await pickDeco(k, c[key], { src: c.avatar, name: c.name }); if (v == null) return;
         if (v === 'none') delete c[key]; else c[key] = v; commit('contacts'); r.querySelector('.as-list-item__value').textContent = decoName(k, c[key]) || '不戴';
       } }); return r; }),
       item({ title: '和 TA 的缘分报告', chevron: true, onClick: () => import('../music/report.js').then(m => m.openReport(c)) }),

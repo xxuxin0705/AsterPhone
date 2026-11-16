@@ -1,18 +1,15 @@
 // 个性装扮：头像框、气泡。存在资源库「个性装扮」里，每个人各选一个：联系人存在 c.frame / c.bubble，我存在 state.me.frame / bubble
 import { state, commit } from './store.js';
-import { uid } from './util.js';
+import { uid, h } from './util.js';
 
 export const deco = () => (state.deco = state.deco || { frames: [], bubbles: [] });
 const find = (k, id) => id && deco()[k].find(x => x.id === id);
 
-/** 头像框换色：整张转色相、调浓淡和明暗，样式不变 */
-export const tone = f => `hue-rotate(${f.hue || 0}deg) saturate(${f.sat ?? 1}) brightness(${f.lit ?? 1})`;
 /** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加。id 也可以直接是一张图（论坛装扮套装里的框） */
 export function addFrame(ava, id) {
   const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id); if (!f) return ava;
-  ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${f.src}")`); if (f.inset != null) ava.style.setProperty('--frame-in', f.inset + '%');
+  ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${f.view || f.src}")`); if (f.inset != null) ava.style.setProperty('--frame-in', f.inset + '%');
   if (f.dx || f.dy) ava.style.setProperty('--frame-at', `${f.dx || 0}% ${f.dy || 0}%`);
-  if (f.hue || f.sat || f.lit) ava.style.setProperty('--frame-tone', tone(f));
   return ava;
 }
 /** 气泡：颜色、圆角、描边写进这一个气泡；有图就用九宫格拉伸（四个角不变形）。b 是编号，编辑时预览也可以直接传气泡本身 */
@@ -37,10 +34,16 @@ export function unpack(kind, d) {
 }
 
 /** 给一个人选头像框 / 气泡：返回编号，'none' 是不戴，null 是没选（取消） */
-export async function pickDeco(k, cur) {
-  const { actionSheet, toast } = await import('./ui.js');
+export async function pickDeco(k, cur, face) {
+  const ui = await import('./ui.js'), { actionSheet, toast } = ui;
   const name = k === 'frames' ? '头像框' : '气泡', list = deco()[k];
   if (!list.length) { toast(`还没有${name}，去「资源库 → 个性装扮」添加`); return null; }
+  // 头像框：一格一格戴在这个人头像上给你看，点哪个选哪个
+  if (k === 'frames') return new Promise(res => {
+    const { sheet, avatar } = ui; let v = null;
+    const tile = (id, label) => h('button.as-deco-pick' + ((cur || 'none') === id ? '.is-on' : ''), { onclick: () => { v = id; s.close(); } }, addFrame(avatar(face?.src || '', face?.name || '我', 52), id === 'none' ? '' : id), h('span', label));
+    const s = sheet({ title: name, content: h('div.as-deco-picks', tile('none', '不戴'), ...list.map(x => tile(x.id, x.name))), onClose: () => res(v) });
+  });
   return actionSheet(name, [{ value: 'none', label: '不戴', active: !cur }, ...list.map(x => ({ value: x.id, label: x.name, active: x.id === cur }))]);
 }
 export const decoName = (k, id) => find(k, id)?.name || '';
@@ -97,4 +100,15 @@ export async function fitFrame(url) {
   const k = Math.min(1, 200 / E), o = document.createElement('canvas'); o.width = o.height = Math.round(E * 2 * k);
   o.getContext('2d').drawImage(c, (E - cx) * k, (E - cy) * k, w * k, H * k);
   return { src: o.toDataURL('image/png'), inset: +(-(E - rad) / (2 * rad) * 100).toFixed(1) };
+}
+/** 头像框染色：light 轻染（照原来的明暗上色，白的还是白的），heavy 重染（白的也染满，黑的还是黑的）。出一张新图，原图留着能还原 */
+export async function tintFrame(src, color, mode) {
+  const im = await loadImg(src), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
+  x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, H), a = d.data, n = parseInt(color.slice(1, 7), 16), T = [n >> 16 & 255, n >> 8 & 255, n & 255];
+  for (let i = 0; i < a.length; i += 4) {
+    const L = (a[i] * .299 + a[i + 1] * .587 + a[i + 2] * .114) / 255;
+    for (let k = 0; k < 3; k++) a[i + k] = mode === 'heavy' ? T[k] * L : L < .5 ? T[k] * 2 * L : T[k] + (255 - T[k]) * (2 * L - 1);
+  }
+  x.putImageData(d, 0, 0); return c.toDataURL('image/png');
 }
