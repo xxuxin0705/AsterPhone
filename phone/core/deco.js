@@ -88,7 +88,35 @@ export async function fitFrame(url) {
   x.drawImage(im, 0, 0);
   let d = x.getImageData(0, 0, w, H), a = d.data;
   const cx0 = w >> 1, cy0 = H >> 1;
-  if (opaque(x, w, H)) { a[(cy0 * w + cx0) * 4 + 3] = 0; x.putImageData(d, 0, 0); flood(x, w, H, 60, 70); d = x.getImageData(0, 0, w, H); a = d.data; }
+  if (opaque(x, w, H)) {
+    // 底色取四条边的平均：深色底（发光的框常见）按亮度变透明，光晕也能留成半透明；浅色底照旧从四周和中间抠
+    const E = [[], [], []];
+    for (let i = 0; i < w; i += 4) for (const j of [0, H - 1]) for (let k = 0; k < 3; k++) E[k].push(a[(j * w + i) * 4 + k]);
+    for (let j = 0; j < H; j += 4) for (const i of [0, w - 1]) for (let k = 0; k < 3; k++) E[k].push(a[(j * w + i) * 4 + k]);
+    const B = E.map(v => v.sort((m, n) => m - n)[Math.floor(v.length * .9)]);   // 底色常常上下深浅不一：取偏亮的那头，底上的暗处都算透明
+    if (B[0] * .299 + B[1] * .587 + B[2] * .114 < 80) {
+      for (let p = 0; p < a.length; p += 4) {
+        let al = 0; for (let k = 0; k < 3; k++) al = Math.max(al, (a[p + k] - B[k]) / (255 - B[k]));
+        al = Math.max(0, (al - .08) / .92);
+        if (al) for (let k = 0; k < 3; k++) a[p + k] = Math.max(0, B[k] + (a[p + k] - B[k]) / al);
+        a[p + 3] = al * 255;
+      }
+      x.putImageData(d, 0, 0);
+    } else { a[(cy0 * w + cx0) * 4 + 3] = 0; x.putImageData(d, 0, 0); flood(x, w, H, 60, 70); }
+    d = x.getImageData(0, 0, w, H); a = d.data;
+    // 水印（小红书这类）在右下角：整块都落在右下那一小条里的零碎就去掉，框本身伸进来的大块不动
+    const seen = new Uint8Array(w * H);
+    for (let j = Math.floor(H * .88); j < H; j++) for (let i = Math.floor(w * .5); i < w; i++) {
+      const s0 = j * w + i; if (seen[s0] || a[s0 * 4 + 3] < 30) continue;
+      const q = [s0], blob = []; seen[s0] = 1; let inside = true;
+      while (q.length) {
+        const p = q.pop(), u = p % w, v = (p - u) / w; blob.push(p); if (u < w * .5 || v < H * .88) inside = false;
+        for (let dv = -1; dv <= 1; dv++) for (let du = -1; du <= 1; du++) { const uu = u + du, vv = v + dv, nn = vv * w + uu; if (uu >= 0 && vv >= 0 && uu < w && vv < H && !seen[nn] && a[nn * 4 + 3] >= 30) { seen[nn] = 1; q.push(nn); } }
+      }
+      if (inside) for (const p of blob) a[p * 4 + 3] = 0;
+    }
+    x.putImageData(d, 0, 0);
+  }
   if (a[(cy0 * w + cx0) * 4 + 3] > 127) return { src: c.toDataURL('image/png') };   // 中间不是空的：找不到洞，照原样
   // 从中间往四周 72 个方向走，碰到框就停：碰到的点的平均是洞的中心，距离取中间值是洞的半径（挂进洞里的小坠子不算）
   let cx = cx0, cy = cy0, rad = 0;
@@ -96,9 +124,10 @@ export async function fitFrame(url) {
     const hit = [];
     for (let k = 0; k < 72; k++) {
       const dx = Math.cos(k * Math.PI / 36), dy = Math.sin(k * Math.PI / 36);
-      for (let s = 1; ; s++) { const i = Math.round(cx + dx * s), j = Math.round(cy + dy * s); if (i < 0 || j < 0 || i >= w || j >= H) return { src: c.toDataURL('image/png') }; if (a[(j * w + i) * 4 + 3] > 127) { hit.push([i, j, s]); break; } }
+      for (let s = 1; ; s++) { const i = Math.round(cx + dx * s), j = Math.round(cy + dy * s); if (i < 0 || j < 0 || i >= w || j >= H) break; if (a[(j * w + i) * 4 + 3] > 90) { hit.push([i, j, s]); break; } }
     }
-    cx = hit.reduce((m, p) => m + p[0], 0) / 72; cy = hit.reduce((m, p) => m + p[1], 0) / 72; rad = hit.map(p => p[2]).sort((x, y) => x - y)[36] * 1.03;
+    if (hit.length < 54) return { src: c.toDataURL('image/png') };   // 框缺口太多（细细的光圈常有缝）：大半方向都碰得到才算
+    cx = hit.reduce((m, p) => m + p[0], 0) / hit.length; cy = hit.reduce((m, p) => m + p[1], 0) / hit.length; rad = hit.map(p => p[2]).sort((x, y) => x - y)[hit.length >> 1] * 1.03;
   }
   let E = rad;
   for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) if (a[(j * w + i) * 4 + 3] > 20) E = Math.max(E, Math.abs(i - cx) + 1, Math.abs(j - cy) + 1);

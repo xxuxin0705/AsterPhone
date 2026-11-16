@@ -105,7 +105,7 @@ async function addDeco(k, redraw) {
   if (v === 'new') editBubble(null, redraw);
   if (v === 'img') {
     const f = await pickFile('image/*'); if (!f) return;
-    deco().frames.push({ id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', ...await fitFrame(await fileToDataURL(f, 480, 'image/png')) }); commit('deco'); redraw();
+    const x = { id: uid('f'), name: f.name.replace(/\.[^.]+$/, '').slice(0, 20) || '头像框', ...await fitFrame(await fileToDataURL(f, 480, 'image/png')) }; deco().frames.push(x); commit('deco'); redraw(); fitFrameEdit(x, redraw);   // 加完直接进调整页
   }
   if (v === 'file') {
     const f = await pickFile('*/*'); if (!f) return;
