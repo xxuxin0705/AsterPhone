@@ -80,12 +80,14 @@ export async function dressMenu(key, repaint) {
   if (v === 'off') { wear(key, ''); repaint(); }
   if (v === 'fade') { state.forum.decos[key] = { ...D(key), fade: !fade(key) }; commit('forum'); repaint(); }
   if (v === 'one') { const k = await actionSheet('换哪一样', PIECES.map(([k, t]) => ({ value: k, label: t }))); if (k) await dressOne(key, k, repaint); }
-  if (v === 'save') {
-    const name = ((await dialog({ title: '套装的名字', input: { placeholder: '名字' } })) || '').trim(); if (!name) return;
-    const imgs = Object.fromEntries(Object.entries(dressOf(key)).filter(([, x]) => /^data:image\//.test(x)));
-    if (!Object.keys(imgs).length) { toast('还没有装扮'); return; }
-    SETS.push({ id: uid('fd'), name: name.slice(0, 20), imgs }); await saveSets(); toast('存好了');
-  }
+  if (v === 'save') saveSet(key);
+}
+/** 把身上这一身存成套装（存好在套装里能导出） */
+export async function saveSet(key) {
+  const imgs = Object.fromEntries(Object.entries(dressOf(key)).filter(([, x]) => /^data:image\//.test(x)));
+  if (!Object.keys(imgs).length) { toast('还没有装扮'); return; }
+  const name = ((await dialog({ title: '套装的名字', input: { placeholder: '名字' } })) || '').trim(); if (!name) return;
+  SETS.push({ id: uid('fd'), name: name.slice(0, 20), imgs }); await saveSets(); toast('存好了');
 }
 
 /** 只换一样（背景、标签小图、底栏…），换在我单独的那份上，不动套装 */

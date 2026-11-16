@@ -253,3 +253,5 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-ubar--pv, .is-editing > .as-fo-tabbar { display: none; }
 .is-editing > .as-fo-ubar--pv { display: flex; cursor: pointer; }
 .as-navbar:has(> .as-fo-editbar:not([hidden])) > :not(.as-fo-editbar) { visibility: hidden; }
+.as-fo-compose__row.is-chips { justify-content: flex-start; gap: 8px; }
+.as-fo-acc:not(:has(> span)) { padding: 6px 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }

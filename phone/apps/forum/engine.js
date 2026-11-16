@@ -258,9 +258,9 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   return add;
 }
 /** 我发帖：马上存好、返回这条（别人的回复由页面接着找 AI） */
-export async function post({ board, title = '', text, tr = '', pic = '', rp = '' }) {
+export async function post({ board, title = '', text, tr = '', pic = '', rp = '', dev = '' }) {
   await load();
-  const p = { id: uid('fp'), board, by: meBy(board === 'anon'), title: title.slice(0, 40), text, tr, img: '', pic, rp, likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
+  const p = { id: uid('fp'), board, by: meBy(board === 'anon'), title: title.slice(0, 40), text, tr, img: '', pic, rp, dev, likes: 0, cmts: 0, reposts: 0, floors: [], ...time.stamp() };
   D.posts.unshift(p); prune(); await save();
   return p;
 }

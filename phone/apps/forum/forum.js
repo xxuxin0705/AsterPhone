@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, dressOne, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, saveSet, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -155,10 +155,10 @@ function postMenu(p) {
   } }, icon('down', 16, 1.6));
 }
 function editPost(p) {
-  const title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: p.text, rows: 6, placeholder: '正文' });
-  editSheet('编辑', [field('标题', title), field('正文', body)], () => {
+  const title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: p.text, rows: 6, placeholder: '正文' }), from = fromChip(p.dev);
+  editSheet('编辑', [field('标题', title), field('正文', body), field('来自', from)], () => {
     const t = body.value.trim(); if (!t) { toast('写点什么'); return false; }
-    p.title = title.value.trim().slice(0, 40); if (t !== p.text) { p.text = t; p.tr = ''; }
+    p.title = title.value.trim().slice(0, 40); p.dev = from.value; if (t !== p.text) { p.text = t; p.tr = ''; }
     E.save(); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.replaceWith(card(p, a.classList.contains('is-full')))); applyTexts();
   });
 }
@@ -185,7 +185,7 @@ function card(p, full) {
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
     h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
-      h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, w.ip ? h('span.as-fo-post__from', '发布于 ' + w.ip) : null, g ? h('span.as-fo-post__in', g.name) : null)),
+      h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev || w.ip ? h('span.as-fo-post__from', '来自 ', h('b', p.dev || w.ip)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p),
     p.title ? h('div.as-fo-post__title', p.title) : null,
     ...tx(p, 'as-fo-post__text'),
@@ -209,6 +209,19 @@ function picEl(p) {
 }
 
 /* ---------- 我的号：一个小按钮显示现在用哪个号，点了换 ---------- */
+/** 来自 / IP 属地：在地图上选，或者自己写一句 */
+async function askFrom(title, cur, ip) {
+  const x = await actionSheet(title, [{ value: 'map', label: '在地图上选', icon: 'search' }, { value: 'type', label: '自己写', icon: 'edit' }, cur && { value: 'none', label: '不显示', icon: 'close', danger: true }].filter(Boolean));
+  if (x === 'map') { const r = await (await import('../../core/mappick.js')).pickPlace(title, '不显示'); return r && (ip && r.ip || r.name); }
+  if (x === 'type') { const v = await dialog({ title, input: { value: cur || '', placeholder: title } }); return v == null ? null : v.trim().slice(0, 16); }
+  return x === 'none' ? '' : null;
+}
+/** 发帖、改帖里的「来自」小按钮：value 就是选好的 */
+function fromChip(v) {
+  const b = h('button.as-fo-acc', { onclick: async e => { e.stopPropagation(); const x = await askFrom('来自', b.value); if (x != null) paint(x); } });
+  const paint = x => { b.value = x; b.textContent = x ? '来自 ' + x : '来自'; };
+  paint(v || ''); return b;
+}
 function accChip() {
   const paint = b => { const a = E.curAcc(); b.replaceChildren(avatar(E.who({ k: 'me', id: a.id }).avatar, E.accName(a), 22), h('span', E.accName(a))); };
   const b = h('button.as-fo-acc', { 'aria-label': '换号', onclick: async e => {
@@ -227,7 +240,7 @@ function compose(b0) {
     board = g.id; where.querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x.dataset.b === board));
   } }, g.base ? W('forum.tab.' + g.id) : g.name)));
   // 发成哪种语言：选了外语就先机翻（免费翻译，不花 API），发出去是外语，中文原文当翻译挂在下面
-  let lang = 'none';
+  let lang = 'none'; const from = fromChip('');
   const lb = h('button.as-fo-acc', { onclick: async e => {
     e.stopPropagation();
     const v = await actionSheet('发成哪种语言', [['none', '不翻译'], ...LANGS.filter(l => l[0] !== 'zh-CN')].map(([value, label]) => ({ value, label, active: value === lang }))); if (!v) return;
@@ -237,11 +250,11 @@ function compose(b0) {
     const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
     const t = lang === 'none' ? '' : await translate(text, lang); if (signal.aborted) return;
     s.close();
-    const p = await E.post({ board, title: title.value.trim(), text: t || text, tr: t && text, pic });
+    const p = await E.post({ board, title: title.value.trim(), text: t || text, tr: t && text, pic, dev: from.value });
     landed([p]); openPost(p); if (t) toast('翻好发出去了');
   }, lang === 'none' ? '' : '正在翻译…').catch(() => toast('没翻译成，还没发')));
   const s = sheet({ title: word('forum.post.new'), content: h('div.as-fo-compose', where, title, body, pv,
-    h('div.as-fo-compose__row', accChip(), lb, atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
+    h('div.as-fo-compose__row.is-chips', lb, from), h('div.as-fo-compose__row', accChip(), atBtn(body), btn('配图', 'secondary', async () => { const f = await pickFile('image/*'); if (!f) return; pic = await fileToDataURL(f, 1080); pv.src = pic; pv.hidden = false; })),
     h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), send)) });
   applyTexts();
 }
@@ -418,7 +431,8 @@ function mePane(p) {
   };
   build(); R.meSwitch = build;
   // 编辑主页：不换页，就在这一页上点哪改哪；顶上一条毛玻璃的条（导入 · 导出 · 完成），一直停在上面
-  const bar = h('div.as-fo-editbar', { hidden: true }, h('span', h('button', { onclick: importMe }, '导入'), h('button', { onclick: exportMe }, '导出')), h('b', '编辑主页'), h('span', h('button.is-done', { onclick: () => edit(false) }, '完成')));
+  const ib = (ic, label, onclick) => h('button', { 'aria-label': label, title: label, onclick }, icon(ic, 22, 1.8));
+  const bar = h('div.as-fo-editbar', { hidden: true }, h('span', ib('download', '导入', importMe), ib('upload', '导出', exportMe), ib('bookmark', '存成套装', () => saveSet('me:' + E.F().cur))), h('b', '编辑主页'), h('span', h('button.is-done', { onclick: () => edit(false) }, '完成')));
   const edit = on => { bar.hidden = !on; R.meEdit(on); if (!on) toast('已保存'); };
   p.el.querySelector('.as-navbar').append(bar);   // 盖在原来的顶栏上，高度、位置都跟顶栏一样
   return { el: box, title: E.who({ k: 'me', id: E.curAcc().id }).name, onShow: () => {}, right: [navBtn('search', '搜索', () => openSearch('')), navBtn('edit', '编辑主页', () => edit(true)), navBtn('gear', '设置', openSettings)] };
@@ -655,7 +669,7 @@ function userView(by, host) {
       editSheet('名字', [field('网名', nm), field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], d.v, x => { d.v = x; })), field('会员', segmented(VIPS, d.vip, x => { d.vip = x; }))],
         () => { acc.name = nm.value.trim().slice(0, 20); Object.assign(acc, d); changed(); });
     } else if (is('.as-fo-user__bio')) ask('简介', 'bio');
-    else if (is('.is-ip')) { const r = await (await import('../../core/mappick.js')).pickPlace('IP 属地', '不显示'); if (r) { acc.ip = r.ip || r.name; changed(); } }
+    else if (is('.is-ip')) { const x = await askFrom('IP 属地', acc.ip, true); if (x != null) { acc.ip = x; changed(); } }
     else if (is('.as-fo-user__cert')) ask('认证', 'cert');
     else if (is('.as-fo-user__nums')) {
       const ins = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, l]) => [k, l, input({ value: acc[k] == null ? '' : acc[k] >= 1e8 ? acc[k] / 1e8 + '亿' : acc[k] >= 1e4 ? acc[k] / 1e4 + '万' : String(acc[k]), placeholder: l, inputmode: 'decimal' })]);
@@ -787,8 +801,8 @@ function accFields(d, onChange = () => {}) {
     d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴'; pick.paint(); onChange();
   } });
   const ip = item({ title: 'IP 属地', value: d.ip || '不显示', chevron: true, onClick: async () => {
-    const r = await (await import('../../core/mappick.js')).pickPlace('IP 属地', '不显示'); if (!r) return;
-    d.ip = r.ip || r.name; ip.querySelector('.as-list-item__value').textContent = d.ip || '不显示'; onChange();
+    const x = await askFrom('IP 属地', d.ip, true); if (x == null) return;
+    d.ip = x; ip.querySelector('.as-list-item__value').textContent = d.ip || '不显示'; onChange();
   } });
   const pick = avaPick(() => d.avatar || me?.avatar || '', u => { d.avatar = u; onChange(); }, d.name || '号', () => d.frame ?? (d.id ? state.me?.frame : ''));
   [name, bio, cert, t1, t2, ...nums.map(x => x[1])].forEach(x => x.addEventListener('input', onChange));
