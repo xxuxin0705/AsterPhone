@@ -58,11 +58,13 @@ export const accName = a => (a && a.name) || (a && a.id === 'main' ? myNick() : 
 /** 我现在发东西用的 by；匿名区里发的是匿名 */
 export const meBy = anon => ({ k: 'me', id: curAcc().id, ...(anon ? { anon: true, no: 0 } : {}) });
 /** 帖子、楼层上的 by → 显示用的 { name, avatar, v } */
+// 会员：自己选过的照选的；没选过的有认证的号多半是 VIP / SVIP（同一个号每次一样），没认证的没有
+const club = (x, id, v) => x?.vip ?? (v ? ['vip', 'svip', 'vip'][[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % 3] : '');
 export function who(by) {
   if (by.anon) return { name: by.no ? `匿名 ${by.no} 号` : '匿名', anon: true };
-  if (by.k === 'bot') { const b = botOf(by.id); return b ? { name: b.name, avatar: b.avatar, v: b.fans >= 2e5 ? 'r' : 'y', sub: b.topic } : { name: by.name || '已删除的号' }; }
-  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '' } : { name: '已注销', me: true }; }
-  if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c) } : { name: by.name || '用户' }; }
+  if (by.k === 'bot') { const b = botOf(by.id); const v = b && (b.v ?? (b.fans >= 2e5 ? 'r' : 'y')); return b ? { name: b.name, avatar: b.avatar, v, vip: club(b, b.id, v), sub: b.topic } : { name: by.name || '已删除的号' }; }
+  if (by.k === 'me') { const a = accOf(by.id); return a ? { name: accName(a), avatar: a.avatar || (a.id === 'main' ? myAvatar() : ''), me: true, v: a.v || '', vip: a.vip || '' } : { name: '已注销', me: true }; }
+  if (by.k === 'c') { const c = contact(by.id); return c ? { name: netName(c), avatar: c.avatar, v: isV(c), vip: club(P(c.id), c.id, isV(c)) } : { name: by.name || '用户' }; }
   return { name: by.name || '网友' };
 }
 const strip = n => String(n || '').replace(/[（(][^）)]*[）)]/g, '').trim();

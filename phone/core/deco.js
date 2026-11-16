@@ -146,14 +146,15 @@ export async function fitFrame(url) {
   o.getContext('2d').drawImage(c, (E - cx) * k, (E - cy) * k, w * k, H * k);
   return { src: o.toDataURL('image/png'), inset: +(-(E - rad) / (2 * rad) * 100).toFixed(1) };
 }
-/** 头像框染色：light 轻染（照原来的明暗上色，白的还是白的），heavy 重染（白的也染满，黑的还是黑的）。出一张新图，原图留着能还原 */
-export async function tintFrame(src, color, mode) {
+/** 头像框染色：按原来的深浅，最深的地方是 dark、最浅的是 light，中间照比例过渡（蓝白、粉金都行）。出一张新图，原图留着能还原 */
+export async function tintFrame(src, dark, light) {
   const im = await loadImg(src), c = document.createElement('canvas'), w = c.width = im.naturalWidth, H = c.height = im.naturalHeight, x = c.getContext('2d');
   x.drawImage(im, 0, 0);
-  const d = x.getImageData(0, 0, w, H), a = d.data, n = parseInt(color.slice(1, 7), 16), T = [n >> 16 & 255, n >> 8 & 255, n & 255];
+  const rgb = s => { const n = parseInt(s.slice(1, 7), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }, D = rgb(dark), Lc = rgb(light);
+  const d = x.getImageData(0, 0, w, H), a = d.data;
   for (let i = 0; i < a.length; i += 4) {
     const L = (a[i] * .299 + a[i + 1] * .587 + a[i + 2] * .114) / 255;
-    for (let k = 0; k < 3; k++) a[i + k] = mode === 'heavy' ? T[k] * L : L < .5 ? T[k] * 2 * L : T[k] + (255 - T[k]) * (2 * L - 1);
+    for (let k = 0; k < 3; k++) a[i + k] = D[k] + (Lc[k] - D[k]) * L;
   }
   x.putImageData(d, 0, 0); return c.toDataURL('image/png');
 }

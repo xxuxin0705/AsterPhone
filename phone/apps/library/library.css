@@ -42,3 +42,11 @@
 .as-lib-framefit { display: grid; place-items: center; height: 300px; margin: 8px 16px 16px; border-radius: 18px; border: 1px solid var(--as-color-glass-line); background: var(--as-color-surface); touch-action: none; cursor: grab; }
 .as-lib-fitmode { display: flex; gap: 10px; align-items: center; }
 .as-lib-fitmode > :first-child { flex: 1; }
+.as-lib-fitmode > .as-btn { flex: none; width: auto; min-height: 0; padding: 7px 14px; font-size: 13px; }
+.as-lib-fontpv { margin: 12px 16px 6px; padding: 16px 14px; border-radius: 14px; background: var(--as-color-surface-2); font-size: 20px; text-align: center; overflow-wrap: anywhere; }
+.as-lib-fonts { max-height: 176px; overflow-y: auto; margin: 0 8px; }
+.as-lib-font { display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 10px; font-size: 15px; cursor: pointer; }
+.as-lib-font.is-on { background: color-mix(in srgb, var(--as-color-accent) 12%, transparent); }
+.as-lib-font > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-lib-font small { color: var(--as-color-text-2); font-size: 12px; }
+.as-lib-font__more { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--as-color-text-2); }

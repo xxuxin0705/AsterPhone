@@ -72,3 +72,9 @@ export async function removeClockFont(id) {
   await kvSet('fonts:clock', recs.filter(r => r.id !== id));
   applyFonts();
 }
+export async function renameClockFont(id, name) {
+  const x = list.find(r => r.id === id); if (!x) return; x.name = name;
+  const recs = (await kvGet('fonts:clock').catch(() => null)) || [];
+  recs.forEach(r => { if (r.id === id) r.name = name; }); await kvSet('fonts:clock', recs);
+}
+export const fontFamily = id => `"${family(id)}"`;

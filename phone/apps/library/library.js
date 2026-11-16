@@ -7,7 +7,7 @@ import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
 import * as time from '../../core/time.js';
 import * as walls from '../../core/walls.js';
-import { userFonts, importClockFont, removeClockFont } from '../../core/fonts.js';
+import { userFonts, importClockFont, removeClockFont, renameClockFont, fontFamily } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
 import { desk, setDesk, cleanDesk } from '../home/home.js';
 import { lookTiles } from '../forum/looks.js';
@@ -89,10 +89,16 @@ function drawDeco(box, redraw) {
       add(() => addDeco('bubbles', redraw)))]));
 
   const S = state.settings, used = id => [S.clock.font === 'u:' + id ? '锁屏时间' : '', S.uiFont === 'u:' + id ? '整个手机' : ''].filter(Boolean).join('、');
-  box.append(group(withInfo('字体', '点一个可以删除。导入的字体只存在这台设备上，换手机要再导入一次。'), [...userFonts().map(x => item({ title: x.name, sub: used(x.id) ? '正在用：' + used(x.id) : '', onClick: async () => {
-    if (!(await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true }))) return;
-    await removeClockFont(x.id); commit('look'); shell.applyLook(); redraw();
-  } })), item({ icon: 'plus', title: '导入字体', onClick: async () => {
+  // 上面一块预览，下面的字体列表在一个能滚的小框里（字体多了也不占地方）；点一个就预览它，右边「···」改名、删除
+  const pv = h('div.as-lib-fontpv', '这是一个Aster小手机🌟'), rows = h('div.as-lib-fonts');
+  const pick = (x, r) => { pv.style.fontFamily = x ? fontFamily(x.id) : ''; rows.querySelectorAll('.is-on').forEach(e => e.classList.remove('is-on')); r?.classList.add('is-on'); };
+  rows.append(...userFonts().map(x => { const r = h('div.as-lib-font', { onclick: () => pick(x, r) }, h('span', { style: { fontFamily: fontFamily(x.id) } }, x.name), used(x.id) ? h('small', '正在用') : null,
+    h('button.as-lib-font__more', { 'aria-label': '更多', onclick: async e => { e.stopPropagation();
+      const v = await actionSheet(x.name, [{ value: 'name', label: '改名', icon: 'edit' }, { value: 'del', label: '删除', icon: 'trash', danger: true }]);
+      if (v === 'name') { const n = await dialog({ title: '改名', input: { value: x.name } }); if (n?.trim()) { await renameClockFont(x.id, n.trim().slice(0, 30)); r.firstChild.textContent = x.name; } }
+      if (v === 'del' && await dialog({ title: `删掉「${x.name}」？`, text: used(x.id) ? '正在用它的地方会换回默认字体。' : '', confirm: '删除', danger: true })) { await removeClockFont(x.id); commit('look'); shell.applyLook(); r.remove(); if (r.classList.contains('is-on')) pick(null); }
+    } }, icon('more', 18, 1.8))); return r; }));
+  box.append(group(withInfo('字体', '导入的字体只存在这台设备上，换手机要再导入一次。'), [pv, rows, item({ icon: 'plus', title: '导入字体', onClick: async () => {
     const f = await pickFile('.otf,.ttf,.woff,.woff2,font/*'); if (!f) return;
     try { const x = await importClockFont(f); toast(`导入了「${x.name}」，去「设置 → 显示」里选用`); redraw(); } catch (e) { toast(e.message); }
   } })]),
@@ -127,13 +133,13 @@ async function decoMenu(k, x, redraw) {
 }
 /** 头像框微调：添加时已经自动对齐过；这里拖预览挪位置，滑条调大小，还能染色 */
 function fitFrameEdit(f, redraw) {
-  const d = { inset: f.inset ?? -22, dx: f.dx || 0, dy: f.dy || 0, tint: f.tint || '', color: f.color || '#f4a6c0', view: f.view || '', src: f.src }, a = addFrame(avatar(state.me?.avatar || '', state.me?.nick || '我', 150), f.id);
+  const d = { inset: f.inset ?? -22, dx: f.dx || 0, dy: f.dy || 0, tint: f.tint ? 'on' : '', dark: f.dark || (f.tint === 'heavy' ? '#000000' : f.color) || '#2f5fa8', light: f.light || (f.tint === 'light' ? '#ffffff' : f.color) || '#ffffff', view: f.view || '', src: f.src }, a = addFrame(avatar(state.me?.avatar || '', state.me?.nick || '我', 150), f.id);
   const paint = () => { a.style.setProperty('--frame-in', d.inset + '%'); a.style.setProperty('--frame-at', `${d.dx}% ${d.dy}%`); a.style.setProperty('--frame', `url("${d.view || d.src}")`); };
   // 橡皮擦擦在两张画布上：原图（染色从它算）和染过色的那张（预览用的）
   const cv = () => document.createElement('canvas'), es = cv(), ev = cv(), load = (c, u) => loadImg(u).then(im => { c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); });
   load(es, d.src); if (d.view) load(ev, d.view);
   // 染色要重新算一张图：拖色盘时只用最后一次的
-  let job = 0; const recolor = async () => { const n = ++job, v = d.tint ? await tintFrame(d.src, d.color, d.tint) : ''; if (n !== job) return; d.view = v; if (v) await load(ev, v); paint(); };
+  let job = 0; const recolor = async () => { const n = ++job, v = d.tint ? await tintFrame(d.src, d.dark, d.light) : ''; if (n !== job) return; d.view = v; if (v) await load(ev, v); paint(); };
   let mode = 'move', s = null, raf = 0; const undo = [];
   const stage = h('div.as-lib-framefit', a);
   const rub = e => {   // 手指在框图上的位置：框比头像大 -inset%，再挪 dx/dy（按框自己的宽）
@@ -148,12 +154,13 @@ function fitFrameEdit(f, redraw) {
   const back = btn('撤销', 'secondary', () => { const u = undo.pop(); if (!u) return; [d.src, d.view] = u; load(es, d.src); if (d.view) load(ev, d.view); paint(); });
   back.hidden = true;
   const p = page({ app: 'library', id: 'library-framefit', title: f.name, back: true, right: navText('保存', () => { Object.assign(f, d); commit('deco'); toast('已保存'); nav.pop(); redraw(); refreshFrame(f.id); }) });
-  const dot = h('span.as-lib-dot', { style: { background: d.color } });
-  const pick = item({ title: '颜色', right: dot, onClick: () => sheet({ title: '颜色', content: h('div.as-mu-color', colorWheel(d.color, v => { d.color = v; dot.style.background = v; recolor(); })) }) });
-  pick.hidden = !d.tint;
+  // 两个颜色：框里最深的地方染成「深处」、最浅的染成「浅处」，中间按深浅过渡
+  const tone = (k, label) => { const dot = h('span.as-lib-dot', { style: { background: d[k] } });
+    const r = item({ title: label, right: dot, onClick: () => sheet({ title: label, content: h('div.as-mu-color', colorWheel(d[k], v => { d[k] = v; dot.style.background = v; recolor(); })) }) }); r.hidden = !d.tint; return r; };
+  const picks = [tone('dark', '深处的颜色'), tone('light', '浅处的颜色')];
   p.body.append(stage, group('', [field('操作', h('div.as-lib-fitmode', segmented([['move', '挪动'], ['erase', '橡皮擦']], mode, v => { mode = v; back.hidden = v !== 'erase'; }), back)),
       field('大小', slider({ min: 0, max: 70, step: .5, value: -d.inset, onInput: v => { d.inset = -v; paint(); } }))]),
-    group('', [field('染色', segmented([['', '不染'], ['light', '轻染'], ['heavy', '重染']], d.tint, v => { d.tint = v; pick.hidden = !v; recolor(); })), pick]));
+    group('', [field('染色', segmented([['', '不染'], ['on', '染色']], d.tint, v => { d.tint = v; picks.forEach(x => { x.hidden = !v; }); recolor(); })), ...picks]));
   paint(); nav.push(p.el);
 }
 /** 气泡编辑：上面是预览，下面调颜色、圆角、描边，或者换成一张图 */

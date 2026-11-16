@@ -72,6 +72,9 @@ function landed(got) {
 const feedTo = (b, opts = {}) => go('feed:' + b, '正在刷新…', s => E.feed(b, opts, s)).then(got => { if (got) { landed(got); toast(`刷到 ${got.length} 条`); } return got; });
 
 /* ---------- 零件 ---------- */
+// 会员牌子：名字后面那块 VIP / SVIP（帖子里只露王冠）
+const vipEl = (w, mini) => w.vip ? h('i.as-fo-vip.is-' + w.vip + (mini ? '.is-mini' : ''), { title: w.vip.toUpperCase() }) : null;
+const VIPS = [['', '不开'], ['vip', 'VIP'], ['svip', 'SVIP']];
 const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('check', 9, 3.4));
 function ava(by, size, framed) {
   if (by.anon) return h('span.as-avatar.as-fo-anon', { style: { width: size + 'px', height: size + 'px' } }, icon('user', Math.round(size * .5), 1.8));
@@ -141,7 +144,7 @@ function card(p, full) {
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
     h('span.as-fo-post__ava', { onclick: toUser }, ava(p.by, 42, true), w.v ? h('i.as-fo-post__badge.is-' + w.v) : null),
-    h('div.as-fo-post__head', h('span.as-fo-post__name', { onclick: toUser }, w.name), w.v ? vMark() : null,
+    h('div.as-fo-post__head', h('span.as-fo-post__name' + (w.vip ? '.is-vip' : ''), { onclick: toUser }, w.name), vipEl(w, true), w.v ? vMark() : null,
       h('span.as-fo-post__meta', h('span.as-fo-post__time', when(p.at)), p.dev ? h('span.as-fo-post__from', '来自 ', h('b', p.dev)) : null, g ? h('span.as-fo-post__in', g.name) : null)),
     followBtn(p.by), postMenu(p.by),
     p.title ? h('div.as-fo-post__title', p.title) : null,
@@ -422,7 +425,7 @@ function floorEl(p, f, i) {
   return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : ''), { dataset: { id: f.id } },
     h('span.as-fo-floor__ava', { onclick: e => { e.stopPropagation(); if (!f.by.op && !f.by.anon) openUser(f.by); } }, ava(f.by.op ? p.by : f.by, 32, true)),
     h('div.as-fo-floor__main',
-      h('div.as-fo-floor__who', h('span.as-fo-floor__name', w.name), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
+      h('div.as-fo-floor__who', h('span.as-fo-floor__name' + (w.vip ? '.is-vip' : ''), w.name), vipEl(w, true), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
       up ? h('div.as-fo-floor__quote', h('b', E.floorWho(p, up) + '：'), up.text) : null,
       ...tx(f, 'as-fo-floor__text'),
       h('div.as-fo-floor__meta', no ? h('span.as-fo-floor__no', no.replace('{n}', i + 1)) : null, h('span.as-fo-floor__time', when(f.at)), likeBtn(f))));
@@ -524,7 +527,7 @@ function userView(by, host) {
     const r = i => (seed >> i) % 9 + 1;
     const all = [`昨日发博${r(2)}，阅读数${['1万+', '5万+', '10万+', '100万+'][seed % 4]}，互动数${r(3) * 137 + seed % 97}`, `视频累计播放量${r(4)}.${r(5)}万`, `${b ? b.topic : '生活'}领域 互动数飙升`];
     const t = acc ? [acc.tag1, acc.tag2].filter(Boolean) : [...new Set([all[seed % 3], all[(seed >> 4) % 3]])];
-    return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x)), icon('down', 16, 1.6)) : null;
+    return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x))) : null;
   };
   const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list');
@@ -563,7 +566,7 @@ function userView(by, host) {
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id);
   // 上面这块（头像、名字、V、认证、简介、橙色小字、数字）：改了资料只把这一块换掉
-  const mainOf = () => { const w = E.who(by); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), w.v ? vMark() : null),
+  const mainOf = () => { const w = E.who(by); return h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', h('span', w.name), vipEl(w), w.v ? vMark() : null),
     w.v ? h('div.as-fo-user__cert', icon('shield', 16, 1.7), b ? b.topic : acc ? acc.cert || '已认证' : ['生活', '美食', '情感', '摄影', '旅行', '游戏', '穿搭', '读书'][seed % 8] + '博主') : null,
     h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : ''), tagsOf(),
     h('div.as-fo-user__nums', n(acc?.fans ?? fans, 'forum.fans'), n(acc?.follows ?? (mine ? (state.forum.follows || []).length : 20 + seed % 400), 'forum.follows'), n(acc?.likes ?? (b ? b.fans * 7 : 100 + seed % 90000), 'forum.likes'))); };
@@ -664,7 +667,7 @@ function accFields(d) {
     d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴';
   } });
   return { rows: [avaPick(() => d.avatar, u => { d.avatar = u; }, d.name || '号'), fr, field('网名', name), field('简介', bio),
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V（官方）'], ['r', '橙 V']], d.v || '', v => { d.v = v; })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
@@ -723,7 +726,7 @@ function openPeople() {
   pg.body.append(h('div.as-fo-set', state.contacts.length ? group('', state.contacts.map(c => {
     const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: nameOf(c), value: label(c), chevron: true, onClick: () => {
       const d = { ...P(c.id) }, nick = input({ value: d.name || '', placeholder: '网名' });
-      editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('网名', nick)], () => {
+      editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('会员', segmented(VIPS, E.who({ k: 'c', id: c.id }).vip, v => { d.vip = v; })), field('网名', nick)], () => {
         d.name = nick.value.trim().slice(0, 20); Object.assign(P(c.id), d); commit('forum'); row.querySelector('.as-list-item__value').textContent = label(c);
       });
     } });
