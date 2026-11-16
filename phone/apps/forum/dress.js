@@ -9,7 +9,7 @@ import { loadImg, cutout, flood, touchUp } from '../../core/deco.js';
 
 // [编号, 叫法, 宽÷高, 长边像素, 留透明]
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1], ['tabline', '标签下的花边', 4, 320, 1],
-  ['bar', '底栏背景', 0, 1200], ['btn', '底栏按钮小图', 0, 160, 1], ['like', '点赞特效', 1, 300, 1]];
+  ['bar', '底栏背景', 6.5, 1200], ['btn', '底栏按钮小图', 0, 160, 1], ['like', '点赞特效', 1, 300, 1]];
 // 底栏按钮一次传三张，按勾的顺序从左到右
 // 主页背景最多九张，左右滑、自己轮播
 const BTNS = ['btn', 'btn2', 'btn3'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor'];
@@ -32,6 +32,7 @@ export function dressOf(key) {
 export const dressed = key => !!setOf(D(key).set);
 /** 主页背景下沿往页面底色淡过去：默认开，有的装扮自带过渡就关掉 */
 export const fade = key => D(key).fade !== false;
+export const setFade = key => { state.forum.decos[key] = { ...D(key), fade: !fade(key) }; commit('forum'); };
 const meKey = () => 'me:' + state.forum.cur;
 export const hooks = {};   // 论坛开着时：穿上 / 脱下以后让「我」那页换图
 /** 导入主页时：把带来的装扮存成一套新的，直接穿上 */
@@ -147,7 +148,7 @@ export async function dressMenu(key, repaint) {
     wear(key, id); repaint();
   }
   if (v === 'off') { wear(key, ''); repaint(); }
-  if (v === 'fade') { state.forum.decos[key] = { ...D(key), fade: !fade(key) }; commit('forum'); repaint(); }
+  if (v === 'fade') { setFade(key); repaint(); }
   if (v === 'one') { const k = await actionSheet('换哪一样', PIECES.map(([k, t]) => ({ value: k, label: t }))); if (k) await dressOne(key, k, repaint); }
   if (v === 'save') saveSet(key);
 }

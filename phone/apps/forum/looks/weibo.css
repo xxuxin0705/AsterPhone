@@ -231,10 +231,10 @@
 /* 橙 V 上那道浅橙的光一直扫过去（真微博是动的） */
 @keyframes fo-vshine { 0%, 15% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
 /* 主页底栏的「+ 关注」：右边一个橙色大按钮（真微博那样），关注了变回普通的「已关注」 */
-[data-as-app="forum"] .as-fo-ubar__item.as-fo-ubar__follow { flex: 2.2; align-self: center; display: flex; justify-content: center; align-items: center; height: 44px; margin: 0 14px 0 6px; border-radius: 12px; background: linear-gradient(90deg, #ff8a00, #ffa31a); color: #fff; font: 600 17px/1 var(--font-ui); text-shadow: none; }
-[data-as-app="forum"] .as-fo-ubar__follow svg { display: none; }
-[data-as-app="forum"] .as-fo-ubar__follow::before { content: '+'; margin-right: 6px; font: 400 22px/1 var(--font-ui); }
 /* 置顶：会员是真微博那条橙色渐变（抠的图），不是会员就一行橙字 */
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(> .as-fo-post__pin) { padding-top: 50px; }
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post__pin { position: absolute; grid-column: auto; left: 0; right: 0; top: 0; height: 36px; padding: 14px 15px 0; margin: 0; font: 600 15px/1 var(--font-ui); color: #ff8200; }
 [data-as-app="forum"] .as-fo-list.is-user .as-fo-post:has(.as-fo-post__name.is-vip) .as-fo-post__pin { padding: 0; font-size: 0; background: url('assets/forum/pin-vip.jpg') left center / cover no-repeat; }
+/* 背景不要渐变：上面整张背景图，下面白底圆角盖上来一点（真微博不带渐变的那种） */
+.is-dressed.no-fade .as-fo-user__cover { background: none !important; }
+.is-dressed.no-fade .as-fo-user__cover::after { content: ''; position: absolute; left: 0; right: 0; top: 194px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--fo-card, #fff); }

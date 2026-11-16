@@ -13,7 +13,7 @@ import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { look, word, defWord, applyLook } from './looks.js';
-import { dressOf, dressed, fade, dressMenu, dressOne, saveSet, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
+import { dressOf, dressed, fade, dressMenu, dressOne, saveSet, setFade, PIECES, setTiles, hooks, covers, wearNew } from './dress.js';
 import * as E from './engine.js';
 
 const phone = () => document.querySelector('#phone');
@@ -120,7 +120,7 @@ const act = (k, n, onclick) => h('button.as-fo-act.is-' + k, { dataset: { n: n |
 /** +关注：点了只换这个人身上所有关注按钮的字 */
 const following = k => (state.forum.follows || []).includes(k);
 // 主页底栏：没关注是右边一个大的橙色「+ 关注」，关注了变成和旁边一样的「已关注」
-const paintFol = x => { const on = following(x.dataset.key); x.classList.toggle('as-fo-ubar__follow', !on); x.lastChild.replaceWith(W(on ? 'forum.followed' : 'forum.follow')); };
+const paintFol = x => { const on = following(x.dataset.key); x.lastChild.replaceWith(W(on ? 'forum.followed' : 'forum.follow')); };
 const paintFollow = b => { const on = following(b.dataset.key); b.classList.toggle('is-on', on); b.replaceChildren(W(on ? 'forum.followed' : 'forum.follow')); };
 function toggleFollow(k) {
   const f = state.forum.follows; if (following(k)) f.splice(f.indexOf(k), 1); else f.push(k); commit('forum');
@@ -644,7 +644,6 @@ function userView(by, host) {
     : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
   // 编辑我的主页时，底下换成别人进我主页看到的那条底栏，点它换底栏装扮
   const pv = mine && h('div.as-fo-ubar.as-fo-ubar--pv', bi('chat', W('forum.dm')), bi('users', h('span', '推荐')), bi('user', W('forum.follow')));
-  pv?.lastChild.classList.add('as-fo-ubar__follow');
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
@@ -702,8 +701,10 @@ function userView(by, host) {
       const t1 = input({ value: acc.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: acc.tag2 || '', placeholder: '橙色小字' });
       editSheet('橙色小字', [field('小字 1', t1), field('小字 2', t2)], () => { acc.tag1 = t1.value.trim().slice(0, 24); acc.tag2 = t2.value.trim().slice(0, 24); changed(); });
     } else if (is('.as-fo-user__cover')) {
-      const x = await actionSheet('背景', [{ value: 'cover', label: '换背景图', icon: 'image' }, { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }]);
+      const x = await actionSheet('背景', [{ value: 'cover', label: '换背景图', icon: 'image' }, covers(dressOf(key)).length && { value: 'fade', label: fade(key) ? '背景不要渐变' : '背景加渐变', icon: 'image' },
+        { value: 'set', label: '换套装', icon: 'palette' }, { value: 'more', label: '更多装扮', icon: 'box' }].filter(Boolean));
       if (x === 'cover') dressOne(key, 'cover', paint);
+      if (x === 'fade') { setFade(key); paint(); }
       if (x === 'set') sheet({ title: '装扮套装', content: setTiles() });
       if (x === 'more') dressMenu(key, paint);
     } else if (is('.as-fo-user__tabs')) pickPiece('标签', ['tab', 'tabline']);
@@ -862,13 +863,16 @@ function exportMe() {
   document.body.appendChild(el); el.click(); el.remove(); toast('已导出');
 }
 async function importMe() {
+  const v = await actionSheet('导入', [{ value: 'file', label: '从文件导入', icon: 'download' }, { value: 'set', label: '用存好的套装', icon: 'palette' }]);
+  if (v === 'set') sheet({ title: '装扮套装', content: setTiles() });
+  if (v !== 'file') return;
   const file = await pickFile('*/*'); if (!file) return;
   let d = null; try { d = JSON.parse(await file.text()); } catch (e) { /* 下面统一说 */ }
   if (!d || d.asterphone !== 'forumProfile' || typeof d.acc !== 'object') { toast('这不是 AsterPhone 的论坛主页文件'); return; }
   const a = E.curAcc(), key = 'me:' + a.id;
   for (const k of ACC_KEYS) if (k in d.acc) a[k] = d.acc[k];
   if (d.frame && /^data:image\//.test(d.frame.src || '')) { const f = { ...d.frame, id: 'f' + Date.now().toString(36), name: String(d.frame.name || '头像框').slice(0, 20) }; deco().frames.push(f); commit('deco'); a.frame = f.id; }
-  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([k, u]) => typeof u === 'string' && (k === 'btnsize' ? /^\d+$/ : /^data:image\//).test(u)));
+  const imgs = Object.fromEntries(Object.entries(d.dress || {}).filter(([k, u]) => typeof u === 'string' && (k === 'btnsize' ? /^\d+$/ : k === 'btncolor' ? /^#[\da-f]{6}$/i : /^data:image\//).test(u)));
   if (Object.keys(imgs).length) await wearNew(key, (d.acc.name || '导入') + '的装扮', imgs);
   accSaved(); toast('导入好了');
 }

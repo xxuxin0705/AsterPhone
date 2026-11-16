@@ -263,7 +263,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-btnpick button.is-on::after { content: attr(data-n); position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--as-color-accent); color: #fff; font: 600 12px/20px var(--font-ui); text-align: center; }
 .as-fo-btnpv { display: flex; justify-content: space-around; align-items: center; height: 64px; border-radius: 14px; background: var(--as-color-surface-2); }
 .as-fo-btnpv i { width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: center / contain no-repeat; }
-[data-as-app="forum"] .as-fo-ubar.has-ink .as-fo-ubar__item:not(.as-fo-ubar__follow) { color: var(--fo-btnink); }
+[data-as-app="forum"] .as-fo-ubar.has-ink .as-fo-ubar__item { color: var(--fo-btnink); }
 /* 置顶：只在主页上显示 */
 .as-fo-post__pin { display: none; }
 .as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; margin-bottom: 8px; color: var(--fo-accent); font: 600 13px/1 var(--font-ui); }
