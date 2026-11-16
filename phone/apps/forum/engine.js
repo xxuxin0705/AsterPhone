@@ -136,8 +136,9 @@ const clean = raw => String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)
 const story = () => storyText(Math.min(4, C().count)) || '（暂无）';
 const crowd = () => onForum().slice(0, 15);
 export const myNames = () => F().accounts.map(accName);
+const myAcc = n => { const a = F().accounts.find(x => accName(x) === strip(n)); return a && { k: 'me', id: a.id }; };
 /** 告诉 AI 我的网名、可以 @ 我（匿名区不 @） */
-const atMe = board => board === 'anon' ? '' : `【${myName()} 在论坛的网名】${myNames().join('、')}（别人只认得网名）\n- 帖子、评论里可以 @ 人，写成「@网名」；剧情里和 ${myName()} 有关的人偶尔会 @ TA 的网名，一次最多一两处。\n`;
+const atMe = board => board === 'anon' ? '' : `【${myName()} 在论坛的网名】${myNames().join('、')}（别人只认得网名）\n- ${A().mePost ? `${myName()} 也可以发帖，但只能用上面这几个网名，不另编号` : `${myName()} 本人不发帖，别替 TA 编号发帖`}。\n- 帖子、评论里可以 @ 人，写成「@网名」；剧情里和 ${myName()} 有关的人偶尔会 @ TA 的网名，一次最多一两处。\n`;
 
 /** 刷一批帖。opts.pick：额外要求（话题、只让谁发）；opts.only：只能由这些号发（'b:id' / 'c:id'） */
 export async function feed(board, { pick = '', only = null, count = A().count || 6 } = {}, stop) {
@@ -148,7 +149,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
       world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
-  const end = () => { inFloors = false; if (cur && cur.text.trim()) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
+  const end = () => { inFloors = false; if (cur && cur.text.trim() && (cur.by.k !== 'me' || A().mePost)) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
   for (const l of clean(raw).split('\n').map(x => x.trim())) {
     let m;
     if (/^={3,}$/.test(l)) { end(); continue; }
@@ -171,7 +172,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     if ((m = /^热榜\s*[|｜]\s*(.+?)(?:\s*[|｜]\s*(.+))?$/.exec(l))) { if (hot.length < 10) hot.push({ topic: m[1].slice(0, 30), heat: num(m[2]) || 1e4 + rnd(9e5) }); continue; }
     if ((m = /^作者[:：]\s*(.+)$/.exec(l))) {
       end();
-      cur = { id: uid('fp'), board: board === 'follow' || board === 'all' ? 'global' : board, by: byName(m[1], board), title: '', text: '', tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: null, ...time.stamp() };
+      cur = { id: uid('fp'), board: board === 'follow' || board === 'all' ? 'global' : board, by: myAcc(m[1]) || byName(m[1], board), title: '', text: '', tr: '', img: '', likes: 0, cmts: 0, reposts: 0, floors: null, ...time.stamp() };
       if (cur.by.anon) cur.by.no = 0;
       continue;
     }

@@ -502,7 +502,7 @@ function floorEl(p, f, i) {
   const w = f.by.op ? E.who(p.by) : E.who(f.by), up = f.to && f.to !== 'op' && p.floors.find(x => x.id === f.to);
   const to = f.to === 'op' ? word('forum.op') : up ? E.floorWho(p, up) : '', no = word('forum.floor');
   return h('div.as-fo-floor' + (up ? '.is-sub' : '') + (f.by.op ? '.is-op' : '') + (f.by.k === 'me' ? '.is-me' : ''), { dataset: { id: f.id } },
-    h('span.as-fo-floor__ava', { onclick: e => { e.stopPropagation(); if (!f.by.op && !f.by.anon) openUser(f.by); } }, ava(f.by.op ? p.by : f.by, 32, true)),
+    h('span.as-fo-floor__ava', { onclick: e => { e.stopPropagation(); const u = f.by.op ? p.by : f.by; if (!u.anon) openUser(u); } }, ava(f.by.op ? p.by : f.by, 32, true)),
     h('div.as-fo-floor__main',
       h('div.as-fo-floor__who', h('span.as-fo-floor__name' + (w.vip ? '.is-vip' : ''), w.name), vipEl(w, true), w.v ? vMark() : null, f.by.op ? W('forum.op', 'span.as-fo-floor__op') : null, to ? h('span.as-fo-floor__to', '回复 ' + to) : null),
       up ? h('div.as-fo-floor__quote', h('b', E.floorWho(p, up) + '：'), up.text) : null,
@@ -657,7 +657,7 @@ function userView(by, host) {
   const ubar = h('div.as-fo-ubar', mine ? bi('palette', h('span', '装扮'), decorate)
     : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
   // 我的装扮里的底栏（背景、四个按钮小图、字的颜色）穿在论坛最下面那条导航上（首页 · 发现 · 消息 · 我）；别人的穿在 TA 主页底下那条（留言 · 推荐 · 关注）
-  const tb = mine && host.querySelector(':scope > .as-fo-tabbar');
+  const tb = mine ? host.querySelector(':scope > .as-fo-tabbar') : null;
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
@@ -837,7 +837,7 @@ function openSettings() {
     item({ icon: 'users', color: 'green', title: '熟人', chevron: true, onClick: openPeople })]),
     group('', [region]),
     group('显示', [field('外语', segmented([['both', '上下对照'], ['tap', '点了才显示']], A.tr, v => { A.tr = v; commit('apps'); phone().dataset.forumTr = v; }))]),
-    group('刷新', [field('一次刷几条', segmented([4, 6, 8, 10].map(n => [n, String(n)]), A.count || 6, v => { A.count = v; commit('apps'); }))])));
+    group('刷新', [field('一次刷几条', segmented([4, 6, 8, 10].map(n => [n, String(n)]), A.count || 6, v => { A.count = v; commit('apps'); })), toggleItem({ title: '刷新时帮我发帖' }, !!A.mePost, v => { A.mePost = v; commit('apps'); })])));
   nav.push(pg.el);
 }
 function openAccounts() {
