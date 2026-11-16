@@ -438,7 +438,7 @@ function mePane(p) {
   const build = () => {
     const v = userView({ k: 'me', id: E.curAcc().id }, p.el);
     R.mePaint = v.paint; R.meRefresh = v.refresh; R.meEdit = v.edit; hooks.worn = k => { if (k === 'me:' + E.F().cur) v.paint(); };
-    box.replaceChildren(...v.els); p.el.querySelector('.as-fo-ubar--pv')?.remove(); p.el.append(v.pv); applyTexts();
+    box.replaceChildren(...v.els); applyTexts();
   };
   build(); R.meSwitch = build;
   // 编辑主页：不换页，就在这一页上点哪改哪；顶上一条毛玻璃的条（导入 · 导出 · 完成），一直停在上面
@@ -642,8 +642,8 @@ function userView(by, host) {
   if (fol) { fol.dataset.key = key; paintFol(fol); }
   const ubar = h('div.as-fo-ubar', mine ? bi('palette', h('span', '装扮'), decorate)
     : [sub ? bi('edit', h('span', '投稿'), () => sub.click()) : bi('chat', W('forum.dm'), () => toast('私信下一步做')), bi('users', h('span', '推荐'), () => recommend(by)), fol]);
-  // 编辑我的主页时，底下换成别人进我主页看到的那条底栏，点它换底栏装扮
-  const pv = mine && h('div.as-fo-ubar.as-fo-ubar--pv', bi('chat', W('forum.dm')), bi('users', h('span', '推荐')), bi('user', W('forum.follow')));
+  // 我的装扮里的底栏（背景、四个按钮小图、字的颜色）穿在论坛最下面那条导航上（首页 · 发现 · 消息 · 我）；别人的穿在 TA 主页底下那条（留言 · 推荐 · 关注）
+  const tb = mine && host.querySelector(':scope > .as-fo-tabbar');
   // 只改图和几个开关，不重画整页
   function paint() {
     const dr = dressOf(key), img = (el, u) => { el.hidden = !u; if (u) el.src = u; };
@@ -657,9 +657,9 @@ function userView(by, host) {
     solid(dr.tab).then(ok => img(sticker, ok && dr.tab));
     // 置顶：图标、背景、字的颜色，没换就用默认（皇冠、橙色渐变、橙字）
     for (const [k, v] of [['pinicon', dr.pinicon && `url("${dr.pinicon}")`], ['pinbg', dr.pinbg && `url("${dr.pinbg}")`], ['pinink', dr.pincolor]]) list.style.setProperty('--fo-' + k, v || '');
-    for (const u0 of [ubar, pv].filter(Boolean)) {
+    for (const u0 of [ubar, tb].filter(Boolean)) {
       u0.style.backgroundImage = dr.bar ? `url("${dr.bar}")` : ''; u0.classList.toggle('has-img', !!dr.bar);
-      u0.querySelectorAll('.as-fo-ubar__item').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+      u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[['btn', 'btn2', 'btn3', 'btn4'][i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
       u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
       (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
     }
@@ -710,19 +710,19 @@ function userView(by, host) {
       if (x === 'more') dressMenu(key, paint);
     } else if (is('.as-fo-user__tabs')) dressOne(key, 'tab', paint);
     else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
-    else if (is('.as-fo-ubar--pv')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
+    else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
   };
   const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint);
   };
   const head = h('div.as-fo-user', cover, main);
-  [head, tabs, pv].forEach(x => x?.addEventListener('click', onEdit, true));
+  [head, tabs, tb].forEach(x => x?.addEventListener('click', onEdit, true));
   list.addEventListener('click', e => { if (e.target.closest('.as-fo-post__pin')) onEdit(e); }, true);   // 置顶那条：编辑时点它换图标、字色、背景
   const edit = on => { editing = on; host.classList.toggle('is-editing', on); refresh(); };
   const els = [head, tabs, more, list].filter(Boolean);
   paint();
   E.load().then(d => { const ps = d.posts.filter(p => same(p.by, by)); fill(list, [...ps.filter(p => p.top), ...ps.filter(p => !p.top)]); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
-  return { els, ubar, pv, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
+  return { els, ubar, paint, decorate, refresh, edit, now: () => ({ cert: certOf(), tags: [...main.querySelectorAll('.as-fo-user__tags span')].map(x => x.textContent), bio: main.querySelector('.as-fo-user__bio').textContent }) };
 }
 
 /* ---------- 小组页（豆瓣的小组 / 微博的超话、同城、树洞 / 推特的社群） ---------- */

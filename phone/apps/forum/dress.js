@@ -11,9 +11,9 @@ import { loadImg, cutout, flood, touchUp } from '../../core/deco.js';
 export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图', 1, 160, 1],
   ['bar', '底栏背景', 6.5, 1200], ['btn', '底栏按钮小图', 0, 160, 1], ['like', '点赞特效', 1, 300, 1],
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
-// 底栏按钮一次传三张，按勾的顺序从左到右
+// 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-const BTNS = ['btn', 'btn2', 'btn3'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor'];
+const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor'];
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 const keep = (k, x) => typeof x === 'string' && (k === 'btnsize' ? /^\d+$/ : /color$/.test(k) ? /^#[\da-f]{6}$/i : /^data:image\//).test(x);
 export const covers = dr => COVERS.map(k => dr[k]).filter(Boolean);
@@ -68,7 +68,7 @@ async function upload(k, has) {
   if (k === 'btn') {
     const how = await actionSheet(t, [{ value: 'one', label: '一张一张传', icon: 'image' }, { value: 'sheet', label: '从一张图里抠', icon: 'grid' }]); if (!how) return null;
     if (how === 'sheet') return pickFrom(k, size);
-    const fs = (await pickMany()).slice(0, 3); if (!fs.length) return null;
+    const fs = (await pickMany()).slice(0, 4); if (!fs.length) return null;
     const out = Object.fromEntries(BTNS.map(b => [b, '']));
     for (const [i, f] of fs.entries()) { const u = await cutout(await shrink(f, size).catch(() => '')); out[BTNS[i]] = u && (await touchUp(u, `第 ${i + 1} 个按钮`) || u); }
     return out;
@@ -114,7 +114,7 @@ async function chop(url, size) {
     o.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, o.width, o.height); return o.toDataURL('image/png');
   });
 }
-/** 传一张排着好几个小图的图，抠出来让你挑：底栏按钮点几个（按点的顺序从左到右，最多三个）还能调大小；标签小图挑一个 */
+/** 传一张排着好几个小图的图，抠出来让你挑：底栏按钮点几个（按点的顺序从左到右，最多四个）还能调大小；标签小图挑一个 */
 async function pickFrom(k, size) {
   const f = await pickFile('image/*'); if (!f) return null;
   const all = await chop(await cutout(await shrink(f, 1200), 36), size).catch(e => { log('warn', '论坛', '抠按钮小图失败：' + e.message); return []; });
@@ -126,11 +126,11 @@ async function pickFrom(k, size) {
     const bar = h('div.as-fo-btnpv'), set = () => bar.style.setProperty('--fo-btnz', z + 'px');
     const paint = () => {
       grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });
-      bar.replaceChildren(...[0, 1, 2].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
+      bar.replaceChildren(...[0, 1, 2, 3].map(i => h('i', { style: { backgroundImage: on[i] == null ? '' : `url("${all[on[i]]}")` } })));
     };
     const grid = h('div.as-fo-btnpick', all.map((u, i) => { const img = h('img', { src: u, alt: '' }); return h('button', { 'aria-label': '第 ' + (i + 1) + ' 个', onclick: e => {
       if (e.target.closest('.as-fo-btnpick__fix')) return;
-      const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < 3) on.push(i); else { toast('最多三个'); return; }
+      const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < 4) on.push(i); else { toast('最多四个'); return; }
       paint();
     } }, img, h('i.as-fo-btnpick__fix', { role: 'button', 'aria-label': '修图', onclick: async () => { const v = await touchUp(all[i], '修这个'); if (v) { all[i] = img.src = v; paint(); } } }, '修')); }));
     const s = sheet({ title: many ? '选底栏按钮' : '选标签小图', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),

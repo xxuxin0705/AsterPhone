@@ -362,19 +362,20 @@ function cropImage(file, ratio, size, png) {
       min = s = Math.max(fw / img.width, fh / img.height); x = (fw - img.width * s) / 2; y = (fh - img.height * s) / 2; fit();
     };
     pic.onerror = () => { toast('这张图打不开'); done(null); };
-    // 一根手指拖，两根手指捏着缩放（围着框的中间缩）
+    // 一根手指拖，两根手指捏着缩放（围着框的中间缩）；框外面的图也看得见（压暗），在哪儿拖都行
     const pts = new Map();
-    frame.onpointerdown = e => { frame.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); gap = 0; };
-    frame.onpointermove = e => {
+    const box = h('div.as-crop.is-pick');
+    box.onpointerdown = e => { if (e.target.closest('button')) return; box.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); gap = 0; };
+    box.onpointermove = e => {
       const old = pts.get(e.pointerId); if (!old) return; pts.set(e.pointerId, e);
       if (pts.size === 1) { x += e.clientX - old.clientX; y += e.clientY - old.clientY; }
       else { const [a, b] = [...pts.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
         if (gap) { const ns = Math.max(min, s * d / gap), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; } gap = d; }
       fit();
     };
-    frame.onpointerup = frame.onpointercancel = e => { pts.delete(e.pointerId); gap = 0; };
-    frame.onwheel = e => { e.preventDefault(); const ns = Math.max(min, s * (e.deltaY < 0 ? 1.1 : .9)), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; fit(); };
-    const box = h('div.as-crop', frame, h('div.as-crop__bar', btn('取消', 'secondary', () => done(null)), btn('确定', 'primary', () => {
+    box.onpointerup = box.onpointercancel = e => { pts.delete(e.pointerId); gap = 0; };
+    box.onwheel = e => { e.preventDefault(); const ns = Math.max(min, s * (e.deltaY < 0 ? 1.1 : .9)), r = ns / s; x = fw / 2 - (fw / 2 - x) * r; y = fh / 2 - (fh / 2 - y) * r; s = ns; fit(); };
+    box.append(frame, h('div.as-crop__bar', btn('取消', 'secondary', () => done(null)), btn('确定', 'primary', () => {
       const k = size / Math.max(fw, fh), c = document.createElement('canvas');
       c.width = Math.round(fw * k); c.height = Math.round(fh * k);
       c.getContext('2d').drawImage(img, -x / s, -y / s, fw / s, fh / s, 0, 0, c.width, c.height);

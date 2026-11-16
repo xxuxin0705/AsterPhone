@@ -197,8 +197,8 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .as-fo-user__tabs { background: var(--fo-card); }
 .as-fo-user__tabimg { height: 24px; width: auto; margin-right: 4px; vertical-align: -6px; }
-.as-fo-ubar__item.has-pic svg { display: none; }
-.as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: var(--fo-btnimg) center / contain no-repeat; }
+.as-fo-ubar__item.has-pic svg, .as-fo-tab.has-pic > :first-child { display: none; }
+.as-fo-tab.has-pic::before, .as-fo-ubar__item.has-pic::before { content: ''; width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: var(--fo-btnimg) center / contain no-repeat; }
 
 /* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
 .as-fo-tab { position: relative; }
@@ -224,7 +224,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-user__tabs span:not(.is-on) { color: var(--fo-ink-2); font-weight: 400; }
 .as-fo-user__tabimg.is-hop { animation: as-fo-hop .35s ease-out; }
 @keyframes as-fo-hop { 0% { transform: translateY(0) scale(.6); } 50% { transform: translateY(-8px) scale(1.1); } 100% { transform: none; } }
-.as-fo-ubar.has-img { background-size: auto 100%; background-repeat: repeat-x; }
+.as-fo-tabbar.has-img, .as-fo-ubar.has-img { background-size: auto 100%; background-repeat: repeat-x; }
 .as-fo-ubar__item { flex: 1; }
 .as-fo-recs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px 16px; scroll-snap-type: x mandatory; }
 .as-fo-rec { flex: none; display: grid; justify-items: center; gap: 6px; width: 104px; padding: 14px 8px; border-radius: 12px; background: var(--as-color-surface-2); scroll-snap-align: start; }
@@ -248,9 +248,8 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .is-editing .as-fo-user, .is-editing .as-fo-user__tabs { cursor: pointer; }
 .is-editing .as-fo-user__main > *:active, .is-editing .as-fo-user__cover:active { opacity: .6; }
 .as-fo-ph { font-style: normal; color: var(--fo-ink-2); opacity: .6; }
-/* 编辑我的主页：底下的导航先收起来（不能跑去别的页），换成别人看到的底栏 */
-.as-fo-ubar--pv, .is-editing > .as-fo-tabbar { display: none; }
-.is-editing > .as-fo-ubar--pv { display: flex; cursor: pointer; }
+/* 编辑我的主页：点底下的导航不跳页，换底栏装扮 */
+.is-editing > .as-fo-tabbar { cursor: pointer; }
 .as-navbar:has(> .as-fo-editbar:not([hidden])) > :not(.as-fo-editbar) { visibility: hidden; }
 .as-fo-compose__row.is-chips { justify-content: flex-start; gap: 8px; }
 .as-fo-acc:not(:has(> span)) { padding: 6px 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
@@ -262,7 +261,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-btnpick button.is-on::after { content: attr(data-n); position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--as-color-accent); color: #fff; font: 600 12px/20px var(--font-ui); text-align: center; }
 .as-fo-btnpv { display: flex; justify-content: space-around; align-items: center; height: 64px; border-radius: 14px; background: var(--as-color-surface-2); }
 .as-fo-btnpv i { width: var(--fo-btnz, 36px); height: var(--fo-btnz, 36px); background: center / contain no-repeat; }
-[data-as-app="forum"] .as-fo-ubar.has-ink .as-fo-ubar__item { color: var(--fo-btnink); }
+[data-as-app="forum"] :is(.as-fo-ubar, .as-fo-tabbar).has-ink :is(.as-fo-ubar__item, .as-fo-tab) { color: var(--fo-btnink); }
 /* 置顶：只在主页上显示 */
 .as-fo-post__pin { display: none; }
 .as-fo-list.is-user .as-fo-post__pin { display: block; grid-column: 1 / -1; color: var(--fo-pinink, var(--fo-accent)); margin-bottom: 8px; font: 600 13px/1 var(--font-ui); }
