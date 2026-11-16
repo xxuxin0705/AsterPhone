@@ -162,7 +162,7 @@ async function pickFrom(k, size) {
   const many = k === 'btn';
   return new Promise(done => {
     const on = [];
-    let z = 36, ok = false;
+    let z = 26, ok = false;   // 和原来的图标差不多大
     const bar = h('div.as-fo-btnpv'), set = () => bar.style.setProperty('--fo-btnz', z + 'px');
     const paint = () => {
       grid.querySelectorAll('button').forEach((b, i) => { const n = on.indexOf(i); b.classList.toggle('is-on', n >= 0); b.dataset.n = n >= 0 ? n + 1 : ''; });
@@ -173,7 +173,7 @@ async function pickFrom(k, size) {
       const n = on.indexOf(i); if (n >= 0) on.splice(n, 1); else if (!many) on.splice(0, 1, i); else if (on.length < 4) on.push(i); else { toast('最多四个'); return; }
       paint();
     } }, img, h('i.as-fo-btnpick__fix', { role: 'button', 'aria-label': '修图', onclick: async () => { const v = await touchUp(all[i], '修这个'); if (v) { all[i] = img.src = v; paint(); } } }, '修')); }));
-    const s = sheet({ title: many ? '选底栏按钮' : '选一个', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 24, max: 52, step: 1, value: z, onInput: v => { z = v; set(); } })),
+    const s = sheet({ title: many ? '选底栏按钮' : '选一个', content: h('div.as-fo-compose', grid, many && bar, many && field('大小', slider({ min: 18, max: 44, step: 1, value: z, onInput: v => { z = v; set(); } })),
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', () => { if (!on.length) { toast('点一个'); return; } ok = true; s.close(); }))),
       onClose: () => done(!ok ? null : many ? { ...Object.fromEntries(BTNS.map((b, i) => [b, on[i] == null ? '' : all[on[i]]])), btnsize: String(z) } : { [k]: all[on[0]] }) });
     set(); paint();

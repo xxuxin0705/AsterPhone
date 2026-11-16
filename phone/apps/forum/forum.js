@@ -726,7 +726,7 @@ function userView(by, host) {
       if (x === 'fit' || x === 'mark') tabSheet(x);
     }
     else if (is('.as-fo-post__pin')) pickPiece('置顶', ['pinicon', 'pinbg'], [{ value: 'pincolor', label: '字的颜色', icon: 'palette' }]);
-    else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [{ value: 'btncolor', label: '按钮的字', icon: 'palette' }]);
+    else if (is('.as-fo-tabbar')) pickPiece('底栏', ['bar', 'btn'], [dressOf(key).btn && { value: 'btnfit', label: '按钮小图大小', icon: 'expand' }, { value: 'btncolor', label: '按钮的字', icon: 'palette' }].filter(Boolean));
   };
   // 挑字色时抽屉里放一份页面上那块的复制（置顶那条 / 底栏），带着现在的背景、图标，拖色盘马上看到
   const inkPv = k => {
@@ -747,7 +747,14 @@ function userView(by, host) {
     const s = sheet({ title: mode === 'fit' ? '小图大小、位置' : '下面的线', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv), ...rows,
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, Object.fromEntries(['tabsize', 'tabx', 'taby', 'tabmark', 'tabmarkcolor'].filter(k => d[k]).map(k => [k, d[k]]))); paint(); }))) });
   };
-  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k) dressOne(key, k, paint, inkPv(k));
+  // 底栏按钮小图大小：不用重新传图，抽屉顶上放一份底栏的复制，拖着马上看到
+  const btnSheet = () => {
+    let z = +(dressOf(key).btnsize || 26); const pv = tb.cloneNode(true);
+    const s = sheet({ title: '按钮小图大小', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv),
+      fxRow('大小', z, 26, { min: 18, max: 44, step: 1, fmt: v => v + '' }, v => { z = v; pv.style.setProperty('--fo-btnz', v + 'px'); }),
+      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, { btnsize: String(z) }); paint(); }))) });
+  };
+  const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k === 'btnfit') btnSheet(); else if (k) dressOne(key, k, paint, inkPv(k));
   };
   const head = h('div.as-fo-user', cover, main);
   [head, tabs, tb].forEach(x => x?.addEventListener('click', onEdit, true));
