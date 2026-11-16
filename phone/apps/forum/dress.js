@@ -13,7 +13,7 @@ export const PIECES = [['cover', '主页背景', 1, 1200], ['tab', '标签小图
   ['pinicon', '置顶图标', 1, 120, 1], ['pinbg', '置顶背景', 10.9, 900]];
 // 底栏按钮一次传四张，按选的顺序从左到右（别人主页底下只有三个按钮，用前三张）
 // 主页背景最多九张，左右滑、自己轮播
-export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut', 'tabsize', 'tabx', 'taby', 'tabmark', 'tabmarkcolor',
+export const BTNS = ['btn', 'btn2', 'btn3', 'btn4'], COVERS = ['cover', ...'2345678'.split('').map(i => 'cover' + i), 'cover9'], KEYS = [...PIECES.map(p => p[0]), ...BTNS.slice(1), ...COVERS.slice(1), 'btnsize', 'btncolor', 'pincolor', 'barfill', 'pinbgfill', 'barcut', 'pinbgcut', 'tabsize', 'tabx', 'taby', ...BTNS.map(b => b + 'size'), 'tabmark', 'tabmarkcolor',
   ...[...COVERS, 'bar', 'pinbg'].flatMap(k => [k + 'src', k + 'box', k + 'fx'])];   // 背景图：框之前的原图（回来重新框）、框的地方、透明度亮度
 // 能存进套装的：图，和底栏按钮的大小（btnsize，像素）
 // 背景图的透明度、亮度（*fx）存成「不透明度,亮度」；底栏、置顶不用图时的纯色 / 渐变（*fill）存成「#颜色」或「#左,#右」

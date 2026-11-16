@@ -606,7 +606,7 @@ function paintBar(u0, dr) {
   u0.style.setProperty('--fo-barimg', [dr.bar && `url("${dr.bar}")`, fillCss(dr.barfill)].filter(Boolean).join()); u0.classList.toggle('has-img', !!(dr.bar || dr.barfill));
   u0.classList.toggle('has-fill', !dr.bar && !!dr.barfill?.includes(','));   // 只有渐变才往上淡开，纯色就是纯色
   u0.style.setProperty('--fo-barop', fx[0]); u0.style.setProperty('--fo-barbr', fx[1]);
-  u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[BTNS[i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); });
+  u0.querySelectorAll('.as-fo-ubar__item, .as-fo-tab').forEach((x, i) => { const u = dr[BTNS[i]]; x.classList.toggle('has-pic', !!u); x.style.setProperty('--fo-btnimg', u ? `url("${u}")` : ''); const z = dr[BTNS[i] + 'size']; x.style.setProperty('--fo-btnz', z ? z + 'px' : ''); });   // 每个按钮能单独调大小，没单独调的跟着整条的
   u0.style.setProperty('--fo-btnz', dr.btnsize ? dr.btnsize + 'px' : '');
   (dr.btncolor ? Promise.resolve(dr.btncolor) : dr.bar ? inkOf(dr.bar) : Promise.resolve('')).then(c => { u0.classList.toggle('has-ink', !!c); u0.style.setProperty('--fo-btnink', c); });
 }
@@ -749,11 +749,17 @@ function userView(by, host) {
       h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, Object.fromEntries(['tabsize', 'tabx', 'taby', 'tabmark', 'tabmarkcolor'].filter(k => d[k]).map(k => [k, d[k]]))); paint(); }))) });
   };
   // 底栏按钮小图大小：不用重新传图，抽屉顶上放一份底栏的复制，拖着马上看到
+  // 先选是哪个按钮，再拖它的大小；每个按钮各调各的
   const btnSheet = () => {
-    let z = +(dressOf(key).btnsize || 26); const pv = tb.cloneNode(true);
+    const dr = dressOf(key), pv = tb.cloneNode(true), items = [...pv.children], sz = {};
+    const has = BTNS.map((b, i) => [b, items[i]]).filter(([b, x]) => dr[b] && x);
+    let cur = has[0][0], row = h('div');
+    const rowOf = b => fxRow('大小', +(sz[b] ?? dr[b + 'size'] ?? dr.btnsize ?? 26), 26, { min: 18, max: 44, step: 1, fmt: v => v + '' }, v => { sz[b] = v; items[BTNS.indexOf(b)].style.setProperty('--fo-btnz', v + 'px'); });
+    const pick = b => { cur = b; const r = rowOf(b); row.replaceWith(r); row = r; };
+    row = rowOf(cur);
     const s = sheet({ title: '按钮小图大小', content: h('div.as-fo-compose', h('div.as-fo-inkpv', { 'data-as-app': 'forum' }, pv),
-      fxRow('大小', z, 26, { min: 18, max: 44, step: 1, fmt: v => v + '' }, v => { z = v; pv.style.setProperty('--fo-btnz', v + 'px'); }),
-      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, { btnsize: String(z) }); paint(); }))) });
+      has.length > 1 ? segmented(has.map(([b, x]) => [b, x.textContent.trim()]), cur, pick) : null, row,
+      h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('确定', 'primary', async () => { s.close(); await setOwn(key, Object.fromEntries(Object.entries(sz).map(([b, v]) => [b + 'size', String(v)]))); paint(); }))) });
   };
   const pickPiece = async (title, ks, more = []) => { const k = await actionSheet(title, [...PIECES.filter(p => ks.includes(p[0])).map(([value, label]) => ({ value, label, icon: 'image' })), ...more]); if (k === 'btnfit') btnSheet(); else if (k) dressOne(key, k, paint, inkPv(k));
   };
