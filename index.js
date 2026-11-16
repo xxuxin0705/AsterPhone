@@ -57,6 +57,8 @@ function build() {
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && opened) close(); });
     window.addEventListener('message', onMessage);
+    // 返回键：手机开着就让手机自己退一层（在主屏就收起），再垫一层，下次返回还归手机管
+    window.addEventListener('popstate', () => { if (!opened) return; history.pushState({ aster: 1 }, ''); post({ aster: 'back' }); });
     document.addEventListener('visibilitychange', () => { if (ready) warm(); });
 
     iframe.addEventListener('load', () => iframe.contentDocument.addEventListener('focusin', lift));
@@ -189,6 +191,7 @@ function open() {
     aimAtFab();
     overlay.classList.add('open');
     fab.classList.add('is-hidden');
+    history.pushState({ aster: 1 }, '');   // 手机开着时，手机的返回键 / 返回手势先给小手机用，不让酒馆退出聊天
     if (!size) holdSize();
     post({ aster: 'visible', v: true });
 }
@@ -198,6 +201,7 @@ function close() {
     aimAtFab();
     overlay.classList.remove('open');
     applyFab();
+    if (history.state?.aster) history.back();   // 把开手机时垫的那一层退掉
     post({ aster: 'visible', v: false });
 }
 const toggle = () => (opened ? close() : open());

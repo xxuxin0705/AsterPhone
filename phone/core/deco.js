@@ -7,16 +7,27 @@ const find = (k, id) => id && deco()[k].find(x => x.id === id);
 
 /** 头像套上框：框图放在头像外面一圈（::after），没选或框被删了就什么都不加。id 也可以直接是一张图（论坛装扮套装里的框） */
 export function addFrame(ava, id) {
-  const f = /^data:image\//.test(id || '') ? { src: id } : find('frames', id), st = ava.style;
+  if (/^data:image\//.test(id || '')) { ava.classList.add('has-frame'); ava.style.setProperty('--frame', `url("${id}")`); return ava; }
+  const f = find('frames', id);
   if (!f) { if (ava.dataset.frame) { ava.classList.remove('has-frame'); delete ava.dataset.frame; } return ava; }
-  ava.classList.add('has-frame'); if (f.id) ava.dataset.frame = f.id;
-  st.setProperty('--frame', `url("${f.view || f.src}")`);
-  if (f.inset != null) st.setProperty('--frame-in', f.inset + '%'); else st.removeProperty('--frame-in');
-  if (f.dx || f.dy) st.setProperty('--frame-at', `${f.dx || 0}% ${f.dy || 0}%`); else st.removeProperty('--frame-at');
+  frameRule(f); ava.classList.add('has-frame'); ava.dataset.frame = f.id;
   return ava;
 }
-/** 资源库里改了 / 删了一个框：已经画出来戴着它的头像马上换（只改那几个头像的样式） */
-export const refreshFrame = id => document.querySelectorAll(`[data-frame="${id}"]`).forEach(el => addFrame(el, id));
+// 一个框一条样式：框图（几百 KB）只写一次，不往每个头像身上各抄一份（帖子一多就卡）
+const rules = new Map(); let sheet = null;
+function frameRule(f) {
+  const css = `.as-avatar[data-frame="${f.id}"]{--frame:url("${f.view || f.src}");${f.inset != null ? `--frame-in:${f.inset}%;` : ''}${f.dx || f.dy ? `--frame-at:${f.dx || 0}% ${f.dy || 0}%;` : ''}}`;
+  if (rules.get(f.id) === css) return;
+  rules.set(f.id, css); sheet ??= document.head.appendChild(document.createElement('style'));
+  sheet.textContent = [...rules.values()].join('\n');
+}
+/** 资源库里改了 / 删了一个框：改那一条样式，戴着它的头像就都换了；删了的把框摘掉 */
+export function refreshFrame(id) {
+  const f = find('frames', id);
+  if (f) return frameRule(f);
+  rules.delete(id); if (sheet) sheet.textContent = [...rules.values()].join('\n');
+  document.querySelectorAll(`[data-frame="${id}"]`).forEach(el => addFrame(el, id));
+}
 /** 气泡：颜色、圆角、描边写进这一个气泡；有图就用九宫格拉伸（四个角不变形）。b 是编号，编辑时预览也可以直接传气泡本身 */
 export function paintBubble(el, b) {
   if (typeof b === 'string') b = find('bubbles', b); if (!b) return el;

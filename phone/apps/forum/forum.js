@@ -46,8 +46,15 @@ function go(key, msg, fn) {
 
 /* ---------- 新帖子到了：插到所有开着、对得上的列表最上面；热榜重画 ---------- */
 const lists = new Set();   // { el, match(p) }
+// 帖子多的时候先画前面一屏，后面的分批接上（一次全画完，手机上要卡好几秒）
+function fill(el, posts) {
+  el.append(...posts.slice(0, 12).map(p => card(p)));
+  const more = i => { if (i >= posts.length || !el.isConnected && i > 12) return; el.append(...posts.slice(i, i + 20).map(p => card(p))); applyTexts(); setTimeout(() => more(i + 20), 30); };
+  setTimeout(() => more(12), 60);
+  return el;
+}
 function liveList(match, posts) {
-  const el = h('div.as-fo-list', posts.map(p => card(p)));
+  const el = fill(h('div.as-fo-list'), posts);
   lists.add({ el, match });
   if (!posts.length) el.append(empty('还没有帖子'));
   return el;
@@ -565,7 +572,7 @@ function userView(by, host) {
   const els = [h('div.as-fo-user', cover, main),
     tabs, more, list].filter(Boolean);
   paint();
-  E.load().then(d => { list.append(...d.posts.filter(p => same(p.by, by)).map(p => card(p))); applyTexts(); });
+  E.load().then(d => { fill(list, d.posts.filter(p => same(p.by, by))); applyTexts(); });
   lists.add({ el: list, match: p => same(p.by, by) });
   return { els, ubar, paint, decorate, refresh };
 }
