@@ -719,7 +719,7 @@ function accFields(d, onChange = () => {}) {
   const name = input({ value: d.name || me?.name || '', placeholder: '网名' }), bio = input({ value: d.bio, placeholder: '简介' });
   // 粉丝 / 关注 / 转评赞：能写「3.3万」「1.04亿」，空着就照原来的算
   const num = (k, ph) => input({ value: d[k] == null ? '' : d[k] >= 1e8 ? d[k] / 1e8 + '亿' : d[k] >= 1e4 ? d[k] / 1e4 + '万' : String(d[k]), placeholder: ph, inputmode: 'decimal' }), nums = [['fans', '粉丝'], ['follows', '关注'], ['likes', '转评赞']].map(([k, ph]) => [k, num(k, ph)]);
-  const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '第一条' }), t2 = input({ value: d.tag2 || '', placeholder: '第二条' });
+  const cert = input({ value: d.cert || '', placeholder: '认证' }), t1 = input({ value: d.tag1 || '', placeholder: '橙色小字' }), t2 = input({ value: d.tag2 || '', placeholder: '橙色小字' });
   const fr = item({ title: '头像框', value: decoName('frames', d.frame ?? state.me?.frame) || '不戴', chevron: true, onClick: async () => {
     const v = await pickDeco('frames', d.frame ?? state.me?.frame, { src: d.avatar || E.who({ k: 'me', id: d.id }).avatar, name: d.name }); if (v == null) return;
     d.frame = v === 'none' ? '' : v; fr.querySelector('.as-list-item__value').textContent = decoName('frames', d.frame) || '不戴'; pick.paint(); onChange();
@@ -732,7 +732,7 @@ function accFields(d, onChange = () => {}) {
   [name, bio, cert, t1, t2, ...nums.map(x => x[1])].forEach(x => x.addEventListener('input', onChange));
   // 资料一行一项：名字在左、要填的在右
   return { rows: [pick, fr, field('网名', name), field('简介', bio), ip,
-    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], d.v || '', v => { d.v = v; onChange(); })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; onChange(); })), field('认证', cert), field('粉丝 · 关注 · 转评赞', h('div.as-fo-tagin.is-3', ...nums.map(x => x[1]))), field('主页橙色小字', h('div.as-fo-tagin', t1, t2))],
+    field('加 V', segmented([['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], d.v || '', v => { d.v = v; onChange(); })), field('会员', segmented(VIPS, d.vip || '', v => { d.vip = v; onChange(); })), field('认证', cert), ...nums.map(([, el], i) => field(['粉丝', '关注', '转评赞'][i], el)), field('小字 1', t1), field('小字 2', t2)],
   read: () => { d.name = name.value.trim().slice(0, 20); d.bio = bio.value.trim().slice(0, 60); d.cert = cert.value.trim().slice(0, 30); d.tag1 = t1.value.trim().slice(0, 24); d.tag2 = t2.value.trim().slice(0, 24);
     for (const [k, el] of nums) { const m = /^([\d.]+)\s*(万|亿|w|W)?$/.exec(el.value.trim()); if (m) d[k] = Math.round(m[1] * ({ 万: 1e4, w: 1e4, W: 1e4, 亿: 1e8 }[m[2]] || 1)); else delete d[k]; } } };
 }
@@ -768,8 +768,8 @@ function openEditMe() {
     hooks.worn = worn;
     if (!saved) { Object.keys(a).forEach(k => { if (!(k in orig)) delete a[k]; }); Object.assign(a, orig); R?.meRefresh?.(); }
   };
-  // 上面的预览固定不动，下面的资料、装扮自己滚
-  pg.body.append(h('div.as-fo-editme__pv', v.els[0], demo), h('div.as-fo-set.as-fo-editme__form', group('资料', [h('div.as-fo-compose', ...f.rows)]), setTiles(),
+  pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });
+  pg.body.append(v.els[0], demo, h('div.as-fo-set.as-fo-editme__form', group('资料', [h('div.as-fo-compose', ...f.rows)]), setTiles(),
     group('', [item({ icon: 'image', title: '单独换一样', chevron: true, onClick: () => dressMenu(key, v.paint) })]),
     h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => { f.read(); Object.assign(a, d); saved = true; accSaved(); nav.pop(); toast('已保存'); }))));
   nav.push(pg.el); applyTexts();
