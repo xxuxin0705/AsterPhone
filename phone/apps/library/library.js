@@ -39,7 +39,7 @@ const GUIDE = {
       ['.as-fo-search', '搜索框'], ['.as-fo-hot', '热榜块（__item 一条、__no 排名、__topic、__heat、__tag；__more 最后一格「更多」默认藏着）'], ['.as-fo-boards', '小组格子（.as-fo-board 一个）'], ['.as-fo-chips', '正在讨论'],
       ['.as-fo-post', '一条帖（.is-full 帖子页里那条）'], ['.as-fo-post__group', '小组名'], ['.as-fo-post__ava', '头像（__badge 头像角上的 V）'], ['.as-fo-post__name', '名字'], ['.as-fo-post__meta', '时间、来自'], ['.as-fo-post__menu', '右上小箭头（默认藏着）'],
       ['.as-fo-follow', '关注按钮'], ['.as-fo-post__title', '标题'], ['.as-fo-post__text', '正文（.as-fo-topic 话题）'], ['.as-fo-post__hotcmt', '热门回复'], ['.as-fo-post__count', '回应数'], ['.as-fo-post__acts', '转 · 评 · 赞（.as-fo-act 一个，[data-n] 是数字，__n 数字、__w 字）'],
-      ['.as-fo-nrow', '消息页评论、赞那两行'], ['.as-fo-dyn', '消息页动态一条'], ['.as-fo-cmt', '收到的评论 / 赞一条'], ['.as-fo-user__edit', '我的主页上的「编辑个人资料」'], ['.is-dressed', '穿了装扮套装的主页（[data-as-page="forum-user"].is-dressed）'], ['.as-fo-dbadge', '名字旁的徽章图'], ['.as-fo-post__sticker', '卡片贴纸'],
+      ['.as-fo-nrow', '消息页评论、赞那两行'], ['.as-fo-dyn', '消息页动态一条'], ['.as-fo-cmt', '收到的评论 / 赞一条'], ['.is-dressed', '穿了装扮套装的主页（[data-as-page="forum-user"].is-dressed）'], ['.as-fo-dbadge', '名字旁的徽章图'], ['.as-fo-post__sticker', '卡片贴纸'],
       ['.as-fo-stat', '帖子页的数据标签'], ['.as-fo-floor', '一层楼（.is-sub 回别人的、.is-op 楼主；__quote 引用原话）'], ['.as-fo-dock', '帖子页底下那条'], ['.as-fo-user', '主页（__cover 背景、__nums 数字）'], ['.as-fo-ubar', '主页底下那条'],
       ['.as-fo-fab', '右下角发帖圆钮（默认藏着）']],
     vars: [['--fo-bg', '底色'], ['--fo-card', '帖子的底'], ['--fo-head', '顶栏、底栏'], ['--fo-ink', '字'], ['--fo-ink-2', '淡的字'], ['--fo-line', '分隔线'], ['--fo-accent', '强调色'], ['--fo-v', '认证的颜色'], ['--fo-link', '话题、链接'], ['--fo-img-名字', '样子里放的图']],

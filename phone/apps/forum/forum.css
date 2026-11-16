@@ -202,7 +202,6 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-ubar__item.has-pic::before { content: ''; width: 36px; height: 36px; background: var(--fo-btnimg) center / contain no-repeat; }
 
 /* 我 = 我自己的主页：「编辑个人资料」；底部「消息」上的红色数字 */
-.as-fo-user__edit { justify-self: center; display: inline-flex; align-items: center; gap: 5px; margin-top: 16px; padding: 9px 26px; border: 0; border-radius: 20px; box-shadow: inset 0 0 0 1px var(--fo-line); background: none; color: var(--fo-ink-2); font: 400 14.5px/1 var(--font-ui); cursor: pointer; }
 .as-fo-tab { position: relative; }
 .as-fo-tab > .as-badge { position: absolute; top: -2px; left: 50%; margin-left: 4px; }
 /* 从截图拆：截图铺满，几个可以拖、可以拉大小的框 */

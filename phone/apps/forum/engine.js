@@ -230,7 +230,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   await load();
   const st = story(), anon = p.board === 'anon', first = !(p.floors || []).length;
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
-    prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '6～10' : '4～6'),
+    prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '10～15' : '5～8'),
       world: (await worldBlock(st, anon ? [] : crowd())).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
       lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n'),
       atme: atMe(p.board), likes: anon ? '' : likesAsk(p) }) });

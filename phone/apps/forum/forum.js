@@ -182,7 +182,7 @@ function compose(b0) {
       const text = body.value.trim(); if (!text) { toast('写点什么'); return; }
       s.close();
       const p = await E.post({ board, title: title.value.trim(), text, pic });
-      landed([p]); runThread(p, { count: '4～8', focus: atNote(text) }); openPost(p);
+      landed([p]); runThread(p, { count: '10～15', focus: atNote(text) }); openPost(p);
     }))) });
   applyTexts();
 }
@@ -447,10 +447,21 @@ function openPost(p) {
     act('repost', p.reposts), act('comment', p.cmts, () => replySheet(p, '', floors)), likeBtn(p)));
   views.set(p.id, { el: pg.el, add: list => { const n = p.floors.length - list.length; floors.append(...list.map((f, i) => floorEl(p, f, n + i))); } });
   nav.push(pg.el); applyTexts();
-  if (!(p.floors || []).length && E.A().autoOpen !== false && !jobs['thread:' + p.id]) runThread(p);
 }
 
 /* ---------- 主页：右上角「…」装扮（穿套装、单独换一样）；穿了套装主页换成装扮的样子（.is-dressed） ---------- */
+// 背景图看得见的那块的下沿是什么颜色（调浅一点）：图下面那层渐变就用它，像真微博那样接上
+const tints = new Map();
+const tintOf = u => tints.get(u) || tints.set(u, new Promise(ok => {
+  const i = new Image();
+  i.onload = () => {
+    const vh = Math.min(i.height, i.width / 1.83), y1 = (i.height + vh) / 2, c = document.createElement('canvas'), g = c.getContext('2d');
+    c.width = c.height = 1; g.drawImage(i, 0, y1 - vh * .2, i.width, vh * .2, 0, 0, 1, 1);
+    const [r, gg, b] = g.getImageData(0, 0, 1, 1).data, k = v => Math.round(v + (255 - v) * .45);
+    ok(`rgb(${k(r)}, ${k(gg)}, ${k(b)})`);
+  };
+  i.onerror = () => ok(''); i.src = u;
+})).get(u);
 const same = (a, b) => !a.anon && a.k === b.k && (a.id ? a.id === b.id : a.name === b.name);
 function openUser(by) {
   const pg = page({ app: 'forum', id: 'forum-user', title: E.who(by).name, back: true, right: [navBtn('more', '装扮', () => v.decorate())] });
@@ -494,7 +505,7 @@ function userView(by, host) {
     const s = sheet({ title: '投稿给「' + b.name + '」', content: h('div.as-fo-compose', t, h('div.as-lib-actions.is-two', btn('取消', 'secondary', () => s.close()), btn('投稿', 'primary', async () => {
       const text = t.value.trim(); if (!text) { toast('写点什么'); return; }
       s.close(); const p = await E.submit(b, text); landed([p]);
-      runThread(p, { focus: `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。`, count: '6～10' });
+      runThread(p, { focus: `这条是 ${myName()} 匿名投的稿，营销号替 TA 发出来；网友不知道是谁投的。`, count: '10～15' });
       openPost(p);
     }))) });
   } });
@@ -512,6 +523,7 @@ function userView(by, host) {
     host.classList.toggle('is-dressed', dressed(key));
     cover.style.backgroundImage = dr.cover ? `url("${dr.cover}")` : ''; cover.classList.toggle('has-img', !!dr.cover); img(cover.firstChild, dr.cover);
     host.classList.toggle('no-fade', !fade(key));
+    if (dr.cover) tintOf(dr.cover).then(t => host.style.setProperty('--fo-tint', t)); else host.style.removeProperty('--fo-tint');
     avaBox.replaceChildren(ava(by, 80, true), w.v ? h('i.as-fo-post__badge' + (b ? '.is-blue' : '')) : null);
     img(sticker, dr.tab);
     tabs.style.setProperty('--fo-tabline', dr.tabline ? `url("${dr.tabline}")` : ''); tabs.classList.toggle('has-line', !!dr.tabline);
@@ -520,12 +532,10 @@ function userView(by, host) {
   }
   const tabs = h('div.as-fo-user__tabs', tab, tabOf('相册', true)), acc = mine && E.accOf(by.id);
   const nameEl = h('span', w.name), bio = h('div.as-fo-user__bio', b ? b.bio : acc ? acc.bio || '' : '');
-  // 我自己：「编辑个人资料」改网名、简介、头像，改完只换这几处
-  const edit = acc && h('button.as-fo-user__edit', { onclick: () => editAcc(acc, () => { nameEl.textContent = E.who(by).name; bio.textContent = acc.bio || ''; paint(); }) }, icon('edit', 15, 1.8), '编辑个人资料');
   const els = [h('div.as-fo-user', cover,
     h('div.as-fo-user__main', avaBox, h('div.as-fo-user__name', nameEl, w.v ? vMark() : null),
       b || w.v ? h('div.as-fo-user__cert', icon('shield', 15, 1.7), b ? b.topic : '已认证') : null, bio,
-      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')), edit)),
+      h('div.as-fo-user__nums', n(fans, 'forum.fans'), n(mine ? (state.forum.follows || []).length : 20 + seed % 400, 'forum.follows'), n(b ? b.fans * 7 : 100 + seed % 90000, 'forum.likes')))),
     tabs, more, list].filter(Boolean);
   paint();
   E.load().then(d => { list.append(...d.posts.filter(p => same(p.by, by)).map(p => card(p))); applyTexts(); });
@@ -569,23 +579,25 @@ function openSearch(q0) {
 }
 
 /* ---------- 我：设置、我的号 ---------- */
+const CC = { cn: 'zh-CN', tw: 'zh-TW', hk: 'zh-TW', mo: 'zh-TW', jp: 'ja', kr: 'ko', fr: 'fr', be: 'fr', de: 'de', at: 'de', es: 'es', mx: 'es', ar: 'es', co: 'es', ru: 'ru', it: 'it', pt: 'pt', br: 'pt',
+  th: 'th', vn: 'vi', us: 'en', gb: 'en', au: 'en', ca: 'en', nz: 'en', ie: 'en', sg: 'en' };   // 国家 → 那里平时说的话
 function openSettings() {
   const F = E.F(), A = E.A();
   const pg = page({ app: 'forum', id: 'forum-settings', title: '设置', back: true });
   const where = () => F.region ? `${F.region} · ${langName(F.lang || 'zh-CN')}` : '按正文定';
+  // 地区在地图上选（搜地名地图就移过去）；语言按那个国家平时说的话，不在列表里的再问
   const region = item({ title: '地区', value: where(), chevron: true, onClick: async () => {
-    const n = await dialog({ title: '地区', input: { value: F.region, placeholder: '地名' } }); if (n == null) return;
-    const l = n.trim() ? await actionSheet('那里说什么语言', LANGS.map(([v, t]) => ({ value: v, label: t, active: v === F.lang }))) : '';
+    const r = await (await import('../../core/mappick.js')).pickPlace('地区'); if (!r) return;
+    const l = !r.name ? '' : CC[r.cc] || await actionSheet('那里说什么语言', LANGS.map(([v, t]) => ({ value: v, label: t, active: v === F.lang })));
     if (l == null) return;
-    F.region = n.trim().slice(0, 20); F.lang = l; commit('forum');
+    F.region = r.name; F.lang = l; commit('forum');
     region.querySelector('.as-list-item__value').textContent = where();
   } });
   pg.body.append(h('div.as-fo-set', group('', [item({ icon: 'user', title: '我的号', chevron: true, onClick: openAccounts }), item({ icon: 'star', color: 'orange', title: '营销号', chevron: true, onClick: openBots }),
     item({ icon: 'users', color: 'green', title: '熟人', chevron: true, onClick: openPeople }), item({ icon: 'palette', color: 'pink', title: '我的主页装扮', chevron: true, onClick: () => dressMenu('me:' + F.cur, () => R?.mePaint?.()) })]),
     group('', [region]),
     group('显示', [field('外语', segmented([['both', '上下对照'], ['tap', '点了才显示']], A.tr, v => { A.tr = v; commit('apps'); phone().dataset.forumTr = v; }))]),
-    group('刷新', [field('一次刷几条', segmented([4, 6, 8, 10].map(n => [n, String(n)]), A.count || 6, v => { A.count = v; commit('apps'); })),
-      toggleItem({ title: '点开帖子就出评论' }, A.autoOpen !== false, v => { A.autoOpen = v; commit('apps'); })])));
+    group('刷新', [field('一次刷几条', segmented([4, 6, 8, 10].map(n => [n, String(n)]), A.count || 6, v => { A.count = v; commit('apps'); }))])));
   nav.push(pg.el);
 }
 function openAccounts() {

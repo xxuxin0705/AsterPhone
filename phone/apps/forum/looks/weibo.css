@@ -191,11 +191,11 @@
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]).is-up > .as-navbar .as-navbar__btn { background: none; color: var(--fo-ink); }
 :is([data-as-page="forum-user"], .as-fo-root[data-tab="me"]) .as-fo-user__tabs { position: sticky; top: calc(var(--as-sb-h, 0px) + 48px); z-index: 1; }
 
-/* 穿了套装的主页：背景图一直铺到标签那排，名字、粉丝数压在图上，图的下半截慢慢变白；橙色短条换成套装里的花边 */
-/* 背景图按原样的宽高放在最上面（不放大、不裁），下沿慢慢淡进白底；装扮都是照浅色画的，夜间这一块也用浅色 */
+/* 穿了套装的主页（照真微博）：背景图只占最上面一截；图下沿淡进「图下沿的颜色（调浅）」，这颜色再慢慢变白，名字、粉丝数压在这层淡色上，不压在图上；
+   橙色短条换成套装里的花边。装扮都是照浅色画的，夜间这一块也用浅色 */
 .is-dressed :is(.as-fo-user, .as-fo-user__tabs) { --fo-card: #fff; --fo-ink: #1a1a1a; --fo-line: #ededed; color: var(--fo-ink); }
-.is-dressed .as-fo-user__cover { height: 420px; margin-bottom: -250px; overflow: hidden; background: var(--fo-card) !important; }
-.is-dressed .as-fo-user__coverimg:not([hidden]) { display: block; width: 100%; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.is-dressed .as-fo-user__cover { position: relative; height: 390px; margin-bottom: -215px; overflow: hidden; background: linear-gradient(var(--fo-tint, #fff) 215px, #fff) !important; }
+.is-dressed .as-fo-user__coverimg:not([hidden]) { display: block; width: 100%; height: 215px; object-fit: cover; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
 .is-dressed .as-fo-user__ava { box-shadow: none; }
 .is-dressed .as-fo-user__main { background: none; border-radius: 0; }
 .is-dressed .as-fo-user__ava { margin-top: 0; }
@@ -207,6 +207,5 @@
 [data-as-app="forum"] .as-fo-user__nums { order: 1; }
 [data-as-app="forum"] .as-fo-user__cert { order: 2; }
 [data-as-app="forum"] .as-fo-user__bio { order: 3; }
-[data-as-app="forum"] .as-fo-user__edit { order: 4; }
 [data-as-app="forum"] .as-fo-nrow__end .as-badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 13px; line-height: 22px; box-shadow: none; }
 [data-as-app="forum"] .as-fo-user__tabs.has-line span.is-on::after { bottom: -12px; width: 60px; height: 14px; margin-left: -30px; border-radius: 0; background: var(--fo-tabline) center / contain no-repeat; }
