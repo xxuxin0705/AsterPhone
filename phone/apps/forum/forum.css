@@ -33,7 +33,7 @@
 .as-fo-post.is-full { cursor: default; }
 .as-fo-post__group, .as-fo-post__count, .as-fo-post__in, .as-fo-post__badge, .as-fo-post__hotcmt { display: none; }
 .as-fo-post > :not(.as-fo-post__ava, .as-fo-post__head, .as-fo-follow) { grid-column: 1 / -1; }
-.as-fo-post__ava { position: relative; grid-column: 1; grid-row: 1 / span 2; cursor: pointer; align-self: start; }
+.as-fo-post__ava { position: relative; display: grid; grid-column: 1; grid-row: 1 / span 2; cursor: pointer; align-self: start; }   /* grid：不留行高的空，V 才贴着头像右下 */
 .as-fo-post__head { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
 .as-fo-post__name { font: 600 15px/1.3 var(--font-ui); color: var(--fo-name, var(--fo-ink)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 75%; }
 .as-fo-post__v { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--fo-v); color: #fff; }
