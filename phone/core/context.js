@@ -96,10 +96,11 @@ export function entryOn(book, e, scan) {
   return e.keys.some(k => k && low.includes(String(k).toLowerCase()));
 }
 /** 要发的世界书条目，拼成一段文字。scan = 用来找关键词的文字（正文 + 手机聊天） */
-/** people：这次写到的人，映像里给 TA 单独定过「带 / 不带」的书照 TA 的 */
-export async function worldText(scan = '', people = []) {
-  const own = n => people.map(p => p && p.books && p.books[n]).find(Boolean);
-  const names = [...new Set([...tavernBooks(), ...Object.keys(C().books), ...people.flatMap(p => Object.keys((p && p.books) || {}))])].filter(n => own(n) ? own(n) === 'on' : bookOn(n));
+/** people：这次写到的人，映像里给 TA 单独定过「带 / 不带」的书照 TA 的；app：在哪个 App 里（映像里能给每个 App 另定） */
+export async function worldText(scan = '', people = [], app = '') {
+  const of = p => ({ ...(p && p.books), ...(p && p.appBooks && p.appBooks[app]) });
+  const own = n => people.map(p => of(p)[n]).find(Boolean);
+  const names = [...new Set([...tavernBooks(), ...Object.keys(C().books), ...people.flatMap(p => Object.keys(of(p)))])].filter(n => own(n) ? own(n) === 'on' : bookOn(n));
   const parts = [];
   for (const n of names) {
     let list = [];

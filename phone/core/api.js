@@ -415,14 +415,14 @@ async function firstFileInZip(buf) {
   return new Blob([await new Response(ds).arrayBuffer()], { type: 'image/png' });
 }
 /** ComfyUI 没粘工作流时用的最简单的文生图流程（底模 → 正负提示词 → 采样 → 存图） */
-function comfyDefault({ model, full, neg, W, H, steps, scale, sampler }) {
+function comfyDefault({ model, full, neg, W, H, steps, scale, sampler, seed }) {
   if (!model) throw new Error('ComfyUI 要先在「模型」里选一个底模（点拉取）');
   return {
     4: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: model } },
     5: { class_type: 'EmptyLatentImage', inputs: { width: W, height: H, batch_size: 1 } },
     6: { class_type: 'CLIPTextEncode', inputs: { text: full, clip: ['4', 1] } },
     7: { class_type: 'CLIPTextEncode', inputs: { text: neg, clip: ['4', 1] } },
-    3: { class_type: 'KSampler', inputs: { seed: Math.floor(Math.random() * 1e9), steps, cfg: scale, sampler_name: sampler, scheduler: 'normal', denoise: 1, model: ['4', 0], positive: ['6', 0], negative: ['7', 0], latent_image: ['5', 0] } },
+    3: { class_type: 'KSampler', inputs: { seed, steps, cfg: scale, sampler_name: sampler, scheduler: 'normal', denoise: 1, model: ['4', 0], positive: ['6', 0], negative: ['7', 0], latent_image: ['5', 0] } },
     8: { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['4', 2] } },
     9: { class_type: 'SaveImage', inputs: { filename_prefix: 'asterphone', images: ['8', 0] } },
   };
@@ -444,10 +444,11 @@ function imageInReply(j) {
   return hit ? hit[1] : '';
 }
 /** ref：照着这张图改（dataURL），不传就是用文字生图 */
-/** 画的是某个人：前面加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图 */
+/** 画的是某个人：前面加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
+ *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子） */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
   const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
-  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined];
+  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined, c && c.seed !== undefined && conn ? { ...conn, img: { ...conn.img, seed: c.seed } } : conn];
 }
 export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
   const conn = connIn || resolveConn('image', 'chat');
@@ -482,7 +483,7 @@ const fitB64 = (src, w, h, bg, contain) => new Promise((ok, no) => { const i = n
 async function imageRaw(prompt, conn, ref) {
   const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
   const { full, neg } = imgPrompt(conn, prompt);
-  const key = keysOf(conn)[0] || '', base = trim(conn.base);
+  const key = keysOf(conn)[0] || '', base = trim(conn.base), sd = I.seed === '' || I.seed == null || +I.seed < 0 ? null : Math.floor(+I.seed);   // 种子：映像里给这个人定的，没定就每次随机
   const fail = async res => { throw new Error(await readErr(res)); };
   try {
     if (ref && ref.chars && conn.type !== 'novelai') throw new Error('只有 NAI 能按位置分别写提示词');
@@ -490,7 +491,7 @@ async function imageRaw(prompt, conn, ref) {
     switch (conn.type) {
       case 'novelai': {
         // ref.chars：图生图 + 分角色提示词（每个位置画什么），照相馆的「NAI 宫格（试验）」用
-        const model = conn.model || 'nai-diffusion-4-5-full', chars = ref && ref.chars, seed = Math.floor(Math.random() * 4294967295);
+        const model = conn.model || 'nai-diffusion-4-5-full', chars = ref && ref.chars, seed = sd ?? Math.floor(Math.random() * 4294967295);
         if (ref && !chars && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
         const cc = chars ? chars.map(c => ({ char_caption: c.tags, centers: [{ x: c.x, y: c.y }] })) : [];
         const more = !ref ? {} : chars ? { image: await fitB64(ref.image, W, H, '#fff'), strength: ref.strength, noise: 0, extra_noise_seed: seed,
@@ -501,28 +502,28 @@ async function imageRaw(prompt, conn, ref) {
           body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: {
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: cc }, use_coords: !!chars, use_order: true },
-            v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref ? { seed } : {}), ...more } }) });
+            v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref || sd != null ? { seed } : {}), ...more } }) });
         if (!res.ok) await fail(res);
         return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
       }
       case 'siliconflow': {
         const res = await xf(oaiBase(base) + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5, ...(ref ? { image: ref } : {}) }) });
+          body: JSON.stringify({ model: conn.model, prompt: full, negative_prompt: neg || undefined, image_size: `${W}x${H}`, batch_size: 1, num_inference_steps: +I.steps || 20, guidance_scale: +I.scale || 7.5, ...(sd != null ? { seed: sd } : {}), ...(ref ? { image: ref } : {}) }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); const u = j.images?.[0]?.url || j.data?.[0]?.url; if (!u) throw new Error('硅基流动没有返回图片'); return keep(u);
       }
       case 'sd-webui': {
         const res = await xf(base + '/sdapi/v1/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: +I.steps || 20, sampler_name: I.sampler || 'Euler a', cfg_scale: +I.scale || 7,
+          body: JSON.stringify({ prompt: full, negative_prompt: neg, width: W, height: H, steps: +I.steps || 20, sampler_name: I.sampler || 'Euler a', cfg_scale: +I.scale || 7, seed: sd ?? -1,
             ...(conn.model ? { override_settings: { sd_model_checkpoint: conn.model } } : {}) }) });
         if (!res.ok) await fail(res);
         const j = await res.json(); if (!j.images?.[0]) throw new Error('SD 没有返回图片'); return b64png(j.images[0]);
       }
       case 'comfyui': {
-        const p = { model: conn.model, full, neg, W, H, steps: +I.steps || 20, scale: +I.scale || 7, sampler: I.sampler || 'euler_ancestral' };
+        const p = { model: conn.model, full, neg, W, H, steps: +I.steps || 20, scale: +I.scale || 7, sampler: I.sampler || 'euler_ancestral', seed: sd ?? Math.floor(Math.random() * 1e9) };
         // 自己的工作流：占位符换成这次的值（数字的连引号一起换，免得变成字符串）
         const fill = s => [['prompt', JSON.stringify(full).slice(1, -1)], ['negative_prompt', JSON.stringify(neg).slice(1, -1)], ['negative', JSON.stringify(neg).slice(1, -1)], ['model', p.model || ''], ['sampler', p.sampler]]
-          .reduce((t, [k, v]) => t.replaceAll(`%${k}%`, v), [['seed', Math.floor(Math.random() * 1e9)], ['width', W], ['height', H], ['steps', p.steps], ['scale', p.scale]]
+          .reduce((t, [k, v]) => t.replaceAll(`%${k}%`, v), [['seed', p.seed], ['width', W], ['height', H], ['steps', p.steps], ['scale', p.scale]]
             .reduce((t, [k, v]) => t.replaceAll(`"%${k}%"`, String(v)).replaceAll(`%${k}%`, String(v)), s));
         const wf = I.workflow && I.workflow.trim() ? JSON.parse(fill(I.workflow)) : comfyDefault(p);
         const r1 = await xf(base + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });

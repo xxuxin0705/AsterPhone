@@ -77,7 +77,7 @@ async function compose1(c, what, recall, stop) {
     const story = storyText(), chat = chatForContact(c.id, false), msgs = chat ? (await getMsgs(chat.id)).filter(m => !m.recalled && m.text).slice(-30) : [];
     const scan = story + '\n' + msgs.map(m => m.text).join('\n');
     about = [`【最近的剧情】\n${story || '（暂无）'}`, msgs.length && `【手机里最近的聊天】\n${msgs.map(m => `${m.from === 'me' ? myName() : real(c)}：${m.text}`).join('\n')}`,
-      await worldText(scan).catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
+      await worldText(scan, [c], 'radio').catch(() => ''), await memoryFor([c], scan).catch(() => '')].filter(Boolean).join('\n\n');
   }
   const raw = await ask(c, compose('radioStory', { char: real(c), persona: personaOf(c) || '（没有更多资料）', recall: about, ask: what, lang: lname(lang), len: LEN[S().len], zh: zhLine(lang), act: hint(c) }), stop, t => /^\s*感想[:：]/m.test(t));
   const title = ((raw.match(/^\s*标题[:：]\s*(.+)$/m) || [])[1] || '').replace(/^[《「『【]|[》」』】]$/g, '').trim();

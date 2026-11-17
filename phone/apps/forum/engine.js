@@ -145,7 +145,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
   const st = story();
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
-      world: (await worldBlock(st, board === 'anon' ? [] : crowd())).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
+      world: (await worldBlock(st, board === 'anon' ? [] : crowd(), '', '', false, 'forum')).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
   const end = () => { inFloors = false; if (cur && cur.text.trim() && (cur.by.k !== 'me' || A().mePost)) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
@@ -241,7 +241,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   const st = story(), anon = p.board === 'anon', first = !(p.floors || []).length;
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '10～15' : '5～8'),
-      world: (await worldBlock(st, anon ? [] : crowd())).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
+      world: (await worldBlock(st, anon ? [] : crowd(), '', '', false, 'forum')).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
       lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n'),
       atme: atMe(p.board), likes: anon ? '' : likesAsk(p) }) });
   const list = p.floors || [], add = [], mine = new Set(myNames()), likes = [];
@@ -301,7 +301,7 @@ export async function dmReply(d, stop) {
   const l = langFor('forum', c && chatForContact(c.id, false)?.cfg.speak);
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumDm', { who: c ? `${netName(c)}（真名：${c.name || nameOf(c)}）${personaOf(c) ? '\n' + personaOf(c).slice(0, 800) : ''}` : d.by.k === 'bot' ? `营销号「${w.name}」，主题：${w.sub || ''}` : `${w.name}（一个普通网友）`,
-      me: accName(curAcc()), platform: platform(), story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [])).world,
+      me: accName(curAcc()), platform: platform(), story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [], '', '', false, 'forum')).world,
       history: d.list.slice(-30).map(m => `${m.me ? accName(curAcc()) : w.name}：${m.text || '[图片]'}`).join('\n'),
       lang: isZh(l) ? '' : `\n- 用${langName(l)}写，每条末尾附 [翻译：简体中文意思]。` }) });
   const got = clean(raw).split('\n').map(x => x.trim()).map(x => [w.name + '：', w.name + ':'].some(n => x.startsWith(n)) ? x.slice(w.name.length + 1).trim() : x).filter(x => x && !/^[（(]?不回[）)]?$/.test(x)).slice(0, 6);

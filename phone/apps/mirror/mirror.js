@@ -79,6 +79,8 @@ function sky(cv) {
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
    x：{ pic 重摆碎片的图, roster 重画头像排 } */
+const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
+let bookApp = '';
 const mirrorOf = c => (c.mirror ||= { main: '', shards: {} });
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
 const pickPic = async size => { const f = await pickFile('image/*'); return f && fileToDataURL(f, size); };
@@ -113,6 +115,11 @@ function rowsOf(i, c, x) {
       if (v === 'avatar') { if (!c.avatar) { toast('还没有头像'); return false; } c.lookRef = c.avatar; }
       else if (v === 'pick') { const p = await pickPic(1024); if (!p) return false; c.lookRef = p; } else delete c.lookRef;
       save(); set(); x.reopen(); })) }],
+    // 种子：同一个种子 + 同样的外貌，画出来的脸更像同一个人。NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子
+    ['种子', { value: () => (c.seed === undefined ? '每次随机' : String(c.seed)), edit: set => {
+      const box = input({ type: 'number', value: c.seed ?? '', placeholder: '种子', onInput: v => { if (v === '') delete c.seed; else c.seed = Math.max(0, Math.floor(+v) || 0); save(); set(); } });
+      return h('div.mz-col', box, h('div.mz-chips', h('button', { onclick: () => { c.seed = Math.floor(Math.random() * 4294967295); box.value = c.seed; save(); set(); } }, '随机定一个'),
+        h('button', { onclick: () => { delete c.seed; box.value = ''; save(); set(); } }, '每次随机'))); } }],
     own,
   ];
   // 立绘：照相馆里做的；主图（碎片里映着的那张）可以用头像、立绘或者另传一张
@@ -126,11 +133,12 @@ function rowsOf(i, c, x) {
       save('pic'); set(); x.reopen(); })) }],
     own,
   ];
-  // 世界书：每本书给 TA 定「跟着总的 / 带 / 不带」，写到 TA 的时候（聊天、论坛、日记…）照这个
-  const books = [...new Set([...worldNames(), ...Object.keys(c.books || {})])];
-  const MODE = { '': '跟着总的', on: '带', off: '不带' };
-  return [...books.map(n => [n, { value: () => MODE[(c.books || {})[n] || ''], edit: set => choose(Object.entries(MODE), (c.books || {})[n] || '', v => {
-    c.books ||= {}; if (v) c.books[n] = v; else delete c.books[n]; save(); set(); }) }]), own];
+  // 世界书：每本书给 TA 定「带 / 不带」，写到 TA 的时候照这个。先选管哪里：「所有应用」是总的，选了某个 App 就是在总的上再加减
+  const books = [...new Set([...worldNames(), ...Object.keys(c.books || {}), ...Object.values(c.appBooks || {}).flatMap(Object.keys)])];
+  const tab = () => (bookApp ? ((c.appBooks ||= {})[bookApp] ||= {}) : (c.books ||= {}));
+  const MODE = { '': bookApp ? '跟着所有应用' : '跟着酒馆', on: '带', off: '不带' };
+  return [['用在哪', { value: () => (BOOK_APPS.find(a => a[0] === bookApp) || BOOK_APPS[0])[1], edit: () => choose(BOOK_APPS, bookApp, v => { bookApp = v; x.reopen(); }) }],
+    ...books.map(n => [n, { value: () => MODE[tab()[n] || ''], edit: set => choose(Object.entries(MODE), tab()[n] || '', v => { if (v) tab()[n] = v; else delete tab()[n]; save(); set(); }) }]), own];
 }
 
 export function open() {

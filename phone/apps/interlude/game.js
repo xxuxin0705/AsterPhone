@@ -103,7 +103,7 @@ const ownerName = o => o === 'me' ? myName() : nameOf(contact(o));
 const ownerPersona = o => o === 'me' ? myPersona() : personaOf(contact(o));
 /** 一次给好几个人车卡（owners：'me' / 联系人 id）。AI 照正文和人设定档位、分属性、写身份背景技能 */
 // 世界书、岁岁砂（没有就空）：人设是一开始写的，年级、关系这些要照后来的（作者的卡曾被车成「15 岁一年级」，正文里早就二年级了）
-const memoryText = async (ids, story) => [await worldText(story).catch(() => ''), await memoryFor(ids.map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
+const memoryText = async (ids, story) => [await worldText(story, ids.map(contact), 'interlude').catch(() => ''), await memoryFor(ids.map(contact).filter(Boolean), story).catch(() => '')].filter(Boolean).join('\n\n');
 // 车卡方式（知道在跑团时才能选）：照自己 / 捏 OC / 随机（属性照规则书掷，身份随机）
 export const MODES = [['self', '照自己'], ['oc', '捏 OC'], ['random', '随机']];
 const MODE_TEXT = {
