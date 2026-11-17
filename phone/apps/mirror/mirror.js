@@ -20,7 +20,12 @@ const SH = [
   { n: '立绘', p: [[-5, 458], [63, 440], [130, 497], [113, 599], [147, 730], [-5, 676]], z: -60, rx: 10, ry: -10, fx: .5, fy: .68, k: 1.6, t: [16, 650] },
   { n: '世界书', p: [[190, 592], [321, 520], [396, 584], [382, 674], [400, 766], [265, 794], [236, 691]], z: 20, rx: -9, ry: 10, fx: .3, fy: .66, k: 1.7, t: [292, 738] },
 ];
-const LT = [200, 440];   // 光藏在这一带的碎片后面（不画出来）
+const LT = [200, 480];   // 光藏在这一带的碎片后面（不画出来）
+// 每片往自己中心收一点、大小拉开（3 最大，2、4 最小），片和片之间留出黑缝；字放在离光最远的那个角上
+SH.forEach((s, i) => { const k = [.84, .78, .96, .76, .82][i], m = s.p.reduce((a, q) => [a[0] + q[0] / s.p.length, a[1] + q[1] / s.p.length], [0, 0]);
+  s.p = s.p.map(([x, y]) => [m[0] + (x - m[0]) * k, m[1] + (y - m[1]) * k + 40]);
+  const far = s.p.reduce((b, q) => (Math.hypot(q[0] - LT[0], q[1] - LT[1]) > Math.hypot(b[0] - LT[0], b[1] - LT[1]) ? q : b));
+  s.t = [far[0] + (m[0] - far[0]) * .3, far[1] + (m[1] - far[1]) * .3]; });
 
 // 毛边：每条边切成小段往两边抖一点，偶尔崩一个小口；种子定死，每次打开都一样
 function jag(pts) {
@@ -37,7 +42,7 @@ function shard(s, i, onTap) {
   const blur = (id, d) => { const f = svg('filter', { id: id + u, x: '-30%', y: '-30%', width: '160%', height: '160%' }); f.append(svg('feGaussianBlur', { stdDeviation: d })); return f; };
   const clip = svg('clipPath', { id: 'c' + u }); clip.append(svg('polygon', { points: P }));
   const defs = svg('defs'); defs.append(clip, blur('b', 3), blur('d', 6 + Math.max(0, s.z) / 12),
-    grad('w', [[0, '#fff', .7], [.22, '#f4f1ff', .32], [.45, '#fff', 0], [.8, '#060414', .2], [1, '#060414', .55]]),
+    grad('w', [[0, '#fff', .5], [.18, '#f4f1ff', .16], [.4, '#fff', 0], [.82, '#060414', .28], [1, '#060414', .62]]),
     grad('r', [[0, '#fff', 1], [.5, '#eeeaff', .8], [1, '#b9b3e0', .35]]));
   const img = svg('image', { preserveAspectRatio: 'xMidYMid slice' });
   // 图上 (fx, fy) 那一点对准这片的中间，k 是放大
@@ -45,10 +50,11 @@ function shard(s, i, onTap) {
     Object.entries({ x: c[0] - fx * W, y: c[1] - fy * W, width: W, height: W }).forEach(([key, v]) => img.setAttribute(key, v)); };
   const body = svg('g', { 'clip-path': `url(#c${u})` });
   body.append(svg('rect', { width: 393, height: 852, fill: '#1c1a2e' }), img, svg('rect', { width: 393, height: 852, fill: `url(#w${u})` }),
-    svg('polygon', { points: P, fill: 'none', stroke: '#fff', 'stroke-opacity': .55, 'stroke-width': 8, filter: `url(#b${u})` }));
+    svg('polygon', { points: P, fill: 'none', stroke: '#fff', 'stroke-opacity': .35, 'stroke-width': 7, filter: `url(#b${u})` }));
   const el = svg('svg', { viewBox: '0 0 393 852', class: 'mz-shard' });
   el.append(defs, svg('polygon', { points: P, fill: '#000', opacity: .7, transform: `translate(${8 + s.z / 8} ${14 + s.z / 5})`, filter: `url(#d${u})` }),
     svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#dcd7ff', 'stroke-width': 6, filter: `url(#b${u})` }), body,
+    svg('polygon', { points: P, fill: 'none', stroke: '#fff', 'stroke-opacity': .22, transform: 'translate(1.6 2.2)' }),   // 玻璃的厚度：错开一点的第二道边
     svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: `url(#r${u})`, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }),
     Object.assign(svg('polygon', { points: P, fill: 'transparent' }), { onclick: e => { e.stopPropagation(); onTap(i); } }));
   el.style.cssText = `transform-origin:${c[0] / 3.93}% ${c[1] / 8.52}%;--z:${s.z}px;--rx:${s.rx}deg;--ry:${s.ry}deg`;
@@ -159,7 +165,7 @@ export function open() {
   p.nav.querySelector('.as-navbar__right').append(navBtn('image', '整张图', () => (focus === 'all' ? at(-1) : whole())), roster);
   const tags = [], parts = SH.map((s, i) => {
     const sh = shard(s, i, at); stage.append(sh.el);
-    const t = h('div.mz-tag', { style: { left: s.t[0] / 3.93 + '%', top: s.t[1] / 8.52 + '%' }, onclick: e => { e.stopPropagation(); at(i); } }, h('em', i + 1), h('b', s.n));
+    const t = h('div.mz-tag', { style: { left: s.t[0] / 3.93 + '%', top: s.t[1] / 8.52 + '%', textAlign: s.t[0] > 196 ? 'right' : 'left', translate: s.t[0] > 196 ? '-100% -50%' : '0 -50%' }, onclick: e => { e.stopPropagation(); at(i); } }, h('em', i + 1), h('b', s.n));
     tags.push(t); stage.append(t); return sh;
   });
   const meteors = [h('i.mz-meteor'), h('i.mz-meteor.is-b')];

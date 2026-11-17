@@ -5,8 +5,8 @@
 .as-mz .as-page__body { position: relative; overflow: hidden; padding: 0; }
 .mz-sky { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mz-head { flex: 1; min-width: 0; text-shadow: 0 0 12px #04050d; }
-.mz-head b { display: block; font-weight: 500; font-size: 20px; letter-spacing: 5px; }
-.mz-head small { display: block; margin-top: 3px; font-size: 11px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-head b { display: block; font-weight: 500; font-size: 22px; letter-spacing: 8px; }
+.mz-head small { display: block; margin-top: 5px; font-size: 11px; letter-spacing: 4px; color: var(--mz-fog); }
 .mz-roster { display: flex; gap: 6px; align-items: center; max-width: 170px; overflow-x: auto; scrollbar-width: none; }
 .mz-roster button { flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: #2a2a3a; color: var(--mz-ink); font-size: 12px; filter: grayscale(1) brightness(.55); cursor: pointer; transition: width .25s, height .25s, filter .25s; }
 .mz-roster button.is-on { width: 34px; height: 34px; filter: none; box-shadow: 0 0 0 1px var(--mz-ink), 0 0 0 4px rgba(241,238,246,.12); }
@@ -21,9 +21,9 @@
 .mz-shard.is-on { transform: translateZ(90px) scale(1.12); filter: none; z-index: 2; }
 .mz-shard.is-on .mz-glow { opacity: .95; stroke-width: 14px; stroke: #fff; }
 .mz-shard.is-on .mz-rim { stroke-width: 2.6px; }
-.mz-tag { position: absolute; z-index: 3; white-space: nowrap; cursor: pointer; text-shadow: 0 0 3px #000, 0 0 9px rgba(0,0,0,.8); transition: opacity .3s; }
-.mz-tag em { display: block; font: 500 22px/1 "Noto Serif", Georgia, serif; font-style: normal; }
-.mz-tag b { display: block; margin-top: 3px; font-weight: 500; font-size: 12.5px; letter-spacing: 3px; }
+.mz-tag { position: absolute; z-index: 3; padding: 6px 8px; white-space: nowrap; cursor: pointer; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 0 10px rgba(0,0,0,.75); background: radial-gradient(closest-side, rgba(4,5,13,.55), transparent); transition: opacity .3s; }
+.mz-tag em { display: block; font: italic 400 26px/1 "Noto Serif", Georgia, serif; }
+.mz-tag b { display: block; margin-top: 4px; font-weight: 500; font-size: 11.5px; letter-spacing: 4px; opacity: .9; }
 .is-focus .mz-tag { opacity: 0; pointer-events: none; }
 /* 流星：隔一阵划过一颗；页面被盖住就停 */
 .mz-meteor { position: absolute; z-index: 1; top: 14%; right: -10%; width: 140px; height: 1.4px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(200,215,255,.5) 20%, transparent); rotate: -24deg; opacity: 0; pointer-events: none; animation: mz-fly 9s 2s linear infinite; }
