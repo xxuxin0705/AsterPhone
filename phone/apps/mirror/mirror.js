@@ -4,7 +4,7 @@
 // 碎片里的图：默认都用「主图」（没设就用头像），每片也能单独换一张；点开那片后在它上面拖动挪位置、两指捏放大缩小。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -101,7 +101,7 @@ function rowsOf(i, c, x) {
       save('pic'); set(); x.reopen(); })
       : h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; M.shards[i] = { src: v }; save('pic'); x.reopen(); } }, M.shards[i]?.src ? '换一张' : '这片单独传一张'),
         M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回整张') : '');
-    return h('div.mz-col', choose([['all', '整张'], ['one', '这一片']], picScope, v => { picScope = v; x.reopen(); }),
+    return h('div.mz-col', x.whole ? '' : choose([['all', '整张'], ['one', '这一片']], picScope, v => { picScope = v; x.reopen(); }),
       (whole ? M.main : M.shards[i]?.src) ? thumb(whole ? M.main : M.shards[i].src) : '', up,
       h('div.mz-fine', nudger((dx, dy) => step(-dx, -dy), reset),
         h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))));
@@ -155,7 +155,8 @@ export function open() {
   const cv = h('canvas.mz-sky'), stage = h('div.mz-stage'), side = h('aside.mz-side'), roster = h('div.mz-roster');
   const nm = h('b'), real = h('small'), head = h('div.mz-head', nm, real);
   p.nav.querySelector('.as-navbar__title').replaceWith(head);
-  p.nav.querySelector('.as-navbar__right').append(roster);
+  // 右上角的图片键：直接改整张图（换图、挪位置、大小），镜子缩到左边，5 片都看得见
+  p.nav.querySelector('.as-navbar__right').append(navBtn('image', '整张图', () => (focus === 'all' ? at(-1) : whole())), roster);
   const tags = [], parts = SH.map((s, i) => {
     const sh = shard(s, i, at); stage.append(sh.el);
     const t = h('div.mz-tag', { style: { left: s.t[0] / 3.93 + '%', top: s.t[1] / 8.52 + '%' }, onclick: e => { e.stopPropagation(); at(i); } }, h('em', i + 1), h('b', s.n));
@@ -199,6 +200,7 @@ export function open() {
     if (i === focus) return;   // 点开着的那片：是在挪图，不收回去
     focus = i;
     p.el.classList.toggle('is-focus', i >= 0);
+    p.el.classList.remove('is-pic');
     parts.forEach((sh, k) => sh.el.classList.toggle('is-on', k === i));
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
     stage.style.transform = i < 0 ? '' : `translate(${(110 - parts[i].c[0]) / 3.93}%, ${(430 - parts[i].c[1]) / 8.52}%)`;
@@ -213,6 +215,14 @@ export function open() {
     });
     side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), rows.length ? box : h('p.mz-soon', '下一步做'), h('div.mz-cards', cards));
     if (cards[0]) cards[0].click();
+  }
+  function whole() {
+    if (!cur) return;
+    at(-1); focus = 'all'; picScope = 'all';
+    p.el.classList.add('is-focus', 'is-pic');
+    stage.style.transform = 'translate(-17%, 6%) scale(.66)';
+    const [, r] = rowsOf(0, cur, { pic: pics, roster: paintRoster, whole: true, reopen: whole }).at(-1);
+    side.replaceChildren(h('h3', '整张图'), h('div.mz-edit', r.edit(() => {})));
   }
   const show2 = () => { nm.textContent = nameOf(cur); real.textContent = cur.name && cur.name !== nameOf(cur) ? '真名 ' + cur.name : ''; };
   p.body.append(stage, side);

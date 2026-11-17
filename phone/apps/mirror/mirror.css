@@ -63,3 +63,5 @@
 .mz-fine .as-nudge { grid-template: repeat(3, 34px) / repeat(3, 34px); gap: 4px; }
 .mz-fine .as-nudge__mid { font-size: 11px; }
 .mz-fine .as-nudge__btn, .mz-fine .as-nudge__mid { color: var(--mz-ink); background: rgba(255,255,255,.1); }
+.is-pic .mz-shard:not(.is-on) { filter: none; }
+.as-mz .as-navbar__btn { color: var(--mz-ink); }
