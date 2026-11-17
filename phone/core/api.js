@@ -444,6 +444,11 @@ function imageInReply(j) {
   return hit ? hit[1] : '';
 }
 /** ref：照着这张图改（dataURL），不传就是用文字生图 */
+/** 画的是某个人：前面加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图 */
+export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
+  const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
+  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined];
+}
 export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
   const conn = connIn || resolveConn('image', 'chat');
   if (!conn) throw new Error('还没有生图连接：设置 → 连接 → 生图 里插一根线');

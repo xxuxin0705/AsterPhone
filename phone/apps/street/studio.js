@@ -33,7 +33,7 @@ export async function openStudio() {
   nav.push(p.el);
 }
 
-function person(cid, changed) {
+export function person(cid, changed = () => {}) {
   const c = who(cid), f = form.get(cid) || form.set(cid, { desc: '', ref: c.avatar ? 'avatar' : '' }).get(cid);
   const p = page({ app: 'street', id: 'studio-one', title: nameOf(c), large: true, back: true, cls: 'as-studio' });
   const stage = h('div.as-studio__stage'), ctl = h('div.as-studio__ctl');

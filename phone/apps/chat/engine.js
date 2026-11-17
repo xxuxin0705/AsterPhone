@@ -269,7 +269,7 @@ const storyNow = n => storyText(n) || '（暂无）';   // 两种模式都读正
 /** 世界书 + 岁岁砂里 TA 们记得的事（people：这次说话的 TA 们）：world = 世界书和一直记着的，memory = 这会儿想起的；
  *  提示词（cat 这一类正在用的方案）里没写 {{memory}} 的，想起的也放进 world */
 export async function worldBlock(scan, people = [], cat, sid, noBook) {
-  const w = noBook ? '' : await worldText(scan).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
+  const w = noBook ? '' : await worldText(scan, people).catch(() => ''), [m, r] = await memoryFor(people.filter(Boolean), scan).catch(e => { log('warn', '岁岁砂', '读不到记忆：' + e.message); return ['', '']; });
   const own = cat && blocksIn(cat, sid).some(b => b.on && b.text.includes('{{memory}}'));
   return { world: (w ? `\n【世界书】\n${w}\n` : '') + m + (own ? '' : r), memory: own ? r : '' };
 }

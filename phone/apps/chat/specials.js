@@ -3,7 +3,7 @@ import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs, chatForContact } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { generateImage, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
+import { generateImage, lookOf, resolveConn, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
 import { speakAs, soonAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { shell } from '../../core/shell.js';
@@ -42,7 +42,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         if (drawing.has(m.id)) { drawing.get(m.id).abort(); return; }
         const ac = new AbortController(); drawing.set(m.id, ac); gen.replaceChildren(h('i.as-spin'), ' 取消');
-        try { m.src = await generateImage(m.text || '一张生活照', '聊天', undefined, ac.signal); saveMsgs(ctx.chat.id); ctx.redraw(true); }
+        try { const conn = resolveConn('image', 'chat'), [pr, ref] = lookOf(mine ? null : contact(m.who || (ctx.c && ctx.c.id)), m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', conn, ac.signal, ref); saveMsgs(ctx.chat.id); ctx.redraw(true); }
         catch (err) { toast(ac.signal.aborted ? '已取消' : err.message); idle(); }
         drawing.delete(m.id);
       } });
