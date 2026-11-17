@@ -1,0 +1,50 @@
+/* 映像：一直是夜空，不跟日间 / 夜间走 */
+.as-mz { --mz-ink: #f1eef6; --mz-fog: #9aa0b0; background: #04050d; color: var(--mz-ink); font-family: "Noto Serif SC", "Songti SC", serif; }
+.as-mz .as-navbar { position: relative; z-index: 5; background: none !important; border: 0; box-shadow: none; color: var(--mz-ink); }
+.as-mz .as-navbar__back { color: var(--mz-ink); }
+.as-mz .as-page__body { position: relative; overflow: hidden; padding: 0; }
+.mz-sky { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mz-head { flex: 1; min-width: 0; text-shadow: 0 0 12px #04050d; }
+.mz-head b { display: block; font-weight: 500; font-size: 20px; letter-spacing: 5px; }
+.mz-head small { display: block; margin-top: 3px; font-size: 11px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-roster { display: flex; gap: 6px; align-items: center; max-width: 170px; overflow-x: auto; scrollbar-width: none; }
+.mz-roster button { flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: #2a2a3a; color: var(--mz-ink); font-size: 12px; filter: grayscale(1) brightness(.55); cursor: pointer; transition: width .25s, height .25s, filter .25s; }
+.mz-roster button.is-on { width: 34px; height: 34px; filter: none; box-shadow: 0 0 0 1px var(--mz-ink), 0 0 0 4px rgba(241,238,246,.12); }
+.mz-roster img { width: 100%; height: 100%; object-fit: cover; }
+/* 碎片：画布照 393×852 的比例摆，高度占满 */
+.mz-stage { position: absolute; top: -60px; bottom: 0; left: 50%; aspect-ratio: 393 / 852; translate: -50% 0; perspective: 800px; perspective-origin: 51% 52%; transition: transform .5s cubic-bezier(.3,.1,.2,1); }
+.mz-shard { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transform: translateZ(var(--z)) rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .5s cubic-bezier(.3,.1,.2,1), filter .5s; }
+.mz-shard > polygon:last-child { pointer-events: auto; cursor: pointer; }
+.mz-shard[style*="--z:-"] { filter: brightness(.75); }
+.mz-shard .mz-glow { opacity: .4; transition: opacity .4s, stroke-width .4s; }
+.is-focus .mz-shard:not(.is-on) { filter: brightness(.28) saturate(.5); }
+.mz-shard.is-on { transform: translateZ(90px) scale(1.12); filter: none; z-index: 2; }
+.mz-shard.is-on .mz-glow { opacity: .95; stroke-width: 14px; stroke: #fff; }
+.mz-shard.is-on .mz-rim { stroke-width: 2.6px; }
+.mz-tag { position: absolute; z-index: 3; white-space: nowrap; cursor: pointer; text-shadow: 0 0 3px #000, 0 0 9px rgba(0,0,0,.8); transition: opacity .3s; }
+.mz-tag em { display: block; font: 500 22px/1 "Noto Serif", Georgia, serif; font-style: normal; }
+.mz-tag b { display: block; margin-top: 3px; font-weight: 500; font-size: 12.5px; letter-spacing: 3px; }
+.is-focus .mz-tag { opacity: 0; pointer-events: none; }
+/* 流星：隔一阵划过一颗；页面被盖住就停 */
+.mz-meteor { position: absolute; z-index: 1; top: 14%; right: -10%; width: 140px; height: 1.4px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(200,215,255,.5) 20%, transparent); rotate: -24deg; opacity: 0; pointer-events: none; animation: mz-fly 9s 2s linear infinite; }
+.mz-meteor.is-b { top: 46%; right: 20%; width: 90px; animation-duration: 13s; animation-delay: 6s; }
+@keyframes mz-fly { 0% { opacity: 0; translate: 0 0; } 1% { opacity: 1; } 7% { opacity: 0; translate: -260px 115px; } 100% { opacity: 0; translate: -260px 115px; } }
+.as-page.is-behind .mz-meteor { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .mz-meteor { display: none; } }
+/* 右边一栏：上面改，下面一张张卡片，点了按下去 */
+.mz-side { position: absolute; z-index: 4; top: 8px; right: 12px; bottom: 16px; width: 200px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; scrollbar-width: none; pointer-events: none; opacity: 0; translate: 16px 0; transition: opacity .35s, translate .35s; }
+.is-focus .mz-side { pointer-events: auto; opacity: 1; translate: 0 0; }
+.mz-side h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-weight: 500; font-size: 20px; letter-spacing: 5px; text-shadow: 0 0 10px #04050d; }
+.mz-side h3 em { font: 400 15px/1 "Noto Serif", Georgia, serif; font-style: normal; color: var(--mz-fog); }
+.mz-edit { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: rgba(18,19,30,.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.07); }
+.mz-edit > small, .mz-card small { display: block; font-size: 10.5px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-edit .as-input, .mz-edit textarea { width: 100%; background: rgba(255,255,255,.06); color: var(--mz-ink); border-color: rgba(255,255,255,.14); }
+.mz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mz-chips button { padding: 6px 10px; border: 1px solid rgba(241,238,246,.2); border-radius: 14px; background: none; color: var(--mz-ink); font: 12.5px/1 var(--font-ui); cursor: pointer; }
+.mz-chips button.is-on { background: var(--mz-ink); border-color: var(--mz-ink); color: #121318; }
+.mz-cards { display: grid; gap: 8px; }
+.mz-card { padding: 11px 14px; border: 0; border-radius: 12px; text-align: left; color: var(--mz-ink); background: rgba(22,23,36,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.35); cursor: pointer; transition: transform .15s, background .15s, box-shadow .15s; }
+.mz-card span { display: block; margin-top: 4px; overflow: hidden; font-size: 14.5px; white-space: nowrap; text-overflow: ellipsis; }
+.mz-card.is-down { transform: translateY(2px) scale(.97); background: rgba(6,6,12,.88); box-shadow: inset 0 2px 6px rgba(0,0,0,.6), inset 0 0 0 1px rgba(241,238,246,.35); }
+.mz-card.is-down small { color: var(--mz-ink); }
+.mz-soon { margin: 0; font-size: 13px; color: var(--mz-fog); }

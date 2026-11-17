@@ -27,6 +27,7 @@ const APP_LOADERS = {
   interlude: () => import('../apps/interlude/interlude.js'),
   street: () => import('../apps/street/street.js'),
   forum: () => import('../apps/forum/forum.js'),
+  mirror: () => import('../apps/mirror/mirror.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 

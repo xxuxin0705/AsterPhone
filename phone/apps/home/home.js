@@ -18,6 +18,7 @@ export const APPS = [
   { id: 'interlude', name: '幕间', icon: 'search' },
   { id: 'street', name: '商业街', icon: 'shop' },
   { id: 'forum', name: '论坛', icon: 'comment' },
+  { id: 'mirror', name: '映像', icon: 'users' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 const COLS = 4, ROWS = 6, DOCK = 4, ICON = 58, PAD = 20;
