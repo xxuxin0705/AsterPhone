@@ -4,7 +4,7 @@
 // 碎片里的图：默认都用「主图」（没设就用头像），每片也能单独换一张；点开那片后在它上面拖动挪位置、两指捏放大缩小。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, input, textarea, segmented, btn, toast, empty, pickImage, dateField } from '../../core/ui.js';
+import { page, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -80,7 +80,7 @@ function sky(cv) {
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
    x：{ pic 重摆碎片的图, roster 重画头像排 } */
 const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
-let bookApp = '';
+let bookApp = '', picScope = 'one';
 const mirrorOf = c => (c.mirror ||= { main: '', shards: {} });
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
 const pickPic = async size => { const f = await pickFile('image/*'); return f && fileToDataURL(f, size); };
@@ -89,12 +89,23 @@ function rowsOf(i, c, x) {
   const text = (k, ph) => ({ value: () => c[k] || '', edit: set => input({ value: c[k] || '', placeholder: ph, onInput: v => { c[k] = v; save(); set(); } }) });
   const choose = (opts, cur, on) => h('div.mz-chips', opts.map(([v, l]) => { const b = h('button' + (cur === v ? '.is-on' : ''), { onclick: async () => {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
-  // 这一片自己的图：换一张 / 用回主图；位置在碎片上拖
-  const own = ['这片的图', { value: () => (M.shards[i]?.src ? '单独的一张' : '跟着主图'), edit: set => h('div.mz-col', M.shards[i]?.src ? thumb(M.shards[i].src) : '',
-    h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; M.shards[i] = { src: v }; save('pic'); x.reopen(); } }, '换一张'),
-      M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回主图') : '',
-      h('button', { onclick: () => { M.shards[i] = { src: M.shards[i]?.src }; if (!M.shards[i].src) delete M.shards[i]; save('pic'); } }, '位置还原')),
-    h('small.mz-hint', '在碎片上拖动挪位置，两指捏放大缩小')) }];
+  // 图片：改「整张」（主图，所有没单独换过的碎片都映着它）或「这一片」；能换图、上下左右微调、放大缩小、还原。也能直接在点开的碎片上拖、两指捏
+  const own = ['图片', { value: () => (M.shards[i]?.src ? '这片单独一张' : M.main ? '整张：另传的' : '整张：头像'), edit: set => {
+    const whole = picScope === 'all', o = () => (whole ? (M.pos ||= {}) : (M.shards[i] ||= {}));
+    const step = (dx, dy, dk) => { const p = o(), d = whole ? { fx: 0, fy: 0, k: 1 } : { fx: SH[i].fx, fy: SH[i].fy, k: SH[i].k };
+      if (dk) p.k = Math.max(.3, Math.min(6, (p.k ?? d.k) * dk)); else { p.fx = (p.fx ?? d.fx) + dx * .01; p.fy = (p.fy ?? d.fy) + dy * .01; } save('pic'); };
+    const reset = () => { if (whole) delete M.pos; else if (M.shards[i]?.src) M.shards[i] = { src: M.shards[i].src }; else delete M.shards[i]; save('pic'); };
+    const up = whole ? choose([['avatar', '用头像'], ['pt', '用立绘'], ['pick', '传一张']], M.main ? '' : 'avatar', async v => {
+      if (v === 'pt') { const p = PT.loaded(c.id); if (!p) { toast('还没有立绘，先去照相馆'); return false; } M.main = p.base; }
+      else if (v === 'pick') { const p = await pickPic(1280); if (!p) return false; M.main = p; } else M.main = '';
+      save('pic'); set(); x.reopen(); })
+      : h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; M.shards[i] = { src: v }; save('pic'); x.reopen(); } }, M.shards[i]?.src ? '换一张' : '这片单独传一张'),
+        M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回整张') : '');
+    return h('div.mz-col', choose([['all', '整张'], ['one', '这一片']], picScope, v => { picScope = v; x.reopen(); }),
+      (whole ? M.main : M.shards[i]?.src) ? thumb(whole ? M.main : M.shards[i].src) : '', up,
+      h('div.mz-fine', nudger((dx, dy) => step(-dx, -dy), reset),
+        h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))));
+  } }];
   if (i === 0) return [
     ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
     ['真名', text('name', '真名')], ['网名', text('nick', '网名')], ['备注', text('remark', '备注')],
@@ -127,10 +138,6 @@ function rowsOf(i, c, x) {
     ['立绘', { value: () => (PT.loaded(c.id) ? `${PT.versions(c.id).length} 张` : '还没有'), edit: () => h('div.mz-col',
       PT.versions(c.id).length ? h('div.mz-strip', PT.versions(c.id).map((v, k) => h('button' + (k === PT.using(c.id) ? '.is-on' : ''), { onclick: e => PT.useVersion(c.id, k).then(() => e.currentTarget.parentNode.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === k))) }, thumb(v.base)))) : '',
       btn('去照相馆', 'secondary', () => import('../street/studio.js').then(m => m.person(c.id)))) }],
-    ['主图', { value: () => (M.main ? '另传的一张' : '头像'), edit: set => h('div.mz-col', M.main ? thumb(M.main) : '', choose([['', '用头像'], ['pt', '用立绘'], ['pick', '传一张']], M.main ? '-' : '', async v => {
-      if (v === 'pt') { const p = PT.loaded(c.id); if (!p) { toast('还没有立绘，先去照相馆'); return false; } M.main = p.base; }
-      else if (v === 'pick') { const p = await pickPic(1280); if (!p) return false; M.main = p; } else M.main = '';
-      save('pic'); set(); x.reopen(); })) }],
     own,
   ];
   // 世界书：每本书给 TA 定「带 / 不带」，写到 TA 的时候照这个。先选管哪里：「所有应用」是总的，选了某个 App 就是在总的上再加减
@@ -158,7 +165,8 @@ export function open() {
   p.el.prepend(cv, ...meteors);
   stage.onclick = () => at(-1);
   // 每片的图：单独换过的用自己的，没换的用主图（没设主图就用头像）；位置没挪过就照默认对着的地方
-  const posOf = i => { const o = (cur.mirror && cur.mirror.shards[i]) || {}, s = SH[i]; return [o.src || (cur.mirror && cur.mirror.main) || cur.avatar || '', o.fx ?? s.fx, o.fy ?? s.fy, o.k ?? s.k]; };
+  const posOf = i => { const M = cur.mirror || {}, o = (M.shards || {})[i] || {}, a = (!o.src && M.pos) || {}, s = SH[i];
+    return [o.src || M.main || cur.avatar || '', o.fx ?? s.fx + (a.fx || 0), o.fy ?? s.fy + (a.fy || 0), o.k ?? s.k * (a.k || 1)]; };
   const pics = () => parts.forEach((sh, i) => sh.place(...posOf(i)));
   // 点开一片后在它上面拖：挪图；两只手指：放大缩小。松手才存
   const pts = new Map(); let grab = null;

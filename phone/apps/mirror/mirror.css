@@ -56,3 +56,10 @@
 .mz-strip button { flex: none; padding: 0; border: 0; border-radius: 9px; background: none; opacity: .55; cursor: pointer; }
 .mz-strip button.is-on { opacity: 1; box-shadow: 0 0 0 1.5px var(--mz-ink); }
 .mz-strip .mz-thumb { width: 52px; height: 70px; object-fit: contain; background: rgba(255,255,255,.06); }
+.mz-fine { display: flex; align-items: center; gap: 12px; }
+.mz-fine .as-nudge { --as-color-surface-2: rgba(255,255,255,.08); color: var(--mz-ink); }
+.mz-zoom { display: grid; gap: 6px; }
+.mz-zoom button { padding: 7px 10px; border: 1px solid rgba(241,238,246,.2); border-radius: 12px; background: none; color: var(--mz-ink); font: 12.5px/1 var(--font-ui); cursor: pointer; }
+.mz-fine .as-nudge { grid-template: repeat(3, 34px) / repeat(3, 34px); gap: 4px; }
+.mz-fine .as-nudge__mid { font-size: 11px; }
+.mz-fine .as-nudge__btn, .mz-fine .as-nudge__mid { color: var(--mz-ink); background: rgba(255,255,255,.1); }
