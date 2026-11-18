@@ -23,6 +23,7 @@ const SH = [
   { n: '立绘', p: [[395, 1022], [430, 1255], [375, 1338], [80, 1442], [68, 1420], [100, 1280], [160, 1160], [280, 1075]], l: [110, 1385] },
   { n: '世界书', p: [[0, 722], [160, 762], [300, 800], [380, 893], [362, 975], [255, 1012], [90, 1067], [0, 1032]], l: [40, 800] },
 ].map(s => ({ ...s, p: s.p.map(map), l: map(s.l) }));
+const BG = 'assets/mirror/night.webp';
 const LT = map([430, 950]);   // 光：5 片中间那团亮光
 const JIT = [[0, -4], [6, 3], [-5, 6], [4, -5], [-6, 2]];   // 每片映着的图各错一点，看得出是 5 面镜子
 const mid = p => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
@@ -42,7 +43,8 @@ function shard(s, i, onTap) {
     svg('rect', { ...full, fill: `url(#g${u})`, style: 'mix-blend-mode:screen' }), svg('polygon', { points: P, fill: 'none', stroke: `url(#e${u})`, 'stroke-width': 7, filter: `url(#b${u})` }));
   const el = svg('svg', { viewBox: '0 0 393 852', class: 'mz-shard' });
   el.append(defs, svg('polygon', { points: P, fill: '#000', opacity: .6, transform: 'translate(0 6)', filter: `url(#d${u})` }),
-    svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#e8e2ff', 'stroke-width': 5, filter: `url(#b${u})` }), body,
+    svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#e8e2ff', 'stroke-width': 5, filter: `url(#b${u})` }),
+    Object.assign(svg('image', { href: BG, x: 0, y: OY, width: 393, height: 1869 * K, 'clip-path': `url(#c${u})`, preserveAspectRatio: 'none' })), body,
     svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: '#fff', 'stroke-opacity': .85, 'stroke-width': 1, 'stroke-linejoin': 'round' }),
     Object.assign(svg('polygon', { points: P, fill: 'transparent' }), { onclick: e => { e.stopPropagation(); onTap(i); } }));
   const d = Math.hypot(c[0] - lx, c[1] - ly) || 1;   // 第一次打开时从哪个方向飞进来
@@ -180,13 +182,15 @@ export function open() {
   const real = h('small'), head = h('div.mz-head', h('b', '映像'), real);
   p.nav.querySelector('.as-navbar__title').replaceWith(head);
   p.nav.querySelector('.as-navbar__right').append(navBtn('image', '换图', () => (cur ? picMenu() : addMenu())), roster);
-  stage.append(h('img.mz-bg', { src: 'assets/mirror/night.webp', alt: '', draggable: false, style: { top: OY / 8.52 + '%', height: 1869 * K / 8.52 + '%' } }));
+  stage.append(h('img.mz-bg', { src: BG, alt: '', draggable: false, style: { top: OY / 8.52 + '%', height: 1869 * K / 8.52 + '%' } }));
   const tags = [], parts = SH.map((s, i) => {
     const sh = shard(s, i, tap); tilt.append(sh.el);
     const t = h('div.mz-tag', { style: { left: s.l[0] / 3.93 + '%', top: s.l[1] / 8.52 + '%' }, onclick: e => { e.stopPropagation(); tap(i); } }, h('em', i + 1), h('b', s.n));
     tags.push(t); tilt.append(t); return sh;
   });
-  stage.append(tilt);   // 底图在 tilt 外面：点、拖、预览都不动它
+  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hf = svg('filter', { id: 'mzhole' }); hf.append(svg('feGaussianBlur', { stdDeviation: 3 }));
+  holes.append(hf, ...SH.map(s => svg('polygon', { points: s.p.map(q => q.join(',')).join(' '), fill: '#0b0920', filter: 'url(#mzhole)' })));
+  stage.append(holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 压暗
   p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
   // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
   const kOf = o => ('fx' in o ? 1 : o.k || 1);
@@ -283,7 +287,7 @@ export function open() {
     p.el.classList.toggle('is-focus', i >= 0);
     mark();
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
-    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / 3.93}% ${(430 - sh.bc[1]) / 8.52}%` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.4, 150 / sh.bw, 330 / sh.bh) : 1); });   // 挪到左边空处正中，放大到刚好
+    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / 3.93}% ${(430 - sh.bc[1]) / 8.52}%` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.7, 180 / sh.bw, 370 / sh.bh) : 1); holes.children[k + 1].classList.toggle('is-on', k === i); });   // 挪到左边空处正中，放大到刚好
     if (i < 0) { side.replaceChildren(); return; }
     if (i === 4) { const redo = () => side.lastChild.replaceWith(bookPanel(cur, redo)); side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), picOf(i), bookPanel(cur, redo)); return; }
     const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); focus = -1; at(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });

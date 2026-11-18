@@ -23,7 +23,7 @@
 .mz-shard .mz-glow { opacity: .35; transition: opacity .3s, stroke-width .3s; }
 .is-focus .mz-shard:not(.is-on) { filter: brightness(.3) saturate(.6); }
 .is-pre .mz-tag { opacity: 0; pointer-events: none; }
-.mz-shard.is-on { transform: translateZ(40px) scale(var(--fk, 1.04)); transform-origin: var(--ox) var(--oy); filter: brightness(1.15); z-index: 2; }
+.mz-shard.is-on { transform: scale(var(--fk, 1.04)); transform-origin: var(--ox) var(--oy); filter: brightness(1.15); z-index: 2; }
 .mz-shard.is-on .mz-glow { opacity: 1; stroke-width: 12px; stroke: #fff; }
 .mz-shard.is-on .mz-rim { stroke-width: 2.4px; stroke-opacity: 1; }
 .mz-tag { position: absolute; z-index: 3; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; cursor: pointer; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.8), 0 0 14px rgba(0,0,0,.6); transition: opacity .3s; }
@@ -129,3 +129,6 @@
 .mz-card .as-settings-slider-row output { color: var(--mz-ink); }
 .mz-nick { display: grid; gap: 4px; }
 .mz-nick small { font-size: 10.5px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-holes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.mz-holes polygon { opacity: 0; transition: opacity .35s; }
+.mz-holes polygon.is-on { opacity: .92; }
