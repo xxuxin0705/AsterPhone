@@ -11,6 +11,9 @@ import { compose, myPersona, myName, myAvatar } from '../../core/promptstore.js'
 import { log } from '../../core/log.js';
 import { blankContact, pickMany } from './people.js';
 import * as E from './engine.js';
+import { LANGS, langName } from '../../core/translate.js';
+
+const NICK_APPS = [['chat', '聊天'], ['forum', '论坛'], ['music', '音乐']], isZh = l => !l || /^zh/.test(l);
 
 /** 从 AI 的回答里抠出 JSON */
 function pickJSON(raw) {
@@ -109,10 +112,20 @@ export function openPreview(data, { after, lore, under } = {}) {
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
       h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? friends().some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
-      kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
+      kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), ...speak(x, f), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
         : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), members(x)]);
     return el;
   };
+  // 说的语言、中文网名、哪些 App 的网名跟着说的语言：存到这个人身上，映像里看到的就是这几样
+  function speak(x, f) {
+    x.speak ??= (LANGS.find(l => l[1] === String(x.lang || '').trim()) || [''])[0]; x.zhNick ||= [];
+    const zhF = f('中文网名', 'nickZh'), lang = h('button.as-chat-pv__pick', langName(x.speak || 'zh-CN'));
+    const apps = h('div.as-chat-pv__f', h('span', '跟着语言'), h('div.as-chat-pv__chips', NICK_APPS.map(([k, l]) => h('button' + (x.zhNick.includes(k) ? '' : '.is-on'), { onclick: e => {
+      x.zhNick = x.zhNick.includes(k) ? x.zhNick.filter(y => y !== k) : [...x.zhNick, k]; e.currentTarget.classList.toggle('is-on'); } }, l))));
+    const show = () => { zhF.hidden = apps.hidden = isZh(x.speak); lang.textContent = langName(x.speak || 'zh-CN'); };
+    lang.onclick = async () => { const v = await actionSheet('说的语言', LANGS.map(([k, n]) => ({ value: k, label: n, active: (x.speak || 'zh-CN') === k }))); if (v) { x.speak = v; show(); } };
+    show(); return [h('div.as-chat-pv__f', h('span', '说的语言'), lang), zhF, apps];
+  }
   // 群成员：和群资料页一样的格子；点人设头衔 / 设群主 / 移出，最后一格邀请
   function members(x) {
     const grid = h('div.as-chat-members');
@@ -149,8 +162,9 @@ export function openPreview(data, { after, lore, under } = {}) {
       if (!x._on) continue;
       const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
       if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; }
+      const ch = chatForContact(c.id, true); ch.lastAt = Date.now();   // 没聊过也在消息列表里
+      if (!isZh(x.speak)) { ch.cfg.speak = x.speak; if ((x.nickZh || '').trim()) c.nickZh = x.nickZh.trim(); if (x.zhNick.length) c.zhNick = x.zhNick; }
       state.contacts.push(c); x._c = c; np++;
-      chatForContact(c.id, true).lastAt = Date.now();   // 没聊过也在消息列表里
     }
     const idOf = m => m === ME ? 'me' : people.includes(m) ? m._c && m._c.id : m.id;
     for (const g of groups.filter(x => x._on)) {

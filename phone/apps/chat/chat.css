@@ -475,3 +475,7 @@ small.as-chat-moment__tr { display: block; margin: 1px 0 0; font-size: 12px; }
 .as-chat-call__mic { touch-action: none; -webkit-user-select: none; user-select: none; }
 .as-chat-call__btns .as-chat-call__mic.is-on { transform: scale(1.15); }
 .as-chat-call__stat { min-height: 14px; font: 400 12px/14px var(--font-ui); opacity: .7; }
+.as-chat-pv__pick { justify-self: start; border: 1px solid var(--as-color-border); border-radius: 999px; padding: 4px 12px; background: none; color: var(--as-color-text); font: 400 13px/1.2 var(--font-ui); }
+.as-chat-pv__chips { display: flex; gap: 6px; }
+.as-chat-pv__chips button { border: 1px solid var(--as-color-border); border-radius: 999px; padding: 4px 12px; background: none; color: var(--as-color-text-2); font: 400 13px/1.2 var(--font-ui); }
+.as-chat-pv__chips button.is-on { border-color: var(--as-color-accent); color: var(--as-color-accent); }

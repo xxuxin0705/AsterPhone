@@ -23,6 +23,7 @@ const SH = [
   { n: '立绘', p: [[395, 1022], [430, 1255], [375, 1338], [80, 1442], [68, 1420], [100, 1280], [160, 1160], [280, 1075]], l: [110, 1385] },
   { n: '世界书', p: [[0, 722], [160, 762], [300, 800], [380, 893], [362, 975], [255, 1012], [90, 1067], [0, 1032]], l: [40, 800] },
 ].map(s => ({ ...s, p: s.p.map(map), l: map(s.l) }));
+const isZh = l => !l || /^zh/.test(l);
 const BG = 'assets/mirror/night.webp';
 const LT = map([430, 950]);   // 光：5 片中间那团亮光
 const JIT = [[0, -4], [6, 3], [-5, 6], [4, -5], [-6, 2]];   // 每片映着的图各错一点，看得出是 5 面镜子
@@ -78,6 +79,7 @@ function rowsOf(i, c, x) {
       const fp = () => (state.forum.people[c.id] ||= {}), get = k => (k === 'forum' ? (state.forum.people[c.id] || {}).name : c.appNick?.[k]) || '';
       const put = (k, v) => { if (k === 'forum') { fp().name = v; commit('forum'); } else { if (v) (c.appNick ||= {})[k] = v; else if (c.appNick) delete c.appNick[k]; save(); } };
       return h('div.mz-col', input({ value: c.nick || '', placeholder: '默认网名', onInput: v => { c.nick = v; save(); set(); } }),
+        isZh(langFor('chat', ch().speak)) ? '' : h('label.mz-nick', h('small', '中文'), input({ value: c.nickZh || '', placeholder: '中文网名', onInput: v => { if (v.trim()) c.nickZh = v.trim(); else delete c.nickZh; save(); } })),
         ...NICK_APPS.map(([k, l]) => h('label.mz-nick', h('small', l), input({ value: get(k), placeholder: '跟默认一样', onInput: v => put(k, v.trim()) })))); } }],
     ['备注', text('remark', '备注')],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
@@ -85,7 +87,10 @@ function rowsOf(i, c, x) {
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
   if (i === 1) return [
-    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
+    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { const was = isZh(langFor('chat', ch().speak)); ch().speak = v; commit('chats'); set(); if (was !== isZh(langFor('chat', v))) x.reopen(); }) }],
+    // 勾上的 App 网名用 TA 说的语言（默认网名），没勾的用中文网名；AI 智能加载时也按这个起
+    ...isZh(langFor('chat', ch().speak)) ? [] : [['网名跟着语言', { value: () => NICK_APPS.filter(([k]) => !(c.zhNick || []).includes(k)).map(a => a[1]).join('、') || '都不跟', edit: set => h('div.mz-chips', NICK_APPS.map(([k, l]) => h('button' + ((c.zhNick || []).includes(k) ? '' : '.is-on'), { onclick: e => {
+      const z = c.zhNick || []; c.zhNick = z.includes(k) ? z.filter(y => y !== k) : [...z, k]; if (!c.zhNick.length) delete c.zhNick; e.currentTarget.classList.toggle('is-on'); save(); set(); } }, l))) }]],
     ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
   ];
   // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；定妆图拿来锁脸（能照图画的渠道才认），锁脸强度、种子每个人各一个

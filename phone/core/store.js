@@ -205,8 +205,8 @@ export async function clearMsgs(chatId) {
 /* ---------- 便捷查找 ---------- */
 export const contact = id => state.contacts.find(c => c.id === id);
 // 人只有一份：friend === false 是只在映像里、还没加进聊天的人；noMirror 是在映像里删掉了（聊天里还在）
-// 网名：某个 App 单独起过的用那个，没起过用默认的（c.nick）
-export const nickOf = (c, app) => (c && c.appNick && c.appNick[app]) || (c && c.nick) || '';
+// 网名：某个 App 单独起过的用那个；没勾「跟着说的语言」的 App（c.zhNick）用中文网名；都没有用默认的（c.nick）
+export const nickOf = (c, app) => (c && c.appNick && c.appNick[app]) || (c && c.nickZh && (c.zhNick || []).includes(app) && c.nickZh) || (c && c.nick) || '';
 export const isFriend = c => c.friend !== false;
 export const friends = () => state.contacts.filter(isFriend);
 export const befriend = c => { delete c.friend; const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || Date.now(); };
