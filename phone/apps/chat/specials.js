@@ -1,6 +1,6 @@
 // 特殊消息的样子和操作：气泡长什么样、「+」面板里每个按钮做什么、表情包面板、语音 / 视频通话界面、表情包管理。
 import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
-import { state, commit, contact, saveMsgs, chatForContact } from '../../core/store.js';
+import { state, commit, contact, saveMsgs, chatForContact, isFriend, befriend } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { generateImage, lookOf, resolveConn, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
@@ -76,11 +76,11 @@ export function buildBubble(m, ctx) {
       el.addEventListener('click', async e => {
         e.stopPropagation();
         const k2 = state.contacts.find(p => [p.name, p.nick, p.remark].includes(m.name));   // 刚加过的也算
-        if (k2) { (await import('./people.js')).openProfile(k2.id); return; }
+        if (k2 && isFriend(k2)) { (await import('./people.js')).openProfile(k2.id); return; }
         if (!(await dialog({ title: `加「${m.name}」为好友？`, text: mine ? '' : `${E.nameOf(ctx.c)} 推荐的名片`, confirm: '添加' }))) return;
-        const { blankContact } = await import('./people.js');
-        const nc = { ...blankContact(), name: m.name, persona: m.persona || '', source: 'card' };
-        state.contacts.push(nc); chatForContact(nc.id, true).lastAt = Date.now(); commit('contacts');
+        if (k2) befriend(k2);   // 映像里有这个人：直接加 TA
+        else { const { blankContact } = await import('./people.js'); const nc = { ...blankContact(), name: m.name, persona: m.persona || '', source: 'card' }; state.contacts.push(nc); chatForContact(nc.id, true).lastAt = Date.now(); }
+        commit('contacts');
         toast(`已添加「${m.name}」`); el.querySelector('.as-chat-card__top > div > span').textContent = '已是好友';
       });
       return el;

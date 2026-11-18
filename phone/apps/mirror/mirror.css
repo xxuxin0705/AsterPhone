@@ -85,3 +85,6 @@
 .mz-bar button { padding: 11px 0; border: 1px solid rgba(241,238,246,.25); border-radius: 12px; background: rgba(18,19,30,.78); color: var(--mz-ink); font: 14px/1 var(--font-ui); cursor: pointer; transition: transform .16s cubic-bezier(.23,1,.32,1); }
 .mz-bar button:active, .mz-chips button:active { transform: scale(.97); }
 .mz-bar .is-main { background: var(--mz-ink); border-color: var(--mz-ink); color: #121318; }
+.mz-roster .mz-add { opacity: 1; background: none; box-shadow: inset 0 0 0 1px rgba(241,238,246,.45); font: 300 20px/1 var(--font-ui); }
+.mz-drop { margin-top: 6px; }
+.mz-drop button { color: #ff9d9d; border-color: rgba(255,157,157,.35); }

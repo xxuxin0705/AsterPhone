@@ -1,6 +1,6 @@
 // 消息页：会话列表（置顶在上、按最近排序）、搜索、筛选、长按菜单、右上角「+」。
 import { h, onLongPress } from '../../core/util.js';
-import { state, commit, contact, chatForContact, clearMsgs, subscribe } from '../../core/store.js';
+import { state, commit, contact, chatForContact, clearMsgs, subscribe, friends } from '../../core/store.js';
 import { avatar, icon, badge, segmented, navBtn, actionSheet, dialog, toast, empty, btn } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { nameOf, avatarOf, groupTitle } from './engine.js';
@@ -11,7 +11,7 @@ import { pickContact, openContactForm } from './people.js';
 let filter = 'all', query = '';
 export function renderMessages(ctx) {
   // 以前加的人没有私聊：补一次（只补一次，之后自己删掉的聊天不会再冒出来）
-  if (!state.apps.chat.dmBackfill) { state.contacts.forEach(c => { const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || c.createdAt || Date.now(); }); state.apps.chat.dmBackfill = true; commit('apps'); }
+  if (!state.apps.chat.dmBackfill) { friends().forEach(c => { const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || c.createdAt || Date.now(); }); state.apps.chat.dmBackfill = true; commit('apps'); }
   ctx.setRight(navBtn('plus', '新建', plusMenu));
   const search = h('input', { placeholder: '搜索聊天', value: query, oninput: e => { query = e.target.value.trim(); draw(); } });
   const listBox = h('div');

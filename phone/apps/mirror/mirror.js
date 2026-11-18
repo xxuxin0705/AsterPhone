@@ -4,7 +4,7 @@
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger, actionSheet } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -110,13 +110,13 @@ function rowsOf(i, c, x) {
 }
 
 export function open() {
-  const people = () => state.contacts;
+  const people = () => state.contacts.filter(c => !c.noMirror);   // 聊天里的人都在；映像里删掉的不列
   let cur = people()[0], focus = -1, draft = null;   // draft：预览中的图 { M, sel 选中哪片（-1 是整张）, swap 等着跟哪片互换 }
   const p = page({ app: 'mirror', id: 'mirror-home', title: '', back: true, cls: 'as-mz' });
   const stage = h('div.mz-stage'), tilt = h('div.mz-tilt'), side = h('aside.mz-side'), dock = h('div.mz-dock'), roster = h('div.mz-roster');
   const real = h('small'), head = h('div.mz-head', h('b', '映像'), real);
   p.nav.querySelector('.as-navbar__title').replaceWith(head);
-  p.nav.querySelector('.as-navbar__right').append(navBtn('image', '换图', () => cur && picMenu()), roster);
+  p.nav.querySelector('.as-navbar__right').append(navBtn('image', '换图', () => (cur ? picMenu() : addMenu())), roster);
   stage.append(h('img.mz-bg', { src: 'assets/mirror/night.webp', alt: '', draggable: false, style: { top: OY / 8.52 + '%', height: 1869 * K / 8.52 + '%' } }));
   const tags = [], parts = SH.map((s, i) => {
     const sh = shard(s, i, tap); tilt.append(sh.el);
@@ -127,10 +127,10 @@ export function open() {
   p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
   // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
   const kOf = o => ('fx' in o ? 1 : o.k || 1);
-  const posOf = i => { const M = draft?.M || cur.mirror || {}, o = (M.shards || {})[i] || {}, a = M.pos || {}, sh = parts[i];
+  const posOf = i => { const M = draft?.M || cur?.mirror || {}, o = (M.shards || {})[i] || {}, a = M.pos || {}, sh = parts[i];
     if (o.src) { const S = sh.size * 1.15 * kOf(o); return [o.src, sh.c[0] + (o.x || 0) - S / 2, sh.c[1] + (o.y || 0) - S / 2, S, S]; }
     const k = kOf(a) * kOf(o), W = 393 * k, H = 852 * k;
-    return [M.main || cur.avatar || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
+    return [M.main || cur?.avatar || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
   const pics = () => parts.forEach((sh, i) => sh.place(...posOf(i)));
   // 换上新图前先解码好，碎片里不会空一下
   const fresh = () => Promise.all([...new Set(parts.map((_, i) => posOf(i)[0]))].filter(Boolean).map(u => { const im = new Image(); im.src = u; return im.decode().catch(() => {}); })).then(pics);
@@ -162,7 +162,7 @@ export function open() {
   stage.onclick = () => { if (moved) return; if (draft) { draft.sel = -1; draft.swap = -1; mark(); preSide(); } else at(-1); };
   function tap(i) {
     if (moved) return;
-    if (!draft) return at(i);
+    if (!draft) return cur ? at(i) : addMenu();
     const S = draft.M.shards;
     if (draft.swap >= 0 && draft.swap !== i) { const a = S[draft.swap], b = S[i]; if (b) S[draft.swap] = b; else delete S[draft.swap]; if (a) S[i] = a; else delete S[i]; draft.swap = -1; pics(); }
     else draft.sel = draft.sel === i ? -1 : i;
@@ -205,7 +205,7 @@ export function open() {
     roster.querySelector('.is-on')?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
   }
   // 头像排：一次露 4 个，多了左右滑；超过 4 个最后有个「更多」，点开是全部名单
-  const paintRoster = () => roster.replaceChildren(...people().map(c => h('button' + (c === cur ? '.is-on' : ''), { dataset: { id: c.id }, 'aria-label': nameOf(c), onclick: () => show(c) },
+  const paintRoster = () => roster.replaceChildren(h('button.mz-add', { 'aria-label': '添加人物', onclick: addMenu }, '+'), ...people().map(c => h('button' + (c === cur ? '.is-on' : ''), { dataset: { id: c.id }, 'aria-label': nameOf(c), onclick: () => show(c) },
     c.avatar ? h('img', { src: c.avatar, alt: '' }) : h('span', nameOf(c).slice(0, 1)))),
     people().length > 4 ? h('button.mz-more', { 'aria-label': '全部', onclick: async () => { const id = await actionSheet('换人', people().map(c => ({ value: c.id, label: nameOf(c), active: c === cur }))); const c = id && people().find(x => x.id === id); if (c) show(c); } }, '···') : '');
   // 点一片：它浮上来，整朵花挪到左边，右边一栏是这一类的几项
@@ -225,17 +225,33 @@ export function open() {
       } }, h('small', label), v);
       return card;
     });
-    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), box, h('div.mz-cards', cards));
+    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), box, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
     if (cards[0]) cards[0].click();
   }
-  const show2 = () => { real.textContent = cur.name || nameOf(cur); };
+  const show2 = () => { real.textContent = cur ? cur.name || nameOf(cur) : ''; };
+  // 添加：新建一个只在映像里的人（加不加进聊天以后在联系人里选）；或者把在映像里删掉过的联系人找回来
+  async function addMenu() {
+    const gone = state.contacts.filter(c => c.noMirror);
+    const v = gone.length ? await actionSheet('添加人物', [{ value: 'new', label: '新建', icon: 'plus' }, { value: 'pick', label: '从联系人里选', icon: 'users' }]) : 'new';
+    if (v === 'pick') { const id = await actionSheet('从联系人里选', gone.map(c => ({ value: c.id, label: nameOf(c) }))); const c = id && contact(id); if (!c) return; delete c.noMirror; commit('contacts'); paintRoster(); show(c); return; }
+    if (v !== 'new') return;
+    const n = (await dialog({ title: '新建人物', input: { placeholder: '名字' } }) || '').trim(); if (!n) return;
+    const c = { ...(await import('../chat/people.js')).blankContact(), name: n, source: 'mirror', friend: false };
+    state.contacts.push(c); commit('contacts'); paintRoster(); show(c); at(0);
+  }
+  // 删除：只从映像里拿掉。聊天里有 TA 就还在聊天里；只在映像里的人就整个删掉
+  async function delPerson() {
+    const c = cur, inChat = c.friend !== false;
+    if (!(await dialog({ title: `从映像里删掉「${nameOf(c)}」？`, text: inChat ? '聊天里还在。' : '这个人的资料会一起删掉。', confirm: '删除', danger: true }))) return;
+    if (inChat) c.noMirror = true; else state.contacts.splice(state.contacts.indexOf(c), 1);
+    commit('contacts'); cur = people()[0]; paintRoster(); if (cur) show(cur); else { at(-1); show2(); pics(); }
+  }
   p.el.prepend(stage);   // 花铺满整页（连顶上那条也算），不放在正文里，免得被裁掉一截
   p.body.append(side, dock);
-  if (!cur) p.body.append(empty('还没有人，先去聊天里加个联系人'));
   // 第一次打开：5 片从四周飞进来拼成花，只放这一次
   try { if (!localStorage.getItem('as-mz-intro')) { stage.classList.add('is-intro'); localStorage.setItem('as-mz-intro', '1'); setTimeout(() => stage.classList.remove('is-intro'), 1800); } } catch {}
   PT.preload(people().map(c => c.id));
-  paintRoster(); if (cur) show(cur);
+  paintRoster(); if (cur) show(cur); else pics();
   p.el._onShow = () => { if (focus === 3) { const k = focus; focus = -1; at(k); } if (!people().includes(cur)) { cur = people()[0]; paintRoster(); if (cur) show(cur); } };
   return p.el;
 }

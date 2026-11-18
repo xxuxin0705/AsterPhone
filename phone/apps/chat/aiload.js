@@ -1,6 +1,6 @@
 // AI 智能加载联系人、从世界书添加、预览勾选页、新的朋友。
 import { h, uid } from '../../core/util.js';
-import { state, commit, contact, chatForContact } from '../../core/store.js';
+import { state, commit, contact, chatForContact, friends, isFriend, befriend } from '../../core/store.js';
 import { groupAvatar } from './group.js';
 import { page, group, item, toggleItem, slider, textarea, input, avatar, withInfo, icon, actionSheet, dialog, toast, btn, empty, navText, pickImage } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -59,7 +59,7 @@ export function openAiLoad(after) {
 
   async function run() {
     let keep = true;
-    if (state.contacts.length) {
+    if (friends().length) {
       const v = await actionSheet('已经有联系人了', [{ value: 'keep', label: '保留现有，只补缺的', icon: 'plus' }, { value: 'reset', label: '清空重来', icon: 'trash', danger: true }]);
       if (!v) return; keep = v === 'keep';
     }
@@ -69,7 +69,7 @@ export function openAiLoad(after) {
     const require = (o.want.trim() ? `${me} 说：${o.want.trim()}\n这里点到的人一定要有；除非说了只要这些，还可以按剧情再补别的人。\n` : '')
       + (o.fixCount ? `新的人一共正好 ${o.count} 个。` : '新的人有几个按剧情自己定，要有亲疏远近，包括角色卡里提到的人。')
       + (o.groups ? `\n群聊：${o.fixG ? `正好 ${o.groupCount} 个` : '要几个按剧情自己定'}${o.gWant.trim() ? `，${me} 说：${o.gWant.trim()}` : ''}。成员从联系人里选，${me} 默认在每个群里，不用写。${keep && groupNames.length ? `\n已经有的群（不要重复）：${groupNames.join('、')}` : ''}` : '\n不要生成群聊，groups 留空数组。');
-    const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (state.contacts.map(E.nameOf).join('、') || '（无）') : '（无）', require, withGroups: o.groups ? '和群聊' : '' });
+    const prompt = compose('aiLoad', { cards, user_persona: myPersona() || '（无）', story: storyText(12) || '（暂无）', existing: keep ? (friends().map(E.nameOf).join('、') || '（无）') : '（无）', require, withGroups: o.groups ? '和群聊' : '' });
     loading = new AbortController(); spin();
     Object.assign(prog, { t0: Date.now(), np: 0, ng: 0, fix: o.fixCount ? o.count : 0 }); paintBar();
     const tick = setInterval(paintBar, 1000);
@@ -77,7 +77,7 @@ export function openAiLoad(after) {
       const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', prompt, app: 'AI 智能加载', stop: loading.signal,
         onPart: t => { const [a, b = ''] = t.split('"groups"'); prog.np = (a.match(/"name"\s*:/g) || []).length; prog.ng = (b.match(/"name"\s*:/g) || []).length; paintBar(); } });
       const data = pickJSON(raw);
-      if (!keep) { state.contacts.splice(0); commit('contacts'); }
+      if (!keep) { friends().forEach(c => { if (c.noMirror) state.contacts.splice(state.contacts.indexOf(c), 1); else c.friend = false; }); commit('contacts'); }   // 清空的是聊天里的人，映像里的还在
       openPreview(data, { after, under: !!goBtn });
     } catch (e) { if (e.message === '已中止') toast('取消了'); else { log('error', 'AI 智能加载', e.message, e); toast('生成失败：' + e.message); } }
     finally { clearInterval(tick); loading = null; paintBar(); if (goBtn) { goBtn.classList.replace('as-btn--secondary', 'as-btn--primary'); goBtn.textContent = '开始生成'; } }
@@ -88,7 +88,7 @@ export function openAiLoad(after) {
 export function openPreview(data, { after, lore, under } = {}) {
   const ME = {}, me = myName();   // 群成员 / 群主 / 头衔都直接指着人（预览里的人、已有联系人、我），改了名字也跟着
   const byName = n => state.contacts.find(c => [c.name, c.nick, c.remark].includes(String(n || '').trim()));
-  const people = (data.people || []).filter(x => x && x.name).map(x => ({ ...x, _on: !state.contacts.some(c => c.name === x.name) }));
+  const people = (data.people || []).filter(x => x && x.name).map(x => ({ ...x, _on: !friends().some(c => c.name === x.name) }));
   const ref = n => { n = String(n || '').trim(); return n === me || n === '我' ? ME : people.find(x => x.name === n) || byName(n); };
   const nm = m => m === ME ? me : people.includes(m) ? m.name : E.nameOf(m);
   const hasGroup = n => state.chats.some(c => c.type === 'group' && c.name === n);
@@ -108,7 +108,7 @@ export function openPreview(data, { after, lore, under } = {}) {
     const rename = v => { x.name = v; title.textContent = v; if (!x.avatar) avaBox.replaceChildren(ava()); labels.forEach(([m, s]) => { if (m === x) s.textContent = v; }); };
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
-      h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? state.contacts.some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
+      h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? friends().some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
       kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
         : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), members(x)]);
     return el;
@@ -128,7 +128,7 @@ export function openPreview(data, { after, lore, under } = {}) {
       if (v) paint();
     }
     async function invite() {
-      const all = [...people, ...state.contacts.filter(c => !people.some(y => y.name === c.name))].filter(m => !x.members.includes(m));
+      const all = [...people, ...friends().filter(c => !people.some(y => y.name === c.name))].filter(m => !x.members.includes(m));
       if (!all.length) { toast('没有可以邀请的人了'); return; }
       const picked = await pickMany('邀请进群', all.map((m, i) => ({ key: String(i), name: nm(m), avatar: m.avatar })));
       if (picked && picked.length) { x.members.push(...picked.map(i => all[+i])); paint(); }
@@ -145,7 +145,7 @@ export function openPreview(data, { after, lore, under } = {}) {
     let np = 0, ng = 0;
     for (const x of people) {
       const old = byName(x.name);
-      if (old) { x._c = old; continue; }
+      if (old) { x._c = old; if (x._on && !isFriend(old)) { befriend(old); np++; } continue; }   // 映像里已经有这个人：直接用 TA，不另建
       if (!x._on) continue;
       const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
       if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; }
@@ -189,7 +189,7 @@ export async function openLoreAdd(after) {
   toast('AI 正在拆人…', { label: '取消', fn: () => ac.abort(), wait: true });
   try {
     const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '世界书拆人', stop: ac.signal,
-      prompt: compose('lore', { existing: state.contacts.map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
+      prompt: compose('lore', { existing: friends().map(E.nameOf).join('、') || '（无）', entries: chosen.map(e => `【${e.title}】\n${e.content.slice(0, 2500)}`).join('\n\n') }) });
     const data = pickJSON(raw); toast(`拆出 ${(data.people || []).length} 个人`);
     openPreview(data, { after, lore: { world, entries: chosen } });
   } catch (e) { if (ac.signal.aborted) toast('已取消'); else { log('error', '世界书拆人', e.message, e); toast('拆人失败：' + e.message); } }
@@ -207,7 +207,7 @@ export async function refreshLore(c) {
 
 /* ================= 新的朋友 ================= */
 export function addFriendRequest(name, { from, persona } = {}) {
-  if (state.contacts.some(c => c.name === name) || state.friendRequests.some(r => r.name === name && r.status === 'pending')) return false;
+  if (friends().some(c => c.name === name) || state.friendRequests.some(r => r.name === name && r.status === 'pending')) return false;
   state.friendRequests.unshift({ id: uid('fr'), name, from: from || '', persona: persona || '', at: Date.now(), status: 'pending' });
   commit('contacts'); return true;
 }
@@ -223,8 +223,8 @@ export function openNewFriends() {
   };
   function accept(r) {
     r.status = 'accepted';
-    const c = { ...blankContact(), name: r.name, persona: r.persona || '', source: 'card' };
-    state.contacts.push(c); chatForContact(c.id, true).lastAt = Date.now();
+    const old = state.contacts.find(c => c.name === r.name && !isFriend(c));
+    if (old) befriend(old); else { const c = { ...blankContact(), name: r.name, persona: r.persona || '', source: 'card' }; state.contacts.push(c); chatForContact(c.id, true).lastAt = Date.now(); }
     commit('contacts'); toast(`已添加 ${r.name}`); draw();
   }
   draw(); p.el._onShow = draw; nav.push(p.el);

@@ -1,6 +1,6 @@
 // 我：主页（头像、数字格、签名、关于我）、编辑资料、钱包、收藏。
 import { h } from '../../core/util.js';
-import { state, commit, subscribe, getMsgs, contact } from '../../core/store.js';
+import { state, commit, subscribe, getMsgs, contact, friends } from '../../core/store.js';
 import { page, group, item, field, input, textarea, segmented, avatar, icon, navText, toast, empty, dialog, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
@@ -17,7 +17,7 @@ export function renderMe(ctx) {
   async function draw() {
     let msgCount = 0;
     for (const c of state.chats) msgCount += (await getMsgs(c.id)).filter(m => m.from === 'me').length;
-    const val = { moments: state.moments.filter(m => m.author === 'me').length, friends: state.contacts.length, messages: msgCount, balance: '¥' + (state.me.balance ?? 0) };
+    const val = { moments: state.moments.filter(m => m.author === 'me').length, friends: friends().length, messages: msgCount, balance: '¥' + (state.me.balance ?? 0) };
     const me = state.me;
     const about = myPersona();
     box.innerHTML = '';

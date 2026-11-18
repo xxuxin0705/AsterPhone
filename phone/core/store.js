@@ -204,6 +204,10 @@ export async function clearMsgs(chatId) {
 
 /* ---------- 便捷查找 ---------- */
 export const contact = id => state.contacts.find(c => c.id === id);
+// 人只有一份：friend === false 是只在映像里、还没加进聊天的人；noMirror 是在映像里删掉了（聊天里还在）
+export const isFriend = c => c.friend !== false;
+export const friends = () => state.contacts.filter(isFriend);
+export const befriend = c => { delete c.friend; const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || Date.now(); };
 export const chatOf = id => state.chats.find(c => c.id === id);
 export function chatForContact(cid, create = true) {
   let c = state.chats.find(x => x.type === 'dm' && x.contactId === cid);

@@ -1,7 +1,7 @@
 // 聊天的导出 / 导入：聊天列表多选导出、单聊群聊设置里导出一个、「所有窗口的数据」里导出别的窗口，都是同一种文件；
 // 导入时按真实姓名认人（这个窗口没有的就加上），和已有的聊天撞了，弹窗比一比让人选留哪个。
 import { h, uid, pickFile } from '../../core/util.js';
-import { state, commit, contact, getMsgs, clearMsgs, kvSet } from '../../core/store.js';
+import { state, commit, contact, getMsgs, clearMsgs, kvSet, isFriend, befriend } from '../../core/store.js';
 import { dialog, toast } from '../../core/ui.js';
 import { nameOf, preview } from './engine.js';
 import * as time from '../../core/time.js';
@@ -33,7 +33,7 @@ export async function importChats(after) {
       const ids = {};
       for (const c of it.contacts || []) {
         let mine = state.contacts.find(x => x.name && x.name === c.name);
-        if (!mine) { mine = { ...c, id: uid('p') }; state.contacts.push(mine); }
+        if (!mine) { mine = { ...c, id: uid('p') }; state.contacts.push(mine); } else if (!isFriend(mine)) befriend(mine);
         ids[c.id] = mine.id;
       }
       let s = JSON.stringify(it);

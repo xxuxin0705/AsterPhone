@@ -1,10 +1,10 @@
 // 联系人页：固定入口（新的朋友 / 群聊 / 分组）、星标朋友、A–Z 列表 + 右侧字母索引。
 import { h, initial } from '../../core/util.js';
-import { state, commit, subscribe } from '../../core/store.js';
+import { state, commit, subscribe, isFriend, friends, befriend } from '../../core/store.js';
 import { page, group, item, avatar, icon, navBtn, actionSheet, dialog, toast, empty, btn } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { nameOf } from './engine.js';
-import { openProfile, openContactForm, sorted } from './people.js';
+import { openProfile, openContactForm, sorted, pickMany } from './people.js';
 
 let query = '';
 export function renderContacts(ctx) {
@@ -12,10 +12,15 @@ export function renderContacts(ctx) {
     const v = await actionSheet('添加联系人', [
       { value: 'add', label: '手动添加好友', icon: 'user' },
       { value: 'ai', label: 'AI 智能加载', icon: 'sparkle' }, { value: 'lore', label: '从世界书添加', icon: 'note' },
+      ...(state.contacts.some(c => !isFriend(c)) ? [{ value: 'mirror', label: '从映像里选', icon: 'users' }] : []),
     ]);
     if (v === 'add') openContactForm();
     if (v === 'ai') (await import('./aiload.js')).openAiLoad(draw);
     if (v === 'lore') (await import('./aiload.js')).openLoreAdd(draw);
+    if (v === 'mirror') {
+      const left = state.contacts.filter(c => !isFriend(c)), ids = await pickMany('从映像里选', left.map(c => ({ key: c.id, name: nameOf(c), avatar: c.avatar })));
+      if (ids && ids.length) { left.filter(c => ids.includes(c.id)).forEach(befriend); commit('contacts'); commit('chats'); toast(`已添加 ${ids.length} 人`); }
+    }
   }));
   const search = h('input', { placeholder: '搜索名字、备注', value: query, oninput: e => { query = e.target.value.trim(); draw(); } });
   const listBox = h('div');
@@ -31,7 +36,7 @@ export function renderContacts(ctx) {
       item({ icon: 'users', color: 'green', title: '群聊', value: String(state.chats.filter(c => c.type === 'group').length), chevron: true, onClick: () => Promise.all([import('./group.js'), import('./room.js')]).then(([G, R]) => G.openGroupList(R.openRoom)) }),
       item({ icon: 'list', color: 'blue', title: '分组', value: String(state.groups.length), chevron: true, onClick: openGroups }),
     ]));
-    if (!state.contacts.length) {
+    if (!friends().length) {
       listBox.appendChild(empty('还没有联系人', h('div', { style: { display: 'grid', gap: '10px' } },
         btn('AI 智能加载', 'primary', () => import('./aiload.js').then(m => m.openAiLoad(draw))), btn('手动添加', 'text', () => openContactForm()))));
       return;
@@ -45,7 +50,7 @@ export function renderContacts(ctx) {
       listBox.appendChild(h('div', { dataset: { idx: k } }, h('div.as-chat-index-head', k), group('', sections.get(k).map(row))));
       indexBar.appendChild(h('button', { onclick: () => jump(k) }, k));
     });
-    if (!query) listBox.appendChild(h('p', { style: { textAlign: 'center', color: 'var(--as-color-text-2)', font: '400 12px/1 var(--font-ui)', margin: '6px 0 0' } }, `${state.contacts.length} 位联系人`));
+    if (!query) listBox.appendChild(h('p', { style: { textAlign: 'center', color: 'var(--as-color-text-2)', font: '400 12px/1 var(--font-ui)', margin: '6px 0 0' } }, `${friends().length} 位联系人`));
   }
   function row(c) {
     return item({ icon: avatar(c.avatar, nameOf(c), 36), color: 'transparent', title: nameOf(c), sub: c.sign || null, onClick: () => openProfile(c.id), cls: 'as-chat-person' });

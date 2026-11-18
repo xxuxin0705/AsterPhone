@@ -1,13 +1,13 @@
 // 联系人相关的页面和抽屉：资料页（直接改）、手动添加、选人。
 import { h, uid, sortZh } from '../../core/util.js';
-import { state, commit, contact, chatForContact, clearMsgs } from '../../core/store.js';
+import { state, commit, contact, chatForContact, clearMsgs, friends } from '../../core/store.js';
 import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { pickDeco, decoName } from '../../core/deco.js';
 import { nameOf, relinkMoments } from './engine.js';
 
 export const blankContact = () => ({ id: uid('p'), name: '', nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: '', charKey: '', persona: '', source: 'manual', star: false, group: '', createdAt: Date.now() });
-export const sorted = () => [...state.contacts].sort((a, b) => sortZh(nameOf(a), nameOf(b)));
+export const sorted = () => friends().sort((a, b) => sortZh(nameOf(a), nameOf(b)));
 
 /* ---------- 选一个人（发起单聊等） ---------- */
 export function pickContact(title = '选择联系人') {
@@ -105,7 +105,8 @@ export function openProfile(cid, { onMessage } = {}) {
       if (!(await dialog({ title: `删除「${nameOf(c)}」？`, text: '和 TA 的聊天记录也会一起删掉。', confirm: '删除', danger: true }))) return;
       const ch = state.chats.find(x => x.contactId === c.id);
       if (ch) { await clearMsgs(ch.id); state.chats.splice(state.chats.indexOf(ch), 1); }
-      state.contacts.splice(state.contacts.indexOf(c), 1); commit('contacts'); commit('chats'); nav.pop();
+      if (c.noMirror) state.contacts.splice(state.contacts.indexOf(c), 1); else c.friend = false;   // 映像里还在，只是不在聊天里了
+      commit('contacts'); commit('chats'); nav.pop();
     })));
   p.el._onShow = paintMoments;   // 从动态页回来：只刷新那几张小图
   nav.push(p.el);

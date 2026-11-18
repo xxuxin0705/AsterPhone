@@ -1,7 +1,7 @@
 // 聊天的「发动机」：发消息、让 TA 回复、重新生成、收到剧情里的消息。
 // 页面只管显示，真正改数据的都在这里；改完会通知页面刷新。
 import { uid, sleep } from '../../core/util.js';
-import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs } from '../../core/store.js';
+import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs, isFriend, friends, befriend } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
@@ -517,7 +517,7 @@ function storyContact(name) {
     c = { id: uid('p'), name: n, nick: '', remark: '', gender: '', region: '', sign: '', pokeSuffix: '', avatar: ch ? ch.avatar : '', charKey: ch ? ch.key : '', persona: '', source: ch ? 'card' : 'story', star: false, group: '', createdAt: Date.now() };
     state.contacts.push(c); commit('contacts'); chatForContact(c.id, true).lastAt = Date.now();
     log('info', '聊天', `正文里出现了新联系人「${n}」，已自动加入`);
-  }
+  } else if (!isFriend(c)) { befriend(c); commit('contacts'); log('info', '聊天', `正文里出现了映像里的「${n}」，已加进联系人`); }
   return c;
 }
 /** 正文里提到谁发了动态：放进动态。还不是好友的先只记名字，加了好友就挂到 TA 名下（relinkMoments），在 TA 的动态里看得到 */
@@ -596,7 +596,7 @@ export async function deliverFromStory(c, text, groupName = '') {
 /* ---------- 动态 ---------- */
 /** 一次找 AI 发几条动态（作者定的：点一下只调一次）。must：一定要发的人；only：只让他们发 */
 export async function genMoments({ count, must = [], only = false }, stop) {
-  const pool = only ? must.map(contact).filter(Boolean) : [...must.map(contact).filter(Boolean), ...[...state.contacts].filter(c => !must.includes(c.id)).sort(() => Math.random() - .5)].slice(0, Math.max(15, must.length));
+  const pool = only ? must.map(contact).filter(Boolean) : [...must.map(contact).filter(Boolean), ...friends().filter(c => !must.includes(c.id)).sort(() => Math.random() - .5)].slice(0, Math.max(15, must.length));
   const story = storyText(Math.min(4, ctxCfg().count)) || '（暂无）';
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop,
     prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}`).join('\n'), story, lang: langRule(pool.map(c => c.id), '的动态正文'), world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
@@ -618,7 +618,7 @@ export async function genMoments({ count, must = [], only = false }, stop) {
 }
 export async function genComments(mo, stop) {
   const author = mo.author === 'me' ? myName() : nameOf(contact(mo.author));
-  const people = state.contacts.filter(p => p.id !== mo.author && canSee(mo, p.id)).slice(0, 12);
+  const people = friends().filter(p => p.id !== mo.author && canSee(mo, p.id)).slice(0, 12);
   if (!people.length) throw new Error('还没有其他联系人可以来评论');
   const post = [`${author}：${mo.text}${mo.imageDesc ? `（配图：${mo.imageDesc}）` : ''}`,
     ...mo.comments.map(cm => `${who(cm.who)}${cm.to ? ' 回复 ' + who(cm.to) : ''}：${cm.text}`),

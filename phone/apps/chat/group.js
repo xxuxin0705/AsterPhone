@@ -16,7 +16,7 @@ export function groupAvatar(chat, size = 44) {
 /** 发起群聊：选人 → 起名 → 建好直接打开 */
 export async function createGroupFlow() {
   const { pickMany, sorted } = await import('./people.js');
-  if (state.contacts.length < 2) { toast('至少要有 2 个联系人才能建群'); return null; }
+  if (sorted().length < 2) { toast('至少要有 2 个联系人才能建群'); return null; }
   const ids = await pickMany('选群成员（至少 2 个）', sorted().map(c => ({ key: c.id, name: E.nameOf(c), avatar: c.avatar })));
   if (!ids) return null;
   if (ids.length < 2) { toast('至少选 2 个人'); return null; }
