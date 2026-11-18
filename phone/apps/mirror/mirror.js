@@ -4,7 +4,7 @@
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -44,10 +44,11 @@ function shard(s, i, onTap) {
     svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: '#fff', 'stroke-opacity': .85, 'stroke-width': 1, 'stroke-linejoin': 'round' }),
     Object.assign(svg('polygon', { points: P, fill: 'transparent' }), { onclick: e => { e.stopPropagation(); onTap(i); } }));
   const d = Math.hypot(c[0] - lx, c[1] - ly) || 1;   // 第一次打开时从哪个方向飞进来
-  el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px`;
+  el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px;--ox:${(Math.min(...s.p.map(q => q[0])) + Math.max(...s.p.map(q => q[0]))) / 7.86}%;--oy:${(Math.min(...s.p.map(q => q[1])) + Math.max(...s.p.map(q => q[1]))) / 17.04}%`;
   const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]);
   const look = (op, br) => { body.style.opacity = op; img.style.filter = br === 1 ? '' : `brightness(${br})`; };   // 透明度连暗底一起淡，露出底图的玻璃
-  return { el, c, size: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), place, look };
+  const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys);
+  return { el, c, bw, bh, bc: [Math.min(...xs) + bw / 2, Math.min(...ys) + bh / 2], size: Math.max(bw, bh), place, look };
 }
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
@@ -70,8 +71,8 @@ function rowsOf(i, c, x) {
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
   if (i === 1) return [
-    ['说的语言', { value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
-    ['声音', { value: () => '渠道、音色、读音', edit: () => btn('打开声音设置', 'secondary', () => import('../settings/voices.js').then(m => m.openPerson(c.id))) }],
+    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
+    ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
   ];
   // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；能照图画的渠道还会带上参考图
   if (i === 2) return [
@@ -211,20 +212,22 @@ export function open() {
     p.el.classList.toggle('is-focus', i >= 0);
     mark();
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
-    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(118 - sh.c[0]) / 3.93}% ${(440 - sh.c[1]) / 8.52}%` : ''; });
+    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / 3.93}% ${(430 - sh.bc[1]) / 8.52}%` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.4, 150 / sh.bw, 330 / sh.bh) : 1); });   // 挪到左边空处正中，放大到刚好
     if (i < 0) { side.replaceChildren(); return; }
-    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-down')); focus = -1; at(i); side.querySelectorAll('.mz-card')[k]?.click(); } }), box = h('div.mz-edit');
+    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); focus = -1; at(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });
+    // 点哪一格就在这一格里改；go 是点了直接跳走的（比如声音）
     const cards = rows.map(([label, r]) => {
-      const v = h('span', r.value()), card = h('button.mz-card', { onclick: () => {
-        cards.forEach(x => x.classList.toggle('is-down', x === card));
-        box.replaceChildren(h('small', label), r.edit(() => { v.textContent = r.value(); if (label !== '人设') show2(); }));
-      } }, h('small', label), v);
+      const v = h('span', r.value()), body = h('div.mz-card__body'), card = h('div.mz-card', h('button.mz-card__head', { onclick: () => {
+        if (r.go) return r.go();
+        const open = !card.classList.contains('is-open');
+        cards.forEach(x => { x.classList.remove('is-open'); x.lastChild.replaceChildren(); });
+        if (open) { card.classList.add('is-open'); body.append(r.edit(() => { v.textContent = r.value(); if (label !== '人设') show2(); })); }
+      } }, h('small', r.info ? withInfo(label, r.info) : label), v), body);
       return card;
     });
     const pic = h('div.mz-pic', h('small', '图片'), h('div.mz-chips', h('button', { onclick: () => pre(draftOf(cur), i) }, '调整位置'),
       h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(cur); D.shards[i] = { src: v }; pre(D, i); } }, '换张图片')));
-    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), pic, box, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
-    if (cards[0]) cards[0].click();
+    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), pic, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
   }
   const show2 = () => { real.textContent = cur ? cur.name || nameOf(cur) : ''; };
   // 添加：新建一个只在映像里的人（加不加进聊天以后在联系人里选）；或者把在映像里删掉过的联系人找回来

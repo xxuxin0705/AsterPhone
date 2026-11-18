@@ -21,9 +21,9 @@
 .mz-shard > polygon:last-child { pointer-events: auto; cursor: pointer; }
 .mz-shard:active { transform: scale(.985); }
 .mz-shard .mz-glow { opacity: .35; transition: opacity .3s, stroke-width .3s; }
-.is-focus .mz-shard:not(.is-on) { filter: brightness(.45) saturate(.7); }
+.is-focus .mz-shard:not(.is-on) { filter: brightness(.3) saturate(.6); }
 .is-pre .mz-tag { opacity: 0; pointer-events: none; }
-.mz-shard.is-on { transform: translateZ(40px) scale(1.04); filter: none; z-index: 2; }
+.mz-shard.is-on { transform: translateZ(40px) scale(var(--fk, 1.04)); transform-origin: var(--ox) var(--oy); filter: brightness(1.15); z-index: 2; }
 .mz-shard.is-on .mz-glow { opacity: 1; stroke-width: 12px; stroke: #fff; }
 .mz-shard.is-on .mz-rim { stroke-width: 2.4px; stroke-opacity: 1; }
 .mz-tag { position: absolute; z-index: 3; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; cursor: pointer; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.8), 0 0 14px rgba(0,0,0,.6); transition: opacity .3s; }
@@ -46,17 +46,21 @@
 .is-focus .mz-side { pointer-events: auto; opacity: 1; translate: 0 0; }
 .mz-side h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-weight: 500; font-size: 20px; letter-spacing: 5px; text-shadow: 0 0 10px #04050d; }
 .mz-side h3 em { font: 400 15px/1 "Noto Serif", Georgia, serif; font-style: normal; color: var(--mz-fog); }
-.mz-edit { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: rgba(18,19,30,.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.07); }
+.mz-edit { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: rgba(18,19,30,.42); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.07); }
 .mz-edit > small, .mz-card small { display: block; font-size: 10.5px; letter-spacing: 2px; color: var(--mz-fog); }
 .mz-edit .as-input, .mz-edit textarea { width: 100%; background: rgba(255,255,255,.06); color: var(--mz-ink); border-color: rgba(255,255,255,.14); }
 .mz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .mz-chips button { padding: 6px 10px; border: 1px solid rgba(241,238,246,.2); border-radius: 14px; background: none; color: var(--mz-ink); font: 12.5px/1 var(--font-ui); cursor: pointer; }
 .mz-chips button.is-on { background: var(--mz-ink); border-color: var(--mz-ink); color: #121318; }
 .mz-cards { display: grid; gap: 8px; }
-.mz-card { padding: 11px 14px; border: 0; border-radius: 12px; text-align: left; color: var(--mz-ink); background: rgba(22,23,36,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.35); cursor: pointer; transition: transform .15s, background .15s, box-shadow .15s; }
+.mz-card { padding: 11px 14px; border: 0; border-radius: 12px; text-align: left; color: var(--mz-ink); background: rgba(22,23,36,.42); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.35); cursor: pointer; transition: transform .15s, background .15s, box-shadow .15s; }
 .mz-card span { display: block; margin-top: 4px; overflow: hidden; font-size: 14.5px; white-space: nowrap; text-overflow: ellipsis; }
-.mz-card.is-down { transform: translateY(2px) scale(.97); background: rgba(6,6,12,.88); box-shadow: inset 0 2px 6px rgba(0,0,0,.6), inset 0 0 0 1px rgba(241,238,246,.35); }
-.mz-card.is-down small { color: var(--mz-ink); }
+.mz-card__head { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.mz-card.is-open { box-shadow: inset 0 0 0 1px rgba(241,238,246,.35); }
+.mz-card.is-open .mz-card__head > span { display: none; }
+.mz-card.is-open .mz-card__body { display: grid; gap: 10px; margin-top: 8px; }
+.mz-card .as-input, .mz-card textarea { width: 100%; background: rgba(255,255,255,.06); color: var(--mz-ink); border-color: rgba(255,255,255,.14); }
+.mz-card .as-info-btn { color: var(--mz-fog); }
 .mz-soon { margin: 0; font-size: 13px; color: var(--mz-fog); }
 .is-pre .mz-shard > polygon:last-child { cursor: grab; }
 .mz-col { display: grid; gap: 10px; }
@@ -88,7 +92,7 @@
 .mz-roster .mz-add { opacity: 1; background: none; box-shadow: inset 0 0 0 1px rgba(241,238,246,.45); font: 300 20px/1 var(--font-ui); }
 .mz-drop { margin-top: 6px; }
 .mz-drop button { color: #ff9d9d; border-color: rgba(255,157,157,.35); }
-.mz-pic { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(18,19,30,.62); box-shadow: inset 0 0 0 1px rgba(241,238,246,.12); }
+.mz-pic { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(18,19,30,.38); box-shadow: inset 0 0 0 1px rgba(241,238,246,.12); }
 .mz-pic small { font-size: 11px; letter-spacing: 2px; color: var(--mz-fog); }
 .mz-dock__fx { display: grid; gap: 4px; }
 .mz-dock__fx .as-settings-slider-row { padding: 4px 0; color: var(--mz-ink); font-size: 13px; }
