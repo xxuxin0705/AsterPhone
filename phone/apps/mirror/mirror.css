@@ -103,3 +103,22 @@
 .mz-pool button.is-on { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(200,185,255,.8); }
 .mz-pool img { width: 100%; height: 100%; object-fit: cover; }
 .mz-dock.is-top { top: 4px; bottom: auto; }
+/* 世界书 */
+.mz-chips button.is-own { position: relative; }
+.mz-chips button.is-own::after { content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #c9b6ff; box-shadow: 0 0 6px #c9b6ff; }
+.mz-line { font-size: 13.5px; }
+.mz-book__head { display: flex; align-items: center; gap: 8px; }
+.mz-book__head > .mz-line { flex: 1; }
+.mz-book__name { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; padding: 0; border: 0; background: none; text-align: left; color: var(--mz-ink); font: 14px/1.3 var(--font-ui); cursor: pointer; }
+.mz-book__name span { overflow-wrap: anywhere; }
+.mz-book__name em { font-style: normal; font-size: 10px; letter-spacing: 1px; color: #c9b6ff; }
+.mz-book__name small { font-size: 11px; color: var(--mz-fog); }
+.mz-book__body { display: none; }
+.mz-book.is-open .mz-book__body { display: grid; gap: 2px; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(241,238,246,.12); }
+.mz-entry { display: flex; align-items: center; gap: 6px; padding: 5px 0; font-size: 12.5px; }
+.mz-entry > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mz-entry__edit { flex: none; padding: 3px 7px; border: 1px solid rgba(241,238,246,.2); border-radius: 10px; background: none; color: var(--mz-ink); font: 11px/1 var(--font-ui); cursor: pointer; }
+.mz-side .as-switch { flex: none; transform: scale(.82); }
+.mz-pick { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.mz-pick button { padding: 10px 12px; border: 1px solid var(--as-color-border, rgba(0,0,0,.12)); border-radius: 10px; background: none; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.mz-pick button.is-on { border-color: var(--as-color-accent, #6b5cff); box-shadow: inset 0 0 0 1px var(--as-color-accent, #6b5cff); }

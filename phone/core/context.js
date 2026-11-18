@@ -96,16 +96,39 @@ export function entryOn(book, e, scan) {
   return e.keys.some(k => k && low.includes(String(k).toLowerCase()));
 }
 /** 要发的世界书条目，拼成一段文字。scan = 用来找关键词的文字（正文 + 手机聊天） */
-/** people：这次写到的人，映像里给 TA 单独定过「带 / 不带」的书照 TA 的；app：在哪个 App 里（映像里能给每个 App 另定） */
+/** 每个人自己的世界书：wb.all 是所有应用用的一套，wb.apps[app] 是某个 App 单独用的一套（有就只用它）。
+ *  一套 = { tavern 带上酒馆开着的书, books: { 书名: { off 整本不用, e: { uid: { off 这条用不用, text 改过的内容 } } } } }
+ *  改条目只改这里，酒馆里的书不动。旧存档的 books / appBooks（'on' / 'off'）第一次读到时换过来 */
+export function wbOf(c) {
+  if (!c.wb && (c.books || c.appBooks)) {
+    const conv = m => Object.fromEntries(Object.entries(m || {}).map(([n, v]) => [n, v === 'off' ? { off: true } : {}]));
+    const all = { tavern: true, books: conv(c.books) };
+    c.wb = { all, apps: Object.fromEntries(Object.entries(c.appBooks || {}).filter(([, m]) => Object.keys(m).length).map(([a, m]) => [a, { tavern: true, books: { ...all.books, ...conv(m) } }])) };
+    delete c.books; delete c.appBooks;
+  }
+  return c.wb;
+}
+export const wbSet = (c, app) => { const W = c && wbOf(c); return W && ((app && W.apps && W.apps[app]) || W.all) || null; };
+/** 这个人的这本书里，这条用不用：自己拨过就照拨的，没拨过就照酒馆（关着的不用）；用的话常驻的一直发，其余的看关键词 */
+export function ownEntryOn(b, e, scan) {
+  const o = b.e && b.e[e.uid];
+  if (o ? o.off : e.disable) return false;
+  return e.constant || e.keys.some(k => k && scan.toLowerCase().includes(String(k).toLowerCase()));
+}
+/** people：这次写到的人，TA 在映像里有自己的一套就照 TA 的（整本关了的不发，改过的条目发改过的）；app：在哪个 App 里 */
 export async function worldText(scan = '', people = [], app = '') {
-  const of = p => ({ ...(p && p.books), ...(p && p.appBooks && p.appBooks[app]) });
-  const own = n => people.map(p => of(p)[n]).find(Boolean);
-  const names = [...new Set([...tavernBooks(), ...Object.keys(C().books), ...people.flatMap(p => Object.keys(of(p)))])].filter(n => own(n) ? own(n) === 'on' : bookOn(n));
+  const sets = people.map(p => wbSet(p, app)).filter(Boolean), open = tavernBooks();
+  const mine = n => sets.map(s => s.books[n] || (s.tavern && open.includes(n) ? {} : null)).filter(Boolean);
+  const names = new Set([...open, ...Object.keys(C().books)].filter(bookOn));
+  sets.forEach(s => { Object.keys(s.books).forEach(n => names.add(n)); if (s.tavern) open.forEach(n => names.add(n)); });
   const parts = [];
   for (const n of names) {
     let list = [];
     try { list = await loadBook(n); } catch (e) { continue; }
-    list.filter(e => entryOn(n, e, scan)).sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(e => parts.push(e.content.trim()));
+    const own = mine(n), b = own.find(x => !x.off);
+    if (own.length && !b) continue;
+    list.filter(e => (b ? ownEntryOn(b, e, scan) : entryOn(n, e, scan))).sort((a, x) => (a.order || 0) - (x.order || 0))
+      .forEach(e => parts.push(String((b && b.e && b.e[e.uid] && b.e[e.uid].text) ?? e.content).trim()));
   }
   return parts.filter(Boolean).join('\n\n');
 }

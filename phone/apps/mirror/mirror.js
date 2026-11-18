@@ -4,8 +4,9 @@
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo, sheet, switchEl } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
+import { wbOf, tavernBooks, loadBook } from '../../core/context.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
 import { nameOf } from '../chat/engine.js';
@@ -93,12 +94,60 @@ function rowsOf(i, c, x) {
       PT.versions(c.id).length ? h('div.mz-strip', PT.versions(c.id).map((v, k) => h('button' + (k === PT.using(c.id) ? '.is-on' : ''), { onclick: e => PT.useVersion(c.id, k).then(() => e.currentTarget.parentNode.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === k))) }, thumb(v.base)))) : '',
       btn('去照相馆', 'secondary', () => import('../street/studio.js').then(m => m.person(c.id)))) }],
   ];
-  // 世界书：每本书给 TA 定「带 / 不带」，写到 TA 的时候照这个。先选管哪里：「所有应用」是总的，选了某个 App 就是在总的上再加减
-  const books = [...new Set([...worldNames(), ...Object.keys(c.books || {}), ...Object.values(c.appBooks || {}).flatMap(Object.keys)])];
-  const tab = () => (bookApp ? ((c.appBooks ||= {})[bookApp] ||= {}) : (c.books ||= {}));
-  const MODE = { '': bookApp ? '跟着所有应用' : '跟着酒馆', on: '带', off: '不带' };
-  return [['用在哪', { value: () => (BOOK_APPS.find(a => a[0] === bookApp) || BOOK_APPS[0])[1], edit: () => choose(BOOK_APPS, bookApp, v => { bookApp = v; x.reopen(); }) }],
-    ...books.map(n => [n, { value: () => MODE[tab()[n] || ''], edit: set => choose(Object.entries(MODE), tab()[n] || '', v => { if (v) tab()[n] = v; else delete tab()[n]; save(); set(); }) }])];
+  return [];
+}
+
+/* 世界书：TA 自己的一套。上面选管哪里（所有应用 / 某个 App；单独设过的 App 带个点）；
+   每本书能整本开关、展开看条目，每条能开关、能改（只改手机里的，酒馆的书不动）；「添加」从所有书里搜着挑 */
+const openBooks = new Set();
+function bookPanel(c, redo) {
+  const W = wbOf(c) || {}, own = bookApp ? W.apps && W.apps[bookApp] : W.all, save = () => commit('contacts');
+  const ensure = () => { const w = c.wb ||= {}; if (!bookApp) return w.all ||= { tavern: true, books: {} }; return (w.apps ||= {})[bookApp] ||= JSON.parse(JSON.stringify(w.all || { tavern: true, books: {} })); };
+  const scopes = h('div.mz-chips', BOOK_APPS.map(([v, l]) => h('button' + (v === bookApp ? '.is-on' : '') + (v && W.apps && W.apps[v] ? '.is-own' : ''), { onclick: () => { bookApp = v; redo(); } }, l)));
+  const top = h('div.mz-card', h('small', '用在哪'), scopes);
+  if (bookApp && !own) return h('div.mz-cards', top, h('div.mz-card', h('span.mz-line', '跟着「所有应用」'), h('div.mz-chips', h('button', { onclick: () => { ensure(); save(); redo(); } }, '单独设一套'))));
+  const S = own || { tavern: true, books: {} }, open = tavernBooks();
+  const names = [...new Set([...(S.tavern ? open : []), ...Object.keys(S.books)])];
+  const book = n => {
+    const b = () => S.books[n] || {}, cnt = h('small'), body = h('div.mz-book__body');
+    const count = list => { cnt.textContent = b().off ? '不用' : `${list.filter(e => !(b().e?.[e.uid]?.off ?? e.disable)).length}/${list.length}`; };
+    const sw = switchEl(!b().off, v => { const x = ensure().books[n] ||= {}; if (v) delete x.off; else x.off = true; save(); loadBook(n).then(count, () => {}); });
+    const fill = async () => {
+      let list; try { list = await loadBook(n); } catch (e) { body.replaceChildren(h('span.mz-line', '读不到这本书')); return; }
+      count(list);
+      body.replaceChildren(...list.map(e => {
+        const o = () => b().e?.[e.uid] || {}, t = h('span', e.title + (o().text != null ? ' · 改过' : ''));
+        return h('div.mz-entry', t, h('button.mz-entry__edit', { onclick: () => editEntry(n, e, o(), v => { const x = ((ensure().books[n] ||= {}).e ||= {})[e.uid] ||= {}; if (v == null) delete x.text; else x.text = v; save(); t.textContent = e.title + (v != null ? ' · 改过' : ''); }) }, '编辑'),
+          switchEl(!(o().off ?? e.disable), v => { ((ensure().books[n] ||= {}).e ||= {})[e.uid] = { ...o(), off: !v }; save(); count(list); }, e.title));
+      }), S.books[n] && !open.includes(n) ? h('div.mz-chips', h('button', { onclick: () => { delete ensure().books[n]; save(); redo(); } }, '移除这本')) : '');
+    };
+    const el = h('div.mz-card.mz-book' + (openBooks.has(n) ? '.is-open' : ''), h('div.mz-book__head', h('button.mz-book__name', { onclick: () => { el.classList.toggle('is-open', openBooks.has(n) ? !openBooks.delete(n) : !!openBooks.add(n)); if (openBooks.has(n)) fill(); } },
+      h('span', n), open.includes(n) ? h('em', '酒馆开着') : '', cnt), sw), body);
+    if (openBooks.has(n)) fill(); else loadBook(n).then(count, () => { cnt.textContent = '读不到'; });
+    return el;
+  };
+  return h('div.mz-cards', top,
+    h('div.mz-card.mz-book', h('div.mz-book__head', h('span.mz-line', '带上酒馆开着的书'), switchEl(S.tavern, v => { ensure().tavern = v; save(); redo(); }))),
+    ...names.map(book),
+    h('div.mz-chips', h('button', { onclick: async () => { const pick = await pickBooks(names); if (!pick.length) return; const set = ensure(); pick.forEach(n => { set.books[n] ||= {}; }); save(); redo(); } }, '添加世界书'),
+      bookApp ? h('button', { onclick: () => { delete c.wb.apps[bookApp]; save(); redo(); } }, '改回跟着所有应用') : ''));
+}
+// 从所有世界书里搜着挑几本
+function pickBooks(have) {
+  return new Promise(res => {
+    const sel = new Set(), all = worldNames().filter(n => !have.includes(n)), list = h('div.mz-pick');
+    const paint = q => list.replaceChildren(...all.filter(n => !q || n.toLowerCase().includes(q.toLowerCase())).map(n => h('button' + (sel.has(n) ? '.is-on' : ''), { onclick: e => { sel.has(n) ? sel.delete(n) : sel.add(n); e.currentTarget.classList.toggle('is-on'); } }, n)));
+    paint('');
+    let done = false;
+    const s = sheet({ title: '添加世界书', onClose: () => { if (!done) res([]); }, content: h('div.as-stack-gap', input({ placeholder: '搜书名', onInput: paint }), all.length ? list : h('span.as-muted', '没有读到别的世界书'),
+      h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('添加', 'primary', () => { done = true; s.close(); res([...sel]); }))) });
+  });
+}
+// 改一条：只存在手机里；「恢复原样」就用回酒馆里的内容
+function editEntry(book, e, o, onSave) {
+  const ta = textarea({ value: o.text ?? e.content, rows: 10 });
+  const s = sheet({ title: e.title, content: h('div.as-stack-gap', ta, btn('恢复原样', 'secondary', () => { onSave(null); s.close(); }),
+    h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => { onSave(ta.value === e.content ? null : ta.value); s.close(); }))) });
 }
 
 export function open() {
@@ -214,6 +263,7 @@ export function open() {
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
     parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / 3.93}% ${(430 - sh.bc[1]) / 8.52}%` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.4, 150 / sh.bw, 330 / sh.bh) : 1); });   // 挪到左边空处正中，放大到刚好
     if (i < 0) { side.replaceChildren(); return; }
+    if (i === 4) { const redo = () => side.lastChild.replaceWith(bookPanel(cur, redo)); side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), picOf(i), bookPanel(cur, redo)); return; }
     const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); focus = -1; at(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });
     // 点哪一格就在这一格里改；go 是点了直接跳走的（比如声音）
     const cards = rows.map(([label, r]) => {
@@ -225,10 +275,11 @@ export function open() {
       } }, h('small', r.info ? withInfo(label, r.info) : label), v), body);
       return card;
     });
-    const pic = h('div.mz-pic', h('small', '图片'), h('div.mz-chips', h('button', { onclick: () => pre(draftOf(cur), i) }, '调整位置'),
-      h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(cur); D.shards[i] = { src: v }; pre(D, i); } }, '换张图片')));
+    const pic = picOf(i);
     side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), pic, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
   }
+  const picOf = i => h('div.mz-pic', h('small', '图片'), h('div.mz-chips', h('button', { onclick: () => pre(draftOf(cur), i) }, '调整位置'),
+    h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(cur); D.shards[i] = { src: v }; pre(D, i); } }, '换张图片')));
   const show2 = () => { real.textContent = cur ? cur.name || nameOf(cur) : ''; };
   // 添加：新建一个只在映像里的人（加不加进聊天以后在联系人里选）；或者把在映像里删掉过的联系人找回来
   async function addMenu() {
