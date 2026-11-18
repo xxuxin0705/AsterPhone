@@ -3,7 +3,7 @@
 // 书跟着酒馆聊天窗口走，存在 kv 的 radio:窗口；每段合成好的声音存在 radio:a:书:语言:段，重听不再花钱。不进记忆、不发给酒馆。
 // 声音都走一个 AudioContext：故事一段接一段、白噪音垫在底下，切到后台也能接着放下一段（新开 <audio> 在后台会被拦）。
 import { h, uid, clamp, pickFile, onLongPress, debounce } from '../../core/util.js';
-import { state, win, commit, contact, kvGet, kvSet, kvDel, kvKeys, chatForContact, getMsgs } from '../../core/store.js';
+import { state, win, commit, contact, kvGet, kvSet, kvDel, kvKeys, chatForContact, getMsgs, friends } from '../../core/store.js';
 import { page, navBtn, actionSheet, dialog, toast, sheet, avatar, segmented, slider, switchEl, group, item, icon, input, textarea, btn, toggleItem, busy, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -42,7 +42,7 @@ async function load() {
   return D;
 }
 const save = () => kvSet('radio:' + Dkey, D).catch(e => toast('没存上：' + e.message));
-const cur = () => D.who === 'all' ? null : contact(D.who) || state.contacts[0] || null;
+const cur = () => D.who === 'all' ? null : contact(D.who) || friends()[0] || null;
 const textLang = t => /[぀-ヿ]/.test(t) ? 'ja' : /[가-힯]/.test(t) ? 'ko' : (t.match(/[a-z]/gi) || []).length > (t.match(/[一-鿿]/g) || []).length ? 'en' : 'zh-CN';
 /** 角色讲故事用的语言：在「讲什么」里换过就用换的；没换过跟着和 TA 聊天的设置里「TA 的语言」（只有打开了「发送前翻成 TA 的语言」才算数，
  *  不然那一格是新建聊天时默认填的英语，不是谁选的）；都没有就是中文 */
@@ -348,17 +348,17 @@ export async function renderRadio(ctx) {
   paintWho(); paintShelf();
 
   async function pickWho() {
-    const v = await actionSheet('谁来讲', [...state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: cur() === c })), { value: 'all', label: '所有人讲过的', active: D.who === 'all' }]);
+    const v = await actionSheet('谁来讲', [...friends().map(c => ({ value: c.id, label: nameOf(c), active: cur() === c })), { value: 'all', label: '所有人讲过的', active: D.who === 'all' }]);
     if (!v) return;
     D.who = v; save(); watch.classList.remove('is-tick'); void watch.offsetWidth; watch.classList.add('is-tick'); tell();
   }
 }
 const voiceLabel = c => { const conn = connFor(c.id); if (!conn) return '还没设语音接口'; const v = voiceOf(c.id, conn); return v.from === 'own' ? v.name || v.voice : '默认音色'; };
 const pickTts = () => actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
-const pickRole = async () => { const v = await actionSheet('谁来讲', state.contacts.map(c => ({ value: c.id, label: nameOf(c) }))); return v && contact(v); };
+const pickRole = async () => { const v = await actionSheet('谁来讲', friends().map(c => ({ value: c.id, label: nameOf(c) }))); return v && contact(v); };
 async function add() {
   const c = cur() || await pickRole();
-  if (!c) return state.contacts.length || toast('先在聊天里加个联系人');
+  if (!c) return friends().length || toast('先在聊天里加个联系人');
   return what(c);
 }
 async function what(c) {

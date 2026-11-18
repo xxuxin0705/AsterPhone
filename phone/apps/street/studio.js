@@ -1,6 +1,6 @@
 // 照相馆：给联系人做立绘。三样：立绘（上传 / 照图让 AI 画 / 按描述让 AI 画），表情、动作（可选，都是把立绘发给 AI 一次画一张宫格，手机里切开）
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, contact } from '../../core/store.js';
+import { state, contact, friends } from '../../core/store.js';
 import { myName, myAvatar } from '../../core/promptstore.js';
 import { page, group, item, avatar, btn, textarea, actionSheet, dialog, toast, sheet, icon, segmented, slider } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -26,7 +26,7 @@ const sub = c => { const p = P.loaded(c.id); if (!p) return '只有头像'; cons
 
 export async function openStudio() {
   const p = page({ app: 'street', id: 'studio', title: APP, large: true, back: true, cls: 'as-studio' });
-  const all = [who('me'), ...state.contacts];
+  const all = [who('me'), ...friends()];
   await P.preload(all.map(c => c.id));
   const list = all.map(c => { const s = h('span', sub(c)); return item({ icon: avatar(c.avatar, nameOf(c), 30), color: 'transparent', title: nameOf(c), sub: s, chevron: true, onClick: () => person(c.id, () => { s.textContent = sub(c); }) }); });
   p.body.append(group('', list));

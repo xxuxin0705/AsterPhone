@@ -1,6 +1,6 @@
 // 音色库 / 读音表的抽屉：插线板、列表模式、联系人资料都从这里打开（改的是同一份数据）
 import { h, uid } from '../../core/util.js';
-import { state, commit, contact } from '../../core/store.js';
+import { state, commit, contact, isFriend } from '../../core/store.js';
 import { busy, toast, actionSheet, sheet, icon, input, segmented, avatar, page, group, item, toggleItem, dialog, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
@@ -80,7 +80,7 @@ export function openVoicePage({ conn, tab = 'conn', onChange = () => {}, openCon
     group('渠道', [h('div.as-field', chipBox)]), defBox);
   /* 角色库 */
   const list = h('div.as-vl__people');
-  const paintPeople = () => list.replaceChildren(...people().map(x => {
+  const paintPeople = () => list.replaceChildren(...people().filter(x => x.id === 'me' || isFriend(contact(x.id))).map(x => {
     const c = connFor(x.id), own = V().mode === 'each' && c && c.id !== (defaultConn() || {}).id;
     return h('button.as-vl__person', { onclick: () => openPerson(x.id, changed) },
       avatar(x.avatar, x.name, 34), h('span.as-vl__name', x.name), h('span.as-vl__sub', c ? (own ? `${c.name} · ` : '') + voiceLabel(x.id, c) : '没有语音接口'), icon('chevron', 14, 2));

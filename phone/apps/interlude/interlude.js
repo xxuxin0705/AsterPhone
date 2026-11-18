@@ -3,7 +3,7 @@
 // 主位（谁当 KP）、椅子（谁上桌）、档案袋（卷宗：进行中和打完的局）、调查员卡（车卡）、骰子盘（掷着玩）、台灯（点了直接开关灯）、旧地图（DND）、火漆信（剧本杀）。
 // 车卡：先选好谁上桌，AI 一次给几个人一起车卡，再一张张微调；卡跟着人存。玩的时候是老照片场景 + 人物牌 + 对话框。
 import { h, debounce, onLongPress } from '../../core/util.js';
-import { state, contact, commit } from '../../core/store.js';
+import { state, contact, commit, friends } from '../../core/store.js';
 import { page, navBtn, navText, sheet, actionSheet, dialog, toast, btn, segmented, input, textarea, field, group, item, icon, avatar, switchEl, withInfo, empty, wheelField } from '../../core/ui.js';
 import { LANGS, langName } from '../../core/translate.js';
 import * as nav from '../../core/nav.js';
@@ -132,13 +132,13 @@ export function open() {
     label.classList.add('is-open');
   }
   async function choose(then) {
-    const got = await pickMany(`谁上桌（最多 ${MAX_SEATS} 个）`, state.contacts.filter(c => c.id !== pick.kp).map(c => ({ key: c.id, name: nameOf(c), avatar: c.avatar })), { preselect: pick.party });
+    const got = await pickMany(`谁上桌（最多 ${MAX_SEATS} 个）`, friends().filter(c => c.id !== pick.kp).map(c => ({ key: c.id, name: nameOf(c), avatar: c.avatar })), { preselect: pick.party });
     if (!got) return;
     if (got.length > MAX_SEATS) toast(`最多 ${MAX_SEATS} 个，先坐前 ${MAX_SEATS} 个`);
     pick.party = got.slice(0, MAX_SEATS); keepSeats(); paintSeats(); unzoom(); syncBar(); then && then();
   }
   async function chooseKp(then) {
-    const v = await actionSheet('谁当 KP', [{ value: 'sys', label: '中立 KP（系统）', active: pick.kp === 'sys' }, ...state.contacts.map(c => ({ value: c.id, label: nameOf(c), active: pick.kp === c.id }))]);
+    const v = await actionSheet('谁当 KP', [{ value: 'sys', label: '中立 KP（系统）', active: pick.kp === 'sys' }, ...friends().map(c => ({ value: c.id, label: nameOf(c), active: pick.kp === c.id }))]);
     if (!v) return;
     pick.kp = v; pick.party = pick.party.filter(id => id !== v); keepSeats(); paintSeats(); syncBar(); then && then();
   }

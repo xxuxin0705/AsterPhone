@@ -2,7 +2,7 @@
 // 每条帖子、每层楼把零件全备齐（头像、V、名字、来自、小组、+关注、标题、正文、话题、配图、热门回复、回应数、转评赞…），显示哪些、怎么排交给样子的 CSS。
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, commit, contact } from '../../core/store.js';
+import { state, commit, contact, friends } from '../../core/store.js';
 import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
@@ -1004,7 +1004,7 @@ function openPeople() {
   const pg = page({ app: 'forum', id: 'forum-people', title: '熟人', back: true });
   const F = E.F(), P = id => (F.people[id] = F.people[id] || {});
   const VS = [['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], label = c => P(c.id).off ? '不上论坛' : (VS.find(x => x[0] === E.isV(c)) || VS[0])[1].replace('不加', '');
-  pg.body.append(h('div.as-fo-set', state.contacts.length ? group('', state.contacts.map(c => {
+  pg.body.append(h('div.as-fo-set', friends().length ? group('', friends().map(c => {
     const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: nameOf(c), value: label(c), chevron: true, onClick: () => {
       const d = { ...P(c.id) }, nick = input({ value: d.name || '', placeholder: '网名' });
       editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('会员', segmented(VIPS, E.who({ k: 'c', id: c.id }).vip, v => { d.vip = v; })), field('网名', nick)], () => {

@@ -3,7 +3,7 @@
 // 胶带、蕾丝、邮票框、便签按这一篇的主题色换成淡色（AI 写的时候按剧情挑，自己能改）。
 // 写日记、配图在 core/diary.js 里跑，退出这页也接着跑；同一个人同一时间只写一篇，回来按钮还是「取消」。
 import { h, fileToDataURL, debounce } from '../../core/util.js';
-import { state, contact, commit, subscribe } from '../../core/store.js';
+import { state, contact, commit, subscribe, friends } from '../../core/store.js';
 import { page, navBtn, sheet, actionSheet, dialog, toast, btn, segmented, textarea, input, field, group, item, toggleItem, icon, empty, pickImage, colorWheel, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as Dy from '../../core/diary.js';
@@ -40,7 +40,7 @@ const useFont = (el, k) => { el.style.fontFamily = fontOf(k)[1] + ', "Kaiti SC",
 const WEEK = '日一二三四五六';
 const cover = k => BASE + 'cover-' + k + '.webp';
 const books = () => state.diary.books;
-const free = () => state.contacts.filter(c => !Dy.bookOf(c.id));
+const free = () => friends().filter(c => !Dy.bookOf(c.id));
 const hash = s => [...String(s)].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) | 0, 7) >>> 0;
 const ymd = at => at ? at.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日') : '';
 const jobs = new Map(), drawing = new Map();   // 正在写的（按人）、正在配图的（按篇）：退出再进来还能取消

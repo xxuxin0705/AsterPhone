@@ -2,7 +2,7 @@
 // 1. 往正文里放「暗号」指令（让 AI 输出剧情时间、正文里发给你的手机消息）
 // 2. 读正文里的暗号：更新剧情时间、把 <asterphone> 消息收进手机、把 <astermem> 记进岁岁砂、把 <asterdiary> 收进日记本，并把标签从正文显示里藏起来
 // 3. 把手机里的聊天注入正文（跟随正文的聊天自动注入最近 N 条；手动钉住的始终注入）
-import { state, subscribe, getMsgs, contact, commit, enterWindow } from './store.js';
+import { state, subscribe, getMsgs, contact, commit, enterWindow, friends } from './store.js';
 import { syncTavernProfiles } from './api.js';
 import { debounce } from './util.js';
 import { inTavern, onTavern, setInjection, hideTagsIn, chatMessage, ctx, chatWindow } from './bridge.js';
@@ -50,7 +50,7 @@ export function tagInstruction() {
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
-  const mem = state.apps.memory, people = [myName(), ...state.contacts.map(c => c.name)].filter(Boolean).join('、');
+  const mem = state.apps.memory, people = [myName(), ...friends().map(c => c.name)].filter(Boolean).join('、');
   return `[AsterPhone 格式说明]\n${text}` + (mem.on && (mem.story === 'every' || mem.story === 'maybe') ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people, lines: lineNames(), bigs: bigNames() }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 // 跟着剧情写日记：每隔几楼写一篇。这次要生成的是第几楼（重新生成 / 换 swipe 时最后一楼就是它自己），轮到谁就列谁的名字
@@ -62,7 +62,7 @@ function diaryNote() {
   return who ? '\n' + compose('diaryEvery', { people: who, palettes: themeNames() }) : '';
 }
 // 随剧情加歌：能加的人和 TA 们现在的歌单名（歌单按心情分，AI 照着挑放进哪个）
-const songLists = () => state.contacts.filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))
+const songLists = () => friends().filter(c => !state.music.storyWho || state.music.storyWho.includes(c.id))
   .map(c => `- ${c.name}：${[...(c.songs && c.songs.length ? ['常听'] : []), ...(c.lists || []).map(l => l.name)].join('、') || '（还没有歌单）'}`).join('\n') || '（没有人）';   // c.songs 是还没搬的老歌单（见 core/music.js 的 charLists）
 function applyTags() { setInjection(KEY_TAGS, tagInstruction(), { position: 1, depth: 0 }); }
 

@@ -1,7 +1,7 @@
 // 论坛的数据和找 AI。号、bot、地区这些小的放 state.forum（跟着窗口走）；帖子大，放 kv 的 forum:窗口。
 // 两种调用：刷一批帖（forumFeed）、出楼层（forumThread），点一下只调一次
 import { uid } from '../../core/util.js';
-import { state, win, kvGet, kvSet, commit, contact, chatForContact } from '../../core/store.js';
+import { state, win, kvGet, kvSet, commit, contact, chatForContact, friends } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
@@ -48,7 +48,7 @@ export const groupName = id => (groupOf(id) || {}).name || '';
 
 /* ---------- 谁是谁 ---------- */
 const P = id => F().people[id] || {};
-export const onForum = () => state.contacts.filter(c => !P(c.id).off);
+export const onForum = () => friends().filter(c => !P(c.id).off);
 export const netName = c => P(c.id).name || c.nick || c.name || nameOf(c);
 export const isV = c => P(c.id).v === true ? 'y' : P(c.id).v || '';
 export const botOf = id => F().bots.find(b => b.id === id);
