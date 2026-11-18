@@ -188,8 +188,13 @@ export function open() {
     const t = h('div.mz-tag', { style: { left: s.l[0] / 3.93 + '%', top: s.l[1] / 8.52 + '%' }, onclick: e => { e.stopPropagation(); tap(i); } }, h('em', i + 1), h('b', s.n));
     tags.push(t); tilt.append(t); return sh;
   });
-  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hf = svg('filter', { id: 'mzhole' }); hf.append(svg('feGaussianBlur', { stdDeviation: 3 }));
-  holes.append(hf, ...SH.map(s => svg('polygon', { points: s.p.map(q => q.join(',')).join(' '), fill: '#0b0920', filter: 'url(#mzhole)' })));
+  // 碎片挪走后空出来那块：用底图糊开、压暗一点盖上，像那里本来就只有星云，不留一块亮玻璃也不抠出黑洞
+  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hd = svg('defs'), hb = svg('filter', { id: 'mzhb', x: '-20%', y: '-20%', width: '140%', height: '140%' }), he = svg('filter', { id: 'mzhe', x: '-20%', y: '-20%', width: '140%', height: '140%' });
+  hb.append(svg('feGaussianBlur', { stdDeviation: 16 }), svg('feComponentTransfer', {}));
+  hb.lastChild.append(...['R', 'G', 'B'].map(c => svg('feFunc' + c, { type: 'linear', slope: .55 })));
+  he.append(svg('feGaussianBlur', { stdDeviation: 6 })); hd.append(hb, he);
+  holes.append(hd, ...SH.map((sh, k) => { const m = svg('mask', { id: 'mzhm' + k }); m.append(svg('polygon', { points: sh.p.map(q => q.join(',')).join(' '), fill: '#fff', filter: 'url(#mzhe)', transform: `translate(${mid(sh.p)[0] * -.08} ${mid(sh.p)[1] * -.08}) scale(1.08)` }));
+    const g = svg('g', { mask: `url(#mzhm${k})` }); g.append(m, svg('image', { href: BG, x: 0, y: OY, width: 393, height: 1869 * K, preserveAspectRatio: 'none', filter: 'url(#mzhb)' })); return g; }));
   stage.append(holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 压暗
   p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
   // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
@@ -227,6 +232,7 @@ export function open() {
   });
   const drop = e => { pts.delete(e.pointerId); if (!grab) return; if (pts.size && draft) { const t = target(); grab = { x: t.x || 0, y: t.y || 0, k: kOf(t), at: [...pts.values()].map(q => [...q]) }; } else if (!pts.size) { grab = null; tilt.style.transform = ''; } };
   stage.addEventListener('pointerup', drop); stage.addEventListener('pointercancel', drop);
+  side.addEventListener('click', e => { if (e.target === side || e.target.classList.contains('mz-cards')) at(-1); });   // 点右边一栏的空处也收起
   stage.onclick = () => { if (moved) return; if (draft) { draft.sel = -1; draft.swap = -1; mark(); preSide(); } else at(-1); };
   function tap(i) {
     if (moved) return;
