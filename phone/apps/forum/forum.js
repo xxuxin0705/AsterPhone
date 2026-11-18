@@ -6,7 +6,7 @@ import { state, commit, contact, friends } from '../../core/store.js';
 import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
-import { addFrame, pickDeco, decoName, loadImg, deco } from '../../core/deco.js';
+import { addFrame, pickDeco, decoName, loadImg, deco, frameOf } from '../../core/deco.js';
 import { LANGS, langName, langFor, translate } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
@@ -80,7 +80,7 @@ const vMark = () => h('span.as-fo-post__v', { 'aria-label': '认证' }, icon('ch
 function ava(by, size, framed) {
   if (by.anon) return h('span.as-avatar.as-fo-anon', { style: { width: size + 'px', height: size + 'px' } }, icon('user', Math.round(size * .5), 1.8));
   const w = E.who(by), a = avatar(w.avatar, w.name, size);
-  return framed ? addFrame(a, by.k === 'c' ? contact(by.id)?.frame : by.k === 'me' ? E.F().accounts.find(x => x.id === by.id)?.frame ?? state.me?.frame : E.over(by).frame) : a;   // 头像框用资源库「个性装扮」里给这个人选的；我的号各自选，没选过跟着聊天里我的
+  return framed ? addFrame(a, by.k === 'c' ? frameOf(contact(by.id), 'forum') : by.k === 'me' ? E.F().accounts.find(x => x.id === by.id)?.frame ?? state.me?.frame : E.over(by).frame) : a;   // 头像框用资源库「个性装扮」里给这个人选的；我的号各自选，没选过跟着聊天里我的
 }
 /** 正文里的 #话题#、@网名 标成蓝色：点话题搜这个话题，点 @ 进这个人的主页 */
 const AT = /@([^\s@#：:，,。！？!?、（）()]{1,20})/g;
@@ -908,10 +908,10 @@ function avaPick(get, set, name, frame = () => '') {
 function editUser(by, v) {
   const w = E.who(by), o = E.over(by), now = v.now(), c = by.k === 'c' && contact(by.id);
   const d = { name: w.name, avatar: w.avatar || '', v: w.v || '', vip: w.vip || '', cert: now.cert, bio: now.bio, tag1: now.tags[0] || '', tag2: now.tags[1] || '',
-    fans: o.fans, follows: o.follows, likes: o.likes, ip: o.ip || '', frame: (c ? c.frame : o.frame) || '' }, f = accFields(d);
+    fans: o.fans, follows: o.follows, likes: o.likes, ip: o.ip || '', frame: (c ? frameOf(c, 'forum') : o.frame) || '' }, f = accFields(d);
   editSheet('编辑资料', f.rows, () => {
     f.read(); const { frame, ...rest } = d;
-    if (c) { if (frame) c.frame = frame; else delete c.frame; commit('contacts'); } else rest.frame = frame;
+    if (c) { if (frame !== (frameOf(c, 'forum') || '')) { (c.appFrame ||= {}).forum = frame; commit('contacts'); } } else rest.frame = frame;   // 换过才记在论坛自己那格，不动映像里的默认
     (E.F().over ||= {})[keyOf(by)] = rest; commit('forum');
     v.refresh(); repaintBy(keyOf(by)); toast('已保存');
   });

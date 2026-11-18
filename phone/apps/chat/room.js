@@ -1,6 +1,6 @@
 // 私聊界面：气泡、时间线、正在输入、发送 /「让 TA 回复」变形按钮、长按菜单、多选、拍一拍、聊天设置、注入记录。
 import { h, onLongPress } from '../../core/util.js';
-import { addFrame, paintBubble, pickDeco, decoName } from '../../core/deco.js';
+import { addFrame, paintBubble, pickDeco, decoName, frameOf } from '../../core/deco.js';
 import { state, commit, contact, getMsgs, saveMsgs, clearMsgs } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, slider, avatar, icon, navBtn, aiCount, actionSheet, dialog, toast, sheet, btn, field, input, pickImage, rangeRow, withInfo, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
@@ -118,7 +118,7 @@ export async function openRoom(chat) {
     let ava = null;
     if (showAva) {
       ava = chatAvatar(me ? E.myAvatarIn(chat) : (g ? who.avatar : E.avatarOf(c, chat)), me ? (state.me.nick || '我') : E.nameOf(who), chat.cfg);
-      ava.classList.add('as-chat-msg__avatar'); addFrame(ava, me ? state.me.frame : who?.frame); bindAvatar(ava, me, who);
+      ava.classList.add('as-chat-msg__avatar'); addFrame(ava, me ? state.me.frame : frameOf(who, 'chat')); bindAvatar(ava, me, who);
     }
     const bubble = buildBubble(m, { chat, c: me ? c : who, redraw });
     if (!m.type || m.type === 'text' || m.type === 'voice') paintBubble(bubble, me ? state.me.bubble : who?.bubble);
@@ -482,12 +482,13 @@ function openAvatarPage(chat, after) {
     const A = avatarCfg(cfg);
     p.body.innerHTML = '';
     preview.replaceChildren(
-      h('button', { onclick: () => pick('theirAvatar', 'TA 在这个聊天的头像') }, addFrame(chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 72 }), c.frame), h('span', 'TA')),
+      h('button', { onclick: () => pick('theirAvatar', 'TA 在这个聊天的头像') }, addFrame(chatAvatar(E.avatarOf(c, chat), E.nameOf(c), { ...cfg, avatarSize: 72 }), frameOf(c, 'chat')), h('span', 'TA')),
       h('button', { onclick: () => pick('myAvatar', '我在这个聊天的头像') }, addFrame(chatAvatar(E.myAvatarIn(chat), state.me.nick || '我', { ...cfg, avatarSize: 72 }), state.me.frame), h('span', '我')));
     // 头像框、气泡跟着人走：在这里给 TA 选，TA 在所有聊天里都戴着
-    const decoRow = (label, who, k, key) => { const r = item({ title: label, value: decoName(k, who[key]) || '不戴', chevron: true, onClick: async () => {
-      const v = await pickDeco(k, who[key], who === state.me ? { src: E.myAvatarIn(chat), name: state.me.nick } : { src: E.avatarOf(c, chat), name: E.nameOf(c) }); if (v == null) return;
-      if (v === 'none') delete who[key]; else who[key] = v; commit(who === state.me ? 'me' : 'contacts'); draw();
+    // TA 的头像框记在聊天自己那格（appFrame.chat），不动映像里定的默认
+    const decoRow = (label, who, k, key) => { const fr = who !== state.me && key === 'frame', cur = fr ? frameOf(who, 'chat') : who[key]; const r = item({ title: label, value: decoName(k, cur) || '不戴', chevron: true, onClick: async () => {
+      const v = await pickDeco(k, cur, who === state.me ? { src: E.myAvatarIn(chat), name: state.me.nick } : { src: E.avatarOf(c, chat), name: E.nameOf(c) }); if (v == null) return;
+      if (fr) (who.appFrame ||= {}).chat = v === 'none' ? '' : v; else if (v === 'none') delete who[key]; else who[key] = v; commit(who === state.me ? 'me' : 'contacts'); draw();
     } }); return r; };
     const out = (v, u) => h('output', v + u);
     const sizeOut = out(A.size, 'px'), radOut = out(A.radius, '%');

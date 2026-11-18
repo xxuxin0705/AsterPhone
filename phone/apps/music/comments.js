@@ -3,7 +3,7 @@
 // 你写的评论、回复先攒着，点「让大家看到」用一次 API：被你回的人一定回你，别人想回就回，也可能多几条路人评论。
 // 每首歌一份，存在 kv 的 aicmt:歌 id（网易云的真热评不存，你点过赞、回过的那条才存进来）。
 import { h, uid } from '../../core/util.js';
-import { state, contact, kvGet, kvSet, friends } from '../../core/store.js';
+import { state, contact, kvGet, kvSet, friends, nickOf } from '../../core/store.js';
 import { page, icon, avatar, toast, dialog, empty, navText, segmented, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -14,7 +14,7 @@ import { log } from '../../core/log.js';
 import { nameOf, personaOf } from '../chat/engine.js';
 import { burst } from './island.js';
 
-const netName = c => c.nick || c.name || nameOf(c);   // 评论区里用联系人的网名
+const netName = c => nickOf(c, 'music') || c.name || nameOf(c);   // 评论区里用联系人的网名
 const people = () => friends().map(c => `- ${c.name || nameOf(c)}（网名：${netName(c)}）：${(personaOf(c) || '').slice(0, 160).replace(/\n/g, ' ')}`).join('\n') || '（没有）';
 const findWho = (who, name) => (state.contacts.find(c => who && (c.name === who || nameOf(c) === who)) || state.contacts.find(c => name && netName(c) === name) || {}).id || '';
 const json = raw => { try { return JSON.parse((String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').match(/\{[\s\S]*\}/) || [])[0]); } catch { return null; } };

@@ -1,6 +1,6 @@
 // 联系人相关的页面和抽屉：资料页（直接改）、手动添加、选人。
 import { h, uid, sortZh } from '../../core/util.js';
-import { state, commit, contact, chatForContact, clearMsgs, friends } from '../../core/store.js';
+import { state, commit, contact, chatForContact, clearMsgs, friends, nickOf } from '../../core/store.js';
 import { page, group, item, input, textarea, field, segmented, btn, avatar, icon, navText, sheet, dialog, toast, toggleItem, pickImage, withInfo } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { pickDeco, decoName } from '../../core/deco.js';
@@ -72,7 +72,7 @@ export function openProfile(cid, { onMessage } = {}) {
   const paintHead = () => {
     const line = (k, v) => v ? h('div.as-chat-profile__line', `${k}：${v}`) : null;
     nameEl.replaceChildren(nameOf(c), c.star ? h('span.as-chat-star', icon('star', 16, 2)) : '', c.gender === '男' ? h('span.as-muted', '♂') : c.gender === '女' ? h('span.as-muted', '♀') : '');
-    lines.replaceChildren(...[c.remark && line('昵称', c.nick || c.name), line('真实姓名', c.name !== nameOf(c) ? c.name : ''), line('地区', c.region)].filter(Boolean));
+    lines.replaceChildren(...[c.remark && line('昵称', nickOf(c, 'chat') || c.name), line('真实姓名', c.name !== nameOf(c) ? c.name : ''), line('地区', c.region)].filter(Boolean));
   };
   const thumbs = h('div.as-chat-thumbs');
   const paintMoments = () => { relinkMoments(); const ms = state.moments.filter(m => m.author === c.id).slice(0, 4);

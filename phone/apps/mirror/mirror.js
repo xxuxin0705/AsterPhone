@@ -10,6 +10,7 @@ import { wbOf, tavernBooks, loadBook } from '../../core/context.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
 import { nameOf } from '../chat/engine.js';
+import { pickDeco, decoName } from '../../core/deco.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const svg = (tag, a = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
@@ -54,6 +55,7 @@ function shard(s, i, onTap) {
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
    x：{ pic 重摆碎片的图, roster 重画头像排, reopen 重开这一类, pre 进预览 } */
+const NICK_APPS = [['chat', '聊天'], ['forum', '论坛'], ['music', '音乐']], APPN = { chat: '聊天', forum: '论坛' };
 const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
 let bookApp = '';
 const draftOf = c => { const M = JSON.parse(JSON.stringify(c.mirror || {})); M.shards ||= {}; return M; };
@@ -66,7 +68,16 @@ function rowsOf(i, c, x) {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
   if (i === 0) return [
     ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
-    ['真名', text('name', '真名')], ['网名', text('nick', '网名')], ['备注', text('remark', '备注')],
+    ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
+      go: async () => { const v = await pickDeco('frames', c.frame, { src: c.avatar, name: nameOf(c) }); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }],
+    ['真名', text('name', '真名')],
+    // 网名：默认一个；聊天、论坛、音乐能各起各的，空着就用默认。论坛那格就是论坛里「熟人的网名」
+    ['网名', { value: () => c.nick || '没起', edit: set => {
+      const fp = () => (state.forum.people[c.id] ||= {}), get = k => (k === 'forum' ? (state.forum.people[c.id] || {}).name : c.appNick?.[k]) || '';
+      const put = (k, v) => { if (k === 'forum') { fp().name = v; commit('forum'); } else { if (v) (c.appNick ||= {})[k] = v; else if (c.appNick) delete c.appNick[k]; save(); } };
+      return h('div.mz-col', input({ value: c.nick || '', placeholder: '默认网名', onInput: v => { c.nick = v; save(); set(); } }),
+        ...NICK_APPS.map(([k, l]) => h('label.mz-nick', h('small', l), input({ value: get(k), placeholder: '跟默认一样', onInput: v => put(k, v.trim()) })))); } }],
+    ['备注', text('remark', '备注')],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
     ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],

@@ -127,3 +127,5 @@
 .mz-card .as-info-head { display: inline-flex; align-items: center; gap: 4px; font: inherit; letter-spacing: inherit; }
 .mz-card .as-fx-label:empty { display: none; }
 .mz-card .as-settings-slider-row output { color: var(--mz-ink); }
+.mz-nick { display: grid; gap: 4px; }
+.mz-nick small { font-size: 10.5px; letter-spacing: 2px; color: var(--mz-fog); }

@@ -2,6 +2,8 @@
 import { state, commit } from './store.js';
 import { uid, h } from './util.js';
 
+// TA 戴哪个头像框：某个 App 单独选过的（'' 是单独选了不戴）就用那个，没选过用映像里定的默认
+export const frameOf = (c, app) => c && (c.appFrame && c.appFrame[app] != null ? c.appFrame[app] : c.frame);
 export const deco = () => (state.deco = state.deco || { frames: [], bubbles: [] });
 const find = (k, id) => id && deco()[k].find(x => x.id === id);
 

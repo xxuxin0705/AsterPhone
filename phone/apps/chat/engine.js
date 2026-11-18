@@ -1,7 +1,7 @@
 // 聊天的「发动机」：发消息、让 TA 回复、重新生成、收到剧情里的消息。
 // 页面只管显示，真正改数据的都在这里；改完会通知页面刷新。
 import { uid, sleep } from '../../core/util.js';
-import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs, isFriend, friends, befriend } from '../../core/store.js';
+import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs, isFriend, friends, befriend, nickOf } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
@@ -177,7 +177,7 @@ async function preVoice(chat, m, rc) {
 }
 
 /* ---------- 名字 / 头像 / 人设 ---------- */
-export const nameOf = c => (c && (c.remark || c.nick || c.name)) || '联系人';
+export const nameOf = c => (c && (c.remark || nickOf(c, 'chat') || c.name)) || '联系人';
 export function personaOf(c) {
   if (!c) return '';
   if (c.loreText) return `${c.loreText}\n（这个设定里可能写了好几个人，你只扮演其中的「${c.name}」。）${c.persona ? '\n' + c.persona : ''}`;
