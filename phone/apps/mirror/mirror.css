@@ -1,8 +1,8 @@
 /* 映像：一直是夜里的玻璃花，不跟日间 / 夜间走 */
-.as-mz { --mz-ink: #f1eef6; --mz-fog: #9aa0b0; background: #0b0a1e; color: var(--mz-ink); font-family: "Noto Serif SC", "Songti SC", serif; }
+.as-mz { container-type: size; --mz-ink: #f1eef6; --mz-fog: #9aa0b0; background: #0b0a1e; color: var(--mz-ink); font-family: "Noto Serif SC", "Songti SC", serif; }
 .as-mz .as-navbar { grid-template-columns: 40px 1fr auto; height: 56px; position: relative; z-index: 5; background: none !important; border: 0; box-shadow: none; color: var(--mz-ink); }
 .as-mz .as-navbar__back { color: var(--mz-ink); }
-.as-mz .as-page__body { position: relative; overflow: hidden; padding: 0; }
+.as-mz .as-page__body { position: relative; z-index: 2; overflow: hidden; padding: 0; pointer-events: none; }
 .mz-head { flex: 1; min-width: 0; text-shadow: 0 0 12px #04050d; }
 .mz-head b { display: block; font-weight: 400; font-size: 22px; letter-spacing: 8px; }
 .mz-head small { display: block; margin-top: 6px; font-size: 12px; letter-spacing: 4px; color: var(--mz-ink); opacity: .7; }
@@ -13,7 +13,8 @@
 .mz-roster .mz-more { background: rgba(255,255,255,.1); letter-spacing: 1px; }
 .mz-roster img { width: 100%; height: 100%; object-fit: cover; }
 /* 花：画布照 393×852 的比例摆，高度占满；底图和 5 片都在 .mz-tilt 里，拖一拖整朵一起斜 */
-.mz-stage { position: absolute; top: -60px; bottom: 0; left: 50%; aspect-ratio: 393 / 852; translate: -50% 0; perspective: 900px; touch-action: none; }
+/* 花铺满整页：比例不对的手机就放大到盖满，两边、上面都不露空 */
+.mz-stage { position: absolute; z-index: 0; left: 50%; top: 50%; width: max(100cqw, 100cqh * 393 / 852); aspect-ratio: 393 / 852; translate: -50% -50%; perspective: 900px; touch-action: none; }
 .mz-tilt { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.23,1,.32,1); }
 .mz-bg { position: absolute; left: 0; width: 100%; pointer-events: none; user-select: none; }
 .mz-shard { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: transform .35s cubic-bezier(.23,1,.32,1), translate .5s cubic-bezier(.32,.72,0,1), filter .35s; }
