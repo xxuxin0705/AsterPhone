@@ -315,7 +315,7 @@ export async function renderRadio(ctx) {
   scene = h('section.as-rd', room, shelf);
   ctx.body.append(scene); ctx.right.append(navBtn('more', '设置', () => settings()));
 
-  const paintWho = () => { const c = cur(); face.replaceChildren(c ? avatar(c.avatar, nameOf(c), 64) : icon('users', 30, 1.8)); ctx.title.textContent = c ? nameOf(c) : '所有人'; };
+  const paintWho = () => { const c = cur(); face.replaceChildren(c ? avatar(c.avatar, nameOf(c), 64) : icon('users', 30, 1.8)); ctx.title.textContent = c ? real(c) : '所有人'; };
   function paintShelf() {
     const c = cur(), list = D.books.filter(b => !c || b.who === c.id).sort((a, b) => b.at - a.at);
     shelf.replaceChildren(h('button.as-rd__spine.is-add', { onclick: add }, h('img', { src: 'assets/radio/spine7.webp', alt: '' }), h('span', '＋ 讲一个')),
@@ -348,21 +348,21 @@ export async function renderRadio(ctx) {
   paintWho(); paintShelf();
 
   async function pickWho() {
-    const v = await actionSheet('谁来讲', [...friends().map(c => ({ value: c.id, label: nameOf(c), active: cur() === c })), { value: 'all', label: '所有人讲过的', active: D.who === 'all' }]);
+    const v = await actionSheet('谁来讲', [...friends().map(c => ({ value: c.id, label: real(c), active: cur() === c })), { value: 'all', label: '所有人讲过的', active: D.who === 'all' }]);
     if (!v) return;
     D.who = v; save(); watch.classList.remove('is-tick'); void watch.offsetWidth; watch.classList.add('is-tick'); tell();
   }
 }
 const voiceLabel = c => { const conn = connFor(c.id); if (!conn) return '还没设语音接口'; const v = voiceOf(c.id, conn); return v.from === 'own' ? v.name || v.voice : '默认音色'; };
 const pickTts = () => actionSheet('什么时候合成', TTS.map(([value, label]) => ({ value, label, active: S().tts === value })));
-const pickRole = async () => { const v = await actionSheet('谁来讲', friends().map(c => ({ value: c.id, label: nameOf(c) }))); return v && contact(v); };
+const pickRole = async () => { const v = await actionSheet('谁来讲', friends().map(c => ({ value: c.id, label: real(c) }))); return v && contact(v); };
 async function add() {
   const c = cur() || await pickRole();
   if (!c) return friends().length || toast('先在聊天里加个联系人');
   return what(c);
 }
 async function what(c) {
-  const v = await actionSheet(`${nameOf(c)} 讲什么`, [{ value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
+  const v = await actionSheet(`${real(c)} 讲什么`, [{ value: 'rand', label: '随便讲一个' }, { value: 'ask', label: '想听什么' }, { value: 'lib', label: '书店里的老故事' }, { value: 'mine', label: '粘贴或导入' }]);
   if (v === 'rand') return tellNew(c, '随便讲一个：可以是你自己编的，也可以是各地的民间故事、寓言、童话。');
   if (v === 'lib') return libSheet(c);
   if (v === 'mine') return importSheet(c);
@@ -373,7 +373,7 @@ async function what(c) {
     sheep: `陪 ${me} 数羊、哄 TA 睡觉：声音轻、节奏慢，一只一只地数，中间夹几句轻轻的话。`, own: `讲一个故事：${own}` }[k];
   if (topic && (k !== 'own' || own)) tellNew(c, topic, k === 'recall');
 }
-const tellNew = (c, what, recall) => task(`${nameOf(c)} 在想故事…`, async stop => made(await compose1(c, what, recall, stop), '讲好了'));
+const tellNew = (c, what, recall) => task(`${real(c)} 在想故事…`, async stop => made(await compose1(c, what, recall, stop), '讲好了'));
 function libSheet(c) {
   const L = langOf(c), order = [...new Set(LIB.map(x => x.lang))].sort((a, b) => same(b, L) - same(a, L));
   const s = sheet({ title: '书店里的老故事', content: order.map(l => group(lname(l), LIB.filter(x => x.lang === l).map(x => item({ title: x.title, sub: x.from, chevron: true, onClick: () => { s.close(); fromLib(c, x); } })))) });
@@ -388,7 +388,7 @@ async function fromLib(c, x) {
   const keys = ['ai', 'mt'].map(k => `radio:lib:${x.id}:${L}${k === 'ai' ? '' : ':mt'}`);
   for (const k of keys) { const got = await kvGet(k).catch(() => null); if (got) return make(got); }
   const how = await howTrans();
-  if (how) task(`${nameOf(c)} 在翻《${x.title}》…`, async stop => { const segs = await transBy(how, c, ps, x.lang, L, stop); await kvSet(keys[how === 'ai' ? 0 : 1], segs).catch(() => {}); await make(segs); });
+  if (how) task(`${real(c)} 在翻《${x.title}》…`, async stop => { const segs = await transBy(how, c, ps, x.lang, L, stop); await kvSet(keys[how === 'ai' ? 0 : 1], segs).catch(() => {}); await make(segs); });
 }
 function importSheet(c) {
   const t = input({ placeholder: '书名' }), body = textarea({ placeholder: '故事', rows: 8 });
@@ -403,7 +403,7 @@ async function fromText(c, title, ps) {
     : await actionSheet(`原文是${lname(from)}`, [{ value: 'to', label: `让 TA 翻成${lname(L)}讲` }, { value: 'raw', label: '照原文念' }]);
   if (v === 'raw') return make(ps.map(t => ({ t, tr: '' })), from);
   const how = v === 'to' && await howTrans();
-  if (how) task(`${nameOf(c)} 在翻《${title}》…`, async stop => make(await transBy(how, c, ps, from, L, stop), L));
+  if (how) task(`${real(c)} 在翻《${title}》…`, async stop => make(await transBy(how, c, ps, from, L, stop), L));
 }
 async function delBooks(list) {
   if (!(await dialog({ title: list.length > 1 ? `删除这 ${list.length} 本？` : `删除《${list[0].title}》？`, text: '合成好的声音也一起删掉', confirm: '删除', danger: true }))) return false;
@@ -418,7 +418,7 @@ function settings(c = cur()) {
   const set = (k, v) => { S()[k] = v; commit('music'); tell(); };
   // 这个角色用什么语言讲、用哪个声音：点了换，只改右边那几个字
   const langV = c && h('span', lname(langOf(c))), voiceV = c && h('span', voiceLabel(c));
-  const who = c && group(nameOf(c), [
+  const who = c && group(real(c), [
     item({ title: '讲故事用的语言', right: langV, chevron: true, onClick: async () => {
       const l = await actionSheet('讲故事用的语言', ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, langOf(c)) })));
       if (l) { D.lang[c.id] = l; save(); langV.textContent = lname(l); }
@@ -573,19 +573,19 @@ function openBook(b) {
     const v = await actionSheet(b.title, [{ value: 'set', label: '设置' },
       b.after && { value: 'again', label: '重新说感想' }, { value: 'del', label: '删除', danger: true }].filter(Boolean));
     if (v === 'set') settings(contact(b.who));
-    if (v === 'again') task(`${nameOf(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
+    if (v === 'again') task(`${real(c)} 在想感想…`, async stop => { const old = b.after; b.after = null; try { await thoughts(b, stop); } catch (e) { b.after = old; throw e; } toast('想好了，翻到感想了'); tell(); go(b.segs.length); });
     if (v === 'del' && await delBooks([b])) nav.back();
   };
   const p = page({ app: 'music', id: 'radio-read', title: b.title, cls: 'as-rd-read.is-dark', right: navBtn('more', '更多', more) });
   const L = h('div.as-rd-pg'), R = h('div.as-rd-pg.is-r'), count = h('span'), playB = h('button.as-rd-play', { 'aria-label': '播放 / 暂停', onclick: toggle });
   const sayT = h('span'), sayTr = h('span'), row = bubEl = h('div.as-rd-bub', avatar(c.avatar, nameOf(c), 34), h('p', sayT, h('small', sayTr)));
   // 还没有感想：让 TA 说说（想好了直接翻到感想）；有了：翻到感想那页
-  const afterB = h('button', { onclick: () => b.after ? go(b.segs.length) : task(`${nameOf(c)} 在想感想…`, async stop => { await thoughts(b, stop); toast('想好了，翻到感想了'); tell(); go(b.segs.length); }) });
+  const afterB = h('button', { onclick: () => b.after ? go(b.segs.length) : task(`${real(c)} 在想感想…`, async stop => { await thoughts(b, stop); toast('想好了，翻到感想了'); tell(); go(b.segs.length); }) });
   const langB = h('button.as-rd-lang', { onclick: async () => {
     const v = await actionSheet('讲故事用的语言', ALL_LANGS.map(([value, label]) => ({ value, label, active: same(value, b.lang) })));
     if (!v || same(v, b.lang)) return;
     const done = Object.keys(b.vers || {}).some(k => same(k, v)) || isZh(v) && lines(b).every(s => s.tr), how = done ? 'ai' : await howTrans();   // 翻过、或者换成中文直接用翻译的，不用问
-    if (how) task(`${nameOf(c)} 在换成${lname(v)}…`, async stop => { await relang(b, v, how, stop); toast(`换成${lname(v)}了`); });
+    if (how) task(`${real(c)} 在换成${lname(v)}…`, async stop => { await relang(b, v, how, stop); toast(`换成${lname(v)}了`); });
   } });
   const RATES = [.75, 1, 1.25, 1.5, 2], rateL = r => r === 1 ? '倍速' : r + 'x';
   const rateB = h('button', { onclick: async () => {

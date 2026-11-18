@@ -2,7 +2,7 @@
 // 时间照「设置 → 时间」用的是现实还是剧情：两套都记着（time.stamp()），换了设置这里跟着换。
 // 入口：一起听那块点「一起听了多久」；聊天里 TA 的资料页 / 群设置。
 import { h } from '../../core/util.js';
-import { state, contact } from '../../core/store.js';
+import { state, contact, nickOf } from '../../core/store.js';
 import { page, avatar, empty } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -38,7 +38,7 @@ export function openReport(who) {
   p.body.append(h('div.as-rp__card',
     h('div.as-rp__date', story ? '剧情时间' : '现实时间', h('span', ymd(story ? T.story().date : new Date()))),
     h('div.as-rp__pair', mine, theirs),
-    h('div.as-rp__names', me.nick || myNick(), h('i', '&'), grp ? who.name : nameOf(who)),
+    h('div.as-rp__names', me.nick || myNick(), h('i', '&'), grp ? who.name : nickOf(who, 'music') || who.name || nameOf(who)),
     h('div.as-rp__stats', stat('陪伴彼此', dur(P.togetherSec(who)), ''), stat('一起听过', String(songs.length), ' 首歌'), stat('共同红心', String(both), ' 首歌')),
     f ? h('div.as-rp__lines',
       line('你们第一次一起听歌是在', first),

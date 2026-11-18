@@ -1005,9 +1005,9 @@ function openPeople() {
   const F = E.F(), P = id => (F.people[id] = F.people[id] || {});
   const VS = [['', '不加'], ['y', '黄 V'], ['b', '蓝 V'], ['r', '橙 V']], label = c => P(c.id).off ? '不上论坛' : (VS.find(x => x[0] === E.isV(c)) || VS[0])[1].replace('不加', '');
   pg.body.append(h('div.as-fo-set', friends().length ? group('', friends().map(c => {
-    const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: nameOf(c), value: label(c), chevron: true, onClick: () => {
+    const row = item({ icon: avatar(c.avatar, nameOf(c), 28), color: 'transparent', title: c.name || nameOf(c), value: label(c), chevron: true, onClick: () => {
       const d = { ...P(c.id) }, nick = input({ value: d.name || '', placeholder: '网名' });
-      editSheet(nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('会员', segmented(VIPS, E.who({ k: 'c', id: c.id }).vip, v => { d.vip = v; })), field('网名', nick)], () => {
+      editSheet(c.name || nameOf(c), [toggleItem({ title: '上论坛' }, !d.off, v => { d.off = !v; }), field('加 V', segmented(VS, E.isV(c), v => { d.v = v; })), field('会员', segmented(VIPS, E.who({ k: 'c', id: c.id }).vip, v => { d.vip = v; })), field('网名', nick)], () => {
         d.name = nick.value.trim().slice(0, 20); Object.assign(P(c.id), d); commit('forum'); row.querySelector('.as-list-item__value').textContent = label(c);
       });
     } });
