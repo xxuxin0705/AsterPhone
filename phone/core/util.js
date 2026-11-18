@@ -81,10 +81,10 @@ export function fileToDataURL(file, maxSize = 512, type = 'image/jpeg') {   // �
     img.onerror = e => { URL.revokeObjectURL(url); rej(e); }; img.src = url;
   });
 }
-export function pickFile(accept = 'image/*') {
+export function pickFile(accept = 'image/*', multi = false) {   // multi：能一次选好几个，回的是数组
   return new Promise(res => {
-    const i = document.createElement('input'); i.type = 'file'; i.accept = accept;
-    i.onchange = () => res(i.files[0] || null); i.click();
+    const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = multi;
+    i.onchange = () => res(multi ? [...i.files] : i.files[0] || null); i.click();
   });
 }
 

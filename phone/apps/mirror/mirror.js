@@ -1,10 +1,10 @@
-// 映像：每个人一面碎镜子，5 片各管一类（资料、声音与语言、生图、立绘、世界书）。
-// 碎片里映着这个人的图，每片默认对着图的不同地方（眼睛、嘴、脸、身子、角落）；光藏在碎片后面，朝光那头发白。
-// 点一片：它浮到前面、描边发亮，整面镜子挪到左边，右边一栏列出这一类的几项；点一项它按下去，上面出来能改的。
-// 碎片里的图：默认都用「主图」（没设就用头像），每片也能单独换一张；点开那片后在它上面拖动挪位置、两指捏放大缩小。
+// 映像：每个人一朵 5 片的玻璃花，5 片各管一类（资料、声音与语言、生图、立绘、世界书）。
+// 碎片里清清楚楚映着这个人的图，光从花心来：靠花心亮、往外暗。
+// 点一片：它亮起白边，整朵花挪到左边，右边一栏列出这一类的几项；点一项它按下去，上面出来能改的。
+// 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, empty, pickImage, dateField, nudger, actionSheet } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -12,82 +12,49 @@ import { nameOf } from '../chat/engine.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const svg = (tag, a = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
-// 碎片在 393×852 的画布上：形状、离你多远（z）、往哪斜、图对着哪（fx fy 是图上的比例位置，k 放大）、字放在哪个角
+// 底图是一朵 5 片的玻璃花（842×1869），铺满 393×852 的画布；5 片的轮廓照着底图描，顺时针从上面那片起。l 是字放的地方（每片朝外、偏暗的那头）
+const K = 393 / 842, OY = (852 - 1869 * K) / 2, map = ([x, y]) => [x * K, y * K + OY];
 const SH = [
-  { n: '资料', p: [[-1, 159], [154, 138], [127, 217], [170, 252], [85, 360], [-1, 307]], z: 10, rx: 6, ry: -12, fx: .5, fy: .3, k: 2.2, t: [18, 300] },
-  { n: '声音与语言', p: [[176, 193], [290, 149], [389, 168], [376, 304], [397, 381], [259, 358], [220, 275]], z: -40, rx: -8, ry: 14, fx: .5, fy: .56, k: 2, t: [300, 330] },
-  { n: '生图', p: [[139, 326], [231, 303], [254, 341], [303, 385], [280, 540], [208, 595], [111, 509], [129, 429], [76, 394]], z: 70, rx: -4, ry: 6, fx: .5, fy: .45, k: 1.1, t: [132, 490] },
-  { n: '立绘', p: [[-5, 458], [63, 440], [130, 497], [113, 599], [147, 730], [-5, 676]], z: -60, rx: 10, ry: -10, fx: .5, fy: .68, k: 1.6, t: [16, 650] },
-  { n: '世界书', p: [[190, 592], [321, 520], [396, 584], [382, 674], [400, 766], [265, 794], [236, 691]], z: 20, rx: -9, ry: 10, fx: .3, fy: .66, k: 1.7, t: [292, 738] },
-];
-const LT = [200, 480];   // 光藏在这一带的碎片后面（不画出来）
-// 每片往自己中心收一点、大小拉开（3 最大，2、4 最小），片和片之间留出黑缝；字放在离光最远的那个角上
-SH.forEach((s, i) => { const k = [.84, .78, .96, .76, .82][i], m = s.p.reduce((a, q) => [a[0] + q[0] / s.p.length, a[1] + q[1] / s.p.length], [0, 0]);
-  s.p = s.p.map(([x, y]) => [m[0] + (x - m[0]) * k, m[1] + (y - m[1]) * k + 40]);
-  const far = s.p.reduce((b, q) => (Math.hypot(q[0] - LT[0], q[1] - LT[1]) > Math.hypot(b[0] - LT[0], b[1] - LT[1]) ? q : b));
-  s.t = [far[0] + (m[0] - far[0]) * .3, far[1] + (m[1] - far[1]) * .3]; });
-
-// 毛边：每条边切成小段往两边抖一点，偶尔崩一个小口；种子定死，每次打开都一样
-function jag(pts) {
-  let s = 7; const r = () => (s = s * 16807 % 2147483647) / 2147483647, o = [];
-  pts.forEach((p, k) => { const q = pts[(k + 1) % pts.length], n = Math.max(3, Math.round(Math.hypot(q[0] - p[0], q[1] - p[1]) / 11)), nx = -(q[1] - p[1]), ny = q[0] - p[0], L = Math.hypot(nx, ny);
-    for (let j = 0; j < n; j++) { const t = j / n, d = j ? (r() - .5) * 1.4 + (r() < .1 ? -2 : 0) : 0; o.push(`${(p[0] + (q[0] - p[0]) * t + nx / L * d).toFixed(1)},${(p[1] + (q[1] - p[1]) * t + ny / L * d).toFixed(1)}`); } });
-  return o.join(' ');
-}
+  { n: '资料', p: [[315, 348], [435, 430], [578, 582], [548, 700], [470, 808], [440, 893], [380, 850], [300, 760], [240, 585], [270, 500]], l: [262, 470] },
+  { n: '声音与语言', p: [[497, 800], [842, 603], [842, 890], [640, 978], [605, 970], [560, 900]], l: [588, 822] },
+  { n: '生图', p: [[505, 990], [640, 1040], [730, 1110], [830, 1255], [822, 1365], [705, 1408], [555, 1335], [462, 1205], [482, 1080]], l: [640, 1290] },
+  { n: '立绘', p: [[395, 1022], [430, 1255], [375, 1338], [80, 1442], [68, 1420], [100, 1280], [160, 1160], [280, 1075]], l: [110, 1385] },
+  { n: '世界书', p: [[0, 722], [160, 762], [300, 800], [380, 893], [362, 975], [255, 1012], [90, 1067], [0, 1032]], l: [18, 800] },
+].map(s => ({ ...s, p: s.p.map(map), l: map(s.l) }));
+const LT = map([430, 950]);   // 光：5 片中间那团亮光
+const JIT = [[0, -4], [6, 3], [-5, 6], [4, -5], [-6, 2]];   // 每片映着的图各错一点，看得出是 5 面镜子
 const mid = p => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
 
+// 一片：图是清楚的；靠光那头亮、往外暗，朝光的边最亮（跟着光走，不是随便涂）
 function shard(s, i, onTap) {
-  const P = jag(s.p), c = mid(s.p), u = 'mz' + i, a = Math.atan2(LT[1] - c[1], LT[0] - c[0]), lx = Math.cos(a), ly = Math.sin(a);
-  const grad = (id, o) => { const g = svg('linearGradient', { id: id + u, gradientUnits: 'userSpaceOnUse', x1: c[0] + lx * 130, y1: c[1] + ly * 130, x2: c[0] - lx * 120, y2: c[1] - ly * 120 }); o.forEach(([off, col, op]) => g.append(svg('stop', { offset: off, 'stop-color': col, 'stop-opacity': op }))); return g; };
+  const P = s.p.map(q => q.join(',')).join(' '), c = mid(s.p), u = 'mz' + i, [lx, ly] = LT;
+  const rad = (id, r, o) => { const g = svg('radialGradient', { id: id + u, gradientUnits: 'userSpaceOnUse', cx: lx, cy: ly, r }); o.forEach(([off, col, op = 1]) => g.append(svg('stop', { offset: off, 'stop-color': col, 'stop-opacity': op }))); return g; };
   const blur = (id, d) => { const f = svg('filter', { id: id + u, x: '-30%', y: '-30%', width: '160%', height: '160%' }); f.append(svg('feGaussianBlur', { stdDeviation: d })); return f; };
   const clip = svg('clipPath', { id: 'c' + u }); clip.append(svg('polygon', { points: P }));
-  const defs = svg('defs'); defs.append(clip, blur('b', 3), blur('d', 6 + Math.max(0, s.z) / 12),
-    grad('w', [[0, '#fff', .5], [.18, '#f4f1ff', .16], [.4, '#fff', 0], [.82, '#060414', .28], [1, '#060414', .62]]),
-    grad('r', [[0, '#fff', 1], [.5, '#eeeaff', .8], [1, '#b9b3e0', .35]]));
+  const defs = svg('defs'); defs.append(clip, blur('b', 3), blur('d', 8),
+    rad('m', 260, [[.12, '#fff'], [.45, '#cfc8ec'], [1, '#4a4278']]), rad('g', 150, [[0, '#fff0ff', .75], [.5, '#c8b4ff', .25], [1, '#c8b4ff', 0]]), rad('e', 240, [[.17, '#fffaff', .9], [1, '#fff', .08]]));
   const img = svg('image', { preserveAspectRatio: 'xMidYMid slice' });
-  // 图上 (fx, fy) 那一点对准这片的中间，k 是放大
-  const place = (src, fx, fy, k) => { const W = 300 * k; if (src) img.setAttribute('href', src); else img.removeAttribute('href');
-    Object.entries({ x: c[0] - fx * W, y: c[1] - fy * W, width: W, height: W }).forEach(([key, v]) => img.setAttribute(key, v)); };
-  const body = svg('g', { 'clip-path': `url(#c${u})` });
-  body.append(svg('rect', { width: 393, height: 852, fill: '#1c1a2e' }), img, svg('rect', { width: 393, height: 852, fill: `url(#w${u})` }),
-    svg('polygon', { points: P, fill: 'none', stroke: '#fff', 'stroke-opacity': .35, 'stroke-width': 7, filter: `url(#b${u})` }));
+  const place = (src, x, y, w, hh) => { if (src) img.setAttribute('href', src); else img.removeAttribute('href'); Object.entries({ x, y, width: w, height: hh }).forEach(([k, v]) => img.setAttribute(k, v)); };
+  const full = { width: 393, height: 852 }, body = svg('g', { 'clip-path': `url(#c${u})`, style: 'isolation:isolate' });
+  body.append(svg('rect', { ...full, fill: '#15132a' }), img, svg('rect', { ...full, fill: `url(#m${u})`, style: 'mix-blend-mode:multiply' }),
+    svg('rect', { ...full, fill: `url(#g${u})`, style: 'mix-blend-mode:screen' }), svg('polygon', { points: P, fill: 'none', stroke: `url(#e${u})`, 'stroke-width': 7, filter: `url(#b${u})` }));
   const el = svg('svg', { viewBox: '0 0 393 852', class: 'mz-shard' });
-  el.append(defs, svg('polygon', { points: P, fill: '#000', opacity: .7, transform: `translate(${8 + s.z / 8} ${14 + s.z / 5})`, filter: `url(#d${u})` }),
-    svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#dcd7ff', 'stroke-width': 6, filter: `url(#b${u})` }), body,
-    svg('polygon', { points: P, fill: 'none', stroke: '#fff', 'stroke-opacity': .22, transform: 'translate(1.6 2.2)' }),   // 玻璃的厚度：错开一点的第二道边
-    svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: `url(#r${u})`, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }),
+  el.append(defs, svg('polygon', { points: P, fill: '#000', opacity: .6, transform: 'translate(0 6)', filter: `url(#d${u})` }),
+    svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#e8e2ff', 'stroke-width': 5, filter: `url(#b${u})` }), body,
+    svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: '#fff', 'stroke-opacity': .85, 'stroke-width': 1, 'stroke-linejoin': 'round' }),
     Object.assign(svg('polygon', { points: P, fill: 'transparent' }), { onclick: e => { e.stopPropagation(); onTap(i); } }));
-  el.style.cssText = `transform-origin:${c[0] / 3.93}% ${c[1] / 8.52}%;--z:${s.z}px;--rx:${s.rx}deg;--ry:${s.ry}deg`;
-  return { el, c, place };
-}
-
-// 背景：满屏的星，一条银河斜着穿过去（不集中在中间），画一次
-function sky(cv) {
-  const d = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth || 393, H = cv.clientHeight || 852;
-  cv.width = W * d; cv.height = H * d; const g = cv.getContext('2d'); g.scale(d, d);
-  let s = 31; const r = () => (s = s * 16807 % 2147483647) / 2147483647, gs = () => (r() + r() + r() + r() - 2) / 2;
-  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#060a1c'); bg.addColorStop(.5, '#05061a'); bg.addColorStop(1, '#030309'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  const band = t => [-.15 * W + t * 1.3 * W, H * 1.05 - t * 1.15 * H], nx = .88, ny = .47;
-  const dot = (x, y, rad, a, col) => { g.fillStyle = `rgba(${col},${a})`; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill(); };
-  const COL = ['255,255,255', '210,225,255', '255,236,215', '190,205,255', '255,215,230'];
-  g.globalCompositeOperation = 'lighter';
-  for (let k = 0; k < 46; k++) { const [x, y] = band(r()), o = gs() * 50, cx = x + nx * o, cy = y + ny * o, rad = 50 + r() * 90, col = [[110, 120, 220], [170, 110, 200], [90, 150, 210], [210, 150, 190], [120, 100, 190]][k % 5];
-    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, rad); rg.addColorStop(0, `rgba(${col},${.07 + r() * .06})`); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(cx - rad, cy - rad, rad * 2, rad * 2); }
-  for (let k = 0; k < 5200; k++) { const [x, y] = band(r()), o = gs() * 70; dot(x + nx * o + gs() * 8, y + ny * o + gs() * 8, r() < .96 ? .32 + r() * .3 : .7, .25 + r() * .6, COL[k % 5]); }
-  for (let k = 0; k < 1300; k++) dot(r() * W, r() * H, r() < .93 ? .3 + r() * .35 : .7 + r() * .5, .2 + r() * .7, COL[k % 5]);
-  g.globalCompositeOperation = 'source-over';
-  for (let k = 0; k < 30; k++) { const [x, y] = band(r()), o = gs() * 14, cx = x + nx * o, cy = y + ny * o, rad = 18 + r() * 30; const rg = g.createRadialGradient(cx, cy, 0, cx, cy, rad); rg.addColorStop(0, 'rgba(3,4,12,.35)'); rg.addColorStop(1, 'rgba(3,4,12,0)'); g.fillStyle = rg; g.fillRect(cx - rad, cy - rad, rad * 2, rad * 2); }
-  g.globalCompositeOperation = 'lighter';
-  for (let k = 0; k < 14; k++) { const x = r() * W, y = r() * H, a = .5 + r() * .5, L = 4 + r() * 9, rg = g.createRadialGradient(x, y, 0, x, y, L);
-    rg.addColorStop(0, `rgba(255,255,255,${a})`); rg.addColorStop(.25, `rgba(200,215,255,${a * .25})`); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - L, y - L, L * 2, L * 2);
-    g.strokeStyle = `rgba(230,236,255,${a * .55})`; g.lineWidth = .5; g.beginPath(); g.moveTo(x - L * 1.3, y); g.lineTo(x + L * 1.3, y); g.moveTo(x, y - L * 1.3); g.lineTo(x, y + L * 1.3); g.stroke(); }
+  const d = Math.hypot(c[0] - lx, c[1] - ly) || 1;   // 第一次打开时从哪个方向飞进来
+  el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px`;
+  const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]);
+  return { el, c, size: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), place };
 }
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
-   x：{ pic 重摆碎片的图, roster 重画头像排 } */
+   x：{ pic 重摆碎片的图, roster 重画头像排, reopen 重开这一类, pre 进预览 } */
 const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
-let bookApp = '', picScope = 'one';
-const mirrorOf = c => (c.mirror ||= { main: '', shards: {} });
+let bookApp = '';
+const mirrorOf = c => { const M = c.mirror ||= { main: '' }; M.shards ||= {}; return M; };
+const draftOf = c => { const M = JSON.parse(JSON.stringify(c.mirror || {})); M.shards ||= {}; return M; };
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
 const pickPic = async size => { const f = await pickFile('image/*'); return f && fileToDataURL(f, size); };
 function rowsOf(i, c, x) {
@@ -95,23 +62,11 @@ function rowsOf(i, c, x) {
   const text = (k, ph) => ({ value: () => c[k] || '', edit: set => input({ value: c[k] || '', placeholder: ph, onInput: v => { c[k] = v; save(); set(); } }) });
   const choose = (opts, cur, on) => h('div.mz-chips', opts.map(([v, l]) => { const b = h('button' + (cur === v ? '.is-on' : ''), { onclick: async () => {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
-  // 图片：改「整张」（主图，所有没单独换过的碎片都映着它）或「这一片」；能换图、上下左右微调、放大缩小、还原。也能直接在点开的碎片上拖、两指捏
-  const own = ['图片', { value: () => (M.shards[i]?.src ? '这片单独一张' : M.main ? '整张：另传的' : '整张：头像'), edit: set => {
-    const whole = picScope === 'all', o = () => (whole ? (M.pos ||= {}) : (M.shards[i] ||= {}));
-    const step = (dx, dy, dk) => { const p = o(), d = whole ? { fx: 0, fy: 0, k: 1 } : { fx: SH[i].fx, fy: SH[i].fy, k: SH[i].k };
-      if (dk) p.k = Math.max(.3, Math.min(6, (p.k ?? d.k) * dk)); else { p.fx = (p.fx ?? d.fx) + dx * .01; p.fy = (p.fy ?? d.fy) + dy * .01; } save('pic'); };
-    const reset = () => { if (whole) delete M.pos; else if (M.shards[i]?.src) M.shards[i] = { src: M.shards[i].src }; else delete M.shards[i]; save('pic'); };
-    const up = whole ? choose([['avatar', '用头像'], ['pt', '用立绘'], ['pick', '传一张']], M.main ? '' : 'avatar', async v => {
-      if (v === 'pt') { const p = PT.loaded(c.id); if (!p) { toast('还没有立绘，先去照相馆'); return false; } M.main = p.base; }
-      else if (v === 'pick') { const p = await pickPic(1280); if (!p) return false; M.main = p; } else M.main = '';
-      save('pic'); set(); x.reopen(); })
-      : h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; M.shards[i] = { src: v }; save('pic'); x.reopen(); } }, M.shards[i]?.src ? '换一张' : '这片单独传一张'),
-        M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回整张') : '');
-    return h('div.mz-col', x.whole ? '' : choose([['all', '整张'], ['one', '这一片']], picScope, v => { picScope = v; x.reopen(); }),
-      (whole ? M.main : M.shards[i]?.src) ? thumb(whole ? M.main : M.shards[i].src) : '', up,
-      h('div.mz-fine', nudger((dx, dy) => step(-dx, -dy), reset),
-        h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))));
-  } }];
+  // 图片：这一片单独换一张，或者调位置；都先进预览，点了确定才换上
+  const own = ['图片', { value: () => (M.shards[i]?.src ? '这片单独一张' : '整张'), edit: () => h('div.mz-col', M.shards[i]?.src ? thumb(M.shards[i].src) : '',
+    h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(c); D.shards[i] = { src: v }; x.pre(D, i); } }, M.shards[i]?.src ? '换一张' : '这片单独一张'),
+      M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回整张') : '',
+      h('button', { onclick: () => x.pre(draftOf(c), i) }, '调位置'))) }];
   if (i === 0) return [
     ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
     ['真名', text('name', '真名')], ['网名', text('nick', '网名')], ['备注', text('remark', '备注')],
@@ -156,62 +111,114 @@ function rowsOf(i, c, x) {
 
 export function open() {
   const people = () => state.contacts;
-  let cur = people()[0], focus = -1;
+  let cur = people()[0], focus = -1, draft = null;   // draft：预览中的图 { M, sel 选中哪片（-1 是整张）, swap 等着跟哪片互换 }
   const p = page({ app: 'mirror', id: 'mirror-home', title: '', back: true, cls: 'as-mz' });
-  const cv = h('canvas.mz-sky'), stage = h('div.mz-stage'), side = h('aside.mz-side'), roster = h('div.mz-roster');
-  const nm = h('b'), real = h('small'), head = h('div.mz-head', nm, real);
+  const stage = h('div.mz-stage'), tilt = h('div.mz-tilt'), side = h('aside.mz-side'), roster = h('div.mz-roster');
+  const real = h('small'), head = h('div.mz-head', h('b', '映像'), real);
   p.nav.querySelector('.as-navbar__title').replaceWith(head);
-  // 右上角的图片键：直接改整张图（换图、挪位置、大小），镜子缩到左边，5 片都看得见
-  p.nav.querySelector('.as-navbar__right').append(navBtn('image', '整张图', () => (focus === 'all' ? at(-1) : whole())), roster);
+  p.nav.querySelector('.as-navbar__right').append(navBtn('image', '换图', () => cur && picMenu()), roster);
+  tilt.append(h('img.mz-bg', { src: 'assets/mirror/night.webp', alt: '', draggable: false, style: { top: OY / 8.52 + '%', height: 1869 * K / 8.52 + '%' } }));
   const tags = [], parts = SH.map((s, i) => {
-    const sh = shard(s, i, at); stage.append(sh.el);
-    const t = h('div.mz-tag', { style: { left: s.t[0] / 3.93 + '%', top: s.t[1] / 8.52 + '%', textAlign: s.t[0] > 196 ? 'right' : 'left', translate: s.t[0] > 196 ? '-100% -50%' : '0 -50%' }, onclick: e => { e.stopPropagation(); at(i); } }, h('em', i + 1), h('b', s.n));
-    tags.push(t); stage.append(t); return sh;
+    const sh = shard(s, i, tap); tilt.append(sh.el);
+    const t = h('div.mz-tag', { style: { left: s.l[0] / 3.93 + '%', top: s.l[1] / 8.52 + '%' }, onclick: e => { e.stopPropagation(); tap(i); } }, h('em', i + 1), h('b', s.n));
+    tags.push(t); tilt.append(t); return sh;
   });
-  const meteors = [h('i.mz-meteor'), h('i.mz-meteor.is-b')];
-  p.el.prepend(cv, ...meteors);
-  stage.onclick = () => at(-1);
-  // 每片的图：单独换过的用自己的，没换的用主图（没设主图就用头像）；位置没挪过就照默认对着的地方
-  const posOf = i => { const M = cur.mirror || {}, o = (M.shards || {})[i] || {}, a = (!o.src && M.pos) || {}, s = SH[i];
-    return [o.src || M.main || cur.avatar || '', o.fx ?? s.fx + (a.fx || 0), o.fy ?? s.fy + (a.fy || 0), o.k ?? s.k * (a.k || 1)]; };
+  stage.append(tilt);
+  p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
+  // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
+  const kOf = o => ('fx' in o ? 1 : o.k || 1);
+  const posOf = i => { const M = draft?.M || cur.mirror || {}, o = (M.shards || {})[i] || {}, a = M.pos || {}, sh = parts[i];
+    if (o.src) { const S = sh.size * 1.15 * kOf(o); return [o.src, sh.c[0] + (o.x || 0) - S / 2, sh.c[1] + (o.y || 0) - S / 2, S, S]; }
+    const k = kOf(a) * kOf(o), W = 393 * k, H = 852 * k;
+    return [M.main || cur.avatar || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
   const pics = () => parts.forEach((sh, i) => sh.place(...posOf(i)));
-  // 点开一片后在它上面拖：挪图；两只手指：放大缩小。松手才存
-  const pts = new Map(); let grab = null;
+  // 换上新图前先解码好，碎片里不会空一下
+  const fresh = () => Promise.all([...new Set(parts.map((_, i) => posOf(i)[0]))].filter(Boolean).map(u => { const im = new Image(); im.src = u; return im.decode().catch(() => {}); })).then(pics);
+  const mark = () => parts.forEach((sh, k) => sh.el.classList.toggle('is-on', k === (draft ? draft.sel : focus)));
+  // 手指：预览里拖是挪图、两指捏是放大缩小；平时拖一拖，整朵花跟着斜一点
+  const pts = new Map(); let grab = null, moved = false;
+  const target = () => (draft.sel >= 0 ? (draft.M.shards[draft.sel] ||= {}) : (draft.M.pos ||= {}));
   stage.addEventListener('pointerdown', e => {
-    if (focus < 0 || !e.target.closest('.mz-shard.is-on')) return;
-    pts.set(e.pointerId, [e.clientX, e.clientY]); e.target.setPointerCapture?.(e.pointerId);
-    const [, fx, fy, k] = posOf(focus); grab = { fx, fy, k, at: [...pts.values()].map(p => [...p]), moved: false };
+    moved = false; if (focus >= 0) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    const t = draft && target(), at0 = [...pts.values()].map(q => [...q]);
+    grab = draft ? { x: t.x || 0, y: t.y || 0, k: kOf(t), at: at0 } : { at: at0 };
   });
   stage.addEventListener('pointermove', e => {
     if (!grab || !pts.has(e.pointerId)) return;
     pts.set(e.pointerId, [e.clientX, e.clientY]);
-    const now = [...pts.values()], u = 393 / stage.clientWidth / 1.12, sh = parts[focus], o = mirrorOf(cur).shards[focus] ||= {};
-    if (now.length > 1 && grab.at.length > 1) { const d = (a, b) => Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]) || b; o.k = Math.max(.3, Math.min(6, grab.k * d(now, 1) / d(grab.at, 1))); }
-    else { const dx = (now[0][0] - grab.at[0][0]) * u, dy = (now[0][1] - grab.at[0][1]) * u, W = 300 * (o.k ?? grab.k); o.fx = grab.fx - dx / W; o.fy = grab.fy - dy / W; }
-    grab.moved = true; sh.place(...posOf(focus));
-  });
-  const drop = e => { pts.delete(e.pointerId); if (!grab) return; if (grab.moved) commit('contacts'); if (pts.size) { const [, fx, fy, k] = posOf(focus); grab = { fx, fy, k, at: [...pts.values()].map(p => [...p]), moved: grab.moved }; } else grab = null; };
-  stage.addEventListener('pointerup', drop); stage.addEventListener('pointercancel', drop);
-  // 换人：只换图、名字和头像排里的亮的那个，碎片不重画
-  function show(c) {
-    cur = c; at(-1);
+    const now = [...pts.values()], dx = now[0][0] - grab.at[0][0], dy = now[0][1] - grab.at[0][1];
+    if (!moved && Math.hypot(dx, dy) < 6 && now.length < 2) return;
+    if (!moved) e.target.setPointerCapture?.(e.pointerId);
+    moved = true;
+    if (!draft) { const c = v => Math.max(-9, Math.min(9, v / 16)); tilt.style.transform = `rotateY(${c(dx)}deg) rotateX(${c(-dy)}deg)`; return; }
+    const t = target(), u = 393 / stage.getBoundingClientRect().width;
+    if (now.length > 1 && grab.at.length > 1) { const d = q => Math.hypot(q[0][0] - q[1][0], q[0][1] - q[1][1]) || 1; t.k = Math.max(.3, Math.min(6, grab.k * d(now) / d(grab.at))); delete t.fx; }
+    else { t.x = grab.x + dx * u; t.y = grab.y + dy * u; }
     pics();
-    nm.textContent = nameOf(c); real.textContent = c.name && c.name !== nameOf(c) ? '真名 ' + c.name : '';
-    roster.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.dataset.id === c.id));
+  });
+  const drop = e => { pts.delete(e.pointerId); if (!grab) return; if (pts.size && draft) { const t = target(); grab = { x: t.x || 0, y: t.y || 0, k: kOf(t), at: [...pts.values()].map(q => [...q]) }; } else if (!pts.size) { grab = null; tilt.style.transform = ''; } };
+  stage.addEventListener('pointerup', drop); stage.addEventListener('pointercancel', drop);
+  stage.onclick = () => { if (moved) return; if (draft) { draft.sel = -1; draft.swap = -1; mark(); preSide(); } else at(-1); };
+  function tap(i) {
+    if (moved) return;
+    if (!draft) return at(i);
+    const S = draft.M.shards;
+    if (draft.swap >= 0 && draft.swap !== i) { const a = S[draft.swap], b = S[i]; if (b) S[draft.swap] = b; else delete S[draft.swap]; if (a) S[i] = a; else delete S[i]; draft.swap = -1; pics(); }
+    else draft.sel = draft.sel === i ? -1 : i;
+    mark(); preSide();
   }
+  // 预览：图先换在这里看，挪好、缩放好，点确定才存；取消就当没换过
+  function pre(M, sel = -1) {
+    focus = -1; draft = { M, sel, swap: -1 };
+    p.el.classList.add('is-focus', 'is-pre');
+    stage.style.transform = 'translate(-17%, 6%) scale(.66)';
+    fresh(); mark(); preSide();
+  }
+  function preSide() {
+    const step = (dx, dy, dk) => { const t = target(); if (dk) { t.k = Math.max(.3, Math.min(6, kOf(t) * dk)); delete t.fx; } else { t.x = (t.x || 0) + dx * 2; t.y = (t.y || 0) + dy * 2; } pics(); };
+    const reset = () => { const t = target(); delete t.x; delete t.y; delete t.k; delete t.fx; delete t.fy; pics(); };
+    const end = ok => { if (ok) { cur.mirror = draft.M; commit('contacts'); } draft = null; p.el.classList.remove('is-pre', 'is-focus'); stage.style.transform = ''; side.replaceChildren(); pics(); mark(); };
+    const sel = draft.sel, mine = sel >= 0 && draft.M.shards[sel]?.src;
+    side.replaceChildren(h('h3', sel >= 0 ? [h('em', sel + 1), SH[sel].n] : '整张'),
+      h('div.mz-edit', h('div.mz-fine', nudger(step, reset), h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))),
+        h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : '')),
+      h('div.mz-bar', h('button', { onclick: () => end(false) }, '取消'), h('button.is-main', { onclick: () => end(true) }, '确定')));
+  }
+  // 右上角换图：一张拆开（5 片都映着它）/ 每片一张（按选的顺序放进 1～5 片，没选到的保持原样）/ 用立绘 / 用头像 / 调位置
+  async function picMenu() {
+    const v = await actionSheet('换图', [['one', '一张拆开'], ['many', '每片一张'], ['pt', '用立绘'], ['avatar', '用头像'], ['adj', '调位置']].map(([value, label]) => ({ value, label })));
+    if (!v) return;
+    const D = draftOf(cur);
+    if (v === 'one') { const s = await pickPic(1280); if (!s) return; D.main = s; delete D.pos; D.shards = {}; }
+    else if (v === 'many') { const fs = await pickFile('image/*', true); if (!fs.length) return; if (fs.length > 5) toast('只用前 5 张');
+      for (const [k, f] of fs.slice(0, 5).entries()) D.shards[k] = { src: await fileToDataURL(f, 1080) }; }
+    else if (v === 'pt') { const t = PT.loaded(cur.id); if (!t) return toast('还没有立绘，先去照相馆'); D.main = t.base; }
+    else if (v === 'avatar') D.main = '';
+    pre(D);
+  }
+  // 换人：只换图、真名和头像排里亮的那个，碎片不重画
+  function show(c) {
+    if (draft) { draft = null; p.el.classList.remove('is-pre'); }
+    cur = c; at(-1);
+    fresh(); show2();
+    roster.querySelectorAll('button[data-id]').forEach(b => b.classList.toggle('is-on', b.dataset.id === c.id));
+    roster.querySelector('.is-on')?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  }
+  // 头像排：一次露 4 个，多了左右滑；超过 4 个最后有个「更多」，点开是全部名单
   const paintRoster = () => roster.replaceChildren(...people().map(c => h('button' + (c === cur ? '.is-on' : ''), { dataset: { id: c.id }, 'aria-label': nameOf(c), onclick: () => show(c) },
-    c.avatar ? h('img', { src: c.avatar, alt: '' }) : h('span', nameOf(c).slice(0, 1)))));
-  // 点一片：它浮上来，整面镜子挪到左边，右边一栏是这一类的几项
+    c.avatar ? h('img', { src: c.avatar, alt: '' }) : h('span', nameOf(c).slice(0, 1)))),
+    people().length > 4 ? h('button.mz-more', { 'aria-label': '全部', onclick: async () => { const id = await actionSheet('换人', people().map(c => ({ value: c.id, label: nameOf(c), active: c === cur }))); const c = id && people().find(x => x.id === id); if (c) show(c); } }, '···') : '');
+  // 点一片：它浮上来，整朵花挪到左边，右边一栏是这一类的几项
   function at(i) {
-    if (i === focus) return;   // 点开着的那片：是在挪图，不收回去
+    if (i === focus) return;
     focus = i;
     p.el.classList.toggle('is-focus', i >= 0);
-    p.el.classList.remove('is-pic');
-    parts.forEach((sh, k) => sh.el.classList.toggle('is-on', k === i));
+    mark();
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
     stage.style.transform = i < 0 ? '' : `translate(${(110 - parts[i].c[0]) / 3.93}%, ${(430 - parts[i].c[1]) / 8.52}%)`;
     if (i < 0) { side.replaceChildren(); return; }
-    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-down')); focus = -1; at(i); side.querySelectorAll('.mz-card')[k]?.click(); } }), box = h('div.mz-edit');
+    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, pre, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-down')); focus = -1; at(i); side.querySelectorAll('.mz-card')[k]?.click(); } }), box = h('div.mz-edit');
     const cards = rows.map(([label, r]) => {
       const v = h('span', r.value()), card = h('button.mz-card', { onclick: () => {
         cards.forEach(x => x.classList.toggle('is-down', x === card));
@@ -219,21 +226,14 @@ export function open() {
       } }, h('small', label), v);
       return card;
     });
-    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), rows.length ? box : h('p.mz-soon', '下一步做'), h('div.mz-cards', cards));
+    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), box, h('div.mz-cards', cards));
     if (cards[0]) cards[0].click();
   }
-  function whole() {
-    if (!cur) return;
-    at(-1); focus = 'all'; picScope = 'all';
-    p.el.classList.add('is-focus', 'is-pic');
-    stage.style.transform = 'translate(-17%, 6%) scale(.66)';
-    const [, r] = rowsOf(0, cur, { pic: pics, roster: paintRoster, whole: true, reopen: whole }).at(-1);
-    side.replaceChildren(h('h3', '整张图'), h('div.mz-edit', r.edit(() => {})));
-  }
-  const show2 = () => { nm.textContent = nameOf(cur); real.textContent = cur.name && cur.name !== nameOf(cur) ? '真名 ' + cur.name : ''; };
+  const show2 = () => { real.textContent = cur.name || nameOf(cur); };
   p.body.append(stage, side);
   if (!cur) p.body.append(empty('还没有人，先去聊天里加个联系人'));
-  requestAnimationFrame(() => sky(cv));
+  // 第一次打开：5 片从四周飞进来拼成花，只放这一次
+  try { if (!localStorage.getItem('as-mz-intro')) { stage.classList.add('is-intro'); localStorage.setItem('as-mz-intro', '1'); setTimeout(() => stage.classList.remove('is-intro'), 1800); } } catch {}
   PT.preload(people().map(c => c.id));
   paintRoster(); if (cur) show(cur);
   p.el._onShow = () => { if (focus === 3) { const k = focus; focus = -1; at(k); } if (!people().includes(cur)) { cur = people()[0]; paintRoster(); if (cur) show(cur); } };
