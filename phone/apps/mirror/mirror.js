@@ -75,17 +75,28 @@ function rowsOf(i, c, x) {
     ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
     ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
   ];
-  // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；能照图画的渠道还会带上参考图
+  // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；定妆图拿来锁脸（能照图画的渠道才认），锁脸强度、种子每个人各一个
+  const pre = () => (state.settings.lookPresets ||= []);
   if (i === 2) return [
-    ['外貌', { value: () => c.look || '没写', edit: set => textarea({ value: c.look || '', rows: 6, placeholder: '外貌', onInput: v => { c.look = v.trim(); save(); set(); } }) }],
-    ['参考图', { value: () => (c.lookRef ? '有' : '不用'), edit: set => h('div.mz-col', c.lookRef ? thumb(c.lookRef) : '', choose([['avatar', '用头像'], ['pick', '传一张'], ['', '不用']], '', async v => {
-      if (v === 'avatar') { if (!c.avatar) { toast('还没有头像'); return false; } c.lookRef = c.avatar; }
-      else if (v === 'pick') { const p = await pickPic(1024); if (!p) return false; c.lookRef = p; } else delete c.lookRef;
-      save(); set(); x.reopen(); })) }],
+    ['外貌', { value: () => c.look || '没写', edit: set => {
+      const ta = textarea({ value: c.look || '', rows: 6, placeholder: '外貌提示词', onInput: v => { c.look = v.trim(); save(); set(); paint(); } }), chips = h('div.mz-chips');
+      const paint = () => chips.replaceChildren(...pre().map((x, k) => h('button.mz-preset' + (x.t === c.look ? '.is-on' : ''), { onclick: () => { c.look = x.t; ta.value = x.t; save(); set(); paint(); } }, x.n,
+        h('i', { 'aria-label': '删除预设', onclick: async e => { e.stopPropagation(); if (await dialog({ title: `删除预设「${x.n}」？`, confirm: '删除', danger: true })) { pre().splice(k, 1); commit('settings'); paint(); } } }, '×'))),
+        h('button', { onclick: async () => { const n = (await dialog({ title: '存为预设', input: { placeholder: '名字' } }) || '').trim(); if (!n || !c.look) return; pre().push({ n, t: c.look }); commit('settings'); paint(); } }, '+ 存为预设'));
+      paint(); return h('div.mz-col', ta, chips); } }],
+    ['定妆图', { value: () => (c.lookRef ? '有' : '不用'), edit: set => {
+      const vers = PT.versions(c.id).filter(v => v.base);
+      return h('div.mz-col', c.lookRef ? thumb(c.lookRef) : '',
+        vers.length ? h('div.mz-strip', vers.map(v => h('button' + (v.base === c.lookRef ? '.is-on' : ''), { onclick: () => { c.lookRef = v.base; save(); set(); x.reopen(); } }, thumb(v.base)))) : '',
+        choose([['pick', '自己传'], ['avatar', '用头像'], ['', '不用']], '', async v => {
+          if (v === 'avatar') { if (!c.avatar) { toast('还没有头像'); return false; } c.lookRef = c.avatar; }
+          else if (v === 'pick') { const p = await pickPic(1024); if (!p) return false; c.lookRef = p; } else delete c.lookRef;
+          save(); set(); x.reopen(); })); } }],
+    ['锁脸强度', { info: '越高越像定妆图，太高姿势和场景会被带跑。只有 NAI 认。', value: () => Math.round((c.lookK ?? 1) * 100) + '%', edit: set => fxRow('', c.lookK ?? 1, 1, { min: .1, max: 1, step: .05, fmt: v => Math.round(v * 100) + '%' }, v => { if (v === 1) delete c.lookK; else c.lookK = v; save(); set(); }) }],
     // 种子：同一个种子 + 同样的外貌，画出来的脸更像同一个人。NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子
     ['种子', { value: () => (c.seed === undefined ? '每次随机' : String(c.seed)), edit: set => {
-      const box = input({ type: 'number', value: c.seed ?? '', placeholder: '种子', onInput: v => { if (v === '') delete c.seed; else c.seed = Math.max(0, Math.floor(+v) || 0); save(); set(); } });
-      return h('div.mz-col', box, h('div.mz-chips', h('button', { onclick: () => { c.seed = Math.floor(Math.random() * 4294967295); box.value = c.seed; save(); set(); } }, '随机定一个'),
+      const box = input({ type: 'number', value: c.seed ?? '', placeholder: '留空每次随机', onInput: v => { if (v === '') delete c.seed; else c.seed = Math.max(0, Math.floor(+v) || 0); save(); set(); } });
+      return h('div.mz-col', box, h('div.mz-chips', h('button', { onclick: () => { c.seed = Math.floor(Math.random() * 4294967295); box.value = c.seed; save(); set(); } }, '随机'),
         h('button', { onclick: () => { delete c.seed; box.value = ''; save(); set(); } }, '每次随机'))); } }],
   ];
   // 立绘：照相馆里做的；主图（碎片里映着的那张）可以用头像、立绘或者另传一张

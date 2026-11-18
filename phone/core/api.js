@@ -448,7 +448,8 @@ function imageInReply(j) {
  *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子） */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
   const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
-  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined, c && c.seed !== undefined && conn ? { ...conn, img: { ...conn.img, seed: c.seed } } : conn];
+  const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
+  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
 }
 export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
   const conn = connIn || resolveConn('image', 'chat');
@@ -497,7 +498,7 @@ async function imageRaw(prompt, conn, ref) {
         const more = !ref ? {} : chars ? { image: await fitB64(ref.image, W, H, '#fff'), strength: ref.strength, noise: 0, extra_noise_seed: seed,
             characterPrompts: chars.map(c => ({ prompt: c.tags, uc: '', center: { x: c.x, y: c.y }, enabled: true })) }
           : { director_reference_images: [await fitB64(ref, 1024, 1536, '#000', true)], director_reference_descriptions: [{ caption: { base_caption: 'character&style', char_captions: [] }, legacy_uc: false }],
-            director_reference_information_extracted: [1], director_reference_strength_values: [1], director_reference_secondary_strength_values: [0] };
+            director_reference_information_extracted: [1], director_reference_strength_values: [I.refK ?? 1], director_reference_secondary_strength_values: [0] };
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: {
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
