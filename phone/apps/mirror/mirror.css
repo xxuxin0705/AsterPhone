@@ -13,15 +13,15 @@
 .mz-roster .mz-more { background: rgba(255,255,255,.1); letter-spacing: 1px; }
 .mz-roster img { width: 100%; height: 100%; object-fit: cover; }
 /* 花：画布照 393×852 的比例摆，高度占满；底图和 5 片都在 .mz-tilt 里，拖一拖整朵一起斜 */
-.mz-stage { position: absolute; top: -60px; bottom: 0; left: 50%; aspect-ratio: 393 / 852; translate: -50% 0; perspective: 900px; transition: transform .5s cubic-bezier(.32,.72,0,1); touch-action: none; }
+.mz-stage { position: absolute; top: -60px; bottom: 0; left: 50%; aspect-ratio: 393 / 852; translate: -50% 0; perspective: 900px; touch-action: none; }
 .mz-tilt { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.23,1,.32,1); }
 .mz-bg { position: absolute; left: 0; width: 100%; pointer-events: none; user-select: none; }
-.mz-shard { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: transform .35s cubic-bezier(.23,1,.32,1), filter .35s; }
+.mz-shard { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: transform .35s cubic-bezier(.23,1,.32,1), translate .5s cubic-bezier(.32,.72,0,1), filter .35s; }
 .mz-shard > polygon:last-child { pointer-events: auto; cursor: pointer; }
 .mz-shard:active { transform: scale(.985); }
 .mz-shard .mz-glow { opacity: .35; transition: opacity .3s, stroke-width .3s; }
 .is-focus .mz-shard:not(.is-on) { filter: brightness(.45) saturate(.7); }
-.is-pre .mz-shard:not(.is-on) { filter: none; }
+.is-pre .mz-tag { opacity: 0; pointer-events: none; }
 .mz-shard.is-on { transform: translateZ(40px) scale(1.04); filter: none; z-index: 2; }
 .mz-shard.is-on .mz-glow { opacity: 1; stroke-width: 12px; stroke: #fff; }
 .mz-shard.is-on .mz-rim { stroke-width: 2.4px; stroke-opacity: 1; }
@@ -73,7 +73,14 @@
 .mz-fine .as-nudge__mid { font-size: 11px; }
 .mz-fine .as-nudge__btn, .mz-fine .as-nudge__mid { color: var(--mz-ink); background: rgba(255,255,255,.1); }
 .as-mz .as-navbar__btn { color: var(--mz-ink); }
-.mz-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
+.mz-dock { position: absolute; z-index: 4; left: 10px; right: 10px; bottom: 12px; display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: rgba(14,13,30,.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.07); opacity: 0; translate: 0 20px; pointer-events: none; transition: opacity .3s, translate .3s cubic-bezier(.23,1,.32,1); }
+.is-pre .mz-dock { opacity: 1; translate: 0 0; pointer-events: auto; }
+.mz-dock__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mz-dock h3 { display: flex; align-items: baseline; gap: 6px; min-width: 76px; margin: 0; font-weight: 500; font-size: 16px; letter-spacing: 3px; }
+.mz-dock h3 em { font: italic 400 18px/1 "Noto Serif", Georgia, serif; }
+.mz-dock .as-nudge { grid-template: repeat(3, 28px) / repeat(3, 28px); gap: 3px; --as-color-surface-2: rgba(255,255,255,.08); }
+.mz-dock .as-nudge__btn, .mz-dock .as-nudge__mid { padding: 0; color: var(--mz-ink); background: rgba(255,255,255,.1); font-size: 10px; white-space: nowrap; }
+.mz-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 150px; }
 .mz-bar button { padding: 11px 0; border: 1px solid rgba(241,238,246,.25); border-radius: 12px; background: rgba(18,19,30,.78); color: var(--mz-ink); font: 14px/1 var(--font-ui); cursor: pointer; transition: transform .16s cubic-bezier(.23,1,.32,1); }
 .mz-bar button:active, .mz-chips button:active { transform: scale(.97); }
 .mz-bar .is-main { background: var(--mz-ink); border-color: var(--mz-ink); color: #121318; }
