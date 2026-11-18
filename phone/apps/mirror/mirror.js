@@ -4,7 +4,7 @@
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor } from '../../core/translate.js';
@@ -46,7 +46,8 @@ function shard(s, i, onTap) {
   const d = Math.hypot(c[0] - lx, c[1] - ly) || 1;   // 第一次打开时从哪个方向飞进来
   el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px`;
   const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]);
-  return { el, c, size: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), place };
+  const look = (op, br) => { body.style.opacity = op; img.style.filter = br === 1 ? '' : `brightness(${br})`; };   // 透明度连暗底一起淡，露出底图的玻璃
+  return { el, c, size: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), place, look };
 }
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
@@ -121,7 +122,8 @@ export function open() {
     if (o.src) { const S = sh.size * 1.15 * kOf(o); return [o.src, sh.c[0] + (o.x || 0) - S / 2, sh.c[1] + (o.y || 0) - S / 2, S, S]; }
     const k = kOf(a) * kOf(o), W = 393 * k, H = 852 * k;
     return [M.main || cur?.avatar || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
-  const pics = () => parts.forEach((sh, i) => sh.place(...posOf(i)));
+  const fxOf = i => ((draft?.M || cur?.mirror || {}).shards || {})[i] || {};
+  const pics = () => parts.forEach((sh, i) => { sh.place(...posOf(i)); const o = fxOf(i); sh.look(o.op ?? 1, o.br ?? 1); });
   // 换上新图前先解码好，碎片里不会空一下
   const fresh = () => Promise.all([...new Set(parts.map((_, i) => posOf(i)[0]))].filter(Boolean).map(u => { const im = new Image(); im.src = u; return im.decode().catch(() => {}); })).then(pics);
   const mark = () => parts.forEach((sh, k) => sh.el.classList.toggle('is-on', k === (draft ? draft.sel : focus)));
@@ -159,8 +161,8 @@ export function open() {
     mark(); preSide();
   }
   // 预览：图先换在这里看，挪好、缩放好，点确定才存；取消就当没换过
-  function pre(M, sel = -1) {
-    const back = focus; at(-1); draft = { M, sel, swap: -1, back };
+  function pre(M, sel = -1, pool = null) {   // pool：「每片一张」选的那几张，点一片再点下面的图就换上
+    const back = focus; at(-1); draft = { M, sel, swap: -1, back, pool };
     p.el.classList.add('is-pre');
     fresh(); mark(); preSide();
   }
@@ -169,22 +171,26 @@ export function open() {
     const reset = () => { const t = target(); delete t.x; delete t.y; delete t.k; delete t.fx; delete t.fy; pics(); };
     const end = ok => { const back = draft.back; if (ok) { cur.mirror = draft.M; commit('contacts'); } draft = null; p.el.classList.remove('is-pre'); dock.replaceChildren(); pics(); mark(); if (back >= 0) at(back); };
     const sel = draft.sel, mine = sel >= 0 && draft.M.shards[sel]?.src;
+    const pool = sel >= 0 && draft.pool ? h('div.mz-pool', draft.pool.map(u => h('button' + (draft.M.shards[sel]?.src === u ? '.is-on' : ''), { onclick: () => { const t = draft.M.shards[sel] || {}; draft.M.shards[sel] = { src: u, op: t.op, br: t.br }; fresh(); preSide(); } }, h('img', { src: u, alt: '' })))) : '';
+    const fx = sel >= 0 ? h('div.mz-dock__fx', ...[['透明度', 'op', .1, 1], ['亮度', 'br', .3, 1.6]].map(([l, k, min, max]) => fxRow(l, draft.M.shards[sel]?.[k] ?? 1, 1, { min, max, step: .05, fmt: v => Math.round(v * 100) + '%' },
+        v => { const t = target(); if (v === 1) delete t[k]; else t[k] = v; parts[sel].look(t.op ?? 1, t.br ?? 1); }))) : '';
+    dock.classList.toggle('is-top', sel === 2 || sel === 3);   // 选的是下面两片：调整栏挪到上面，别挡住它
     dock.replaceChildren(h('div.mz-dock__row', h('h3', sel >= 0 ? [h('em', sel + 1), SH[sel].n] : '整张'), nudger(step, reset),
         h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))),
-      h('div.mz-dock__row', h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button', { onclick: () => { delete draft.M.shards[sel]; pics(); preSide(); } }, '用回整张') : '', mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : ''),
+      pool, fx, h('div.mz-dock__row', h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button', { onclick: () => { delete draft.M.shards[sel]; pics(); preSide(); } }, '用回整张') : '', mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : ''),
         h('div.mz-bar', h('button', { onclick: () => end(false) }, '取消'), h('button.is-main', { onclick: () => end(true) }, '确定'))));
   }
   // 右上角换图：一张拆开（5 片都映着它）/ 每片一张（按选的顺序放进 1～5 片，没选到的保持原样）/ 用立绘 / 用头像 / 调位置
   async function picMenu() {
     const v = await actionSheet('换图', [['one', '一张拆开'], ['many', '每片一张'], ['pt', '用立绘'], ['avatar', '用头像'], ['adj', '调位置']].map(([value, label]) => ({ value, label })));
     if (!v) return;
-    const D = draftOf(cur);
+    const D = draftOf(cur); let pool = null;
     if (v === 'one') { const s = await pickPic(1280); if (!s) return; D.main = s; delete D.pos; D.shards = {}; }
     else if (v === 'many') { const fs = await pickFile('image/*', true); if (!fs.length) return; if (fs.length > 5) toast('只用前 5 张');
-      for (const [k, f] of fs.slice(0, 5).entries()) D.shards[k] = { src: await fileToDataURL(f, 1080) }; }
+      pool = []; for (const [k, f] of fs.slice(0, 5).entries()) { const src = await fileToDataURL(f, 1080); D.shards[k] = { src }; pool.push(src); } }
     else if (v === 'pt') { const t = PT.loaded(cur.id); if (!t) return toast('还没有立绘，先去照相馆'); D.main = t.base; }
     else if (v === 'avatar') D.main = '';
-    pre(D);
+    pre(D, -1, pool);
   }
   // 换人：只换图、真名和头像排里亮的那个，碎片不重画
   function show(c) {

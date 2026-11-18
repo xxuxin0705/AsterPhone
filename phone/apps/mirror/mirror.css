@@ -90,3 +90,12 @@
 .mz-drop button { color: #ff9d9d; border-color: rgba(255,157,157,.35); }
 .mz-pic { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(18,19,30,.62); box-shadow: inset 0 0 0 1px rgba(241,238,246,.12); }
 .mz-pic small { font-size: 11px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-dock__fx { display: grid; gap: 4px; }
+.mz-dock__fx .as-settings-slider-row { padding: 4px 0; color: var(--mz-ink); font-size: 13px; }
+.mz-dock__fx output, .mz-dock__fx .as-fx-undo { color: var(--mz-ink); }
+.mz-pool { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.mz-pool button { flex: none; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: none; opacity: .6; cursor: pointer; transition: opacity .2s, box-shadow .2s, transform .16s cubic-bezier(.23,1,.32,1); }
+.mz-pool button:active { transform: scale(.94); }
+.mz-pool button.is-on { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(200,185,255,.8); }
+.mz-pool img { width: 100%; height: 100%; object-fit: cover; }
+.mz-dock.is-top { top: 4px; bottom: auto; }
