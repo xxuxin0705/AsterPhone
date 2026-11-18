@@ -53,32 +53,24 @@ function shard(s, i, onTap) {
    x：{ pic 重摆碎片的图, roster 重画头像排, reopen 重开这一类, pre 进预览 } */
 const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
 let bookApp = '';
-const mirrorOf = c => { const M = c.mirror ||= { main: '' }; M.shards ||= {}; return M; };
 const draftOf = c => { const M = JSON.parse(JSON.stringify(c.mirror || {})); M.shards ||= {}; return M; };
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
 const pickPic = async size => { const f = await pickFile('image/*'); return f && fileToDataURL(f, size); };
 function rowsOf(i, c, x) {
-  const ch = () => chatForContact(c.id, true).cfg, M = mirrorOf(c), save = k => { commit('contacts'); if (k) x[k](); };
+  const ch = () => chatForContact(c.id, true).cfg, save = k => { commit('contacts'); if (k) x[k](); };
   const text = (k, ph) => ({ value: () => c[k] || '', edit: set => input({ value: c[k] || '', placeholder: ph, onInput: v => { c[k] = v; save(); set(); } }) });
   const choose = (opts, cur, on) => h('div.mz-chips', opts.map(([v, l]) => { const b = h('button' + (cur === v ? '.is-on' : ''), { onclick: async () => {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
-  // 图片：这一片单独换一张，或者调位置；都先进预览，点了确定才换上
-  const own = ['图片', { value: () => (M.shards[i]?.src ? '这片单独一张' : '整张'), edit: () => h('div.mz-col', M.shards[i]?.src ? thumb(M.shards[i].src) : '',
-    h('div.mz-chips', h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(c); D.shards[i] = { src: v }; x.pre(D, i); } }, M.shards[i]?.src ? '换一张' : '这片单独一张'),
-      M.shards[i]?.src ? h('button', { onclick: () => { delete M.shards[i]; save('pic'); x.reopen(); } }, '用回整张') : '',
-      h('button', { onclick: () => x.pre(draftOf(c), i) }, '调位置'))) }];
   if (i === 0) return [
     ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
     ['真名', text('name', '真名')], ['网名', text('nick', '网名')], ['备注', text('remark', '备注')],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
     ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
-    own,
   ];
   if (i === 1) return [
     ['说的语言', { value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
     ['声音', { value: () => '渠道、音色、读音', edit: () => btn('打开声音设置', 'secondary', () => import('../settings/voices.js').then(m => m.openPerson(c.id))) }],
-    own,
   ];
   // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；能照图画的渠道还会带上参考图
   if (i === 2) return [
@@ -92,21 +84,19 @@ function rowsOf(i, c, x) {
       const box = input({ type: 'number', value: c.seed ?? '', placeholder: '种子', onInput: v => { if (v === '') delete c.seed; else c.seed = Math.max(0, Math.floor(+v) || 0); save(); set(); } });
       return h('div.mz-col', box, h('div.mz-chips', h('button', { onclick: () => { c.seed = Math.floor(Math.random() * 4294967295); box.value = c.seed; save(); set(); } }, '随机定一个'),
         h('button', { onclick: () => { delete c.seed; box.value = ''; save(); set(); } }, '每次随机'))); } }],
-    own,
   ];
   // 立绘：照相馆里做的；主图（碎片里映着的那张）可以用头像、立绘或者另传一张
   if (i === 3) return [
     ['立绘', { value: () => (PT.loaded(c.id) ? `${PT.versions(c.id).length} 张` : '还没有'), edit: () => h('div.mz-col',
       PT.versions(c.id).length ? h('div.mz-strip', PT.versions(c.id).map((v, k) => h('button' + (k === PT.using(c.id) ? '.is-on' : ''), { onclick: e => PT.useVersion(c.id, k).then(() => e.currentTarget.parentNode.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === k))) }, thumb(v.base)))) : '',
       btn('去照相馆', 'secondary', () => import('../street/studio.js').then(m => m.person(c.id)))) }],
-    own,
   ];
   // 世界书：每本书给 TA 定「带 / 不带」，写到 TA 的时候照这个。先选管哪里：「所有应用」是总的，选了某个 App 就是在总的上再加减
   const books = [...new Set([...worldNames(), ...Object.keys(c.books || {}), ...Object.values(c.appBooks || {}).flatMap(Object.keys)])];
   const tab = () => (bookApp ? ((c.appBooks ||= {})[bookApp] ||= {}) : (c.books ||= {}));
   const MODE = { '': bookApp ? '跟着所有应用' : '跟着酒馆', on: '带', off: '不带' };
   return [['用在哪', { value: () => (BOOK_APPS.find(a => a[0] === bookApp) || BOOK_APPS[0])[1], edit: () => choose(BOOK_APPS, bookApp, v => { bookApp = v; x.reopen(); }) }],
-    ...books.map(n => [n, { value: () => MODE[tab()[n] || ''], edit: set => choose(Object.entries(MODE), tab()[n] || '', v => { if (v) tab()[n] = v; else delete tab()[n]; save(); set(); }) }]), own];
+    ...books.map(n => [n, { value: () => MODE[tab()[n] || ''], edit: set => choose(Object.entries(MODE), tab()[n] || '', v => { if (v) tab()[n] = v; else delete tab()[n]; save(); set(); }) }])];
 }
 
 export function open() {
@@ -170,18 +160,18 @@ export function open() {
   }
   // 预览：图先换在这里看，挪好、缩放好，点确定才存；取消就当没换过
   function pre(M, sel = -1) {
-    focus = -1; draft = { M, sel, swap: -1 };
+    const back = focus; at(-1); draft = { M, sel, swap: -1, back };
     p.el.classList.add('is-pre');
     fresh(); mark(); preSide();
   }
   function preSide() {
     const step = (dx, dy, dk) => { const t = target(); if (dk) { t.k = Math.max(.3, Math.min(6, kOf(t) * dk)); delete t.fx; } else { t.x = (t.x || 0) + dx * 2; t.y = (t.y || 0) + dy * 2; } pics(); };
     const reset = () => { const t = target(); delete t.x; delete t.y; delete t.k; delete t.fx; delete t.fy; pics(); };
-    const end = ok => { if (ok) { cur.mirror = draft.M; commit('contacts'); } draft = null; p.el.classList.remove('is-pre'); dock.replaceChildren(); pics(); mark(); };
+    const end = ok => { const back = draft.back; if (ok) { cur.mirror = draft.M; commit('contacts'); } draft = null; p.el.classList.remove('is-pre'); dock.replaceChildren(); pics(); mark(); if (back >= 0) at(back); };
     const sel = draft.sel, mine = sel >= 0 && draft.M.shards[sel]?.src;
     dock.replaceChildren(h('div.mz-dock__row', h('h3', sel >= 0 ? [h('em', sel + 1), SH[sel].n] : '整张'), nudger(step, reset),
         h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))),
-      h('div.mz-dock__row', h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : ''),
+      h('div.mz-dock__row', h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button', { onclick: () => { delete draft.M.shards[sel]; pics(); preSide(); } }, '用回整张') : '', mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : ''),
         h('div.mz-bar', h('button', { onclick: () => end(false) }, '取消'), h('button.is-main', { onclick: () => end(true) }, '确定'))));
   }
   // 右上角换图：一张拆开（5 片都映着它）/ 每片一张（按选的顺序放进 1～5 片，没选到的保持原样）/ 用立绘 / 用头像 / 调位置
@@ -217,7 +207,7 @@ export function open() {
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
     parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(118 - sh.c[0]) / 3.93}% ${(440 - sh.c[1]) / 8.52}%` : ''; });
     if (i < 0) { side.replaceChildren(); return; }
-    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, pre, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-down')); focus = -1; at(i); side.querySelectorAll('.mz-card')[k]?.click(); } }), box = h('div.mz-edit');
+    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-down')); focus = -1; at(i); side.querySelectorAll('.mz-card')[k]?.click(); } }), box = h('div.mz-edit');
     const cards = rows.map(([label, r]) => {
       const v = h('span', r.value()), card = h('button.mz-card', { onclick: () => {
         cards.forEach(x => x.classList.toggle('is-down', x === card));
@@ -225,7 +215,9 @@ export function open() {
       } }, h('small', label), v);
       return card;
     });
-    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), box, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
+    const pic = h('div.mz-pic', h('small', '图片'), h('div.mz-chips', h('button', { onclick: () => pre(draftOf(cur), i) }, '调整位置'),
+      h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(cur); D.shards[i] = { src: v }; pre(D, i); } }, '换张图片')));
+    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), pic, box, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
     if (cards[0]) cards[0].click();
   }
   const show2 = () => { real.textContent = cur ? cur.name || nameOf(cur) : ''; };
