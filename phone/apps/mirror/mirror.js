@@ -27,6 +27,7 @@ const isZh = l => !l || /^zh/.test(l);
 const BG = 'assets/mirror/night.webp';
 const LT = map([430, 950]);   // 光：5 片中间那团亮光
 const JIT = [[0, -4], [6, 3], [-5, 6], [4, -5], [-6, 2]];   // 每片映着的图各错一点，看得出是 5 面镜子
+const PAD = 30;
 const mid = p => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
 
 // 一片：图是清楚的；靠光那头亮、往外暗，朝光的边最亮（跟着光走，不是随便涂）
@@ -42,18 +43,19 @@ function shard(s, i, onTap) {
   const full = { width: 393, height: 852 }, body = svg('g', { 'clip-path': `url(#c${u})`, style: 'isolation:isolate' });
   body.append(svg('rect', { ...full, fill: '#15132a' }), img, svg('rect', { ...full, fill: `url(#m${u})`, style: 'mix-blend-mode:multiply' }),
     svg('rect', { ...full, fill: `url(#g${u})`, style: 'mix-blend-mode:screen' }), svg('polygon', { points: P, fill: 'none', stroke: `url(#e${u})`, 'stroke-width': 7, filter: `url(#b${u})` }));
-  const el = svg('svg', { viewBox: '0 0 393 852', class: 'mz-shard' });
+  const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]), x0 = Math.min(...xs) - PAD, y0 = Math.min(...ys) - PAD;
+  const bw = Math.max(...xs) - x0 - PAD, bh = Math.max(...ys) - y0 - PAD, W = bw + PAD * 2, H = bh + PAD * 2;
+  // 每片只画自己那一块（外加一圈留给光晕和影子）：整页大的画布一动就要重画，手机上会卡、会闪
+  const el = svg('svg', { viewBox: `${x0} ${y0} ${W} ${H}`, class: 'mz-shard' });
   el.append(defs, svg('polygon', { points: P, fill: '#000', opacity: .6, transform: 'translate(0 6)', filter: `url(#d${u})` }),
     svg('polygon', { points: P, class: 'mz-glow', fill: 'none', stroke: '#e8e2ff', 'stroke-width': 5, filter: `url(#b${u})` }),
     Object.assign(svg('image', { href: BG, x: 0, y: OY, width: 393, height: 1869 * K, 'clip-path': `url(#c${u})`, preserveAspectRatio: 'none' })), body,
     svg('polygon', { points: P, class: 'mz-rim', fill: 'none', stroke: '#fff', 'stroke-opacity': .85, 'stroke-width': 1, 'stroke-linejoin': 'round' }),
     Object.assign(svg('polygon', { points: P, fill: 'transparent' }), { onclick: e => { e.stopPropagation(); onTap(i); } }));
   const d = Math.hypot(c[0] - lx, c[1] - ly) || 1;   // 第一次打开时从哪个方向飞进来
-  el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px;--ox:${(Math.min(...s.p.map(q => q[0])) + Math.max(...s.p.map(q => q[0]))) / 7.86}%;--oy:${(Math.min(...s.p.map(q => q[1])) + Math.max(...s.p.map(q => q[1]))) / 17.04}%`;
-  const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]);
+  el.style.cssText = `--i:${i};--ix:${(c[0] - lx) / d * 70}px;--iy:${(c[1] - ly) / d * 70}px;left:${x0 / 3.93}%;top:${y0 / 8.52}%;width:${W / 3.93}%;height:${H / 8.52}%`;
   const look = (op, br) => { body.style.opacity = op; img.style.filter = br === 1 ? '' : `brightness(${br})`; };   // 透明度连暗底一起淡，露出底图的玻璃
-  const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys);
-  return { el, c, bw, bh, bc: [Math.min(...xs) + bw / 2, Math.min(...ys) + bh / 2], size: Math.max(bw, bh), place, look };
+  return { el, c, bw, bh, W, H, bc: [x0 + W / 2, y0 + H / 2], size: Math.max(bw, bh), place, look };
 }
 
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
@@ -87,10 +89,10 @@ function rowsOf(i, c, x) {
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
   if (i === 1) return [
-    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { const was = isZh(langFor('chat', ch().speak)); ch().speak = v; commit('chats'); set(); if (was !== isZh(langFor('chat', v))) x.reopen(); }) }],
+    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
     // 勾上的 App 网名用 TA 说的语言（默认网名），没勾的用中文网名；AI 智能加载时也按这个起
-    ...isZh(langFor('chat', ch().speak)) ? [] : [['网名跟着语言', { value: () => NICK_APPS.filter(([k]) => !(c.zhNick || []).includes(k)).map(a => a[1]).join('、') || '都不跟', edit: set => h('div.mz-chips', NICK_APPS.map(([k, l]) => h('button' + ((c.zhNick || []).includes(k) ? '' : '.is-on'), { onclick: e => {
-      const z = c.zhNick || []; c.zhNick = z.includes(k) ? z.filter(y => y !== k) : [...z, k]; if (!c.zhNick.length) delete c.zhNick; e.currentTarget.classList.toggle('is-on'); save(); set(); } }, l))) }]],
+    ['网名跟着语言', { value: () => NICK_APPS.filter(([k]) => !(c.zhNick || []).includes(k)).map(a => a[1]).join('、') || '都不跟', edit: set => h('div.mz-chips', NICK_APPS.map(([k, l]) => h('button' + ((c.zhNick || []).includes(k) ? '' : '.is-on'), { onclick: e => {
+      const z = c.zhNick || []; c.zhNick = z.includes(k) ? z.filter(y => y !== k) : [...z, k]; if (!c.zhNick.length) delete c.zhNick; e.currentTarget.classList.toggle('is-on'); save(); set(); } }, l))) }],
     ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
   ];
   // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；定妆图拿来锁脸（能照图画的渠道才认），锁脸强度、种子每个人各一个
@@ -194,11 +196,14 @@ export function open() {
     tags.push(t); tilt.append(t); return sh;
   });
   // 碎片挪走后空出来那块：用底图糊开、压暗一点盖上，像那里本来就只有星云，不留一块亮玻璃也不抠出黑洞
-  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hd = svg('defs'), he = svg('filter', { id: 'mzhe', x: '-20%', y: '-20%', width: '140%', height: '140%' });
-  he.append(svg('feGaussianBlur', { stdDeviation: 6 })); hd.append(he);
-  holes.append(hd, ...SH.map((sh, k) => { const m = svg('mask', { id: 'mzhm' + k }); m.append(svg('polygon', { points: sh.p.map(q => q.join(',')).join(' '), fill: '#fff', filter: 'url(#mzhe)', transform: `translate(${mid(sh.p)[0] * -.22} ${mid(sh.p)[1] * -.22}) scale(1.22)` }));
-    const g = svg('g', { mask: `url(#mzhm${k})` }); g.append(m, svg('image', { href: 'assets/mirror/stars.webp', x: 0, y: OY, width: 393, height: 1869 * K, preserveAspectRatio: 'none' })); return g; }));
-  stage.append(holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 露出同构图的纯星空
+  const holes = SH.map((sh, k) => {
+    const m = mid(sh.p), q = sh.p.map(([x, y]) => [m[0] + (x - m[0]) * 1.22, m[1] + (y - m[1]) * 1.22]), xs = q.map(v => v[0]), ys = q.map(v => v[1]);
+    const x0 = Math.min(...xs) - 20, y0 = Math.min(...ys) - 20, W = Math.max(...xs) - x0 + 20, H = Math.max(...ys) - y0 + 20;
+    const el = svg('svg', { viewBox: `${x0} ${y0} ${W} ${H}`, class: 'mz-hole', style: `left:${x0 / 3.93}%;top:${y0 / 8.52}%;width:${W / 3.93}%;height:${H / 8.52}%` });
+    const f = svg('filter', { id: 'mzhe' + k, x: '-20%', y: '-20%', width: '140%', height: '140%' }), mk = svg('mask', { id: 'mzhm' + k }), d = svg('defs');
+    f.append(svg('feGaussianBlur', { stdDeviation: 6 })); mk.append(svg('polygon', { points: q.map(v => v.join(',')).join(' '), fill: '#fff', filter: `url(#mzhe${k})` })); d.append(f, mk);
+    el.append(d, svg('image', { href: 'assets/mirror/stars.webp', x: 0, y: OY, width: 393, height: 1869 * K, preserveAspectRatio: 'none', mask: `url(#mzhm${k})` })); return el; });
+  stage.append(...holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 露出同构图的纯星空
   p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
   // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
   const kOf = o => ('fx' in o ? 1 : o.k || 1);
@@ -296,10 +301,13 @@ export function open() {
     p.el.classList.toggle('is-focus', i >= 0);
     mark();
     tags.forEach((t, k) => t.classList.toggle('is-on', k === i));
-    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / 3.93}% ${(430 - sh.bc[1]) / 8.52}%` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.7, 180 / sh.bw, 370 / sh.bh) : 1); holes.children[k + 1].classList.toggle('is-on', k === i); });   // 挪到左边空处正中，放大到刚好
+    parts.forEach((sh, k) => { sh.el.style.translate = k === i ? `${(104 - sh.bc[0]) / sh.W * 100}% ${(430 - sh.bc[1]) / sh.H * 100}% 2px` : ''; sh.el.style.setProperty('--fk', k === i ? Math.min(1.7, 180 / sh.bw, 370 / sh.bh) : 1); holes[k].classList.toggle('is-on', k === i); });   // 挪到左边空处正中，放大到刚好；往前提 2px（花是 3D 的，z-index 不管用），飞回去时一路在上面，落定才贴平
     if (i < 0) { side.replaceChildren(); return; }
+    requestAnimationFrame(() => focus === i && fill(i));   // 先让碎片动起来，下一帧再填右边：一起做第一帧会卡一下
+  }
+  function fill(i) {
     if (i === 4) { const redo = () => side.lastChild.replaceWith(bookPanel(cur, redo)); side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), picOf(i), bookPanel(cur, redo)); return; }
-    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); focus = -1; at(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });
+    const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); fill(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });
     // 点哪一格就在这一格里改；go 是点了直接跳走的（比如声音）
     const cards = rows.map(([label, r]) => {
       const v = h('span', r.value()), body = h('div.mz-card__body'), card = h('div.mz-card', h('button.mz-card__head', { onclick: () => {
