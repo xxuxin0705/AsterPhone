@@ -26,7 +26,7 @@
 .mz-shard.is-on { transform: scale(var(--fk, 1.04)); transform-origin: var(--ox) var(--oy); filter: brightness(1.15); z-index: 2; }
 .mz-shard.is-on .mz-glow { opacity: 1; stroke-width: 12px; stroke: #fff; }
 .mz-shard.is-on .mz-rim { stroke-width: 2.4px; stroke-opacity: 1; }
-.mz-tag { position: absolute; z-index: 3; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; cursor: pointer; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.8), 0 0 14px rgba(0,0,0,.6); transition: opacity .3s; }
+.mz-tag { position: absolute; z-index: 3; transform-origin: 0 0; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; cursor: pointer; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.8), 0 0 14px rgba(0,0,0,.6); transition: opacity .3s; }
 .mz-tag em { font: italic 400 24px/1 "Noto Serif", Georgia, serif; }
 .mz-tag b { font-weight: 500; font-size: 13px; letter-spacing: 3px; }
 /* 第一次打开：从花心往外的方向飞回来，一片接一片 */
