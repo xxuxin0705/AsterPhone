@@ -189,13 +189,11 @@ export function open() {
     tags.push(t); tilt.append(t); return sh;
   });
   // 碎片挪走后空出来那块：用底图糊开、压暗一点盖上，像那里本来就只有星云，不留一块亮玻璃也不抠出黑洞
-  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hd = svg('defs'), hb = svg('filter', { id: 'mzhb', x: '-20%', y: '-20%', width: '140%', height: '140%' }), he = svg('filter', { id: 'mzhe', x: '-20%', y: '-20%', width: '140%', height: '140%' });
-  hb.append(svg('feGaussianBlur', { stdDeviation: 16 }), svg('feComponentTransfer', {}));
-  hb.lastChild.append(...['R', 'G', 'B'].map(c => svg('feFunc' + c, { type: 'linear', slope: .55 })));
-  he.append(svg('feGaussianBlur', { stdDeviation: 6 })); hd.append(hb, he);
-  holes.append(hd, ...SH.map((sh, k) => { const m = svg('mask', { id: 'mzhm' + k }); m.append(svg('polygon', { points: sh.p.map(q => q.join(',')).join(' '), fill: '#fff', filter: 'url(#mzhe)', transform: `translate(${mid(sh.p)[0] * -.08} ${mid(sh.p)[1] * -.08}) scale(1.08)` }));
-    const g = svg('g', { mask: `url(#mzhm${k})` }); g.append(m, svg('image', { href: BG, x: 0, y: OY, width: 393, height: 1869 * K, preserveAspectRatio: 'none', filter: 'url(#mzhb)' })); return g; }));
-  stage.append(holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 压暗
+  const holes = svg('svg', { viewBox: '0 0 393 852', class: 'mz-holes' }), hd = svg('defs'), he = svg('filter', { id: 'mzhe', x: '-20%', y: '-20%', width: '140%', height: '140%' });
+  he.append(svg('feGaussianBlur', { stdDeviation: 6 })); hd.append(he);
+  holes.append(hd, ...SH.map((sh, k) => { const m = svg('mask', { id: 'mzhm' + k }); m.append(svg('polygon', { points: sh.p.map(q => q.join(',')).join(' '), fill: '#fff', filter: 'url(#mzhe)', transform: `translate(${mid(sh.p)[0] * -.22} ${mid(sh.p)[1] * -.22}) scale(1.22)` }));
+    const g = svg('g', { mask: `url(#mzhm${k})` }); g.append(m, svg('image', { href: 'assets/mirror/stars.webp', x: 0, y: OY, width: 393, height: 1869 * K, preserveAspectRatio: 'none' })); return g; }));
+  stage.append(holes, tilt);   // 底图在 tilt 外面：点、拖、预览都不动它；碎片挪走后空出来的那块由 holes 露出同构图的纯星空
   p.el.prepend(h('i.mz-meteor'), h('i.mz-meteor.is-b'));
   // 每片的图：单独换过的照这片的大小摆；没换的用整张（没设就用头像）铺满画布，各错一点。x y 是挪了多少，k 是放大（旧存档里 fx fy 那套不认）
   const kOf = o => ('fx' in o ? 1 : o.k || 1);
