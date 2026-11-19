@@ -66,7 +66,7 @@ export async function nickShow(c, app, lang, sig) {
   setNick(c, app, v); commit('contacts'); return v;
 }
 /** 换了说的语言：勾着的 App 网名一起换 */
-export function relang(c) {   // 映像、聊天设置里改语言都走这里
-  const ks = NICK_APPS.filter(k => !(c.zhNick || []).includes(k) && nickIn(c, k)), lang = langFor('chat', chatForContact(c.id, true).cfg.speak);
-  if (ks.length) waiting('网名换语言…', sig => Promise.all(ks.map(k => nickShow(c, k, lang, sig)))).then(v => v && toast('网名换好了'), err => toast('网名' + err.message));
+export function relang(...cs) {   // 映像、聊天设置里改语言都走这里；设置里改总的语言，跟着总的那些人一起换
+  const jobs = cs.flatMap(c => { const lang = langFor('chat', chatForContact(c.id, false)?.cfg.speak); return NICK_APPS.filter(k => !(c.zhNick || []).includes(k) && nickIn(c, k)).map(k => [c, k, lang]); });
+  if (jobs.length) waiting('网名换语言…', sig => Promise.all(jobs.map(([c, k, l]) => nickShow(c, k, l, sig)))).then(v => v && toast('网名换好了'), err => toast('网名' + err.message));
 }

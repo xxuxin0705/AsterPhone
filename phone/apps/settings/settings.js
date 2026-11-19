@@ -1,6 +1,6 @@
 // 设置 App。铁律：一样东西只有一个家；别处显示「跟随全局」时，点一下跳到它真正的家。
 import { h, pickFile } from '../../core/util.js';
-import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow, kvGet } from '../../core/store.js';
+import { state, commit, CHAT_MSG_TYPES, exportAll, importAll, wipeAll, usage, clearMsgs, win, windowList, deleteWindow, kvGet, chatForContact } from '../../core/store.js';
 import { page, group, item, toggleItem, switchEl, segmented, slider, input, textarea, field, btn, navBtn, actionSheet, dialog, dateField, toast, sheet, empty, icon, withInfo, rangeRow, colorWheel, busy, timeField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { CHANNELS, resolveConn, tagOf, auxKey } from '../../core/api.js';
@@ -12,9 +12,9 @@ import { inTavern, postToParent } from '../../core/bridge.js';
 import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
-import { LANGS, langName } from '../../core/translate.js';
+import { LANGS, langName, relang } from '../../core/translate.js';
 
-export const VERSION = '0.8.555';
+export const VERSION = '0.8.556';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -629,8 +629,9 @@ function openLang() {
       } });
       return el;
     };
-    body.append(group('', [row('大家说的话', () => langName(L.all), v => { L.all = v; })]),
-      group(withInfo('每个应用', '没单独选的跟着总的。聊天里还能给每个人单独选。说外语的，下面都配中文。'), LANG_APPS.map(([k, n]) => row(n, () => L.apps[k] ? langName(L.apps[k]) : '跟着总的', v => { L.apps[k] = v; }, true))));
+    const nick = () => relang(...state.contacts.filter(c => !chatForContact(c.id, false)?.cfg.speak));   // 网名跟着聊天的语言：没单独选语言的人一起换
+    body.append(group('', [row('大家说的话', () => langName(L.all), v => { L.all = v; nick(); })]),
+      group(withInfo('每个应用', '没单独选的跟着总的。聊天里还能给每个人单独选。说外语的，下面都配中文。'), LANG_APPS.map(([k, n]) => row(n, () => L.apps[k] ? langName(L.apps[k]) : '跟着总的', v => { L.apps[k] = v; if (k === 'chat') nick(); }, true))));
   });
 }
 
