@@ -112,7 +112,7 @@ export function openPreview(data, { after, lore, under } = {}) {
     const f = (label, key, multi) => h('label.as-chat-pv__f', h('span', label), (multi ? textarea : input)({ value: x[key] || '', rows: 2, onInput: v => { key === 'name' ? rename(v) : x[key] = v; } }));
     const el = h('div.as-chat-pv' + (x._on ? '' : '.is-off'),
       h('div.as-chat-pv__head', { onclick: toggle }, ck, avaBox, title, x.gender ? h('em', x.gender) : null, (kind === 'p' ? friends().some(c => c.name === x.name) : hasGroup(x.name)) ? h('em', '已有') : null),
-      kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), ...speak(x, f), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
+      kind === 'p' ? [f('真实姓名', 'name'), f('网名', 'nick'), ...speak(x, f), f('备注', 'remark'), f('个性签名', 'sign'), f('拍一拍后缀', 'pokeSuffix'), f('人设', 'persona', true), f('外貌', 'look', true), f('生日', 'birthday'), x.entry ? h('div.as-muted', '来自条目：' + x.entry) : null]
         : [f('群名', 'name'), f('群介绍', 'intro', true), f('群公告', 'notice'), members(x)]);
     return el;
   };
@@ -160,10 +160,11 @@ export function openPreview(data, { after, lore, under } = {}) {
       const old = byName(x.name);
       if (old) { x._c = old; if (x._on && !isFriend(old)) { befriend(old); np++; } continue; }   // 映像里已经有这个人：直接用 TA，不另建
       if (!x._on) continue;
-      const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
-      if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; }
+      const c = { ...blankContact(), name: x.name.trim(), nick: (x.nick || '').trim(), remark: (x.remark || '').trim(), gender: x.gender || '', sign: x.sign || '', pokeSuffix: x.pokeSuffix || '', persona: x.persona || '', look: (x.look || '').trim(), avatar: x.avatar || '', source: lore ? 'lore' : 'ai' };
+      if (/^(\d{4}-)?\d{2}-\d{2}$/.test((x.birthday || '').trim())) c.birthday = x.birthday.trim();
+      if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; c.wb = { all: { tavern: true, books: { [lore.world]: {} } } }; }
       const ch = chatForContact(c.id, true); ch.lastAt = Date.now();   // 没聊过也在消息列表里
-      if (!isZh(x.speak)) { ch.cfg.speak = x.speak; if ((x.nickZh || '').trim()) c.nickZh = x.nickZh.trim(); if (x.zhNick.length) c.zhNick = x.zhNick; }
+      if (!isZh(x.speak)) { ch.cfg.speak = x.speak; if (x.zhNick.length) { c.zhNick = x.zhNick; const z = (x.nickZh || '').trim(); if (z) c.appNick = Object.fromEntries(x.zhNick.map(k => [k, z])); } }
       state.contacts.push(c); x._c = c; np++;
     }
     const idOf = m => m === ME ? 'me' : people.includes(m) ? m._c && m._c.id : m.id;

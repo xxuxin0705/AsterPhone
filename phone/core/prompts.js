@@ -181,7 +181,7 @@ export const DEFAULT_PROMPTS = {
 {{require}}
 
 只输出一个 JSON，不要别的文字，格式：
-{"people":[{"name":"真实姓名","lang":"TA 平时说的语言，从这些里选一个：中文、英语、日语、韩语、法语、德语、西班牙语、俄语、意大利语、葡萄牙语、泰语、越南语、繁体中文","nick":"网名（用 TA 说的语言起）","nickZh":"TA 说的不是中文时，再起一个中文网名；说中文就空着","remark":"{{user}} 给 TA 的备注","gender":"男/女/其他","sign":"个性签名","pokeSuffix":"拍一拍后缀，比如 的小脑袋","persona":"两三句人设：身份、性格、和 {{user}} 的关系"}],
+{"people":[{"name":"真实姓名","lang":"TA 平时说的语言，从这些里选一个：中文、英语、日语、韩语、法语、德语、西班牙语、俄语、意大利语、葡萄牙语、泰语、越南语、繁体中文","nick":"网名（用 TA 说的语言起）","nickZh":"TA 说的不是中文时，把上面的网名翻成中文；说中文就空着","look":"外貌：发色、眼睛、身形、常穿的衣服，几个短词","birthday":"生日，剧情里明确说过才写，格式 MM-DD（知道年份写 YYYY-MM-DD），没说就空着","remark":"{{user}} 给 TA 的备注","gender":"男/女/其他","sign":"个性签名","pokeSuffix":"拍一拍后缀，比如 的小脑袋","persona":"两三句人设：身份、性格、和 {{user}} 的关系"}],
  "groups":[{"name":"群名","intro":"这个群是干什么的","notice":"群公告，可以为空","owner":"群主名字（people 里的、已有联系人或 {{user}}）","members":["成员名字"],"titles":{"成员名字":"群头衔（有才写，也可以给 {{user}}）"}}]}` },
   // ---------- 音乐 ----------
   songEvery: { name: '每楼都加', cats: ['songEvery'], on: true, main: true,
@@ -328,7 +328,7 @@ export const DEFAULT_PROMPTS = {
 {{existing}}
 
 只输出一个 JSON，不要别的文字，格式：
-{"people":[{"name":"真实姓名","lang":"TA 平时说的语言，从这些里选一个：中文、英语、日语、韩语、法语、德语、西班牙语、俄语、意大利语、葡萄牙语、泰语、越南语、繁体中文","nick":"网名（用 TA 说的语言起）","nickZh":"TA 说的不是中文时，再起一个中文网名；说中文就空着","remark":"","gender":"","sign":"个性签名","pokeSuffix":"","persona":"根据条目写两三句人设","entry":"来自哪个条目（条目标题）"}]}` },
+{"people":[{"name":"真实姓名","lang":"TA 平时说的语言，从这些里选一个：中文、英语、日语、韩语、法语、德语、西班牙语、俄语、意大利语、葡萄牙语、泰语、越南语、繁体中文","nick":"网名（用 TA 说的语言起）","nickZh":"TA 说的不是中文时，把上面的网名翻成中文；说中文就空着","look":"外貌：发色、眼睛、身形、常穿的衣服，几个短词","birthday":"生日，剧情里明确说过才写，格式 MM-DD（知道年份写 YYYY-MM-DD），没说就空着","remark":"","gender":"","sign":"个性签名","pokeSuffix":"","persona":"根据条目写两三句人设","entry":"来自哪个条目（条目标题）"}]}` },
   moment: { name: '动态生成', cats: ['moment'], on: true, main: true,
     text: `根据下面这些人的人设和最近的经历，替他们发 {{count}} 条朋友圈动态。
 
