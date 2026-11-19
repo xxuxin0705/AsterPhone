@@ -49,6 +49,17 @@ const GUIDE = {
       { name: '我的气泡换成奶油黄', css: `.as-chat-msg.is-me .as-chat-bubble {\n  background: linear-gradient(180deg, rgba(255,240,200,.85), rgba(255,226,160,.7)) !important;\n  color: #5a3a10 !important;\n}` }] },
   'chat-moments': { cls: [['.as-chat-moments-cover', '顶上的封面'], ['.as-chat-moment', '一条动态'], ['.as-chat-moment__name', '名字'], ['.as-chat-moment__text', '正文'], ['.as-chat-moment__imgs', '配图'], ['.as-chat-moment__comments', '评论']] },
   'chat-me': { cls: [['.as-chat-me-head', '头像和名字那一块'], ['.as-chat-me-head__name', '名字'], ['.as-chat-me-head__sign', '签名'], ['.as-chat-me-stats', '下面的几个数字']] },
+  'music-player': { cls: [['.as-mp', '播放页（.is-tg 一起听，.is-lrc 在看全部歌词）'], ['.as-mp__lrc', '歌词'], ['.as-tg', '一起听的头像和气泡（.is-group 群里一起听）'], ['.as-ch', '群里一起听的一句（.is-me 我的）']],
+    ex: [{ name: '粉紫（用变量换一套）', css: `/* 只改写到的地方；自己设了播放页背景图的话，背景照旧用你的图 */
+:root {
+  --as-mp-bg: linear-gradient(160deg, #ffd6e0, #c3b5ff);   /* 背景 */
+  --as-mp-text: #5b2a86;        /* 歌名、歌手 */
+  --as-mp-lrc: #7a5aa6;         /* 还没唱到的歌词 */
+  --as-mp-lrc-cur: #e0457b;     /* 正在唱的 */
+  --as-mp-btn: #5b2a86;         /* 按钮 */
+  --as-mp-bar: #e0457b;         /* 进度条 */
+  --as-mp-tg-time: #5b2a86;     /* 一起听了多久 */
+}` }] },
   music: { cls: [['[class*="as-mu-"]', '音乐的东西都以 .as-mu- 开头'], ['.as-mp', '播放页'], ['.as-mp__lrc', '播放页的歌词']] },
   interlude: { cls: [['[class*="as-int-"]', '幕间的东西都以 .as-int- 开头'], ['.as-int-splash', '片头']] },
   memory: { cls: [['[class*="as-mem-"]', '岁岁砂的东西都以 .as-mem- 开头'], ['.as-mem-card', '一张记忆卡片'], ['.as-mem-bell', '铃铛']] },
@@ -434,7 +445,7 @@ function openGuide(sc) {
   subPage('library-guide', scopeName(sc) + '教程', () => '', nb => {
     nb.append(h('ol.as-lib-steps', h('li', `在${where}点「新建」，或者点下面的「用模板新建」。`), h('li', '照下面的门牌号写 CSS，先「试用 15 秒」看看，满意就保存。'), h('li', '在同一个地方点「导出」，就能发给别人。')),
       group(withInfo('门牌号', '点一行就复制。门牌号（类名）永远不改名，写好的皮肤以后也能用。'), G.cls.map(([k, d]) => item({ title: k, sub: d, onClick: () => copy(k) }))));
-    const vs = [...(G.vars || []), ...VARS.filter(v => v[0] === sc || (sc === 'chat' && v[0].startsWith('chat'))).map(v => ['--as-' + v[1], v[2]])];
+    const vs = [...(G.vars || []), ...VARS.filter(v => v[2] && (v[0] === sc || v[0].startsWith(sc + '-'))).map(v => ['--as-' + v[1], v[2]])];
     if (vs.length) nb.append(group(withInfo('颜色和尺寸变量', '写在 :root { } 里，夜间另写在 :root[data-mode="night"] { } 里。点一行就复制。'), vs.map(([k, d]) => item({ title: k, sub: d, onClick: () => copy(k) }))));
     if (G.texts) nb.append(group(withInfo('改界面上的字', '把这行注释放进皮肤里就能改字。能改：' + G.texts), [h('div.as-field', h('code.as-lib-code', '/* @texts {"chat.tab.moments":"朋友圈"} */'))]));
     if (G.ex) nb.append(group(withInfo('例子', '点一个就加到这里的皮肤里。'), G.ex.map(e => item({ title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {

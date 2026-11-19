@@ -17,7 +17,7 @@ export const THEMES = {
 // 资源库「应用」里能美化的 App 和页面。皮肤的 scope：'all'（整部手机）、App 编号（data-as-app）或页面编号（data-as-page，带「-」的）
 export const SKIN_APPS = [
   { id: 'chat', name: '聊天', icon: 'chat', pages: [['chat-messages', '聊天列表'], ['chat-contacts', '联系人'], ['chat-room', '聊天界面'], ['chat-moments', '动态'], ['chat-me', '我的主页']] },
-  { id: 'music', name: '音乐', icon: 'music' }, { id: 'interlude', name: '幕间', icon: 'search' }, { id: 'memory', name: '岁岁砂', icon: 'hourglass' },
+  { id: 'music', name: '音乐', icon: 'music', pages: [['music-player', '播放页']] }, { id: 'interlude', name: '幕间', icon: 'search' }, { id: 'memory', name: '岁岁砂', icon: 'hourglass' },
   { id: 'diary', name: '日记', icon: 'note' }, { id: 'street', name: '商业街', icon: 'shop' },
   { id: 'forum', name: '论坛', icon: 'comment', pages: [['forum-home', '首页'], ['forum-post', '帖子'], ['forum-user', '主页']] }, { id: 'mirror', name: '映像', icon: 'users' }, { id: 'settings', name: '设置', icon: 'gear' },
   { id: 'library', name: '资源库', icon: 'box' }, { id: 'log', name: '日志', icon: 'list' }, { id: 'home', name: '桌面', icon: 'grid' }, { id: 'lock', name: '锁屏', icon: 'lock' },
@@ -65,6 +65,19 @@ export const VARS = [
   ['forum', 'forum-title-size', '帖子标题的字号', '.as-fo-post__title', 'font-size'],
   ['forum', 'forum-title-card', '有标题的帖子：卡片的底', '.as-fo-post.has-title', 'background'],
   ['forum', 'forum-notitle-card', '没标题的帖子：卡片的底', '.as-fo-post.no-title', 'background'],
+  ['music-player', 'mp-bg', '播放页背景（没自己设背景图的时候）', '.as-mp__bg:not(.is-custom)', 'background'],
+  ['music-player', 'mp-text', '歌名、歌手、时间的字', '.as-mp__name, .as-mp__artist, .as-mp__top, .as-mp__times', 'color'],
+  ['music-player', 'mp-lrc', '还没唱到的歌词', '.as-mp__lrc > p:not(.is-cur)', 'color'],
+  ['music-player', 'mp-lrc-cur', '正在唱的那句（唱过的字）', '.as-mp__lrc p.is-cur, .as-mp__lrc .as-ch.is-cur p', 'color --ly'],
+  ['music-player', 'mp-lrc-size', '歌词字号', '.as-mp__lrc p', 'font-size'],
+  ['music-player', 'mp-btn', '播放、上一首这些按钮', '.as-mp', '--mp-btn'],
+  ['music-player', 'mp-btn', '', '.as-mp__heart:not(.is-on), .as-mp__info > button', 'color'],   // 同一个变量再管歌名旁的心和评论（说明空着，教程里不重复列）
+  ['music-player', 'mp-bar', '进度条（播过的那段和圆点）', '.as-mp__track i, .as-mp__track b', 'background'],
+  ['music-player', 'mp-tg-bub-bg', '一起听：头像上气泡的底', '.as-tg__bub', '--bub-bg'],
+  ['music-player', 'mp-tg-bub-color', '一起听：头像上气泡的字', '.as-tg__bub', '--bub-ink'],
+  ['music-player', 'mp-tg-time', '一起听：「一起听了多久」那行', '.as-tg__time', 'color'],
+  ['music-player', 'mp-choir-bg', '群里一起听：每一句的底', '.as-mp__lrc .as-ch p', '--ch-bg'],
+  ['music-player', 'mp-choir-color', '群里一起听：每一句的字', '.as-mp__lrc .as-ch p', '--ch-ink'],
   ['chat-room', 'chat-bg', '聊天背景（颜色、渐变或图片）', '.as-chat-msgs:not(.has-bg)', 'background'],
   ['chat-room', 'chat-head-bg', '顶栏底色', '.as-chat-room > .as-navbar', 'background'],
   ['chat-room', 'chat-head-color', '顶栏的字和图标', '.as-chat-room > .as-navbar, .as-chat-room > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-chat-room__name)', 'color'],
@@ -83,7 +96,7 @@ export const VARS = [
   ['chat-room', 'chat-input-color', '输入框字色', '.as-chat-input', 'color'],
   ['chat-room', 'chat-send-bg', '发送按钮底色', '.as-chat-sendbtn:not(.is-idle, .is-loading)', 'background'],
 ];
-const varRules = css => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); return VARS.filter(v => new RegExp(`--as-${v[1]}\\s*:`).test(css)).map(([, k, , sel, p]) => `:is(${sel}):not(#as-v) { ${p.split(' ').map(q => `${q}: var(--as-${k}) !important;`).join(' ')} }`).join('\n'); };   // 注释里的不算
+const varRules = css => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); return VARS.filter(v => new RegExp(`--as-${v[1]}\\s*:`).test(css)).map(([, k, , sel, p]) => `:is(${sel}):not(#as-v), :scope:is(${sel}):not(#as-v) { ${p.split(' ').map(q => `${q}: var(--as-${k}) !important;`).join(' ')} }`).join('\n'); };   // 注释里的不算；:scope:is() 是为了管到皮肤那一块最外面那层（@scope 里普通的写法只管里面的）
 // :root 换成皮肤管的那一块（整部手机就是 .as-phone）；夜间写 :root[data-mode="night"]。
 // :not(#as-v) 让写的值压过 App 自带的日夜默认（比如论坛夜间的 --fo-*）：:root 里写的白天夜间都算
 const rooted = (css, scoped) => css.replace(/:root(\[data-mode="?(?:night|day)"?\])?/g, (m, a = '') => (scoped ? (a ? `.as-phone${a} :scope` : ':scope') : '.as-phone' + a) + ':not(#as-v)');
