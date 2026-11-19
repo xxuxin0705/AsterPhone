@@ -3,9 +3,9 @@
 .as-mz .as-navbar { grid-template-columns: 40px 1fr auto; height: 56px; position: relative; z-index: 5; background: none !important; border: 0; box-shadow: none; color: var(--mz-ink); }
 .as-mz .as-navbar__back { color: var(--mz-ink); }
 .as-mz .as-page__body { position: relative; z-index: 2; overflow: hidden; padding: 0; pointer-events: none; }
-.mz-head { flex: 1; min-width: 0; text-shadow: 0 0 12px #04050d; }
+.mz-head { position: relative; flex: 1; min-width: 0; text-shadow: 0 0 12px #04050d; }
 .mz-head b { display: block; font-weight: 400; font-size: 22px; letter-spacing: 8px; }
-.mz-head small { display: block; margin-top: 6px; font-size: 12px; letter-spacing: 4px; color: var(--mz-ink); opacity: .7; }
+.mz-head small { position: absolute; left: 0; top: 100%; white-space: nowrap; margin-top: 6px; font-size: 12px; letter-spacing: 4px; color: var(--mz-ink); opacity: .7; }
 .mz-roster { display: flex; gap: 8px; align-items: center; max-width: 152px; padding: 6px 4px; overflow-x: auto; scrollbar-width: none; }
 .mz-roster button { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: #2a2a3a; color: var(--mz-ink); font-size: 12px; opacity: .55; cursor: pointer; transition: opacity .2s, box-shadow .2s, transform .16s cubic-bezier(.23,1,.32,1); }
 .mz-roster button:active { transform: scale(.94); }

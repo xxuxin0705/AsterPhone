@@ -83,7 +83,6 @@ function rowsOf(i, c, x) {
       return h('div.mz-col', input({ value: c.nick || '', placeholder: '默认网名', onInput: v => { c.nick = v; save(); set(); } }),
         isZh(langFor('chat', ch().speak)) ? '' : h('label.mz-nick', h('small', '中文'), input({ value: c.nickZh || '', placeholder: '中文网名', onInput: v => { if (v.trim()) c.nickZh = v.trim(); else delete c.nickZh; save(); } })),
         ...NICK_APPS.map(([k, l]) => h('label.mz-nick', h('small', l), input({ value: get(k), placeholder: '跟默认一样', onInput: v => put(k, v.trim()) })))); } }],
-    ['备注', text('remark', '备注')],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
     ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
