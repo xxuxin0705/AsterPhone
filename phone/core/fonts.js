@@ -78,3 +78,14 @@ export async function renameClockFont(id, name) {
   recs.forEach(r => { if (r.id === id) r.name = name; }); await kvSet('fonts:clock', recs);
 }
 export const fontFamily = id => `"${family(id)}"`;
+/** 主题导出：用到的导入字体打成文字放进文件（内置的原样留名字）；导入时装上，换回新的编号 */
+export async function packFont(f) {
+  if (!has(f)) return f || '';
+  const r = ((await kvGet('fonts:clock').catch(() => null)) || []).find(x => x.id === f.slice(2));
+  return r ? { name: r.name, data: await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(r.blob); }) } : '';
+}
+export async function unpackFont(p) {
+  if (!p || typeof p === 'string') return p && !p.startsWith('u:') ? p : '';
+  const same = list.find(x => x.name === p.name); if (same) return 'u:' + same.id;   // 已经有同名的就不重复装
+  return 'u:' + (await importClockFont(new File([await (await fetch(p.data)).blob()], p.name + '.ttf'))).id;
+}

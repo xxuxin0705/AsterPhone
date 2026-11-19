@@ -53,6 +53,7 @@ function setNight(night, originEl, instant) {
   }
   if ((phone.dataset.mode === 'night') !== night || instant) wallpaper.setNight(night, origin || [.5, .12], instant);
   markNight(night);
+  if (state.library && state.library.pair) import('../apps/library/library.js').then(m => m.pairTick(wantNight()));   // 资源库里开了「日夜各一套」：跟着全局的日夜换主题
 }
 /* ---------- 壁纸：锁屏一张、桌面一张 ---------- */
 let wallTok = 0, wallReady = Promise.resolve();

@@ -79,7 +79,7 @@ const wrap = (sk) => {
 
 export function applySkins() {
   const L = lib(), u = userTheme(), t = THEMES[u ? u.base : L.theme] || THEMES.aero;
-  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}` + (u && u.css ? '\n' + rooted(u.css) + '\n' + varRules(u.css) : '');
+  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}` + (u && u.css ? '\n' + rooted(u.css) + '\n' + varRules(u.css) : '') + (u && u.skins ? '\n' + u.skins.map(wrap).join('\n') : '');
   const on = L.skins.filter(s => s.on);
   if (trial) on.push(trial);
   styleEl('as-skins').textContent = on.map(s => `/* 皮肤：${s.name} */\n${wrap(s)}`).join('\n\n');

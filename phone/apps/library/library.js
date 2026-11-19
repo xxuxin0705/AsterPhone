@@ -1,13 +1,13 @@
 // 资源库：主题（整部手机的一套样子，能存、导出、导入）、应用（各 App 的皮肤）、个性装扮（字体、表情包…到处都能用的）、教程。
 import { h, uid, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
+import { page, group, item, toggleItem, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
 import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame, refreshFrame, touchUp } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
 import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial, VARS } from '../../core/skin.js';
 import * as time from '../../core/time.js';
 import * as walls from '../../core/walls.js';
-import { userFonts, importClockFont, removeClockFont, renameClockFont, fontFamily } from '../../core/fonts.js';
+import { userFonts, importClockFont, removeClockFont, renameClockFont, fontFamily, packFont, unpackFont } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
 import { desk, setDesk, cleanDesk } from '../home/home.js';
 import { lookTiles } from '../forum/looks.js';
@@ -201,12 +201,21 @@ function editBubble(b, redraw) {
 }
 
 /* ---------- 主题：自带的两套 + 自己存的；点一下整套换上（颜色、锁屏和桌面壁纸、主题里的 CSS） ---------- */
-function useTheme(k, t) {
+function useTheme(k, t, quiet) {
   setTheme(k);
-  const w = t.walls || { lock: t.wall, home: t.wall };
-  Object.assign(state.settings.walls, { lock: w.lock, home: w.home, lockRandom: false, homeRandom: false }); commit('look'); shell.applyLook();
+  const w = t.walls || { lock: t.wall, home: t.wall }, s = state.settings;
+  Object.assign(s.walls, { lock: w.lock, home: w.home, lockRandom: false, homeRandom: false });
+  if (t.chatSkin) { state.apps.chat.skin = t.chatSkin; commit('apps'); }
+  if (t.fonts) { if (t.fonts.ui != null) s.uiFont = t.fonts.ui; if (t.fonts.clock) s.clock.font = t.fonts.clock; }
+  commit('look'); shell.applyLook();
   if (t.desk) setDesk(structuredClone(t.desk));
-  toast(`已换成「${t.name}」`);
+  if (!quiet) toast(`已换成「${t.name}」`);
+}
+/* 日夜各一套：lib().pair = { day, night }（主题的编号）；手机换日夜时 core/main.js 叫这里，悄悄换过去 */
+const themeOf = k => THEMES[k] || userThemes().find(x => x.id === k);
+export function pairTick(night) {
+  const P = lib().pair, k = P && (night ? P.night : P.day), t = k && themeOf(k);
+  if (t && lib().theme !== k) useTheme(k, t, true);
 }
 function drawThemes(box, redraw) {
   const cur = lib().theme;
@@ -216,6 +225,7 @@ function drawThemes(box, redraw) {
     if (mine) walls.thumb(t.walls.home).then(u => { if (u) pv.style.backgroundImage = `url(${u})`; });
     else pv.style.backgroundImage = `url(assets/wallpapers/${t.wall}-day.jpg)`;
     return h('button.as-lib-theme' + (k === cur ? '.is-active' : ''), { onclick: e => {
+      const P = lib().pair; if (P) { P[document.querySelector('#phone').dataset.mode === 'night' ? 'night' : 'day'] = k; paintPair(); }   // 日夜各一套时：点了就是「现在这个时段用它」
       useTheme(k, t);
       const b = e.currentTarget, on = b.parentNode.querySelector('.is-active'); if (on === b) return;   // 只换勾，不整页重画
       on?.classList.remove('is-active'); b.classList.add('is-active'); b.append(on?.querySelector('.as-lib-theme__on') || h('span.as-lib-theme__on', icon('check', 14, 2.6)));
@@ -223,15 +233,25 @@ function drawThemes(box, redraw) {
       mine ? h('span.as-lib-theme__more', { role: 'button', 'aria-label': t.name + '更多', onclick: e => { e.stopPropagation(); themeMenu(t, redraw); } }, icon('more', 18, 2)) : null,
       k === cur ? h('span.as-lib-theme__on', icon('check', 14, 2.6)) : null);
   };
-  box.append(h('div.as-lib-actions.is-two', btn('导入', 'secondary', () => importTheme(redraw)), btn('存成主题', 'secondary', () => saveTheme(redraw))),
+  const pick = async when => {
+    const all = [...Object.entries(THEMES), ...userThemes().map(t => [t.id, t])];
+    const v = await actionSheet(when === 'day' ? '白天用' : '晚上用', all.map(([k, t]) => ({ value: k, label: t.name, active: lib().pair[when] === k }))); if (v == null) return;
+    lib().pair[when] = v; commit('library'); paintPair(); pairTick(document.querySelector('#phone').dataset.mode === 'night');
+  };
+  const rows = ['day', 'night'].map(w => item({ title: w === 'day' ? '白天用' : '晚上用', value: '', chevron: true, onClick: () => pick(w) }));
+  const paintPair = () => { const P = lib().pair; rows.forEach((r, i) => { r.hidden = !P; if (P) r.querySelector('.as-list-item__value').textContent = themeOf(P[i ? 'night' : 'day'])?.name || '没选'; }); };
+  paintPair();
+  box.append(group('', [toggleItem({ title: '日夜各一套' }, !!lib().pair, v => { if (v) lib().pair = { day: cur, night: cur }; else delete lib().pair; commit('library'); paintPair(); }), ...rows]),
+    h('div.as-lib-actions.is-two', btn('导入', 'secondary', () => importTheme(redraw)), btn('存成主题', 'secondary', () => saveTheme(redraw))),
     h('div.as-lib-themes', ...Object.entries(THEMES).map(([k, t]) => card(k, t, false)), ...userThemes().map(t => card(t.id, t, true))));
 }
-/** 把现在的样子（颜色、锁屏和桌面壁纸、桌面上的图标和组件、作用在全部的皮肤）存成一个主题 */
+/** 把现在的样子存成一个主题：颜色、锁屏和桌面壁纸、桌面上的图标和组件、开着的皮肤（整部手机的并进 css，分 App / 分页的放 skins）、聊天样式、字体 */
 async function saveTheme(redraw) {
   const name = await dialog({ title: '存成主题', input: { value: '我的主题' } }); if (!name || !name.trim()) return;
   const L = lib(), u = userThemes().find(x => x.id === L.theme);
   const css = [u && u.css, ...L.skins.filter(x => x.on && x.scope === 'all').map(x => x.css)].filter(Boolean).join('\n');
-  const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, desk: structuredClone(desk()), css };
+  const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, desk: structuredClone(desk()), css,
+    skins: L.skins.filter(x => x.on && x.scope && x.scope !== 'all').map(({ name, scope, css }) => ({ name, scope, css })), chatSkin: state.apps.chat.skin || 'wechat', fonts: { ui: state.settings.uiFont || '', clock: state.settings.clock.font || 'sf' } };
   userThemes().push(t); setTheme(t.id); toast(`存好了「${t.name}」`); redraw();
 }
 async function themeMenu(t, redraw) {
@@ -239,7 +259,8 @@ async function themeMenu(t, redraw) {
   if (v === 'out') {
     toast('正在打包…', true);
     try {
-      const data = { asterphone: 'theme', v: 1, name: t.name, base: t.base, css: t.css, desk: t.desk, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) } };
+      const data = { asterphone: 'theme', v: 2, name: t.name, base: t.base, css: t.css, desk: t.desk, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) },
+        skins: t.skins, chatSkin: t.chatSkin, fonts: t.fonts && { ui: await packFont(t.fonts.ui), clock: await packFont(t.fonts.clock) } };
       const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-主题-${t.name}.json` });
       document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
     } catch (e) { toast('打包失败：' + e.message); }
@@ -261,7 +282,9 @@ async function importTheme(redraw) {
   toast('正在导入…', true);
   try {
     const t = { id: uid('th'), name: String(d.name || '导入的主题').slice(0, 20), base: THEMES[d.base] ? d.base : 'aero', css: String(d.css || ''), desk: cleanDesk(d.desk),
-      walls: { lock: await walls.unpack(d.walls?.lock ?? 'water', 'lock'), home: await walls.unpack(d.walls?.home ?? 'water', 'home') } };
+      walls: { lock: await walls.unpack(d.walls?.lock ?? 'water', 'lock'), home: await walls.unpack(d.walls?.home ?? 'water', 'home') },
+      skins: (Array.isArray(d.skins) ? d.skins : []).map(x => ({ name: String(x.name || '皮肤').slice(0, 20), scope: String(x.scope || 'all'), css: String(x.css || '') })),
+      chatSkin: CHAT_SKINS.some(c => c[0] === d.chatSkin) ? d.chatSkin : '', fonts: d.fonts && { ui: await unpackFont(d.fonts.ui), clock: await unpackFont(d.fonts.clock) || 'sf' } };
     userThemes().push(t); useTheme(t.id, t); redraw();
   } catch (e) { toast('导入失败：' + e.message); }
 }
