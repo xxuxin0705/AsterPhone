@@ -61,6 +61,10 @@ export const VARS = [
   ['chat-moments', 'chat-moment-text-color', '动态正文', '.as-chat-moment__text', 'color'],
   ['chat-moments', 'chat-moment-box-bg', '点赞和评论那块的底', '.as-chat-moment__box', 'background'],
   ['chat-moments', 'chat-moment-line', '两条动态中间的分隔线', '.as-chat-moment', 'border-bottom-color'],
+  ['forum', 'forum-title-color', '帖子标题的颜色', '.as-fo-post__title', 'color'],
+  ['forum', 'forum-title-size', '帖子标题的字号', '.as-fo-post__title', 'font-size'],
+  ['forum', 'forum-title-card', '有标题的帖子：卡片的底', '.as-fo-post.has-title', 'background'],
+  ['forum', 'forum-notitle-card', '没标题的帖子：卡片的底', '.as-fo-post.no-title', 'background'],
   ['chat-room', 'chat-bg', '聊天背景（颜色、渐变或图片）', '.as-chat-msgs:not(.has-bg)', 'background'],
   ['chat-room', 'chat-head-bg', '顶栏底色', '.as-chat-room > .as-navbar', 'background'],
   ['chat-room', 'chat-head-color', '顶栏的字和图标', '.as-chat-room > .as-navbar, .as-chat-room > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-chat-room__name)', 'color'],
@@ -80,8 +84,9 @@ export const VARS = [
   ['chat-room', 'chat-send-bg', '发送按钮底色', '.as-chat-sendbtn:not(.is-idle, .is-loading)', 'background'],
 ];
 const varRules = css => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); return VARS.filter(v => new RegExp(`--as-${v[1]}\\s*:`).test(css)).map(([, k, , sel, p]) => `:is(${sel}):not(#as-v) { ${p.split(' ').map(q => `${q}: var(--as-${k}) !important;`).join(' ')} }`).join('\n'); };   // 注释里的不算
-// :root 换成皮肤管的那一块（整部手机就是 .as-phone）；夜间写 :root[data-mode="night"]
-const rooted = (css, scoped) => css.replace(/:root(\[data-mode="?(?:night|day)"?\])?/g, (m, a = '') => scoped ? (a ? `.as-phone${a} :scope` : ':scope') : '.as-phone' + a);
+// :root 换成皮肤管的那一块（整部手机就是 .as-phone）；夜间写 :root[data-mode="night"]。
+// :not(#as-v) 让写的值压过 App 自带的日夜默认（比如论坛夜间的 --fo-*）：:root 里写的白天夜间都算
+const rooted = (css, scoped) => css.replace(/:root(\[data-mode="?(?:night|day)"?\])?/g, (m, a = '') => (scoped ? (a ? `.as-phone${a} :scope` : ':scope') : '.as-phone' + a) + ':not(#as-v)');
 const wrap = (sk) => {
   const scoped = sk.scope && sk.scope !== 'all', css = rooted(sk.css, scoped) + '\n' + varRules(sk.css);
   return scoped ? `@scope ([data-as-${sk.scope.includes('-') ? 'page' : 'app'}="${sk.scope}"]) {\n${css}\n}` : css;

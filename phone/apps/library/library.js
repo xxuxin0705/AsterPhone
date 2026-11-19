@@ -10,7 +10,7 @@ import * as walls from '../../core/walls.js';
 import { userFonts, importClockFont, removeClockFont, renameClockFont, fontFamily, packFont, unpackFont } from '../../core/fonts.js';
 import { shell } from '../../core/shell.js';
 import { desk, setDesk, cleanDesk } from '../home/home.js';
-import { lookTiles } from '../forum/looks.js';
+import { lookTiles, look, lookOf, looks, cleanLook, packOf } from '../forum/looks.js';
 import { setTiles } from '../forum/dress.js';
 
 // 教程：每个能美化的地方（整部手机 / 某个 App / 某一页）一份：常用门牌号（类名）+ 例子
@@ -55,7 +55,7 @@ const GUIDE = {
   diary: { cls: [['[class*="as-dy-"]', '日记的东西都以 .as-dy- 开头']] },
   forum: { cls: [['[data-as-app="forum"]', '论坛的每一页（[data-as-page] 是哪一页：forum-home / forum-post / forum-user / forum-board / forum-hot / forum-search / forum-at / forum-cmts / forum-likes / forum-groups / forum-dress；首页 [data-tab] 是正在看哪个标签）'], ['.as-fo-tabbar', '底部标签栏'], ['.as-fo-switch', '首页顶上的切换'], ['.as-fo-navgroups', '首页左上角进小组（默认藏着）'],
       ['.as-fo-search', '搜索框'], ['.as-fo-hot', '热榜块（__item 一条、__no 排名、__topic、__heat、__tag；__more 最后一格「更多」默认藏着）'], ['.as-fo-boards', '小组格子（.as-fo-board 一个）'], ['.as-fo-chips', '正在讨论'],
-      ['.as-fo-post', '一条帖（.is-full 帖子页里那条）'], ['.as-fo-post__group', '小组名'], ['.as-fo-post__ava', '头像（__badge 头像角上的 V）'], ['.as-fo-post__name', '名字'], ['.as-fo-post__meta', '时间、来自'], ['.as-fo-post__menu', '右上小箭头（默认藏着）'],
+      ['.as-fo-post', '一条帖（.is-full 帖子页里那条；.has-title 有标题、.no-title 没标题，照显示出来的算）'], ['.as-fo-post__group', '小组名'], ['.as-fo-post__ava', '头像（__badge 头像角上的 V）'], ['.as-fo-post__name', '名字'], ['.as-fo-post__meta', '时间、来自'], ['.as-fo-post__menu', '右上小箭头（默认藏着）'],
       ['.as-fo-follow', '关注按钮'], ['.as-fo-post__title', '标题'], ['.as-fo-post__text', '正文（.as-fo-topic 话题）'], ['.as-fo-post__hotcmt', '热门回复'], ['.as-fo-post__count', '回应数'], ['.as-fo-post__acts', '转 · 评 · 赞（.as-fo-act 一个，[data-n] 是数字，__n 数字、__w 字）'],
       ['.as-fo-nrow', '消息页评论、赞那两行'], ['.as-fo-dyn', '消息页动态一条'], ['.as-fo-cmt', '收到的评论 / 赞一条'], ['.is-dressed', '穿了装扮套装的主页（[data-as-page="forum-user"].is-dressed）'], ['.as-fo-dbadge', '名字旁的徽章图'], ['.as-fo-post__sticker', '卡片贴纸'],
       ['.as-fo-stat', '帖子页的数据标签'], ['.as-fo-floor', '一层楼（.is-sub 回别人的、.is-op 楼主；__quote 引用原话）'], ['.as-fo-dock', '帖子页底下那条'], ['.as-fo-user', '主页（__cover 背景、__nums 数字）'], ['.as-fo-ubar', '主页底下那条'],
@@ -206,6 +206,7 @@ function useTheme(k, t, quiet) {
   const w = t.walls || { lock: t.wall, home: t.wall }, s = state.settings;
   Object.assign(s.walls, { lock: w.lock, home: w.home, lockRandom: false, homeRandom: false });
   if (t.chatSkin) { state.apps.chat.skin = t.chatSkin; commit('apps'); }
+  if (t.forumLook && lookOf(t.forumLook)) { state.apps.forum.skin = t.forumLook; commit('apps'); }
   if (t.fonts) { if (t.fonts.ui != null) s.uiFont = t.fonts.ui; if (t.fonts.clock) s.clock.font = t.fonts.clock; }
   commit('look'); shell.applyLook();
   if (t.desk && JSON.stringify(t.desk) !== JSON.stringify(desk())) setDesk(structuredClone(t.desk));   // 一样就不重摆，不然日夜一换桌面就闪一下
@@ -251,7 +252,7 @@ async function saveTheme(redraw) {
   const L = lib(), u = userThemes().find(x => x.id === L.theme);
   const css = [u && u.css, ...L.skins.filter(x => x.on && x.scope === 'all').map(x => x.css)].filter(Boolean).join('\n');
   const t = { id: uid('th'), name: name.trim().slice(0, 20), base: u ? u.base : THEMES[L.theme] ? L.theme : 'aero', walls: { lock: walls.current('lock'), home: walls.current('home') }, desk: structuredClone(desk()), css,
-    skins: L.skins.filter(x => x.on && x.scope && x.scope !== 'all').map(({ name, scope, css }) => ({ name, scope, css })), chatSkin: state.apps.chat.skin || 'wechat', fonts: { ui: state.settings.uiFont || '', clock: state.settings.clock.font || 'sf' } };
+    skins: L.skins.filter(x => x.on && x.scope && x.scope !== 'all').map(({ name, scope, css }) => ({ name, scope, css })), chatSkin: state.apps.chat.skin || 'wechat', forumLook: look().id, fonts: { ui: state.settings.uiFont || '', clock: state.settings.clock.font || 'sf' } };
   userThemes().push(t); setTheme(t.id); toast(`存好了「${t.name}」`); redraw();
 }
 async function themeMenu(t, redraw) {
@@ -260,7 +261,7 @@ async function themeMenu(t, redraw) {
     toast('正在打包…', true);
     try {
       const data = { asterphone: 'theme', v: 2, name: t.name, base: t.base, css: t.css, desk: t.desk, walls: { lock: await walls.pack(t.walls.lock), home: await walls.pack(t.walls.home) },
-        skins: t.skins, chatSkin: t.chatSkin, fonts: t.fonts && { ui: await packFont(t.fonts.ui), clock: await packFont(t.fonts.clock) } };
+        skins: t.skins, chatSkin: t.chatSkin, forumLook: lookOf(t.forumLook) && (lookOf(t.forumLook).builtin ? t.forumLook : await packOf(lookOf(t.forumLook))), fonts: t.fonts && { ui: await packFont(t.fonts.ui), clock: await packFont(t.fonts.clock) } };
       const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })), download: `AsterPhone-主题-${t.name}.json` });
       document.body.appendChild(a); a.click(); a.remove(); toast('已导出');
     } catch (e) { toast('打包失败：' + e.message); }
@@ -275,6 +276,13 @@ async function themeMenu(t, redraw) {
     redraw();
   }
 }
+/** 主题里带的论坛样子：自带的只记名字；自己的整套带着，导进来放进论坛的样子里（同名的就用已有的） */
+function forumLookIn(v) {
+  if (typeof v === 'string') return lookOf(v)?.builtin ? v : '';
+  const L = cleanLook(v); if (!L) return '';
+  const same = looks().find(x => x.name === L.name); if (same) return same.id;
+  looks().push(L); commit('apps'); return L.id;
+}
 async function importTheme(redraw) {
   const f = await pickFile('*/*'); if (!f) return;   // 不限类型：有的手机存下来的文件名会丢掉 .json
   let d = null; try { d = JSON.parse(await f.text()); } catch (e) { /* 下面统一说 */ }
@@ -284,7 +292,7 @@ async function importTheme(redraw) {
     const t = { id: uid('th'), name: String(d.name || '导入的主题').slice(0, 20), base: THEMES[d.base] ? d.base : 'aero', css: String(d.css || ''), desk: cleanDesk(d.desk),
       walls: { lock: await walls.unpack(d.walls?.lock ?? 'water', 'lock'), home: await walls.unpack(d.walls?.home ?? 'water', 'home') },
       skins: (Array.isArray(d.skins) ? d.skins : []).map(x => ({ name: String(x.name || '皮肤').slice(0, 20), scope: String(x.scope || 'all'), css: String(x.css || '') })),
-      chatSkin: CHAT_SKINS.some(c => c[0] === d.chatSkin) ? d.chatSkin : '', fonts: d.fonts && { ui: await unpackFont(d.fonts.ui), clock: await unpackFont(d.fonts.clock) || 'sf' } };
+      chatSkin: CHAT_SKINS.some(c => c[0] === d.chatSkin) ? d.chatSkin : '', forumLook: forumLookIn(d.forumLook), fonts: d.fonts && { ui: await unpackFont(d.fonts.ui), clock: await unpackFont(d.fonts.clock) || 'sf' } };
     userThemes().push(t); useTheme(t.id, t); redraw();
   } catch (e) { toast('导入失败：' + e.message); }
 }

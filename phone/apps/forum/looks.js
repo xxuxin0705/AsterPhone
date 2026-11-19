@@ -76,7 +76,7 @@ export function cleanLook(d, keepId) {
     texts: Object.fromEntries(Object.entries(d.texts || {}).filter(([k, v]) => /^forum\./.test(k) && typeof v === 'string').map(([k, v]) => [k, v.slice(0, 40)])),
     css: str(d.css, 400000), imgs: Object.fromEntries(Object.entries(d.imgs || {}).filter(([k, v]) => /^[\w-]{1,30}$/.test(k) && /^data:image\//.test(str(v, 3e6))).map(([k, v]) => [k, v])) };
 }
-const packOf = async L => ({ asterphone: 'forumLook', v: 1, name: L.name, swatch: L.swatch, layout: L.layout, texts: L.texts, css: await cssOf(L), imgs: L.imgs || {} });
+export const packOf = async L => ({ asterphone: 'forumLook', v: 1, name: L.name, swatch: L.swatch, layout: L.layout, texts: L.texts, css: await cssOf(L), imgs: L.imgs || {} });
 function download(data, name) {
   const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })), download: `AsterPhone-论坛样子-${name}.json` });
   document.body.appendChild(a); a.click(); a.remove(); toast('已导出');

@@ -186,7 +186,7 @@ const rpEl = p => { const o = E.postOf(p.rp);
 function card(p, full) {
   const w = E.who(p.by), g = E.groupOf(p.board), toUser = e => { if (p.by.anon) return; e.stopPropagation(); openUser(p.by); };
   const top = !full && (p.floors || []).filter(f => f.by.k !== 'me').sort((a, b) => b.likes - a.likes)[0];
-  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title ? '.has-title' : '') + (p.pic || p.img ? '.has-media' : ''),
+  return h('article.as-fo-post' + (full ? '.is-full' : '') + (p.title && !noTitle() ? '.has-title' : '.no-title') + (p.pic || p.img ? '.has-media' : ''),
     { dataset: { id: p.id, board: p.board }, onclick: full ? null : () => openPost(p) },
     p.top ? h('div.as-fo-post__pin', h('b.as-fo-post__pinbg'), h('i'), h('span', '置顶')) : null,
     g ? h('div.as-fo-post__group' + (g.base ? '.is-base' : ''), { onclick: e => { e.stopPropagation(); openBoard(g.id); } }, h('span.as-fo-post__gicon', g.name.slice(0, 1)), h('span.as-fo-post__gname', g.name)) : null,
