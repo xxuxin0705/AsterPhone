@@ -4,7 +4,7 @@ import { state, commit } from '../../core/store.js';
 import { page, group, item, segmented, input, textarea, field, btn, icon, actionSheet, dialog, sheet, toast, empty, navText, withInfo, avatar, slider, colorWheel } from '../../core/ui.js';
 import { deco, addFrame, paintBubble, pack, unpack, fitFrame, tintFrame, refreshFrame, touchUp } from '../../core/deco.js';
 import * as nav from '../../core/nav.js';
-import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial } from '../../core/skin.js';
+import { THEMES, SKIN_APPS, scopeName, lib, userThemes, applySkins, setTheme, tryOn, endTrial, VARS } from '../../core/skin.js';
 import * as time from '../../core/time.js';
 import * as walls from '../../core/walls.js';
 import { userFonts, importClockFont, removeClockFont, renameClockFont, fontFamily } from '../../core/fonts.js';
@@ -21,7 +21,25 @@ const GUIDE = {
       ['--as-color-accent', '强调色'], ['--as-blur', '毛玻璃模糊度'], ['--as-radius-l', '卡片圆角'], ['--as-font-scale', '字号倍数']],
     ex: [{ name: '玻璃更透一点', css: `.as-phone { --as-blur: 30px; --as-color-surface: rgba(255,255,255,.3); }\n.as-phone[data-mode="night"] { --as-color-surface: rgba(255,255,255,.06); }` }] },
   chat: { cls: [['.as-chat-tabbar', '底部标签栏'], ['.as-chat-tab', '标签栏里的一个按钮']],
-    ex: [{ name: '朋友圈改名', css: `/* 把「动态」改叫「朋友圈」，「我」改叫「我的」 */\n/* @texts {"chat.tab.moments":"朋友圈","chat.tab.me":"我的"} */` }],
+    ex: [{ name: '朋友圈改名', css: `/* 把「动态」改叫「朋友圈」，「我」改叫「我的」 */\n/* @texts {"chat.tab.moments":"朋友圈","chat.tab.me":"我的"} */` },
+      { name: '奶茶色（用变量换一套）', css: `/* 只改写到的地方，别的照原样；变量清单在上面 */
+:root {
+  --as-chat-bg: #f7efe6;            /* 聊天背景 */
+  --as-chat-me-bg: #e9c9a3;         /* 我的气泡 */
+  --as-chat-me-color: #4a2f17;
+  --as-chat-them-bg: #fffaf4;       /* TA 的气泡 */
+  --as-chat-them-color: #4a3b30;
+  --as-chat-bubble-radius: 14px;
+  --as-chat-send-bg: #c99a6b;
+  --as-chat-unread-bg: #c99a6b;
+}
+:root[data-mode="night"] {
+  --as-chat-bg: #1c1814;
+  --as-chat-me-bg: #7a5a3c;
+  --as-chat-me-color: #fff4e8;
+  --as-chat-them-bg: #2c2620;
+  --as-chat-them-color: #efe4d8;
+}` }],
     texts: 'chat.tab.messages、chat.tab.contacts、chat.tab.moments、chat.tab.me' },
   'chat-messages': { cls: [['.as-chat-search', '搜索框'], ['.as-chat-filter', '全部 / 单聊 / 群聊'], ['.as-chat-conv', '一个聊天'], ['.as-chat-conv__ava', '头像'], ['.as-chat-conv__name', '名字'], ['.as-chat-conv__text', '最后一句话'], ['.as-chat-conv__time', '时间']] },
   'chat-contacts': { cls: [['.as-chat-person', '一个联系人'], ['.as-chat-sec__head', '分组标题'], ['.as-chat-index-head', '字母标题'], ['.as-chat-indexbar', '右边的字母条']] },
@@ -385,7 +403,8 @@ function openGuide(sc) {
   subPage('library-guide', scopeName(sc) + '教程', () => '', nb => {
     nb.append(h('ol.as-lib-steps', h('li', `在${where}点「新建」，或者点下面的「用模板新建」。`), h('li', '照下面的门牌号写 CSS，先「试用 15 秒」看看，满意就保存。'), h('li', '在同一个地方点「导出」，就能发给别人。')),
       group(withInfo('门牌号', '点一行就复制。门牌号（类名）永远不改名，写好的皮肤以后也能用。'), G.cls.map(([k, d]) => item({ title: k, sub: d, onClick: () => copy(k) }))));
-    if (G.vars) nb.append(group(withInfo('颜色和尺寸变量', '写在 .as-phone { } 里。点一行就复制。'), G.vars.map(([k, d]) => item({ title: k, sub: d, onClick: () => copy(k) }))));
+    const vs = [...(G.vars || []), ...VARS.filter(v => v[0] === sc || (sc === 'chat' && v[0].startsWith('chat'))).map(v => ['--as-' + v[1], v[2]])];
+    if (vs.length) nb.append(group(withInfo('颜色和尺寸变量', '写在 :root { } 里，夜间另写在 :root[data-mode="night"] { } 里。点一行就复制。'), vs.map(([k, d]) => item({ title: k, sub: d, onClick: () => copy(k) }))));
     if (G.texts) nb.append(group(withInfo('改界面上的字', '把这行注释放进皮肤里就能改字。能改：' + G.texts), [h('div.as-field', h('code.as-lib-code', '/* @texts {"chat.tab.moments":"朋友圈"} */'))]));
     if (G.ex) nb.append(group(withInfo('例子', '点一个就加到这里的皮肤里。'), G.ex.map(e => item({ title: e.name, sub: e.css.split('\n')[0].slice(0, 40), chevron: true, onClick: () => {
       if (lib().skins.some(x => x.name === e.name && (x.scope || 'all') === sc)) { toast(`已经有「${e.name}」了`); return; }

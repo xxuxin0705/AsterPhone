@@ -41,11 +41,45 @@ function styleEl(id) {
   if (!el) { el = document.createElement('style'); el.id = id; document.body.appendChild(el); }   // 放在最后，才能盖过自带样式
   return el;
 }
-const wrap = (sk) => sk.scope && sk.scope !== 'all' ? `@scope ([data-as-${sk.scope.includes('-') ? 'page' : 'app'}="${sk.scope}"]) {\n${sk.css}\n}` : sk.css;
+/* 口子（变量）：皮肤里写了哪个，才生成它管的那一条，盖在所有样式上面（默认、微信 / QQ / LINE、日夜都一样）；没写的不生成，原样不动。
+   每行：哪一页、变量名、说明、管哪些零件、改哪几项（空格隔开）。:not(#as-v) 只是为了压过原来的写法；单独戴了气泡装扮的人不受影响 */
+const BUB = '.as-chat-bubble:not(.as-chat-pic, .as-chat-sticker, .as-chat-money, .as-chat-card, .as-chat-tg, .as-chat-loc, .as-chat-imgcard, .has-deco, .has-deco-img)';
+export const VARS = [
+  ['chat', 'chat-tabbar-bg', '底部标签栏底色', '.as-chat-tabbar', 'background'],
+  ['chat-messages', 'chat-list-bg', '聊天列表的背景', '.as-page[data-as-page="chat-messages"]', 'background'],
+  ['chat-messages', 'chat-item-bg', '聊天列表那张卡片的底', '.as-chat-convs', 'background'],
+  ['chat-messages', 'chat-name-color', '名字的颜色', '.as-chat-conv__name', 'color'],
+  ['chat-messages', 'chat-preview-color', '最后一句话和时间的颜色', '.as-chat-conv__text, .as-chat-conv__time', 'color'],
+  ['chat-messages', 'chat-unread-bg', '未读数字的底色', '.as-chat-conv .as-badge, .as-chat-tab .as-badge', 'background'],
+  ['chat-room', 'chat-bg', '聊天背景（颜色、渐变或图片）', '.as-chat-msgs:not(.has-bg)', 'background'],
+  ['chat-room', 'chat-head-bg', '顶栏底色', '.as-chat-room > .as-navbar', 'background'],
+  ['chat-room', 'chat-head-color', '顶栏的字和图标', '.as-chat-room > .as-navbar, .as-chat-room > .as-navbar :is(.as-navbar__back, .as-navbar__btn, .as-chat-room__name)', 'color'],
+  ['chat-room', 'chat-me-bg', '我的气泡底色', '.as-chat-msg.is-me ' + BUB, 'background --k-out'],   // --k-out：微信 / LINE 气泡的小尖角
+  ['chat-room', 'chat-me-color', '我的气泡字色', '.as-chat-msg.is-me ' + BUB, 'color'],
+  ['chat-room', 'chat-them-bg', 'TA 的气泡底色', '.as-chat-msg.is-them ' + BUB, 'background --k-in'],
+  ['chat-room', 'chat-them-color', 'TA 的气泡字色', '.as-chat-msg.is-them ' + BUB, 'color'],
+  ['chat-room', 'chat-bubble-radius', '气泡圆角', '.as-chat-msg ' + BUB, 'border-radius'],
+  ['chat-room', 'chat-bubble-border', '气泡描边', '.as-chat-msg ' + BUB, 'border'],
+  ['chat-room', 'chat-bubble-shadow', '气泡阴影', '.as-chat-msg ' + BUB, 'box-shadow'],
+  ['chat-room', 'chat-font-size', '聊天字号', '.as-chat-msg ' + BUB, 'font-size'],
+  ['chat-room', 'chat-avatar-radius', '头像圆角（50% 是圆，4px 是方）', '.as-chat-msg__avatar, .as-chat-msg__avatar img', 'border-radius'],
+  ['chat-room', 'chat-time-color', '时间和系统提示的字', '.as-chat-time, .as-chat-sys', 'color'],
+  ['chat-room', 'chat-bar-bg', '输入栏底色', '.as-chat-inputwrap', 'background'],
+  ['chat-room', 'chat-input-bg', '输入框底色', '.as-chat-input', 'background'],
+  ['chat-room', 'chat-input-color', '输入框字色', '.as-chat-input', 'color'],
+  ['chat-room', 'chat-send-bg', '发送按钮底色', '.as-chat-sendbtn:not(.is-idle, .is-loading)', 'background'],
+];
+const varRules = css => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); return VARS.filter(v => new RegExp(`--as-${v[1]}\\s*:`).test(css)).map(([, k, , sel, p]) => `:is(${sel}):not(#as-v) { ${p.split(' ').map(q => `${q}: var(--as-${k}) !important;`).join(' ')} }`).join('\n'); };   // 注释里的不算
+// :root 换成皮肤管的那一块（整部手机就是 .as-phone）；夜间写 :root[data-mode="night"]
+const rooted = (css, scoped) => css.replace(/:root(\[data-mode="?(?:night|day)"?\])?/g, (m, a = '') => scoped ? (a ? `.as-phone${a} :scope` : ':scope') : '.as-phone' + a);
+const wrap = (sk) => {
+  const scoped = sk.scope && sk.scope !== 'all', css = rooted(sk.css, scoped) + '\n' + varRules(sk.css);
+  return scoped ? `@scope ([data-as-${sk.scope.includes('-') ? 'page' : 'app'}="${sk.scope}"]) {\n${css}\n}` : css;
+};
 
 export function applySkins() {
   const L = lib(), u = userTheme(), t = THEMES[u ? u.base : L.theme] || THEMES.aero;
-  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}` + (u && u.css ? '\n' + u.css : '');
+  styleEl('as-theme').textContent = `.as-phone{${V(t.day)}}.as-phone[data-mode="night"]{${V(t.night)}}` + (u && u.css ? '\n' + rooted(u.css) + '\n' + varRules(u.css) : '');
   const on = L.skins.filter(s => s.on);
   if (trial) on.push(trial);
   styleEl('as-skins').textContent = on.map(s => `/* 皮肤：${s.name} */\n${wrap(s)}`).join('\n\n');
