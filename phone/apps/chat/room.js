@@ -12,7 +12,7 @@ import * as P from '../../core/promptstore.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
-import { LANGS, langName, langFor } from '../../core/translate.js';
+import { LANGS, langName, langFor, relang } from '../../core/translate.js';
 import * as Mu from '../../core/music.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
@@ -418,7 +418,7 @@ function openSettings(chat, redrawRoom) {
         every.style.display = E.proactiveOn(cfg) ? '' : 'none';
         return [group('主动消息', [toggleItem({ title: 'TA 主动来找我' }, E.proactiveOn(cfg), v => { cfg.proactive = v; save(); every.style.display = v ? '' : 'none'; }), every])];
       })() : []),
-      trGroup(cfg, save, draw, true));
+      trGroup(cfg, save, draw, chat.contactId));
     const memSw = switchEl(E.memOn(chat), v => { cfg.mem = v; save(); }, '记进岁岁砂'); memSw.disabled = cfg.linkMode === 'follow';
     const memRow = item({ title: withInfo('记进岁岁砂', 'TA 回消息时顺手把值得记的记进岁岁砂。正文互通的聊天一定会记。'), right: memSw });
     if (lastTab === 'mem') box.append(
@@ -460,7 +460,7 @@ export function trGroup(cfg, save, draw, dm) {
   const pickLang = async (key, title) => { const v = await actionSheet(title, langs.map(([v, l]) => ({ value: v, label: l, active: cfg[key] === v }))); if (v) { cfg[key] = v; save(); draw(); } };
   return group(withInfo('翻译', '免费，不花你的 API。也可以长按任意一条消息 → 翻译。'), [
     dm ? item({ title: withInfo('TA 说的语言', '选了外语，TA 就直接说这个语言，中文意思写在气泡下面。群聊、动态、评论里 TA 也这样说。'), value: (cfg.speak ? '' : '跟着总的 · ') + langName(speak), chevron: true, onClick: async () => {
-      const v = await actionSheet('TA 说的语言', [['', '跟着总的'], ...langs].map(([value, label]) => ({ value, label, active: (cfg.speak || '') === value }))); if (v == null) return; cfg.speak = v; save(); draw();
+      const v = await actionSheet('TA 说的语言', [['', '跟着总的'], ...langs].map(([value, label]) => ({ value, label, active: (cfg.speak || '') === value }))); if (v == null) return; cfg.speak = v; save(); draw(); relang(contact(dm));
     } }) : null,
     foreign ? null : toggleItem({ title: withInfo('自动翻译 TA 的消息', '翻好的显示在 TA 的气泡下面。') }, !!cfg.autoTr, v => { cfg.autoTr = v; save(); draw(); }),
     foreign ? null : item({ title: '我看的语言', value: langName(cfg.myLang || 'zh-CN'), chevron: true, onClick: () => pickLang('myLang', '翻成什么语言给我看') }),

@@ -207,6 +207,9 @@ export const contact = id => state.contacts.find(c => c.id === id);
 // 人只有一份：friend === false 是只在映像里、还没加进聊天的人；noMirror 是在映像里删掉了（聊天里还在）
 // 网名：某个 App 单独起过的用那个，没起过用默认的（c.nick）
 export const nickOf = (c, app) => (c && c.appNick && c.appNick[app]) || (c && c.nick) || '';
+// 某个 App 里现在显示的网名；论坛的就是论坛里「熟人的网名」
+export const nickIn = (c, app) => (app === 'forum' && state.forum.people[c.id]?.name) || nickOf(c, app);
+export const setNick = (c, app, v) => { if (app === 'forum') { (state.forum.people[c.id] ||= {}).name = v; commit('forum'); } else (c.appNick ||= {})[app] = v; };
 export const isFriend = c => c.friend !== false;
 export const friends = () => state.contacts.filter(isFriend);
 export const befriend = c => { delete c.friend; const ch = chatForContact(c.id, true); ch.lastAt = ch.lastAt || Date.now(); };

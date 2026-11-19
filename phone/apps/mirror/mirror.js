@@ -3,12 +3,12 @@
 // 点一片：它亮起白边，整朵花挪到左边，右边一栏列出这一类的几项；点一项它按下去，上面出来能改的。
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, commit, contact, chatForContact, nickOf } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, busy, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo, sheet, switchEl } from '../../core/ui.js';
+import { state, commit, contact, chatForContact, nickIn, setNick } from '../../core/store.js';
+import { page, navBtn, input, textarea, segmented, btn, busy, waiting, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo, sheet, switchEl } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import { wbOf, tavernBooks, loadBook } from '../../core/context.js';
 import * as PT from '../../core/portrait.js';
-import { LANGS, langName, langFor, translate } from '../../core/translate.js';
+import { LANGS, langName, langFor, nickShow, relang } from '../../core/translate.js';
 import { nameOf } from '../chat/engine.js';
 import { pickDeco, decoName } from '../../core/deco.js';
 
@@ -70,31 +70,37 @@ function rowsOf(i, c, x) {
   const text = (k, ph) => ({ value: () => c[k] || '', edit: set => input({ value: c[k] || '', placeholder: ph, onInput: v => { c[k] = v; save(); set(); } }) });
   const choose = (opts, cur, on) => h('div.mz-chips', opts.map(([v, l]) => { const b = h('button' + (cur === v ? '.is-on' : ''), { onclick: async () => {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
-  const nk = k => (k === 'forum' && state.forum.people[c.id]?.name) || nickOf(c, k);
-  const putNk = (k, v) => { if (k === 'forum') { (state.forum.people[c.id] ||= {}).name = v; commit('forum'); } else { (c.appNick ||= {})[k] = v; save(); } };
+  const lang = () => langFor('chat', ch().speak), follows = k => !(c.zhNick || []).includes(k) && !/^zh/.test(lang());
   if (i === 0) return [
     ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
     ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
       go: async () => { const v = await pickDeco('frames', c.frame, { src: c.avatar, name: nameOf(c) }); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }],
     ['真名', text('name', '真名')],
-    // 网名：聊天、论坛、音乐各一个，打开就是 TA 现在在那里叫什么；论坛那格就是论坛里「熟人的网名」
-    ['网名', { value: () => [...new Set(NICK_APPS.map(([k]) => nk(k)).filter(Boolean))].join('、') || '没起', edit: set => h('div.mz-col',
-      ...NICK_APPS.map(([k, l]) => h('label.mz-nick', h('small', l), input({ value: nk(k), placeholder: l + '网名', onInput: v => { putNk(k, v.trim()); set(); } })))) }],
+    // 网名：聊天、论坛、音乐各一个，打开就是 TA 现在在那里叫什么。跟着外语的那几个下面多一格中文（按人设的那版），改了中文外语跟着机翻
+    ['网名', { value: () => [...new Set(NICK_APPS.map(([k]) => nickIn(c, k)).filter(Boolean))].join('、') || '没起', edit: set => h('div.mz-col',
+      ...NICK_APPS.map(([k, l]) => {
+        const shown = input({ value: nickIn(c, k), placeholder: l + '网名', onInput: v => { setNick(c, k, v.trim()); save(); set(); } });
+        if (!follows(k)) return h('label.mz-nick', h('small', l), shown);
+        const cn = input({ value: c.nickCn?.[k] || '', placeholder: '中文', cls: 'mz-nick__cn' });
+        cn.addEventListener('change', () => { const v = cn.value.trim(); if (!v) return; (c.nickCn ||= {})[k] = v;
+          waiting('翻译…', async sig => { const t = await nickShow(c, k, lang(), sig); if (t) { shown.value = t; set(); toast(`${l}网名：${t}`); } }).catch(err => toast(`${l}网名${err.message}`)); });
+        return h('label.mz-nick', h('small', l), shown, cn);
+      })) }],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
     ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
   if (i === 1) return [
-    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); }) }],
+    ['说的语言', { info: '选了哪种，TA 在聊天、论坛、电台、幕间这些地方都说这种语言。选「跟着总的」就照设置里的语言走。', value: () => (ch().speak ? '' : '跟着总的 · ') + langName(langFor('chat', ch().speak)), edit: set => choose([['', '跟着总的'], ...LANGS], ch().speak || '', v => { ch().speak = v; commit('chats'); set(); relang(c); }) }],
     // 勾上的 App 网名用 TA 说的语言，没勾的用中文：点一下就把那个 App 现在的网名翻过去（机翻，不找 AI）；AI 智能加载起名时也照这个
     ['网名跟着语言', { value: () => NICK_APPS.filter(([k]) => !(c.zhNick || []).includes(k)).map(a => a[1]).join('、') || '都不跟', edit: set => h('div.mz-chips', NICK_APPS.map(([k, l]) => h('button' + ((c.zhNick || []).includes(k) ? '' : '.is-on'), { onclick: e => {
-      const b = e.currentTarget, on = !b.classList.contains('is-on'), to = on ? langFor('chat', ch().speak) : 'zh-CN', old = nk(k);
+      const b = e.currentTarget, on = !b.classList.contains('is-on');
       busy(b, async sig => {
-        const t = old ? await translate(old, to) : '';
+        const t = nickIn(c, k) ? await nickShow(c, k, on ? langFor('chat', ch().speak) : 'zh-CN', sig) : '';
         if (sig.aborted) return;
         const z = c.zhNick || []; c.zhNick = on ? z.filter(y => y !== k) : [...z, k]; if (!c.zhNick.length) delete c.zhNick;
-        b.classList.toggle('is-on', on); if (t) putNk(k, t); save(); set();
-        toast(t ? `${l}网名：${t}` : on ? `${l}网名跟着 ${langName(to)}` : `${l}网名用中文`);
+        b.classList.toggle('is-on', on); save(); set();
+        toast(t ? `${l}网名：${t}` : on ? `${l}网名跟着语言` : `${l}网名用中文`);
       }).catch(err => toast(`${l}网名${err.message}`)); } }, l))) }],
     ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
   ];

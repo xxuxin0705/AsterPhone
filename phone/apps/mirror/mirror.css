@@ -129,6 +129,7 @@
 .mz-card .as-settings-slider-row output { color: var(--mz-ink); }
 .mz-nick { display: grid; gap: 4px; }
 .mz-nick small { font-size: 10.5px; letter-spacing: 2px; color: var(--mz-fog); }
+.mz-nick .mz-nick__cn { height: 28px; margin-top: -2px; padding: 0 12px; font-size: 12px; background: none; border-color: transparent; color: var(--mz-fog); }
 .mz-hole { position: absolute; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 0s .45s; }
 .mz-hole.is-on { opacity: 1; transition: none; }
 /* 空位：碎片一走马上露出星空（慢慢淡出会看到底图的玻璃拖在后面）；碎片飞回来落定了再收 */

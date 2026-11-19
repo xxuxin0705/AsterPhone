@@ -164,7 +164,11 @@ export function openPreview(data, { after, lore, under } = {}) {
       if (/^(\d{4}-)?\d{2}-\d{2}$/.test((x.birthday || '').trim())) c.birthday = x.birthday.trim();
       if (lore && x.entry) { const e = lore.entries.find(en => en.title === x.entry) || lore.entries[0]; if (e) c.lore = { world: lore.world, uid: e.uid, title: e.title }; c.wb = { all: { tavern: true, books: { [lore.world]: {} } } }; }
       const ch = chatForContact(c.id, true); ch.lastAt = Date.now();   // 没聊过也在消息列表里
-      if (!isZh(x.speak)) { ch.cfg.speak = x.speak; if (x.zhNick.length) { c.zhNick = x.zhNick; const z = (x.nickZh || '').trim(); if (z) c.appNick = Object.fromEntries(x.zhNick.map(k => [k, z])); } }
+      if (!isZh(x.speak)) {   // 中文网名记成每个 App 的「中文那版」（以后换语言从它翻）；没勾跟着语言的 App 直接显示它
+        ch.cfg.speak = x.speak; const z = (x.nickZh || '').trim();
+        if (z) c.nickCn = Object.fromEntries(NICK_APPS.map(([k]) => [k, z]));
+        if (x.zhNick.length) { c.zhNick = x.zhNick; if (z) c.appNick = Object.fromEntries(x.zhNick.map(k => [k, z])); }
+      }
       state.contacts.push(c); x._c = c; np++;
     }
     const idOf = m => m === ME ? 'me' : people.includes(m) ? m._c && m._c.id : m.id;

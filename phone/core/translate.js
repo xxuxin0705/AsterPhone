@@ -4,7 +4,8 @@
 // 3. 再不行就用 MyMemory 免费接口
 import { ctx, inTavern } from './bridge.js';
 import { log } from './log.js';
-import { state } from './store.js';
+import { state, commit, nickIn, setNick, chatForContact } from './store.js';
+import { waiting, toast } from './ui.js';
 
 export const LANGS = [
   ['zh-CN', '中文'], ['en', '英语'], ['ja', '日语'], ['ko', '韩语'], ['fr', '法语'], ['de', '德语'],
@@ -51,4 +52,21 @@ async function viaMyMemory(text, to) {
   if (!res.ok) throw new Error('MyMemory ' + res.status);
   const j = await res.json();
   return j.responseData && j.responseData.translatedText;
+}
+
+/* 网名：中文那版按人设起，一直不变（c.nickCn，没记过就把现在显示的翻成中文当它）；外语那版只是氛围，从中文机翻。
+   lang 是中文就显示中文那版。勾着「网名跟着语言」的 App 换语言时都走这里，不找 AI */
+export const NICK_APPS = ['chat', 'forum', 'music'];
+export async function nickShow(c, app, lang, sig) {
+  const cn = c.nickCn?.[app] || await translate(nickIn(c, app), 'zh-CN');
+  if (!cn) return '';
+  (c.nickCn ||= {})[app] = cn;
+  const v = /^zh/.test(lang) ? cn : await translate(cn, lang);
+  if (sig?.aborted) return '';   // 点了取消就不改
+  setNick(c, app, v); commit('contacts'); return v;
+}
+/** 换了说的语言：勾着的 App 网名一起换 */
+export function relang(c) {   // 映像、聊天设置里改语言都走这里
+  const ks = NICK_APPS.filter(k => !(c.zhNick || []).includes(k) && nickIn(c, k)), lang = langFor('chat', chatForContact(c.id, true).cfg.speak);
+  if (ks.length) waiting('网名换语言…', sig => Promise.all(ks.map(k => nickShow(c, k, lang, sig)))).then(v => v && toast('网名换好了'), err => toast('网名' + err.message));
 }
