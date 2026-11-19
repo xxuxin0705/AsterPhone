@@ -34,10 +34,10 @@ export function pickMany(title, list, { preselect = [], disabled = [] } = {}) {
 }
 
 /* ---------- 手动添加；资料页直接改也用这几组输入框 ---------- */
-function contactFields(c, changed = () => {}) {
+function contactFields(c, changed = () => {}, chat = false) {   // chat：资料页里改的是聊天这格网名（和映像里「聊天」那格是同一个）
   const f = (label, key, ph, hint) => field(label, input({ value: c[key] || '', placeholder: ph, onInput: v => { c[key] = v; changed(key); } }), hint);
   return [
-    group('名字', [f(withInfo('真实姓名', 'AI 按这个认人。'), 'name', ''), f('网名', 'nick', ''), f(withInfo('备注', '只有你看得到。'), 'remark', '')]),
+    group('名字', [f(withInfo('真实姓名', 'AI 按这个认人。'), 'name', ''), chat ? field('网名', input({ value: nickOf(c, 'chat'), onInput: v => { (c.appNick ||= {}).chat = v; changed('nick'); } })) : f('网名', 'nick', ''), f(withInfo('备注', '只有你看得到。'), 'remark', '')]),
     group('资料', [
       field('性别', segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; changed('gender'); })),
       f('地区', 'region', ''), f('个性签名', 'sign', ''), f(withInfo('拍一拍后缀', '你拍 TA 时显示「你拍了拍 TA」加上这里写的字。'), 'pokeSuffix', ''),
@@ -79,7 +79,7 @@ export function openProfile(cid, { onMessage } = {}) {
     thumbs.replaceChildren(...ms.map(m => m.images && m.images[0] ? h('span', { style: { backgroundImage: `url(${m.images[0]})` } }) : h('span', (m.text || '').slice(0, 8)))); };   // 没有动态就空着
   const keep = { ...c };   // 名字清空时不存空的
   const changed = k => {
-    if ((k === 'name' || k === 'nick') && !c.name.trim() && !c.nick.trim()) { c.name = keep.name; return; }
+    if ((k === 'name' || k === 'nick') && !c.name.trim() && !nickOf(c, 'chat').trim()) { c.name = keep.name; return; }
     keep.name = c.name; commit('contacts');
     if (['name', 'nick', 'remark', 'gender', 'region'].includes(k)) { paintHead(); if (!c.avatar) paintAva(); }
   };
@@ -100,7 +100,7 @@ export function openProfile(cid, { onMessage } = {}) {
       } }); return r; }),
       item({ title: '和 TA 的缘分报告', chevron: true, onClick: () => import('../music/report.js').then(m => m.openReport(c)) }),
     ]),
-    ...contactFields(c, changed),
+    ...contactFields(c, changed, true),
     h('div.as-chat-profile__btns', starBtn, btn('删除联系人', 'danger', async () => {
       if (!(await dialog({ title: `删除「${nameOf(c)}」？`, text: '和 TA 的聊天记录也会一起删掉。', confirm: '删除', danger: true }))) return;
       const ch = state.chats.find(x => x.contactId === c.id);

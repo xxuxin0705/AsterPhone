@@ -14,7 +14,7 @@ import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontNam
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName } from '../../core/translate.js';
 
-export const VERSION = '0.8.553';
+export const VERSION = '0.8.554';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
