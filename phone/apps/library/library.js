@@ -208,7 +208,7 @@ function useTheme(k, t, quiet) {
   if (t.chatSkin) { state.apps.chat.skin = t.chatSkin; commit('apps'); }
   if (t.fonts) { if (t.fonts.ui != null) s.uiFont = t.fonts.ui; if (t.fonts.clock) s.clock.font = t.fonts.clock; }
   commit('look'); shell.applyLook();
-  if (t.desk) setDesk(structuredClone(t.desk));
+  if (t.desk && JSON.stringify(t.desk) !== JSON.stringify(desk())) setDesk(structuredClone(t.desk));   // 一样就不重摆，不然日夜一换桌面就闪一下
   if (!quiet) toast(`已换成「${t.name}」`);
 }
 /* 日夜各一套：lib().pair = { day, night }（主题的编号）；手机换日夜时 core/main.js 叫这里，悄悄换过去 */
