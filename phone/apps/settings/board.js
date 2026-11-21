@@ -892,7 +892,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
       paintModels();
       const pull = h('button.as-pbd__mini', { onclick: async () => {
         let models;
-        try { models = await busy(pull, () => listModels(d), '正在拉取模型…'); } catch (e) { toast('拉取失败：' + e.message); return; }
+        try { models = await busy(pull, s => listModels(d, s), '正在拉取模型…'); } catch (e) { toast('拉取失败：' + e.message); return; }
         if (!models) return;
         if (!models.length) { toast('没有拉到模型，可以手动填'); return; }
         toast(`拉到 ${models.length} 个模型`);

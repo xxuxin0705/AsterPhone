@@ -13,7 +13,7 @@ export async function xf(url, o = {}) {
     if ((o.signal && o.signal.aborted) || !/^https?:/i.test(url) || !inTavern()) throw e;
     // OpenAI 格式的聊天 / 拉模型：借酒馆自己「自定义（兼容 OpenAI）」那条路转一手。本地酒馆和 Tauri Tavern 都有，不用开代理
     const m = /^(.*)\/(chat\/completions|models)$/.exec(url), auth = o.headers && o.headers.Authorization;
-    if (m && auth) return viaTavern(m[1], m[2] === 'models', o, auth);
+    if (m && auth) return Object.assign(await viaTavern(m[1], m[2] === 'models', o, auth), { via: '酒馆转发' });
     let r = null;
     try { const c = ctx(); r = await fetch('/proxy/' + url, { ...o, headers: { ...(c && c.getRequestHeaders ? c.getRequestHeaders() : {}), ...o.headers } }); } catch (e2) { /* 代理也连不上 */ }
     // 本地酒馆没开代理回 404；Tauri Tavern 根本没有 /proxy/，回 200 + 酒馆首页。两种都算「没有代理」
@@ -23,7 +23,7 @@ export async function xf(url, o = {}) {
       note('warn', '连接', `连不上 ${host}`, top.__TAURI__ || top.__TAURI_INTERNALS__ ? '多半是这家不让网页直接连，Tauri Tavern 又没有转发代理' : '网络不通或被跨域拦截。可以在酒馆 config.yaml 里设 enableCorsProxy: true，重启酒馆后再试');
       throw new Error(`连不上 ${host}`);
     }
-    return r;
+    r.via = '酒馆代理'; return r;
   }
 }
 
@@ -311,41 +311,44 @@ function empty(raw) {
 /** 拉取模型列表 */
 // 生图、语音、向量里也是 OpenAI 格式的：模型列表一样从 /models 拉
 const OAI_LIST = new Set(['openai-image', 'image-compat', 'siliconflow', 'openai-tts', 'custom-tts', 'indextts', 'siliconflow-embed', 'siliconflow-rerank', 'openai-embed', 'openai-realtime', 'other-compat']);
-/** 拉模型列表：能从网上拉的就拉，没有列表接口的给出这家固定的那几个。失败了记进日志 */
-export async function listModels(conn) {
-  try { return await pullModels(conn); }
+/** 拉模型列表：能从网上拉的就拉，没有列表接口的给出这家固定的那几个。成功失败都记进日志，带上花了几秒、走的哪条路（作者：拉取一直转圈，要看出卡在哪）；点了取消就是中止，不记 */
+export async function listModels(conn, signal) {
+  const t0 = Date.now(), how = { via: '' }, tail = () => ` · ${((Date.now() - t0) / 1000).toFixed(1)} 秒 · ${how.via || '没有列表接口，列的固定几个'}`;
+  try { const ids = await pullModels(conn, signal, how); log('info', '连接', `拉取模型（${conn.name || conn.type}）：${ids.length} 个${tail()}`); return ids; }
   catch (e) {
+    if (signal && signal.aborted) throw e;
     const msg = e.message === 'Failed to fetch' ? '连不上这个地址（可能是网络或跨域限制）' : e.message;
-    log('error', '连接', `拉取模型失败（${conn.name || conn.type}）：${msg}`);
+    log('error', '连接', `拉取模型失败（${conn.name || conn.type}）：${msg}${tail()}`);
     throw new Error(msg);
   }
 }
-async function pullModels(conn) {
+async function pullModels(conn, signal, how) {
+  const get = async (url, o) => { const r = await xf(url, { ...o, signal }); how.via = r.via || '直连'; return r; };
   if (OAI(conn.type) || OAI_LIST.has(conn.type)) {
-    const res = await xf(oaiBase(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
+    const res = await get(oaiBase(conn.base) + '/models', { headers: { Authorization: 'Bearer ' + (conn.key || '') } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(), ids = (j.data || []).map(m => m.id).sort();
     return conn.type === 'openai-realtime' ? ids.filter(m => /realtime|live/i.test(m)) : ids;
   }
   if (conn.type === 'claude') {
-    const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/models', { headers: { 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
+    const res = await get(trim(conn.base || 'https://api.anthropic.com') + '/v1/models', { headers: { 'x-api-key': conn.key || '', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id);
   }
   if (conn.type === 'gemini' || conn.type === 'gemini-live') {   // Live 只列能实时对话（bidiGenerateContent）的
-    const res = await xf(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
+    const res = await get(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
     if (!res.ok) throw new Error(await readErr(res));
     const how = conn.type === 'gemini-live' ? 'bidiGenerateContent' : 'generateContent';
     const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes(how)).map(m => m.name.replace(/^models\//, ''));
   }
   // 本地 SD / ComfyUI：拉的是装好的底模
-  if (conn.type === 'sd-webui') { const res = await xf(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
-  if (conn.type === 'comfyui') { const res = await xf(trim(conn.base) + '/object_info/CheckpointLoaderSimple'); if (!res.ok) throw new Error(await readErr(res)); const j = await res.json(); return (((j.CheckpointLoaderSimple || {}).input || {}).required || {}).ckpt_name?.[0] || []; }
+  if (conn.type === 'sd-webui') { const res = await get(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
+  if (conn.type === 'comfyui') { const res = await get(trim(conn.base) + '/object_info/CheckpointLoaderSimple'); if (!res.ok) throw new Error(await readErr(res)); const j = await res.json(); return (((j.CheckpointLoaderSimple || {}).input || {}).required || {}).ckpt_name?.[0] || []; }
   // Fish、ElevenLabs 有自己的模型列表接口（照旧版小手机的拉法）
   const tt = conn.type === 'custom-tts' && conn.fmt ? conn.fmt : conn.type;
-  if (tt === 'fish') { const res = await xf(trim(conn.base || 'https://api.fish.audio').replace(/\/v1$/, '') + '/compat/v1/models'); if (!res.ok) throw new Error(await readErr(res)); return ((await res.json()).data || []).map(m => String(m.id).replace(/^fish-audio\//, '')); }
+  if (tt === 'fish') { const res = await get(trim(conn.base || 'https://api.fish.audio').replace(/\/v1$/, '') + '/compat/v1/models'); if (!res.ok) throw new Error(await readErr(res)); return ((await res.json()).data || []).map(m => String(m.id).replace(/^fish-audio\//, '')); }
   if (tt === 'elevenlabs') {
-    const res = await xf(trim(conn.base || 'https://api.elevenlabs.io') + '/v1/models', { headers: { 'xi-api-key': keysOf(conn)[0] || '' } }); if (!res.ok) throw new Error(await readErr(res));
+    const res = await get(trim(conn.base || 'https://api.elevenlabs.io') + '/v1/models', { headers: { 'xi-api-key': keysOf(conn)[0] || '' } }); if (!res.ok) throw new Error(await readErr(res));
     return (await res.json()).filter(m => m.can_do_text_to_speech !== false).map(m => m.model_id);
   }
   // 没有「模型列表」接口的（NovelAI、MiniMax、豆包…）：模型就那几个，直接列出来

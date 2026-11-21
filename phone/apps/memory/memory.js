@@ -647,7 +647,14 @@ async function openSet() {
   const mode = () => m.story === 'n' ? 'n' : m.story === 'off' ? 'off' : 'turn';
   const how = h('div.as-field', h('span.as-field__label', withInfo('记哪些', '有值得记的才记：一个月后要是完全不记得会觉得奇怪或失落的事。比如第一次（约会、吵架）、关系变了、约定、送了或收到什么、新知道的关于某人的事、说出口的秘密、新出场的人、生日节日；吃饭走路这种日常不记。每楼都记：每一楼都记一条。')), segmented([['maybe', '有值得记的才记'], ['every', '每楼都记']], turn, v => { m.story = turn = v; save(); }));
   const every = pick('隔几轮', 'n', 10, [[3], [5], [10], [15], [20], [30]], ' 轮');
-  const paint = () => { how.hidden = mode() !== 'turn'; every.hidden = mode() !== 'n'; };
+  // 默认接在上次整理到的那一楼，能往前挪：以前漏掉的那段下次一起整理（作者要的）
+  const atLab = () => `第 ${d.autoAt == null ? M.chatMsgs().length : d.autoAt + 1} 层`;
+  const from = item({ title: '从第几层接着', value: atLab(), chevron: true, onClick: async () => {
+    const n = M.chatMsgs().length, l = Array.from({ length: n + 1 }, (_, i) => [i, `第 ${i} 层`]);
+    const v = await pickWheels('从第几层接着', [[l, d.autoAt == null ? n : Math.min(d.autoAt + 1, n)]]); if (!v) return;
+    d.autoAt = v[0] - 1; await M.save(); val(from, atLab());
+  } });
+  const paint = () => { how.hidden = mode() !== 'turn'; every.hidden = from.hidden = mode() !== 'n'; };
   const label = () => { const v = m.conn.text; return v === 'follow' ? `跟随聊天线（${connLabel(resolveConn('text', 'memory'))}）` : connLabel(resolveConn('text', 'memory')); };
   const connItem = item({ title: '整理用的接口', value: label(), chevron: true, onClick: async () => {
     const v = await actionSheet('整理用的接口', [{ value: 'follow', label: '跟随聊天线', active: m.conn.text === 'follow' }, ...state.connections.text.map(c => ({ value: c.id, label: c.name, active: m.conn.text === c.id }))]);
@@ -663,7 +670,7 @@ async function openSet() {
   const fillMax = pick('最多补写', 'fillMax', 3, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n]), ' 次'); fillMax.hidden = !m.fill;
   const fillOn = toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, on => { m.fill = on; commit('apps'); fillMax.hidden = !on; });
   const rec = group(withInfo('记录', '每轮：正文生成时顺手记下，不另外花钱。每隔几轮：攒够几轮，另外找一次 AI 把这几轮整理一遍，这次没成的下次一起补。只手动：自己去「整理」。'), [
-    h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every,
+    h('div.as-mem-imp', segmented([['turn', '每轮'], ['n', '每隔几轮'], ['off', '只手动']], mode(), v => { m.story = v === 'turn' ? turn : v; save(); paint(); })), how, every, from,
     fillOn, fillMax,
     toggleItem({ title: withInfo('未落的沙', '自动记下的先停在这里，你点「落下」它才落进沙漏，TA 才记得。') }, !!m.wait, on => { m.wait = on; commit('apps'); }), connItem, relItem]);
   // 回想：按意思找（向量）、再排一遍（重排）、最多想起几件、每件带多少原文、来时路
