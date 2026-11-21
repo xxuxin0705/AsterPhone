@@ -231,6 +231,10 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; }
 .is-raw .pk-top2::before { inset: 0; background: linear-gradient(var(--pk-page) 70%, color-mix(in srgb, var(--pk-page) 85%, transparent) 88%, transparent); }
 .is-raw .pk-float::before { inset: -24px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 75%, transparent) 40%, var(--pk-page) 75%); }
+/* 对话页更透：顶上、底下只是淡淡发白，滑过去的气泡还看得见（照作者录的 iPhone 视频） */
+.is-raw .pk-top2.is-chat::before { bottom: -12px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 96%, transparent), color-mix(in srgb, var(--pk-page) 85%, transparent) 28%, color-mix(in srgb, var(--pk-page) 40%, transparent) 62%, transparent); }
+.pk-top2.is-chat .pk-glass, .pk-top2.is-chat ~ .pk-float .pk-glass { background: color-mix(in srgb, var(--pk-page) 90%, transparent); }
+.is-raw .pk-top2.is-chat ~ .pk-float::before { inset: -12px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 45%, transparent) 60%, color-mix(in srgb, var(--pk-page) 70%, transparent)); }
 .pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane:not([data-pane="calls"]) .pk-top2 > b { opacity: 1; }
 .pk-sms .pk-msg { min-height: 99px; padding: 10px 14px 10px 25px; gap: 12px; }
 .pk-sms .pk-msg::after { left: 81px; }
