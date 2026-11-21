@@ -1,0 +1,38 @@
+// TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
+import { h } from '../../core/util.js';
+import { icon } from '../../core/ui.js';
+
+const yuan = v => (parseFloat(String(v).replace(/[^\d.+-]/g, '')) || 0).toFixed(2);
+const list = kids => h('div.pk-list', kids);
+const face = name => h('i.pk-face', name.slice(0, 1));
+// 一排分段按钮：点了只换下面那一块
+function tabs(names, show) {
+  const el = h('div.pk-tabs', names.map((n, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { [...el.children].forEach(b => b.classList.toggle('is-on', b === e.currentTarget)); show(n); } }, n)));
+  show(names[0]); return el;
+}
+const groupBy = (R, k) => { const m = new Map(); R.forEach(r => (m.get(r[k]) || m.set(r[k], []).get(r[k])).push(r)); return [...m]; };
+
+export const VIEWS = {
+  备忘录: (R, push) => list(R.map(([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') },
+    h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' '))))),
+  搜索: R => {
+    const kind = r => /收藏/.test(r[2]) ? '收藏' : /无痕|私密/.test(r[2]) ? '无痕' : '历史', box = list();
+    return [tabs(['历史', '收藏', '无痕'], k => box.replaceChildren(...R.filter(r => kind(r) === k).map(([q, t]) => h('div.pk-row', icon(k === '收藏' ? 'bookmark' : 'search', 17, 2), h('b', q), h('time', t))))), box];
+  },
+  短信: (R, push) => list(groupBy(R, 0).map(([who, L]) => { const last = L[L.length - 1]; return h('button.pk-row', { onclick: () => push(who, L.map(r => h('div.pk-bub' + (/自己/.test(r[2]) ? '.is-me' : ''), r[3])), 'pk-sms') },
+    face(who), h('div', h('b', who, h('time', last[1])), h('span', last[3]))); })),
+  电话: R => {
+    const box = list();
+    return [tabs(['全部', '未接'], k => box.replaceChildren(...R.filter(r => k === '全部' || /未接/.test(r[1])).map(([who, kind = '', t, long]) => h('div.pk-row' + (/未接/.test(kind) ? '.is-miss' : ''),
+      face(who), h('div', h('b', who), h('span', [kind, /未接/.test(kind) ? '' : long].filter(Boolean).join(' · '))), h('time', t))))), box];
+  },
+  购物车: R => [...R.map(([name, price, n, shop, why]) => h('div.pk-card', h('small', shop), h('b', name), h('div.pk-card__foot', h('strong', '¥' + yuan(price)), h('span', '×' + (parseInt(n) || 1))), why && h('q', why))),
+    h('div.pk-sum', '合计 ', h('strong', '¥' + R.reduce((a, r) => a + yuan(r[1]) * (parseInt(r[2]) || 1), 0).toFixed(2)))],
+  饿了吗: R => R.map(([shop, what, price, t, note]) => h('div.pk-card', h('div.pk-card__head', h('b', shop), h('span', '已送达')), h('p', what), h('div.pk-card__foot', h('time', t), h('strong', '¥' + yuan(price))), note && h('q', '备注：' + note))),
+  日历: R => groupBy(R, 0).map(([day, L]) => [h('div.pk-day', day), list(L.map(([, t, what, where]) => h('div.pk-row.is-plan', h('time', t || '全天'), h('div', h('b', what), where && h('span', where)))))]),
+  钱包: R => {
+    const bal = R.find(r => r[0] === '余额'), L = R.filter(r => r !== bal);
+    return [h('div.pk-wallet', h('span', '余额'), h('b', '¥' + yuan(bal ? bal[1] : 0))), h('div.pk-day', '最近的交易'),
+      list(L.map(([t, what, v]) => h('div.pk-row', h('div', h('b', what), h('span', t)), h('strong' + (/^\s*\+/.test(v) ? '.is-in' : ''), (/^\s*\+/.test(v) ? '+' : '-') + yuan(String(v).replace(/[+-]/g, ''))))))];
+  },
+};

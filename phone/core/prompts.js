@@ -18,6 +18,7 @@ export const VAR_INFO = {
   source: '要整理的这一批内容（世界书条目、正文、文件）', about: '这篇写什么：从岁岁砂挑的事、挑的几层正文；都没挑就是最近的正文和手机聊天', palettes: '能挑的主题色名字', people: '手机里的人（你和所有联系人）的名字',
   ask: '想听什么样的故事', lang: '角色讲故事用的语言', len: '故事大概多长', zh: '角色不说中文时，要 AI 配中文翻译的那句话（自动填）',
   recall: '讲回忆时才有：最近的剧情、手机聊天、世界书和岁岁砂里 TA 记得的事', title: '故事的名字 / 这局的名字', tale: '故事全文', act: '让 AI 每段开头标 [语气] 的那句话（自动填，念的时候按语音接口换写法）',
+  apps: '这次要写的那几个应用和各自一行怎么写（自动填）',
   run: '剧本模式时：让 KP 开局就把整局一段段写好（每段一个检定、六种结果）的说明；自由模式是空的',
   mood: '这局的气氛（正经 / 轻松 / 整活）', kp: '谁当 KP（中立的守秘人，或某个角色和 TA 的人设）', know: '跑团的规矩：可以有场外话、谁和谁认识', jobs: '常见职业', roster: '要车卡的人：名字、人设、掷好的属性、能加的技能点', cast: '上桌的角色：名字、人设、职业、血和理智', rels: '现在谁和谁认识、怎么看对方（调查员和重要 NPC）', ending: '这局的结局', players: '上桌的玩家本名和他扮演的调查员', pc: '你的调查员：职业、属性、技能、背景', scenario: '选的本的骨架，或「随机生成」加你写的要求', places: '能用的场景地点（代号 = 说明）', skills: '技能表和基础值',
   secret: '这局的真相', acts: '各幕的目标和出口', actNo: '现在第几幕', goal: '本幕目标', exit: '本幕出口', left: '本幕还剩几回合', must: '回合用完时要求结束本幕 / 给结局的那句话（自动填）', log: '前几回合的叙述和你做的事', input: '你这回合做的事和骰子结果',
@@ -55,6 +56,7 @@ export const PROMPT_CATS = [
   { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
     { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
     { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
+  { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'people', 'apps'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -815,6 +817,34 @@ ${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）�
 {"lines":[{"who":"KP","act":"","say":"","zh":"","ooc":false,"face":"","pose":""}],"place":"","where":"","time":"","bgm":"","amb":"","request":{"type":"free"},"hurt":[{"who":"名字","hp":-2}],"items":[{"who":"名字","add":"捡到的东西","n":能用几次（用得完的才写）,"use":"用了一次的东西","drop":"丢了的东西"}],"rel":[],"gone":[],"fightEnd":false,"actDone":false,"end":null}` },
   catchup: { name: '离开期间补发', cats: ['catchup'], on: true, main: true,
     text: '（{{user}} 离开了 {{gap}}。请写出这段时间里 {{char}} 可能陆续发来的 1~3 条消息。）' },
+  peek: { name: '手机里的内容', cats: ['peek'], on: true, main: true,
+    text: `{{user}} 拿到了 {{char}} 的手机。请写出这部手机里此刻真实会有的内容，像是 {{char}} 自己平时用出来的，不是写给谁看的。
+
+【{{char}} 的人设】
+{{persona}}
+
+【{{user}} 的人设】
+{{user_persona}}
+
+{{world}}
+
+【最近发生的事】
+{{story}}
+
+【{{char}} 认识的人】
+{{people}}
+
+现在的时间：{{time}}
+
+要求：
+- 内容要对得上人设、最近发生的事和现在的时间，日期都在现在之前不远（日历可以有往后的安排）。
+- 有琐碎日常，也有只有 {{char}} 自己知道的心思；和 {{user}} 有关的可以有，但别每条都是。
+- 提到人时优先用上面认识的人；{{char}} 会给人起备注就用备注。
+- 每个应用写 5～8 条，长短不一，别写成一个模子。
+- 一条一行，用「｜」隔开各格，格子里不要换行（备忘录正文要分行就用「//」）。空着的格子留空，不要省掉「｜」。
+
+只输出下面这些应用，每个应用先单独一行写【应用名】，下面按给的格式一行一条，不要别的文字：
+{{apps}}` },
 };
 
 /** 套变量 */
