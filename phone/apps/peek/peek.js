@@ -8,6 +8,7 @@ import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running } from './gen.js';
 import { VIEWS } from './apps.js';
+import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
 const pc = (v, all) => v / all * 100 + '%';
@@ -16,7 +17,7 @@ const THINGS = [['水杯', 'water', 505, 300, 240, 345], ['照片', 'photo', 171
 const PHONE = ['手机', 'phone', 10, 392, 456, 516];
 // 把斜放的手机屏摆正：屏幕四个角 → 一个 1×1 方块的四个角（事先算好的透视矩阵，三行）
 const FACE = [[1.9219, -0.9494, 0.0676], [0.3933, 1.4361, -0.2326], [0.0261, 0.2559, 1]];
-const APPS = ['备忘录', '相册', '日历', '钱包', '购物车', '饿了吗', '论坛', '短信', 'AI', '设置', '相机', '资源库'];
+const APPS = ['备忘录', '相册', '日历', '钱包', '购物车', '饿了吗', '论坛', '短信', 'AI', '设置', '资源库'];
 const DOCK = ['电话', '搜索', '消息', '音乐'];
 
 const night = () => { const hh = time.isStory() ? time.story().hh : new Date().getHours(); return hh < 6 || hh >= 19; };
@@ -71,9 +72,12 @@ export function open() {
   function pop() { const el = layers.pop(); el._a.reverse(); el._a.finished.then(() => el.remove()); }
   function openApp(name) {
     if (!c) { choose(); return; }
-    if (!VIEWS[name]) { toast(`「${name}」还没做`); return; }
-    show(name, () => D.apps[name] ? VIEWS[name](D.apps[name].rows, (t, kids, cls) => show(t, () => kids, cls, name))
-      : h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([name]) }, '生成（用一次 API）')), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
+    if (name !== '设置' && !VIEWS[name]) { toast(`「${name}」还没做`); return; }
+    const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
+    const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
+    // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
+    const body = n => () => D.apps[n] || (n === '消息' && D.real.length) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
+    show(name, name === '设置' ? () => setup(t => show(t, body(t), '', '设置')) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 
   // 拿起手机：手机从桌上飞起来、摆正，屏幕正好铺满；到了再亮起锁屏。
@@ -87,6 +91,7 @@ export function open() {
       fly = phone.animate(Array.from({ length: 13 }, (_, i) => at(i / 12)), { duration: 700, easing: 'cubic-bezier(.3, .7, .2, 1)', fill: 'both' });
     } else fly?.reverse();
     stage.classList.toggle('is-near', on); p.el.classList.toggle('is-in', on);
+    if (on && c) load(c).then(x => { D = x; });   // 你手机里的聊天可能有新的
     if (!on) stage.classList.remove('is-open');
   }
   const leave = () => { near(false); lock.style.transform = ''; };

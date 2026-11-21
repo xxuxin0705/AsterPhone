@@ -89,6 +89,7 @@ async function readMessage(id) {
     M.fromStory(id, [...text.matchAll(/<astermem>([\s\S]*?)<\/astermem>/gi)].map(x => x[1]).join('\n')).then(refresh, e => log('warn', '岁岁砂', '记不下这一楼：' + e.message));   // 记完再更新送进正文的那段（成长）
     M.autoSort().catch(e => log('warn', '岁岁砂', '这次没自动整理成：' + e.message));   // 选了「每隔几轮」才会真的整理
   }
+  if (state.apps.peek && state.apps.peek.every) import('../apps/peek/gen.js').then(g => g.auto());   // 查手机：选了「每隔几楼」才自动生成
   // 日记：同上，换了 swipe 就换成新的那几篇
   if (state.diary.books.length) (await import('./diary.js')).fromStory(id, [...text.matchAll(/<asterdiary\b([^>]*)>([\s\S]*?)<\/asterdiary>/gi)]
     .map(x => [((/from\s*=\s*["“']?([^"”'>]+)/.exec(x[1]) || [])[1] || '').trim(), x[2].trim()]).filter(x => x[0] && x[1]))

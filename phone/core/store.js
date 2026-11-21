@@ -78,6 +78,8 @@ export function defaults() {
       interlude: { conn: { text: 'follow' }, splash: true, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
       // 论坛：用哪套样子（自带的 weibo / douban / twitter，或者 looks 里自己的编号）、自己的样子文件、外语怎么显示（both 原文下面跟中文 / tap 点了才显示）、一次刷几条、点开帖子自动出评论
       forum: { conn: { text: 'follow', image: 'follow' }, skin: 'weibo', looks: [], tr: 'both', count: 6 },
+      // 查手机：每隔几楼自动生成（0 = 只手动）、算到第几楼了、每个应用几条、断了自动续写、上次勾了哪些应用
+      peek: { every: 0, count: 6, fill: false, fillMax: 3 },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
     timeTagName: 'astertime',

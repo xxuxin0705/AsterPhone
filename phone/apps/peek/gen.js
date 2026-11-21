@@ -1,7 +1,7 @@
 // 查手机里的内容：每个联系人一份，存在 kv 的 peek:联系人 id（{ apps: { 应用: { at, rows } } }）。
 // 只在你点「生成」时找 AI，勾了几个应用也只找一次；AI 一行一条地回，写到哪个应用算哪个，没写到的留着旧的。
-import { h } from '../../core/util.js';
-import { kvGet, kvSet, friends } from '../../core/store.js';
+import { h, shortTime } from '../../core/util.js';
+import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myPersona } from '../../core/promptstore.js';
@@ -9,6 +9,10 @@ import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
 import { nameOf, personaOf } from '../chat/engine.js';
+import { previewOf } from '../chat/msgtypes.js';
+import { chatMsgs } from '../../core/memory.js';
+
+export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
 
 /** 能生成的应用：名字 → 给 AI 看的一行怎么写 */
 export const FORMS = {
@@ -20,9 +24,25 @@ export const FORMS = {
   饿了吗: '店名｜点了什么｜花了多少（只写数字）｜时间｜给商家的备注',
   日历: '日期｜几点｜什么事｜地点',
   钱包: '余额｜数字（只写这一行）\n时间｜和谁 / 干什么｜金额（花掉的前面写 -，收到的写 +）',
+  消息: `和谁聊（人名；群聊写「群：群名」）｜时间｜这句谁说的｜内容
+备注｜{{user}}｜{{char}} 给 {{user}} 存的备注名（只写这一行）
+草稿｜对谁｜打了没发出去的话（有才写，最多两行）
+（写 3～5 个对话，每个 6～12 句，同一个对话的挨着写、按先后；{{char}} 自己说的那句「这句谁说的」写「自己」；不要写和 {{user}} 的聊天，那个手机里已经有了；可以有 {{user}} 不在的群）`,
+  屏幕使用时间: '应用名｜今天用了多少分钟（只写数字）\n（写 6～8 个，从多到少）',
 };
 
-export const load = async c => (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
+const pairKey = (a, b) => 'peek:pair:' + [a, b].sort().join('|');
+const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 'text' ? m.text : previewOf(m) });
+/** c 的手机里有什么：AI 写的各应用（apps）、和别的联系人的聊天（pairs：两个人共用一份，谁的手机里看都一样）、你手机里真有的聊天（real：和你的私聊、TA 在的群） */
+export async function load(c) {
+  const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
+  d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
+    .map(([x, L]) => ({ title: nameOf(x), msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
+  const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
+  d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : '', group: ch.type === 'group', you: ch.type !== 'group',
+    msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
+  return d;
+}
 
 // 正在生成的那一次（放在模块里：退出再进来还是「取消」，不会又发一个）
 let job = null;
@@ -45,34 +65,52 @@ export async function make(c, names, done) {
   try {
     const got = await waiting(`正在写${nameOf(c)}的手机…`, async stop => {
       const story = storyText() || '（暂无）', now = time.isStory() ? time.story() : null;
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '查手机', stop,
+      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
-          apps: names.map(n => `【${n}】\n${FORMS[n].replace('{{char}}', c.name || nameOf(c))}`).join('\n') }) });
+          count: S().count || 6, apps: names.map(n => `【${n}】\n${FORMS[n].replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName())}`).join('\n') }) });
       const got = parse(raw);
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       return got;
     }, ac);
     if (!got) return;
-    const d = await load(c), ok = names.filter(n => got[n] && got[n].length);
+    const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }, ok = names.filter(n => got[n] && got[n].length);
+    // 和手机里别的联系人的私聊另存一份两个人共用的，剩下的（群、不认识的人、备注、草稿）留在 TA 自己这份里
+    if (got.消息) {
+      const who = n => friends().find(x => x.id !== c.id && (x.name === n || nameOf(x) === n)), by = new Map();
+      got.消息 = got.消息.filter(r => { const x = who(r[0]); if (x) (by.get(x) || by.set(x, []).get(x)).push({ from: /自己/.test(r[2]) || r[2] === c.name ? c.id : x.id, t: r[1], text: r[3] }); return !x; });
+      await Promise.all([...by].map(([x, L]) => kvSet(pairKey(c.id, x.id), L)));
+    }
     ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: got[n] }; });
     await kvSet('peek:' + c.id, d);
     const miss = names.filter(n => !ok.includes(n));
     if (miss.length) log('warn', '查手机', `这几个应用 AI 没写：${miss.join('、')}`);
     toast(miss.length ? `写好 ${ok.length} 个，${miss.join('、')}没写出来` : `写好了，${ok.length} 个应用`);
-    done({ ...d, who: c.id });
+    done({ ...await load(c), who: c.id });
   } catch (e) { log('error', '查手机', '生成失败：' + e.message, e); toast('没写成：' + e.message); }
   finally { job = null; }
 }
 
 /** 勾选要生成哪些应用（默认全勾） */
 export function pickApps(c, d, start) {
-  const on = new Set(Object.keys(FORMS));
+  const on = new Set(S().last || Object.keys(FORMS));
   const rows = Object.keys(FORMS).map(n => { const b = h('button.pk-tick.is-on', { onclick: () => { on.has(n) ? on.delete(n) : on.add(n); mark(); } }, h('i'), h('span', n), h('small', d.apps[n] ? '有了，会换成新的' : '')); b._n = n; return b; });
   const all = h('button.pk-sheet__all', { onclick: () => { const full = on.size === rows.length; rows.forEach(b => full ? on.delete(b._n) : on.add(b._n)); mark(); } });
-  const go = h('button.as-btn.as-btn--primary', { onclick: () => { s.close(); start([...on]); } });
+  const go = h('button.as-btn.as-btn--primary', { onclick: () => { s.close(); S().last = [...on]; commit('apps'); start([...on]); } });
   const mark = () => { rows.forEach(b => b.classList.toggle('is-on', on.has(b._n))); all.textContent = on.size === rows.length ? '全不选' : '全选'; go.disabled = !on.size; go.textContent = on.size ? `生成 ${on.size} 个（用一次 API）` : '生成'; };
   const s = sheet({ title: `${nameOf(c)}的手机`, content: [all, h('div.pk-ticks', rows), go] });
   mark();
+}
+
+/** 每隔几楼自动生成（TA 手机的设置里选了才会）：给上次看的那个人，写上次勾的那几个应用 */
+export async function auto() {
+  const P = S(), n = chatMsgs().length;
+  if (!P.every || job) return;
+  if (P.at == null || n < P.at) { P.at = n; commit('apps'); return; }
+  if (n - P.at < P.every) return;
+  const c = contact(await kvGet('peek:who:' + win.key).catch(() => ''));
+  if (!c) return;
+  P.at = n; commit('apps');
+  await make(c, P.last || Object.keys(FORMS), () => {});
 }

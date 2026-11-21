@@ -114,3 +114,15 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: #e5e5ea; }
 .pk-bub.is-me { align-self: flex-end; background: #34c759; color: #fff; }
 .pk-none { margin-top: 30%; display: flex; flex-direction: column; align-items: center; gap: 16px; color: rgba(60, 60, 67, .6); }
 .pk-none button { border: 0; border-radius: 12px; padding: 12px 22px; background: var(--tint); color: #fff; font: 600 16px/1 inherit; font-family: inherit; cursor: pointer; }
+.pk-row:not(.is-col) > span { flex: none; display: block; font-size: 17px; }
+.pk-row > svg:last-child { color: rgba(60, 60, 67, .3); margin-left: -6px; }
+.pk-row[hidden] { display: none; }
+.pk-gap { margin-top: 22px; }
+.pk-sw { flex: none; width: 51px; height: 31px; border-radius: 16px; background: rgba(120, 120, 128, .16); position: relative; transition: background .25s; }
+.pk-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .06); transition: translate .25s; }
+.pk-sw.is-on { background: #34c759; } .pk-sw.is-on::after { translate: 20px; }
+.pk-im .pk-bub.is-me { background: #007aff; }
+.pk-by { margin: 6px 0 0 13px; font-size: 12px; color: rgba(60, 60, 67, .6); }
+.pk-row span em { font-style: normal; color: #ff3b30; }
+.pk-big { font-size: 28px; }
+.pk-bar { display: block; height: 6px; border-radius: 3px; background: var(--tint); min-width: 4px; }

@@ -12,7 +12,19 @@ function tabs(names, show) {
 }
 const groupBy = (R, k) => { const m = new Map(); R.forEach(r => (m.get(r[k]) || m.set(r[k], []).get(r[k])).push(r)); return [...m]; };
 
+// 消息：你手机里真有的（和你的私聊、TA 在的群）排前面，后面是 AI 写的 TA 和别人的聊天；都从 TA 那边看，TA 说的在右边
+function chats(R, D) {
+  const note = (R.find(r => r[0] === '备注') || [])[2], drafts = R.filter(r => r[0] === '草稿'), by = groupBy(R.filter(r => r[0] !== '备注' && r[0] !== '草稿'), 0);
+  return [...D.real.map(x => ({ ...x, title: x.you ? note || x.msgs.find(m => !m.me)?.who || '' : x.title })), ...D.pairs,
+    ...by.map(([who, L]) => ({ title: who.replace(/^群[：:]/, ''), group: /^群[：:]/.test(who), msgs: L.map(r => ({ me: /自己/.test(r[2]), who: r[2], t: r[1], text: r[3] })) }))]
+    .map(x => ({ ...x, draft: (drafts.find(r => r[1] === x.title) || [])[2] }));
+}
+
 export const VIEWS = {
+  消息: (R, push, D) => list(chats(R, D).map(x => { const last = x.msgs[x.msgs.length - 1]; return h('button.pk-row', { onclick: () => push(x.title, x.msgs.map((m, i) => [x.group && !m.me && (!i || x.msgs[i - 1].who !== m.who) && h('small.pk-by', m.who), h('div.pk-bub' + (m.me ? '.is-me' : ''), m.text)]), 'pk-sms.pk-im') },
+    face(x.title), h('div', h('b', x.title, h('time', last.t)), h('span', x.draft ? [h('em', '[草稿] '), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); })),
+  屏幕使用时间: R => { const max = Math.max(...R.map(r => +r[1] || 0), 1), all = R.reduce((a, r) => a + (+r[1] || 0), 0), hm = m => (m >= 60 ? Math.floor(m / 60) + ' 小时 ' : '') + (m % 60) + ' 分钟';
+    return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
   备忘录: (R, push) => list(R.map(([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') },
     h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' '))))),
   搜索: R => {
