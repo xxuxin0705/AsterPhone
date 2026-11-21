@@ -147,7 +147,7 @@ export function parse(raw) {
     else if (m[1] === '印象' && f[1]) { const t = f[3] ? null : /^(.{2,}?)对(.{2,})$/.exec(f[0]); if (t) f.splice(0, 1, t[1], t[2]);   // 两个名字挤在一格（「甲对乙｜看法｜一句话」）
       imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]); }
     else if (m[1] === '地点' && f[0]) out.places.push({ name: f[0], area: f[1] === f[0] || /^[（(].*[)）]$|^(空|无|不知道)$/.test(f[1] || '') ? '' : f[1] || '', intro: f[2] || '' });
-    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '', died: day(f[3] || '')[0] });
+    else if (m[1] === '人物' && f[0]) out.ppl.push({ name: bare(f[0]), alias: list(f[1]), who: f[2] || '', died: /没死|活着/.test(f[3] || '') ? false : day(f[3] || '')[0] });   // 「没死」：假死的人回来了
     else if (m[1] === '日子') {   // 类型｜年-月-日（不知道年就只有月-日）｜什么日子｜和谁有关；以前的没有类型，当「其他」
       const [kind, at, what, who] = DAY_KINDS.includes(f[0]) ? f : ['其他', ...f], d = /(?:(\d{4})\D+)?(\d{1,2})\D+(\d{1,2})/.exec(at || ''), p = x => x.padStart(2, '0');
       if (d && what) out.days.push({ kind, date: d[1] ? `${d[1]}-${p(d[2])}-${p(d[3])}` : '', md: `${p(d[2])}-${p(d[3])}`, what, who: list(who) });
@@ -217,6 +217,7 @@ export function merge(x, src = '', text = '', here = false) {
     if (!o) D.ppl.push({ ...q, src });
     else { o.alias = [...new Set([...o.alias, ...p.alias, p.name].filter(n => n !== o.name))]; if (!o.who) o.who = p.who; }
     if (died && !(o || {}).died) setGone(o ? o.name : p.name, died);
+    else if (died === false && o && o.died) setGone(o.name, '');
   }
   let added = 0;
   for (const e of x.ev) {
@@ -326,6 +327,8 @@ export async function settle(w, ok) { D.wait = D.wait.filter(x => x !== w); if (
 export function smallTags(d = D) { const n = new Map(); for (const e of d.ev) for (const t of e.tags) if (t !== '手机') n.set(t, (n.get(t) || 0) + 1); return [...n].sort((a, b) => b[1] - a[1]); }
 const lineSet = () => smallTags().slice(0, 60).map(x => x[0]).join('、');
 /** 已经有的小标签：告诉 AI 同一类的事照这个名字写（还没读进来就先读，这次说没有） */
+// 标了已故的人（每轮顺手记时告诉 AI：他活着出现了就写「没死」）
+export const goneNames = () => D && Dkey === win.key ? D.ppl.filter(p => p.died).map(p => p.name) : [];
 export function lineNames() {
   if (D && Dkey === win.key) return lineSet() || '（还没有）';
   load().catch(e => log('warn', '岁岁砂', '读不到记忆：' + e.message));
@@ -530,7 +533,7 @@ export async function useRel(r, pick) {
 }
 /** 已经知道的人、关系和最近的事，告诉 AI 别重复、名字照这个写 */
 function known() {
-  const ppl = D.ppl.map(p => `${p.name}${p.alias.length ? `（${p.alias.join('、')}）` : ''}`).join('、');
+  const ppl = D.ppl.map(p => `${p.name}${p.alias.length ? `（${p.alias.join('、')}）` : ''}${p.died ? '（已故）' : ''}`).join('、');
   const rel = D.rel.map(r => `${r.a}—${r.b}${r.kind === '其他' ? '' : '：' + r.kind}`).join('；');
   const ev = D.ev.slice(-40).map(e => `${e.at || '不知道'} ${e.title}`).join('\n');
   const spots = [...new Set([...D.places.flatMap(q => [q.area, q.name]), ...D.ev.map(e => e.place)].filter(Boolean))].slice(-80).join('、');

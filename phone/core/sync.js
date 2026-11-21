@@ -11,7 +11,7 @@ import * as time from './time.js';
 import { compose, myName } from './promptstore.js';
 import { forAI } from '../apps/chat/msgtypes.js';
 import { themeNames } from './diary.js';
-import { lineNames, bigNames, memoryForStory } from './memory.js';
+import { lineNames, bigNames, goneNames, memoryForStory } from './memory.js';
 
 const KEY_TAGS = 'asterphone_tags', KEY_CHAT = 'asterphone_chat', KEY_MEM = 'asterphone_mem', KEY_RECALL = 'asterphone_recall';
 const seen = new Set();
@@ -50,7 +50,7 @@ export function tagInstruction() {
   // 告诉正文 AI 手机里有哪些群（谁在里面），剧情里只说「发群里了」时它能按前后文挑对群
   const who = id => { const c = contact(id); return c ? c.remark || c.nick || c.name : ''; };
   const groups = state.chats.filter(c => c.type === 'group').map(g => `${g.name}（${g.members.map(who).filter(Boolean).join('、')}${g.intro ? '；' + g.intro : ''}）`);
-  const mem = state.apps.memory, people = [myName(), ...friends().map(c => c.name)].filter(Boolean).join('、');
+  const mem = state.apps.memory, gone = goneNames(), people = [...new Set([myName(), ...friends().map(c => c.name), ...gone])].filter(Boolean).map(n => gone.includes(n) ? n + '（已故）' : n).join('、');
   return `[AsterPhone 格式说明]\n${text}` + (mem.on && (mem.story === 'every' || mem.story === 'maybe') ? '\n' + compose(mem.story === 'every' ? 'memEvery' : 'memMaybe', { people, lines: lineNames(), bigs: bigNames() }) : '') + diaryNote() + (state.music.storySongs ? '\n' + compose(state.music.songFreq === 'maybe' ? 'songMaybe' : 'songEvery', { lists: songLists() }) : '') + (groups.length ? `\n手机里现在的群：${groups.join('；')}。发在群里的，group 照这里的群名写；正文没说是哪个群，就按前后文和谁在群里挑最合适的：熟人之间的小事发小群，正式的事和通知才发大群，有长辈、老师在的群说话会拘谨。` : '');
 }
 // 跟着剧情写日记：每隔几楼写一篇。这次要生成的是第几楼（重新生成 / 换 swipe 时最后一楼就是它自己），轮到谁就列谁的名字
