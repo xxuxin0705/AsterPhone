@@ -230,7 +230,7 @@ function openCharList(c) {
 function renderSearch(ctx) { ctx.find = searchIn(ctx.title, ctx.body, ctx.el); ctx.back = ctx.find.back; }
 /** 搜索框放进 title，下面的东西放进 body，host 是这一页。add：角色歌单的「加歌」（结果每行一个「+」，不分单曲 / 歌单 / 歌手） */
 function searchIn(title, body, host, add) {
-  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') find(input.value.trim()); }, oninput: typed });   // 拼音还没选字也联想（安卓打英文也算还在选字，不然就像没联想）
+  const input = h('input', { placeholder: '搜索歌曲、歌手、语种', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter' && !e.isComposing) find(input.value.trim()); }, oninput: typed });   // 拼音还没选字也联想（安卓打英文也算还在选字，不然就像没联想）
   title.append(h('label.as-mu-search', icon('search', 16, 2), input));
   const hist = h('div'), home = h('div'), sug = h('div.as-mu-sug', { hidden: true }), res = h('div', { hidden: true });
   const show = el => [home, sug, res].forEach(x => { x.hidden = x !== el; });

@@ -53,7 +53,7 @@ export function pickPlace(title = '选地区', none = '按正文定') {
     map.onwheel = e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); };
     map.ondblclick = () => zoom(1);
 
-    const q = h('input.as-input', { placeholder: '地名', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter') go.click(); } });
+    const q = h('input.as-input', { placeholder: '地名', enterkeyhint: 'search', onkeydown: e => { if (e.key === 'Enter' && !e.isComposing) go.click(); } });
     const go = btn('搜索', 'secondary', () => busy(go, async signal => {
       if (!q.value.trim()) return;
       const [r] = await ask('search?limit=1&q=' + encodeURIComponent(q.value.trim()), signal).catch(e => { if (!signal.aborted) { toast('连不上地图'); log('warn', '地图', '搜地名失败：' + e.message); } return []; });

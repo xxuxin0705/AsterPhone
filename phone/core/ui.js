@@ -437,7 +437,7 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
       ok.disabled = true; field1.addEventListener('input', () => { ok.disabled = field1.value.trim() !== typed; ok.classList.toggle('is-ready', !ok.disabled); });
     } else if (inp) {
       field1 = h('input.as-input', { placeholder: inp.placeholder || '', value: inp.value || '' });
-      field1.addEventListener('keydown', e => { if (e.key === 'Enter') done(field1.value); });
+      field1.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) done(field1.value); });
     }
     const box = h('div.as-dialog', { role: 'alertdialog' }, h('div.as-dialog__title', title), text && h('div.as-dialog__text', text), field1,
       h('div.as-dialog__actions', cancel && h('button.as-dialog__btn', { onclick: () => done(null) }, cancel), ok));

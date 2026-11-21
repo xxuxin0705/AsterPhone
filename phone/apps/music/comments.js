@@ -50,7 +50,7 @@ export async function openComments(s, me) {
   const p = page({ app: 'music', id: 'music-comments', title: '评论', back: true, cls: 'as-cm', right: navText(busy['w' + s.id] ? '取消' : 'AI 乐评', () => busy['w' + s.id] ? busy['w' + s.id].abort() : write()) });
   live[s.id] = { d, paint: () => paint(), tell: () => paintTell(), btn: p.nav.querySelector('.as-navbar__right button') };
   const count = h('b'), list = h('div.as-cm__list');
-  const input = h('input.as-cm__input', { placeholder: '听了这么多，可能你有话想说', onkeydown: e => { if (e.key === 'Enter') send(); } });
+  const input = h('input.as-cm__input', { placeholder: '听了这么多，可能你有话想说', onkeydown: e => { if (e.key === 'Enter' && !e.isComposing) send(); } });
   const toWho = h('div.as-cm__to', { hidden: true });
   const tell = h('button.as-cm__tell', { hidden: true, onclick: () => busy['a' + s.id] ? busy['a' + s.id].abort() : answer() });
   p.body.append(

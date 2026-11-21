@@ -7,7 +7,7 @@ import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } fro
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running, setWall, S, speakIn, relangPeek } from './gen.js';
-import { VIEWS, RAW, trs, setView } from './apps.js';
+import { VIEWS, RAW, trs, trBtn, setView } from './apps.js';
 import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
@@ -41,10 +41,10 @@ export function open() {
     h('div.pk-grid', APPS.map((n, i) => app(n, i, openApp))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i, openApp))));
   const stage = h('div.pk-stage', art, lock, home);
   p.el.prepend(stage);
-  // TA 写的外文后面附着翻译：盖上去的页面一放进来就换成能切换的（apps.js 的 trs）
+  // TA 写的外文后面附着翻译：盖上去的页面一放进来就换成能切换的，顶栏放一个「译」（apps.js 的 trs、trBtn）
   // TA 说中文就只给中文；说的就是生成时那种语言给原文；换成别的语言给机翻的那版（gen.js 的 relangPeek）
   setView((a, zh) => { const l = speakIn(c); return /^zh/.test(l) ? [zh, ''] : l === (D.lang || l) ? [a, zh] : [(D.mt?.[l] || {})[zh] || a, zh]; });
-  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.isConnected && n.parentNode && trs(n.nodeType === 1 ? n : n.parentNode)))).observe(stage, { childList: true, subtree: true });
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (!n.isConnected || !n.parentNode) return; const e = n.nodeType === 1 ? n : n.parentNode, L = e.closest('.pk-app'); trs(e); L && trBtn(L, stage); }))).observe(stage, { childList: true, subtree: true });
 
   // 看的是谁、TA 手机里现在有什么
   let c = null, D = { apps: {}, real: [], pairs: [] };

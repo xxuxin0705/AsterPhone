@@ -7,12 +7,14 @@ import { saveRead } from './gen.js';
 const yuan = v => (parseFloat(String(v).replace(/[^\d.+-]/g, '')) || 0).toFixed(2);
 const list = kids => h('div.pk-list', kids);
 const face = (name, url) => h('i.pk-face', url ? { style: { backgroundImage: `url("${url}")` } } : name.slice(0, 1));
-// 这几个图标公共那套里没有（听筒、钟、九宫格、三条线）：自己描的线条，借 icon() 的壳换一条路径
+// 这几个图标公共那套里没有（听筒、钟、九宫格、三条线、小云朵、标签页）：自己描的线条，借 icon() 的壳换一条路径
 const G = { call: 'M7.2 5.2C5.5 10 14 18.5 18.8 16.8', clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7.5V12l3 2', lines: 'M4 7h16M7 12h10M10 17h4',
-  pad: 'M6 5h.01M12 5h.01M18 5h.01M6 11h.01M12 11h.01M18 11h.01M6 17h.01M12 17h.01M18 17h.01' };
-// 实心的：听筒、钟、小人、九个点（标签栏、拨打键用）。.cut 是挖空的那几笔，颜色跟着页面底色
+  pad: 'M6 5h.01M12 5h.01M18 5h.01M6 11h.01M12 11h.01M18 11h.01M6 17h.01M12 17h.01M18 17h.01',
+  cloud: 'M7.5 15.5h9a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 7.4 8a3.75 3.75 0 0 0 .1 7.5zM6 19.2h.01M3.8 21.4h.01', tabs: 'M8 8V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H16M4 9.5A1.5 1.5 0 0 1 5.5 8h9A1.5 1.5 0 0 1 16 9.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 18.5z' };
+// 实心的：听筒、钟、小人、九个点（标签栏、拨打键用）、播放键（Safari 里的视频）。.cut 是挖空的那几笔，颜色跟着页面底色
 const F = { call: '<path d="M6.3 3.2c.9-.4 1.9 0 2.3.9l1.3 2.9c.4.8.1 1.8-.6 2.3l-1.4 1c1 2.2 2.8 4 5 5l1-1.4c.5-.7 1.5-1 2.3-.6l2.9 1.3c.9.4 1.3 1.4.9 2.3l-.6 1.4c-.6 1.3-2 2.1-3.4 1.8C9.4 18.9 5.1 14.6 3.8 8.3c-.3-1.4.5-2.8 1.8-3.4z"/>',
   clock: '<circle cx="12" cy="12" r="10.5"/><path class="cut" d="M12 6.6V12H7.4" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+  play: '<path d="M8 5.2v13.6c0 .8.9 1.3 1.6.8l10.3-6.8a1 1 0 0 0 0-1.6L9.6 4.4c-.7-.5-1.6 0-1.6.8z"/>',
   person: '<circle cx="12" cy="12" r="10.5"/><circle class="cut" cx="12" cy="9.6" r="3.7"/><path class="cut" d="M5.4 18.4c1.4-2.3 3.9-3.6 6.6-3.6s5.2 1.3 6.6 3.6A9.9 9.9 0 0 1 12 21.9a9.9 9.9 0 0 1-6.6-3.5z"/>',
   dots: [5, 12, 19].map(y => [5, 12, 19].map(x => `<circle cx="${x}" cy="${y}" r="2.7"/>`).join('')).join('') };
 const fill = (k, size) => { const t = document.createElement('template'); t.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor" aria-hidden="true">${F[k]}</svg>`; return t.content.firstChild; };
@@ -30,16 +32,32 @@ const when = (t, full) => {
 };
 // 通讯录的头像：名字第一个字（自己那张是粉紫的）；有头像就放头像
 const face2 = (name, url, me = '') => h('i.pk-face2' + me, url ? { style: { backgroundImage: `url("${url}")` } } : null, url ? '' : String(name || '?').trim().slice(0, 1));
-// 不是中文的：AI 在后面附了「[翻译：…]」，换成原文 + 一个「译」，点了在原文 / 中文之间换（在列表里点它不会点进那一条）
-const TR = /\s*[[［【]翻译[:：]\s*([^\]］】]*)[\]］】]/;
+// 不是中文的：AI 在后面附了「[翻译：…]」，显示时去掉，原文和中文都记在那几个字上
+const TR = /\s*[[［【]翻译[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;   // 翻译里可以再套一层括号（[图：…]）
 const untr = s => { const m = TR.exec(s || ''); return m ? [s.slice(0, m.index) + s.slice(m.index + m[0].length), m[1]] : [s || '', '']; };
-const flip = (a, b, put) => h('button.pk-tr', { onclick: e => { e.stopPropagation(); const zh = e.currentTarget.textContent === '译'; e.currentTarget.textContent = zh ? '原' : '译'; put(zh ? b : a); } }, '译');
 let view = (a, zh) => [a, zh];   // 显示哪一版：peek.js 按 TA 现在说的语言换（setView）
 export const setView = f => { view = f; };
+// 整个 TA 的手机共用一个「译」：点一下所有页面都换中文，再点一下全换回原文；新打开的页面跟着现在这个
+let zh = false;
+const trOn = () => zh;
 export function trs(root) {
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), hit = [];
   while (w.nextNode()) if (TR.test(w.currentNode.data)) hit.push(w.currentNode);
-  for (const n of hit) { const p = n.data.split(TR); n.replaceWith(...p.flatMap((x, i) => i % 2 ? [] : i + 1 < p.length ? (([a, zh]) => zh ? (s => [s, flip(a, zh, v => { s.textContent = v; })])(h('span', a)) : [a])(view(x, p[i + 1])) : x ? [x] : [])); }
+  for (const n of hit) { const p = n.data.split(TR); n.replaceWith(...p.flatMap((x, i) => i % 2 ? [] : i + 1 < p.length ? (([a, z]) => z ? [x.match(/^\s*/)[0], Object.assign(h('bdi.pk-trs', zh ? z : a), { _a: a, _z: z })] : [x])(view(x.trim(), p[i + 1])) : x ? [x] : [])); }
+}
+function flipAll(root) {
+  zh = !zh;
+  root.querySelectorAll('.pk-trs').forEach(s => { s.textContent = zh ? s._z : s._a; });
+  root.querySelectorAll('.pk-trx').forEach(x => x._put(zh));
+  root.querySelectorAll('.pk-tl').forEach(b => { b.textContent = zh ? '原' : '译'; b.classList.toggle('is-on', zh); });
+}
+// 这一页有能翻译的字，就在顶栏右边放「译」（顶栏右边已经有按钮的，放在它左边）
+export function trBtn(layer, root) {
+  const slot = layer.querySelector('.pk-top2, .pk-app__bar');
+  if (!slot || layer.querySelector('.pk-tl') || !layer.querySelector('.pk-trs, .pk-trx')) return;
+  const btn = h('button.pk-glass.is-round.pk-tl' + (zh ? '.is-on' : ''), { 'aria-label': '翻译', onclick: () => flipAll(root) }, zh ? '原' : '译');
+  const last = slot.lastElementChild;
+  if (slot.children.length > 2 && last.matches('button')) last.before(btn); else slot.append(btn);
 }
 const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
@@ -118,21 +136,31 @@ export const VIEWS = {
         h('pre.pk-doodle', art.split('//').map(x => x.replace(/\s+$/, '')).join('\n')), why && h('div.pk-card', h('small', '涂鸦解析'), h('p', why))], 'pk-note') },
         h('b', t || '随手涂鸦'), h('span', why || ''))))] : null];
   },
-  // 搜索：谷歌那样，中间彩色的字、圆的搜索框；下面分 搜索 / 历史记录 / 收藏夹 / 无痕。网址是 AI 编的，只给人看，点了不打开。
-  // 点一条搜索、一个网页，进去就是那一页；内容都是生成时一起写好的，点开不找 AI
+  // 搜索：照 iPhone 的 Safari。首页是收藏夹和最近搜索，底下地址栏 + 工具栏（书签那颗看历史记录，标签页那颗看没关掉的无痕标签页）。
+  // 点一条搜索、一个网页，进去就是那一页（文章或视频）；内容都是生成时一起写好的，点开不找 AI
   搜索: (R, push, D, pop) => {
-    const old = r => !['搜索', '看过', '收藏', '无痕'].includes(r[0]);   // 以前存的：搜的话｜时间｜历史/收藏/无痕
-    const rows = k => R.filter(r => old(r) ? (k === '搜索' ? !/收藏|无痕|私密/.test(r[2]) : k === '收藏' ? /收藏/.test(r[2]) : k === '无痕' && /无痕|私密/.test(r[2])) : r[0] === k).map(r => old(r) ? [k, r[0], k === '收藏' ? '' : r[1]] : r);
     const host = u => { try { return new URL(/^https?:/.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch { return u || ''; } };
-    const site = (title, u, right, onclick) => h('div.pk-web__row', { role: onclick && 'button', onclick }, h('i', (host(u) || title || '?').slice(0, 1).toUpperCase()), h('div', h('b', title), h('small', host(u))), right);
-    const query = (r, ic = 'search') => h('div.pk-web__q', tap(hit(r)), icon(ic, 18, 2.2), h('b', r[1]), r[2] && h('time', when(r[2])));
-    const read = t => seen.find(r => r[1] === t) || [];   // 看过的那页：正文、看完想的
-    const textOf = t => read(t)[5] || (R.find(r => r[3] === t && r[5]) || [])[5];   // 看过的那页正文没写时，用搜索点开它时写的
-    const sub = (head, kids) => push('', () => [h('div.pk-web__top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), head), h('div.pk-web.is-sub', kids)], 'is-raw');
-    // 正文一段：「■小标题：」是带圆点的一节，**词** 标蓝；有翻译的一段末尾带「译」
+    const hue = s => `hsl(${Math.abs([...String(s)].reduce((n, c) => n * 31 + c.charCodeAt(0) | 0, 7)) % 360} 55% 52%)`;
+    // 一页：看过｜收藏｜无痕 + 类型｜标题｜网址｜时间｜看完想的｜正文｜视频的时长和播放量；v0.8.591 以前存的格式也认
+    const pg = r => /^(文章|视频)$/.test(r[1]) ? { type: r[1], title: r[2], u: r[3], t: r[4], thought: r[5], body: r[6], meta: r[7] }
+      : r[0] === '收藏' ? { type: '文章', title: r[1], u: r[2], body: r[3] } : r[0] === '看过' ? { type: '文章', title: r[1], u: r[2], thought: r[3], t: r[4], body: r[5] } : { type: '文章', title: r[3], u: r[4], t: r[2], body: r[5] };
+    const of = k => R.filter(r => r[0] === k).map(pg), seen = of('看过'), favs = of('收藏'), priv = of('无痕');
+    // 收藏、搜索只写了标题的，正文和看完想的用同标题那页的
+    const full = p => { const o = { ...[...seen, ...priv].find(y => y.title === p.title) }; for (const k in p) if (p[k]) o[k] = p[k]; return o; };
+    const tap = go => go && { role: 'button', onclick: go };
+    const open = (p, dark) => (p = full(p)).body && (() => page(p, dark));
+    const ofFind = r => ({ title: r[3], u: r[4], body: /::|：：/.test(r[5] || '') ? '' : r[5] });
+    const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4));
+    const kind = p => p.type === '视频' ? icon('play', 17, 2) : icon('note', 17, 1.9);
+    const row = (ic, title, sub, go, t) => h('div.pk-saf__row', tap(go), ic, h('div', h('b', title), sub && h('small', sub)), t && h('time', when(t)));
+    // 正文：// 分段；「■小标题：」一节、「> 」引用、「[图：…]」配图的位置，**词** 标蓝
     const rich = v => v.split(/\*\*(.+?)\*\*/).map((x, i) => i % 2 ? h('b', x) : x);
-    const para = v => { const m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v); return m ? h('p.is-sec', h('strong', m[1] + '：'), ...rich(m[2])) : h('p', ...rich(v)); };
-    const paras = v => v.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean).map(para);
+    const block = (v, i) => { let m;
+      if ((m = /^[[［【][图図][:：]\s*([\s\S]*?)[\]］】]$/.exec(v))) return h('figure.pk-saf__pic', h('div', { style: { '--c': hue('图' + i) } }, icon('image', 30, 1.5)), h('figcaption', m[1]));
+      if ((m = /^[>＞》]\s*([\s\S]*)$/.exec(v))) return h('blockquote', ...rich(m[1]));
+      if ((m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v))) return h('p.is-sec', h('strong', m[1]), h('br'), ...rich(m[2]));
+      return h('p', ...rich(v)); };
+    const blocks = v => v.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean).map(block);   // 配图的颜色按第几段定：原文、中文切换时不变色
     // 原文和要显示的那版：AI 有时每段后面各附一个翻译，有时整篇末尾附一个（里面也用 // 分段）
     const both = s => {
       const one = (s.match(/[[［【]翻译[:：]/g) || []).length === 1 && /^([\s\S]*?)\s*[[［【]翻译[:：]\s*([\s\S]*)[\]］】]\s*$/.exec(s);
@@ -140,41 +168,32 @@ export const VIEWS = {
       const V = s.split(/(?<!:)\/\//).map(untr).map(([a, z]) => z ? view(a, z) : [a, '']);
       return [V.map(v => v[0]).join('//'), V.some(v => v[1]) ? V.map(v => v[1] || v[0]).join('//') : ''];
     };
-    // 一个网页：顶上网址，网站、标题、正文；TA 看过的带上看完想的（有正文才点得进来）。标题、正文、看完想的共用顶上一个「译」
-    const page = (title, u, text, thought) => {
-      const T = [title, text, thought || ''].map(both), h2 = h('h2.pk-web__h'), art = h('div.pk-web__art'), note = h('p');
-      const put = zh => { const [a, b, c] = T.map(([x, z]) => zh && z || x); h2.textContent = a; art.replaceChildren(...paras(b)); note.replaceChildren(...rich(c)); };
-      put(false);
-      return sub([h('div.pk-web__url', icon('globe', 15, 2), h('span', (u || '').replace(/^https?:\/\//, '') || host(u))),
-        T.some(x => x[1]) && h('button.pk-glass.is-round.pk-web__tr', { 'aria-label': '翻译', onclick: e => { const b = e.currentTarget, zh = b.classList.toggle('is-on'); b.textContent = zh ? '原' : '译'; put(zh); } }, '译')], [
-        h('div.pk-web__brand', h('i', (host(u) || '?').slice(0, 1).toUpperCase()), h('b', host(u))), h2, art,
-        thought && h('div.pk-web__note', h('small', '看完'), note)]);
+    // 一个网页：顶上返回、网址、小云朵（点开是 TA 看完想的）；文章是网站、标题、正文，视频是播放器、标题、简介
+    const page = (p, dark) => {
+      const T = [p.title, p.body, p.thought || ''].map(both), h2 = h('h2.pk-saf__h'), art = h('div.pk-saf__art'), think = h('p');
+      const put = z => { const [a, b, c] = T.map(([x, y]) => z && y || x); h2.textContent = a; art.replaceChildren(...blocks(b)); think.replaceChildren(...rich(c)); };
+      if (T.some(x => x[1])) Object.assign(art, { _put: put }).classList.add('pk-trx');
+      put(trOn());
+      const cloud = p.thought && h('div.pk-saf__think', { hidden: true }, h('small', '看完'), think);
+      const dur = (/\d{1,2}:\d{2}(?::\d{2})?/.exec(p.meta || '') || [''])[0], views = (p.meta || '').replace(dur, '').replace(/^[\s·,，、|｜]+|[\s·,，、|｜]+$/g, '');
+      const meta = h('div.pk-saf__meta', h('i', { style: { background: hue(host(p.u)) } }, (host(p.u) || '?').slice(0, 1).toUpperCase()), h('b', host(p.u)), views && h('span', views), p.t && h('span', when(p.t)));
+      push('', () => [h('div.pk-top2.pk-saf__top', back(), h('div.pk-saf__url', icon(p.type === '视频' ? 'play' : 'globe', 14, 2), h('span', (p.u || '').replace(/^https?:\/\//, ''))),
+        cloud && h('button.pk-glass.is-round', { 'aria-label': '看完想的', onclick: () => { cloud.hidden = !cloud.hidden; } }, ink('cloud', 22, 1.9))), cloud,
+        h('div.pk-saf.is-page' + (dark ? '.is-dark' : ''), p.type === '视频' ? [h('div.pk-saf__player', fill('play', 30), dur && h('time', dur)), h2, meta, art] : [meta, h2, art])], 'is-raw');
     };
-    const open = (title, u, text) => text && (() => page(title, u, text, read(title)[3])), tap = go => go && { role: 'button', onclick: go };
-    // 点一条搜索直接是 TA 点开的那个网页。v0.8.588 那版存的是好几个网页（标题::网址::摘要 // …），取 ★ 的那个，没有就第一个
-    const hit = ([, , , t, u, text]) => {
-      if (!/::|：：/.test(t || '')) return open(t, u, text || textOf(t));
-      const L = t.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean), x = L.find(y => /^[★*☆]/.test(y)) || L[0];
-      const [a, b, c] = x.replace(/^[★*☆]\s*/, '').split(/::|：：/).map(y => (y || '').trim());
-      return open(a, b, read(a)[5] || c);
-    };
-    const box = h('div.pk-web__pane'), seen = rows('看过'), go = k => { [...tabsEl.children].forEach(b => b.setAttribute('aria-pressed', b.textContent === k)); box.replaceChildren(...[panes[k]()].flat(4).filter(Boolean)); };
-    const panes = {
-      搜索: () => rows('搜索').length ? [h('div.pk-web__head', h('b', '最近搜索')), h('div.pk-web__card.is-list', rows('搜索').map(r => query(r)))] : null,
-      历史记录: () => [h('div.pk-web__head', h('b', '最近访问'), h('small', `${seen.length} 条`)), h('div.pk-web__card.is-list', seen.map(([, title, u, n, t, text]) => site(title, u, h('time', when(t)), open(title, u, text || textOf(title)))))],
-      收藏夹: () => { const L = rows('收藏'); return [h('div.pk-web__head', h('b', '网页收藏'), h('small', `${L.length} 条`)), h('div.pk-web__card.is-list', L.map(([, title, u, text]) => site(title, u, icon('bookmark', 17, 2), open(title, u, text || textOf(title)))))]; },
-      无痕: () => [h('div.pk-web__head', h('b', '无痕浏览'), h('small', '关掉就不留记录')), h('div.pk-web__card.is-list.is-dark', rows('无痕').map(r => query(r, 'eyeOff')))],
-    };
-    const tabsEl = h('nav.pk-web__tabs', Object.keys(panes).map(k => h('button', { onclick: () => go(k) }, k)));
-    // 常去的：看过的网页里出现最多的几个网站
-    const top = [...seen.reduce((m, r) => m.set(host(r[2]), (m.get(host(r[2])) || 0) + 1), new Map())].filter(x => x[0]).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    go('搜索');
-    return [h('i.pk-web__top'), h('div.pk-web',
-      h('div.pk-web__logo', [...'Google'].map(c => h('span', c))),
-      h('div.pk-web__field', icon('search', 18, 2.2), h('span', '搜索或输入网址'), icon('mic', 18, 2)),
-      top.length ? h('div.pk-web__sites', top.map(([u]) => h('div', h('i', u.slice(0, 1).toUpperCase()), h('small', u)))) : null,
-      tabsEl, box),
-      h('div.pk-web__bar', h('div', icon('globe', 15, 2), h('span', seen[0] ? host(seen[0][2]) : 'google.com')), icon('back', 20, 2.2), icon('chevron', 20, 2.2), h('button', { 'aria-label': '收藏夹', onclick: () => go('收藏夹') }, icon('bookmark', 20, 2)), h('button', { 'aria-label': '历史记录', onclick: () => go('历史记录') }, icon('hourglass', 20, 2)))];
+    const history = () => { const top = h('div.pk-top2.pk-saf__top', back(), h('b', '历史记录')), big = h('h1', '历史记录'); bigTitle(top, big);
+      push('', () => [top, big, h('div.pk-saf', h('div.pk-saf__list', R.filter(r => r[0] === '搜索' || r[0] === '看过').map(r => r[0] === '搜索'
+        ? row(icon('search', 17, 2.2), r[1], '搜索', open(ofFind(r)), r[2]) : (p => row(kind(p), p.title, host(p.u), open(p), p.t))(pg(r)))))], 'is-raw'); };
+    // 无痕：没关掉的那几个标签页，黑底的卡片
+    const lead = s => { const f = v => (v || '').split(/(?<!:)\/\//)[0].replace(/\*\*/g, ''), [a, z] = both(s || ''); return z ? Object.assign(h('bdi.pk-trs', trOn() ? f(z) : f(a)), { _a: f(a), _z: f(z) }) : f(a); };   // 正文第一段，跟着「译」换
+    const tabs = () => { const top = h('div.pk-top2.pk-saf__top', back(), h('b', '无痕浏览')), big = h('h1', '无痕浏览'); bigTitle(top, big);
+      push('', () => [top, big, h('div.pk-saf.is-dark', priv.length ? h('div.pk-saf__tabs', priv.map(p => h('div', tap(open(p, true)), h('b', p.title), h('small', host(p.u)), h('p', lead(p.body))))) : h('p.pk-saf__none', '没有打开的无痕标签页'))], 'is-raw'); };
+    const finds = R.filter(r => r[0] === '搜索');
+    return [h('div.pk-top2.pk-saf__top'), h('div.pk-saf',
+      favs.length ? [h('h3', '收藏夹'), h('div.pk-saf__favs', favs.map(p => h('div', tap(open(p)), h('i', { style: { background: hue(host(p.u)) } }, (host(p.u) || p.title || '?').slice(0, 1).toUpperCase()), h('small', p.title))))] : null,
+      finds.length ? [h('h3', '最近搜索'), h('div.pk-saf__list', finds.map(r => row(icon('search', 17, 2.2), r[1], '', open(ofFind(r)), r[2])))] : null),
+      h('div.pk-saf__bar', h('div', icon('search', 16, 2.2), h('span', '搜索或输入网站名称'), icon('mic', 16, 2)),
+        h('nav', icon('back', 22, 2), h('i.is-fwd', icon('back', 22, 2)), icon('share', 21, 1.9), h('button', { 'aria-label': '历史记录', onclick: history }, icon('bookmark', 21, 1.9)), h('button', { 'aria-label': '无痕标签页', onclick: tabs }, ink('tabs', 21, 1.9))))];
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
   短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').map(r => r[1]));

@@ -20,7 +20,7 @@ export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).cat
 /** 能生成的应用：名字 → 给 AI 看的一行怎么写 */
 export const FORMS = {
   备忘录: '便签｜标题｜日期｜正文\n心声｜此刻的几个情绪（两三个词，用顿号隔开）｜{{char}} 心里没说出口的话（一小段，第一人称，只写给自己看的）\n涂鸦｜标题｜用字符随手画的小涂鸦（每行用 // 隔开，最多 8 行，每行不超过 14 个字）｜涂鸦解析（画的是什么、为什么画）\n（便签照常写；心声、涂鸦各写一条）',
-  搜索: '搜索｜搜的话｜时间｜搜完点开的那个网页标题｜网址（编一个像样的，不写 https://）｜这一页的正文\n看过｜网页标题｜网址｜看到了什么、TA 心里怎么想（一两句）｜时间｜这一页的正文（是上面搜索点开的那页就照抄标题，正文空着）\n收藏｜网页标题｜网址｜这一页的正文\n无痕｜偷偷搜的话｜时间｜点开的网页标题｜网址｜这一页的正文（不想被人看到的，有才写）\n（正文像真的网页：先一段开头，再两三段「■小标题：内容」，段和段之间用 // 隔开，要紧的词用 **两边星号** 标出来）\n（搜索、看过各写几条，收藏 2～4 条）',
+  搜索: '搜索｜搜的话｜时间｜搜完点开的那页的标题（照抄下面看过那页的标题）\n看过｜类型（文章或视频）｜网页标题｜网址（编一个像样的，不写 https://）｜时间｜看完心里怎么想（一两句）｜正文｜视频的时长和播放量（文章空着）\n收藏｜类型｜网页标题｜网址｜收藏的时候｜｜正文｜视频的时长和播放量\n无痕｜类型｜网页标题｜网址｜时间｜看完心里怎么想｜正文｜视频的时长和播放量\n（搜索 4～6 条；看过的就是这些搜索点开的那几页，再加一两页从别处点进来的。收藏一定要写 3～5 条：大多是正常的（攻略、店、想买的、教程），混一两条有私心的。无痕是见不得人、心虚的，有才写。\n时间要扎堆：几分钟里连着查几条，再隔几个小时；要有一条深夜查的、一条很琐碎的日常（天气、路线、换算之类）。\n正文要像真的网页、详略有别：文章先一段开头，再分几段，可以用「■小标题：内容」「> 引用的一句话」「[图：这张图是什么]」，要紧的词用 **两边星号**，段和段之间用 // 隔开，别每段都一个样子；视频的正文是简介，两三句。）',
   短信: '对方（名字或号码）｜时间｜对方 / 自己（这条谁发的）｜内容\n（同一个人的几条挨着写，按先后）',
   电话: '对方｜呼入 / 呼出 / 未接（三选一）｜时间｜归属地（省 市，存了名字的熟人可以空着）\n留言｜对方｜时间｜留言多长（分:秒）｜留言里说的话（语音留言 0～3 条，没有就不写）\n联系人｜{{char}} 存的名字（会起备注就写备注）｜这是谁（几个字）\n（通话记录之外，再写 6～10 行联系人）',
   购物车: '商品｜价格（只写数字）｜数量｜店铺｜为什么想买（{{char}} 心里的一句话）',
@@ -49,6 +49,7 @@ export async function load(c) {
   const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
   d.id = c.id; d.name = nameOf(c); d.avatar = c.avatar;
   if (!d.lang) d.lang = guess(d.apps);   // 以前生成的没记是什么语言
+  for (const a of Object.values(d.apps)) a.rows = a.rows.map(r => r.map(perLine));
   d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
     .map(([x, L]) => ({ title: nameOf(x), avatar: x.avatar, msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
@@ -60,12 +61,19 @@ export async function load(c) {
 /** 记下 TA 手机里哪些信息点开看过了（只存这一项，别的照旧） */
 export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; d.read = D.read; await kvSet('peek:' + D.id, d).catch(() => {}); }
 
+// 分了好几行（//）的一格，AI 有时只在最后附一整段翻译：行数对得上就拆成每行各带一个，备忘录、正文才能一行一行换
+const perLine = s => {
+  const m = typeof s === 'string' && (s.match(/[[［【]翻译[:：]/g) || []).length === 1 && /^([\s\S]*?)\s*[[［【]翻译[:：]\s*([\s\S]*)[\]］】]\s*$/.exec(s);
+  if (!m) return s;
+  const A = m[1].split(/(?<!:)\/\//), Z = m[2].split(/(?<!:)\/\//);
+  return A.length > 1 && A.length === Z.length ? A.map((a, i) => `${a}[翻译：${Z[i]}]`).join('//') : s;
+};
 // 原文是什么语言：看附了翻译的原文猜（假名是日语、谚文是韩语…）；没有外文就是空的
 const guess = apps => { const t = JSON.stringify(apps); return !/翻译[:：]/.test(t) ? '' : /[\u3040-\u30ff]/.test(t) ? 'ja' : /[\uac00-\ud7af]/.test(t) ? 'ko' : /[а-яё]/i.test(t) ? 'ru' : 'en'; };
 /** TA 现在说的语言（映像里选的，没选跟着设置） */
 export const speakIn = c => langFor('chat', chatForContact(c.id, false)?.cfg.speak);
 /* 换了 TA 说的语言：中文那版一直不变；外文那版要是和生成时不一样，从中文机翻（不花 API），记在 d.mt[语言]，再切回来就不用再翻 */
-const TRG = /[[［【]翻译[:：]\s*([^\]］】]*)[\]］】]/g;
+const TRG = /[[［【]翻译[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/g;
 export async function relangPeek(c, D) {
   const l = speakIn(c); if (/^zh/.test(l) || l === (D.lang || l)) return false;
   const all = [...Object.values(D.apps).flatMap(a => a.rows.flat()), ...D.pairs.flatMap(x => x.msgs.map(m => m.text))];
