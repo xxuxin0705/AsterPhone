@@ -1,0 +1,40 @@
+/* 查手机：一整张桌面的画铺满，画上盖着看不见的点击区；点手机后整张画推近、转正，再盖上锁屏和 TA 的桌面 */
+.as-peek { background: #cfe4f6; }
+.as-peek[data-mode="night"] { background: #142a4e; }
+.as-peek::before, .as-peek::after { display: none; }
+.as-peek .as-navbar { position: relative; z-index: 3; background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: #fff; filter: drop-shadow(0 1px 4px rgba(10, 30, 70, .55)); }
+.as-peek .as-navbar { pointer-events: none; }
+.as-peek .as-navbar__back { color: #fff; pointer-events: auto; }
+.as-peek .as-page__body { pointer-events: none; }
+.pk-stage { position: absolute; inset: 0; overflow: hidden; display: grid; place-items: center; }
+/* 画不裁（比手机屏窄的那一边留给背景色），宽高比固定，点击区才对得上 */
+.pk-art { position: relative; aspect-ratio: 852 / 1846; min-width: 100%; min-height: 100%; flex: none; transition: transform .75s cubic-bezier(.3, .7, .2, 1); will-change: transform; }
+.pk-art > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; -webkit-user-select: none; user-select: none; }
+.pk-spot { position: absolute; border: 0; padding: 0; background: none; border-radius: 40%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pk-spot::after { content: ''; position: absolute; inset: 12%; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0)); opacity: 0; scale: .6; pointer-events: none; }
+.pk-spot.on::after { animation: pk-glow .7s ease-out; }
+@keyframes pk-glow { 30% { opacity: 1; } to { opacity: 0; scale: 1.25; } }
+.pk-phone::after { inset: 0; animation: pk-breathe 3.2s ease-in-out infinite; }
+@keyframes pk-breathe { 50% { opacity: .38; scale: .9; } }
+.pk-say { position: absolute; left: 50%; bottom: 9%; translate: -50% 8px; max-width: 82%; padding: 9px 16px; border-radius: 16px; font-size: 14px; line-height: 1.5; color: #fff; text-align: center; background: rgba(18, 42, 84, .5); -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3); border: 1px solid rgba(255, 255, 255, .28); opacity: 0; pointer-events: none; transition: opacity .25s, translate .25s; }
+.pk-say.on { opacity: 1; translate: -50% 0; }
+.is-near .pk-say, .is-near .pk-spot { display: none; }
+.pk-lock, .pk-home { position: absolute; inset: 0; z-index: 2; background: #1b3a6b url(../../assets/wallpapers/apple-day.jpg) center / cover; color: #fff; opacity: 0; visibility: hidden; transition: opacity .35s .5s, visibility 0s .85s, transform .4s cubic-bezier(.3, .7, .2, 1); }
+.as-peek[data-mode="night"] .pk-lock, .as-peek[data-mode="night"] .pk-home { background-image: url(../../assets/wallpapers/apple-night.jpg); }
+.is-near .pk-lock, .is-open .pk-home { opacity: 1; visibility: visible; transition: opacity .35s .5s, visibility 0s .5s, transform .4s cubic-bezier(.3, .7, .2, 1); }
+.pk-lock { z-index: 3; display: flex; flex-direction: column; align-items: center; touch-action: none; text-shadow: 0 1px 8px rgba(10, 30, 70, .35); }
+.pk-lock b { margin-top: 26%; font-size: 84px; font-weight: 300; line-height: 1; letter-spacing: 1px; }
+.pk-lock span { margin-top: 8px; font-size: 17px; }
+.pk-lock em { margin-top: auto; margin-bottom: 44px; font-style: normal; font-size: 15px; opacity: .85; animation: pk-up 2.4s ease-in-out infinite; }
+.pk-lock::after { content: ''; position: absolute; left: 50%; bottom: 14px; width: 132px; height: 5px; margin-left: -66px; border-radius: 3px; background: rgba(255, 255, 255, .85); }
+@keyframes pk-up { 50% { translate: 0 -7px; opacity: .5; } }
+.pk-home { display: flex; flex-direction: column; padding: 14px 20px 22px; transition-delay: 0s, 0s, 0s; }
+.is-open .pk-home { transition-delay: 0s; }
+.pk-pill { align-self: center; padding: 5px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; background: rgba(255, 255, 255, .22); border: 1px solid rgba(255, 255, 255, .35); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.pk-grid { flex: 1; margin-top: 34px; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 96px; justify-items: center; align-content: start; }
+.pk-dock { display: flex; justify-content: space-around; padding: 12px 6px; border-radius: 30px; background: rgba(255, 255, 255, .2); border: 1px solid rgba(255, 255, 255, .3); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); }
+.pk-dock .as-home-app { width: 58px; }
+.pk-dock .as-home-app__name { display: none; }
+.pk-home .as-home-app__icon { color: #fff; background: rgba(255, 255, 255, .2); border: 1px solid rgba(255, 255, 255, .32); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 4px 14px rgba(10, 30, 70, .18); }
+.pk-home .as-home-app__name { color: #fff; font-size: 12px; text-shadow: 0 1px 4px rgba(10, 30, 70, .45); }
+@media (prefers-reduced-motion: reduce) { .pk-art, .pk-lock, .pk-home { transition-duration: .01s; } .pk-phone::after, .pk-lock em { animation: none; } }

@@ -19,6 +19,7 @@ export const APPS = [
   { id: 'street', name: '商业街', icon: 'shop' },
   { id: 'forum', name: '论坛', icon: 'comment' },
   { id: 'mirror', name: '映像', icon: 'users' },
+  { id: 'peek', name: '查手机', icon: 'eye' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 const COLS = 4, ROWS = 6, DOCK = 4, ICON = 58, PAD = 20;

@@ -28,6 +28,7 @@ const APP_LOADERS = {
   street: () => import('../apps/street/street.js'),
   forum: () => import('../apps/forum/forum.js'),
   mirror: () => import('../apps/mirror/mirror.js'),
+  peek: () => import('../apps/peek/peek.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
