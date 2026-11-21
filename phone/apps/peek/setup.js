@@ -18,10 +18,11 @@ function pick(t, title, list, get, set, show = String) {
 export function setup(c, open, mode) {
   const P = S();
   const times = pick(tile('sort', '#8e8e93'), '最多续几次', [1, 2, 3, 4, 5, 6, 8, 10], () => P.fillMax || 3, n => { P.fillMax = n; }, n => n + ' 次'); times.hidden = !P.fill;
-  const sw = h('i.pk-sw' + (P.fill ? '.is-on' : ''));
+  const sw = h('i.pk-sw' + (P.fill ? '.is-on' : '')), dsw = h('i.pk-sw' + (P.desk !== false ? '.is-on' : ''));
   return [
     h('div.pk-list', h('div.pk-row.pk-me', avatar(c.avatar, nameOf(c), 58), h('div', h('b', nameOf(c)), h('span', 'Apple 账户、iCloud 等')), icon('chevron', 16, 2.2))),
     h('div.pk-list.pk-gap', pick(tile('eye', '#007aff'), '显示与亮度', ['follow', 'day', 'night'], () => P.mode || 'follow', v => { P.mode = v; mode(); }, v => ({ follow: '跟随', day: '日间', night: '夜间' })[v]),
+      h('button.pk-row', { role: 'switch', onclick: () => { P.desk = P.desk === false; commit('apps'); dsw.classList.toggle('is-on', P.desk); } }, tile('image', '#ff9500'), h('b', '开场的桌面'), dsw),
       h('button.pk-row', { onclick: () => open('屏幕使用时间') }, tile('hourglass', '#5856d6'), h('b', '屏幕使用时间'), icon('chevron', 16, 2.2))),
     h('div.pk-list.pk-gap', pick(tile('link', '#34c759'), '生成用的 API', ['follow', ...state.connections.text.map(x => x.id)], () => (P.conn ||= { text: 'follow' }).text, v => { P.conn.text = v; },
       v => v === 'follow' ? `跟聊天（${(resolveConn('text', 'chat') || {}).name || '没设置'}）` : (state.connections.text.find(x => x.id === v) || {}).name || '没设置'),

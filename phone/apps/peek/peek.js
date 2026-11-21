@@ -132,7 +132,10 @@ export function open() {
     if (on && c) load(c).then(x => { D = x; });   // 你手机里的聊天可能有新的
     if (!on) stage.classList.remove('is-open');
   }
-  const leave = () => { near(false); lock.style.transform = ''; };
+  // 设置里关了开场的桌面：一打开就是 TA 解了锁的桌面，放下手机就是退出查手机
+  const direct = S().desk === false;
+  const leave = () => { if (direct) { p.el.dispatchEvent(new CustomEvent('as-back', { bubbles: true })); return; } near(false); lock.style.transform = ''; };
+  if (direct) { stage.classList.add('is-near', 'is-open', 'is-direct'); p.el.classList.add('is-in'); stage.dataset.noSwipe = ''; lock.style.transform = 'translateY(-105%)'; requestAnimationFrame(paintMode); }
   // 上滑解锁：锁屏跟着手指往上走，过了五分之一就滑走，露出 TA 的桌面
   let y0 = null;
   lock.addEventListener('pointerdown', e => { y0 = e.clientY; lock.setPointerCapture(e.pointerId); lock.style.transition = 'none'; });
@@ -143,7 +146,7 @@ export function open() {
     if (dy < -lock.offsetHeight / 5) { lock.style.transform = 'translateY(-105%)'; stage.classList.add('is-open'); } else lock.style.transform = '';
   };
   lock.addEventListener('pointerup', up); lock.addEventListener('pointercancel', up);
-  back = p.el._onBack = () => { if (layers.length) { pop(); return true; } if (!stage.classList.contains('is-near')) return false; leave(); return true; };
+  back = p.el._onBack = () => { if (layers.length) { pop(); return true; } if (direct || !stage.classList.contains('is-near')) return false; leave(); return true; };
   return p.el;
 }
 

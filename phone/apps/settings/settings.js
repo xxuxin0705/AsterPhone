@@ -14,7 +14,7 @@ import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontNam
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName, relang } from '../../core/translate.js';
 
-export const VERSION = '0.8.585';
+export const VERSION = '0.8.586';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -129,6 +129,7 @@ function openApps() {
         item({ icon: 'comment', color: 'orange', title: '论坛', sub: '文字：' + ((state.connections.text.find(x => x.id === state.apps.forum.conn.text) || {}).name || '跟随全局'), chevron: true, onClick: openForumApp }),
         item({ icon: 'music', color: 'red', title: '音乐', chevron: true, onClick: openMusicApp }),
         item({ icon: 'hourglass', color: 'blue', title: '岁岁砂', chevron: true, onClick: openMemoryApp }),
+        item({ icon: 'eye', color: 'indigo', title: '查手机', chevron: true, onClick: openPeekApp }),
         item({ icon: 'box', color: 'purple', title: '资源库', chevron: true, onClick: () => shell.openApp('library') }),
         item({ icon: 'list', color: 'teal', title: '日志', chevron: true, onClick: () => shell.openApp('log') }),
       ]),
@@ -167,6 +168,11 @@ function openMemoryApp() {
       toggleItem({ title: withInfo('写到一半断了自动补写', '整理的回复写到一半断了，写出来的先记下，再从断的地方接着整理。每补一次多找一次 AI。没开的话写出来的也会记下，点「接着整理」接着。') }, !!m.fill, v => { m.fill = v; commit('apps'); moreF.hidden = !v; }),
       moreF]));
   });
+}
+// 查手机：关了开场的桌面，点开就是 TA 的手机（TA 手机里的「设置」也能改，是同一个）
+function openPeekApp() {
+  const P = state.apps.peek ||= {};
+  sub('app-peek', '查手机', body => body.append(group('', [toggleItem({ title: '开场的桌面' }, P.desk !== false, v => { P.desk = v; commit('apps'); })])));
 }
 function openInterludeApp() {
   const a = state.apps.interlude;
