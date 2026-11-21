@@ -184,3 +184,80 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pad button:active { filter: brightness(.9); }
 .pk-pad b { font-size: 40px; font-weight: 400; line-height: 1; } .pk-pad small { height: 10px; font-size: 10px; font-weight: 700; letter-spacing: 2px; margin-right: -2px; }
 .pk-pad .pk-pad__call { grid-column: 2; color: #fff; background: #34c759; }
+/* 电话：照作者发的 iPhone 截图量的（393 宽的 iPhone，1pt 当 1px） */
+.pk-pane[data-pane="pad"] { flex: 1; min-height: 0; }
+.pk-calls { flex: none; }
+.pk-call { position: relative; display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 0 16px; }
+.pk-call::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; border-top: .5px solid var(--pk-line); }
+.pk-call .pk-ava { width: 44px; height: 44px; }
+.pk-call > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pk-call b { font-size: 21px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-call.is-miss b { color: #ff3b30; }
+.pk-call span { display: flex; align-items: center; gap: 5px; font-size: 17px; color: var(--pk-sub); white-space: nowrap; overflow: hidden; }
+.pk-call em { flex: none; padding: 1px 4px; border-radius: 4px; font-style: normal; font-size: 12px; font-weight: 600; line-height: 1.3; color: #fff; background: #c7c7cc; }
+.pk-call > time { flex: none; font-size: 17px; color: var(--pk-sub); }
+.pk-call .pk-dial { width: 42px; height: 42px; }
+.pk-call.is-note { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; } .pk-call.is-note > time, .pk-call.is-note .pk-dial { margin-top: 8px; } .pk-call.is-note::after { left: 72px; }
+.pk-call.is-note .pk-ava { position: relative; overflow: visible; } .pk-call.is-note .pk-ava::after { content: ''; position: absolute; left: -2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: #007aff; border: 1.5px solid var(--pk-page); }
+.pk-call.is-note b { color: var(--pk-ink); } .pk-call p { margin: 2px 0 0; font-size: 17px; line-height: 1.3; color: var(--pk-sub); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pk-sec { flex: none; display: flex; align-items: baseline; justify-content: space-between; padding: 52px 16px 10px; }
+.pk-sec + .pk-calls + .pk-sec { padding-top: 34px; }
+.pk-sec b { font-size: 22px; font-weight: 700; } .pk-sec button { border: 0; background: none; padding: 0; color: #007aff; font-size: 18px; font-family: inherit; cursor: pointer; }
+.pk-tabbar button { gap: 3px; font-size: 12px; font-weight: 600; } .pk-tabbar button > i { position: relative; display: block; line-height: 0; }
+.pk-tabbar sup { position: absolute; left: 15px; top: -7px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: #ff3b30; color: #fff; font-size: 13px; font-weight: 500; line-height: 20px; text-align: center; }
+.pk-app svg .cut { fill: var(--pk-page); stroke: var(--pk-page); } .pk-tabbar button.is-on svg .cut { fill: var(--pk-page); }
+.pk-tabbar button.is-on { background: color-mix(in srgb, var(--pk-ink) 7%, transparent); }
+.pk-float > .is-round svg { flex: none; }
+.pk-float:has(.pk-find) .is-round { width: 54px; height: 54px; border-radius: 27px; } .pk-float:has(.pk-find) .pk-find { height: 54px; border-radius: 27px; font-size: 19px; color: var(--pk-ink); } .pk-float:has(.pk-find) .pk-find span { color: var(--pk-ink); } .pk-find svg:last-child { color: var(--pk-ink); }
+/* 通讯录：A、B、C 分组，右边一条字母 */
+.pk-book { flex: none; padding: 0 28px 0 16px; }
+.pk-book__me, .pk-book__row { position: relative; display: flex; align-items: center; gap: 12px; }
+.pk-book__me { padding: 14px 0 22px; } .pk-book__me b { font-size: 21px; font-weight: 700; } .pk-book__me span { font-size: 18px; color: var(--pk-sub); }
+.pk-book__me > div, .pk-book__row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pk-book__k { padding: 10px 0 8px; border-bottom: .5px solid var(--pk-line); font-size: 18px; color: var(--pk-sub); scroll-margin-top: 100px; }
+.pk-book__row { min-height: 59px; } .pk-book__row + .pk-book__row::before { content: ''; position: absolute; left: 50px; right: 0; top: 0; border-top: .5px solid var(--pk-line); }
+.pk-book__row b { font-size: 20px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pk-book__row span { font-size: 14px; color: var(--pk-sub); }
+.pk-face2 { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 19px; font-weight: 700; color: #fff; background: linear-gradient(#a9b2db, #7c86b8) center / cover; }
+.pk-face2.is-me { background-image: linear-gradient(#f29ec2, #c57ad9); }
+.pk-book__k + .pk-book__row { margin-top: 2px; }
+.pk-index { position: absolute; right: 2px; top: 50%; translate: 0 -50%; z-index: 2; display: flex; flex-direction: column; }
+.pk-index button { border: 0; background: none; padding: 0 4px; color: #007aff; font-size: 11px; font-weight: 600; line-height: 13.4px; font-family: inherit; cursor: pointer; }
+/* 拨号键盘：白键带一圈很淡的影子，绿键在键盘下面、离标签栏一段 */
+.pk-sim { position: absolute; left: 17px; top: 72px; display: flex; align-items: center; gap: 2px; color: var(--pk-sub); } .pk-sim em { padding: 2px 6px; border-radius: 7px; font-style: normal; font-size: 21px; font-weight: 700; color: #fff; background: #3c8cf5; }
+.pk-pane[data-pane="pad"] { justify-content: flex-end; align-items: center; padding-bottom: 56px; }
+.pk-pad__num { box-sizing: border-box; flex: 1; height: auto; min-height: 60px; padding: 0; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; font-size: 36px; }
+.pk-pad { grid-template-columns: repeat(3, 76px); gap: 18px 24px; }
+.pk-pad button { width: 76px; height: 76px; gap: 2px; background: var(--pk-card); box-shadow: 0 6px 22px rgba(0, 0, 0, .07), 0 0 0 .5px rgba(0, 0, 0, .03); }
+.is-dark .pk-pad button { background: var(--pk-fill); box-shadow: none; }
+.pk-pad b { font-size: 37px; font-weight: 400; } .pk-pad small { font-size: 10px; letter-spacing: 2.5px; }
+.pk-pad__call { width: 77px; height: 77px; margin-top: 18px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #fff; background: #65cd6f; cursor: pointer; }
+/* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去，那两块是一层渐隐的毛玻璃 */
+.is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.is-raw .pk-top2::before { inset: 0 0 -34px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 92%, transparent) 30%, color-mix(in srgb, var(--pk-page) 40%, transparent) 75%, transparent); -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); }
+.is-raw .pk-float::before { inset: -28px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 55%, transparent) 45%, color-mix(in srgb, var(--pk-page) 85%, transparent)); -webkit-mask: linear-gradient(transparent, #000 40%); mask: linear-gradient(transparent, #000 40%); }
+.pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane .pk-top2 > b { opacity: 1; }
+.pk-sms .pk-msg { min-height: 99px; padding: 10px 14px 10px 25px; gap: 12px; }
+.pk-sms .pk-msg::after { left: 81px; }
+.pk-sms .pk-msg.is-new::before { left: 7px; width: 11px; height: 11px; margin-top: -5.5px; }
+.pk-sms .pk-msg > .pk-ava { width: 44px; height: 44px; }
+.pk-sms .pk-msg b { font-size: 20px; } .pk-sms .pk-msg b time { font-size: 17px; } .pk-sms .pk-msg b svg { color: #c4c4c7; margin-left: 2px; }
+.pk-sms .pk-msg div > span { font-size: 17px; line-height: 1.35; }
+.pk-msg div > span em, .pk-call em { display: inline-block; vertical-align: 2px; margin-right: 4px; padding: 0 4px; border-radius: 4px; font-style: normal; font-size: 12px; font-weight: 600; line-height: 18px; color: #fff; background: #a9a9ae; }
+/* 对话页 */
+.pk-backpill { width: auto; height: 42px; padding: 0 10px 0 6px; gap: 6px; border-radius: 21px; }
+.pk-backpill em { min-width: 26px; height: 22px; padding: 0 7px; box-sizing: border-box; border-radius: 11px; font-style: normal; font-size: 14px; font-weight: 500; line-height: 22px; color: #fff; background: var(--pk-ink); }
+.pk-top2.is-chat { min-height: 104px; align-items: flex-start; }
+.pk-peer .pk-ava { width: 58px; height: 58px; } .pk-peer b.pk-glass { display: flex; align-items: center; gap: 6px; height: 36px; margin-top: -4px; padding: 0 14px 0 20px; font-size: 17px; font-weight: 700; line-height: 36px; max-width: 180px; }
+.pk-peer b.pk-glass span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pk-peer b.pk-glass svg { flex: none; color: var(--pk-sub); }
+.pk-sms .pk-meta { margin: 26px 0 12px; font-size: 14px; } .pk-sms .pk-meta.is-gap { margin: 14px 0 8px; }
+.is-raw.pk-sms .pk-app__body { gap: 3px; }
+.is-raw.pk-sms .pk-bub { position: relative; margin: 0 16px; max-width: 72%; padding: 9px 15px; font-size: 19px; line-height: 1.32; border-radius: 20px; word-break: break-word; }
+.is-raw.pk-sms .pk-bub.is-tail { margin-bottom: 6px; }
+.pk-bub.is-tail::before, .pk-bub.is-tail::after { content: ''; position: absolute; bottom: 0; height: 20px; }
+.pk-bub.is-tail::before { left: -7px; width: 20px; background: inherit; border-bottom-right-radius: 16px; }
+.pk-bub.is-tail::after { left: -10px; width: 10px; background: var(--pk-page); border-bottom-right-radius: 10px; }
+.pk-bub.is-me.is-tail::before { left: auto; right: -7px; border-radius: 0 0 0 16px; } .pk-bub.is-me.is-tail::after { left: auto; right: -10px; border-radius: 0 0 0 10px; }
+.pk-spam { flex: none; margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 15px; color: var(--pk-sub); }
+.pk-spam button { border: 0; border-radius: 13px; padding: 5px 12px; font-size: 16px; font-weight: 600; font-family: inherit; color: #007aff; background: var(--pk-fill); cursor: pointer; }
+.pk-sms .pk-float .is-round { width: 40px; height: 40px; border-radius: 20px; } .pk-sms .pk-find { height: 46px; border-radius: 23px; font-size: 19px; }
+.pk-sms .pk-top2.is-chat ~ .pk-float .pk-find span, .pk-sms .pk-top2.is-chat ~ .pk-float .pk-find svg { color: var(--pk-sub); }

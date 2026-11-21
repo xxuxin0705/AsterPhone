@@ -66,6 +66,7 @@ export function open() {
     const raw = /is-raw/.test(cls);   // 整页自己画的（信息、电话）：不要这里的标题栏
     const el = h('div.pk-app' + (cls ? '.' + cls : ''), !raw && h('div.pk-app__bar', sub && h('button', { onclick: () => pop() }, icon('back', 20, 2.4), sub)), !raw && h(sub ? 'h2' : 'h1', title), body,
       h('button.pk-app__home', { 'aria-label': '回到桌面', onclick: () => { while (layers.length > 1) layers.pop().remove(); pop(); } }));
+    if (raw) body.style.zoom = (stage.clientWidth / 393).toFixed(3);   // 信息、电话是照 393 宽的 iPhone 量的：手机宽窄不一样就整体缩放
     el._fill = () => body.replaceChildren(...[fill()].flat(3).filter(Boolean)); el._fill();
     stage.append(el); layers.push(el);
     el._a = el.animate(sub ? [{ transform: 'translateX(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.3, .7, .2, 1)' });
