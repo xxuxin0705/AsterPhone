@@ -131,16 +131,25 @@ export const VIEWS = {
     const sub = (head, kids) => push('', () => [h('div.pk-web__top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), head), h('div.pk-web.is-sub', kids)], 'is-raw');
     // 正文一段：「■小标题：」是带圆点的一节，**词** 标蓝；有翻译的一段末尾带「译」
     const rich = v => v.split(/\*\*(.+?)\*\*/).map((x, i) => i % 2 ? h('b', x) : x);
-    const para = s => {
-      const [a0, b0] = untr(s), [a, b] = b0 ? view(a0, b0) : [a0, ''], el = h('p');
-      const put = v => { const m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v); el.className = m ? 'is-sec' : ''; el.replaceChildren(...(m ? [h('strong', m[1] + '：'), ...rich(m[2])] : rich(v)), ...(btn ? [btn] : [])); };
-      const btn = b && flip(a, b, put); put(a); return el;
+    const para = v => { const m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v); return m ? h('p.is-sec', h('strong', m[1] + '：'), ...rich(m[2])) : h('p', ...rich(v)); };
+    const paras = v => v.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean).map(para);
+    // 原文和要显示的那版：AI 有时每段后面各附一个翻译，有时整篇末尾附一个（里面也用 // 分段）
+    const both = s => {
+      const one = (s.match(/[[［【]翻译[:：]/g) || []).length === 1 && /^([\s\S]*?)\s*[[［【]翻译[:：]\s*([\s\S]*)[\]］】]\s*$/.exec(s);
+      if (one) return view(one[1], one[2]);
+      const V = s.split(/(?<!:)\/\//).map(untr).map(([a, z]) => z ? view(a, z) : [a, '']);
+      return [V.map(v => v[0]).join('//'), V.some(v => v[1]) ? V.map(v => v[1] || v[0]).join('//') : ''];
     };
-    // 一个网页：顶上网址，网站、标题、正文；TA 看过的带上看完想的（有正文才点得进来）
-    const page = (title, u, text, thought) => sub(h('div.pk-web__url', icon('globe', 15, 2), h('span', (u || '').replace(/^https?:\/\//, '') || host(u))), [
-      h('div.pk-web__brand', h('i', (host(u) || '?').slice(0, 1).toUpperCase()), h('b', host(u))), h('h2.pk-web__h', title),
-      h('div.pk-web__art', text.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean).map(para)),
-      thought && h('div.pk-web__note', h('small', '看完'), h('p', thought))]);
+    // 一个网页：顶上网址，网站、标题、正文；TA 看过的带上看完想的（有正文才点得进来）。标题、正文、看完想的共用顶上一个「译」
+    const page = (title, u, text, thought) => {
+      const T = [title, text, thought || ''].map(both), h2 = h('h2.pk-web__h'), art = h('div.pk-web__art'), note = h('p');
+      const put = zh => { const [a, b, c] = T.map(([x, z]) => zh && z || x); h2.textContent = a; art.replaceChildren(...paras(b)); note.replaceChildren(...rich(c)); };
+      put(false);
+      return sub([h('div.pk-web__url', icon('globe', 15, 2), h('span', (u || '').replace(/^https?:\/\//, '') || host(u))),
+        T.some(x => x[1]) && h('button.pk-glass.is-round.pk-web__tr', { 'aria-label': '翻译', onclick: e => { const b = e.currentTarget, zh = b.classList.toggle('is-on'); b.textContent = zh ? '原' : '译'; put(zh); } }, '译')], [
+        h('div.pk-web__brand', h('i', (host(u) || '?').slice(0, 1).toUpperCase()), h('b', host(u))), h2, art,
+        thought && h('div.pk-web__note', h('small', '看完'), note)]);
+    };
     const open = (title, u, text) => text && (() => page(title, u, text, read(title)[3])), tap = go => go && { role: 'button', onclick: go };
     // 点一条搜索直接是 TA 点开的那个网页。v0.8.588 那版存的是好几个网页（标题::网址::摘要 // …），取 ★ 的那个，没有就第一个
     const hit = ([, , , t, u, text]) => {
