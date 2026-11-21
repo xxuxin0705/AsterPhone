@@ -2,7 +2,7 @@
 // 不跟手机主题走（颜色字体都在 music.css 里定死）。播放本体在 core/music.js，关掉这个 App 也接着放。
 // 整个 App 只有一处会找 AI：角色歌单右上角的「AI 挑歌」，手动点的。
 import { h, onLongPress, pickFile, uid } from '../../core/util.js';
-import { state, commit, contact, kvGet, kvSet, kvDel, subscribe, friends, nickOf } from '../../core/store.js';
+import { state, commit, contact, kvGet, kvSet, kvDel, subscribe, friends, nickOf, shadow } from '../../core/store.js';
 import { page, group, item, field, input, textarea, btn, icon, navBtn, navText, actionSheet, dialog, toast, empty, sheet, pickImage, avatar, segmented, slider, toggleItem, colorWheel, fxRow, waiting, sortable, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as P from '../../core/music.js';
@@ -49,7 +49,7 @@ export function open() {
   const p = page({ app: 'music', id: 'music-home', back: true, cls: 'as-mu-root', onBack: () => (ctx.back && ctx.back()) || nav.back() });
   p.el._onBack = () => ctx.back && ctx.back();
   const titleEl = p.nav.querySelector('.as-navbar__title'), rightEl = p.nav.querySelector('.as-navbar__right');
-  const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.map(([id, label]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, label)));
+  const tabs = h('nav.as-mu-tabs', { role: 'tablist' }, TABS.filter(([id]) => id !== 'radio' || !shadow.music).map(([id, label]) => h('button', { role: 'tab', dataset: { tab: id }, onclick: () => go(id) }, label)));
   const mini = miniBar(), meBg = h('div.as-mu-mebg');
   p.el.prepend(meBg);
   p.el.append(h('div.as-mu-dock', mini.el, tabs));
@@ -112,7 +112,7 @@ const songCard = (s, onclick, face) => h('button.as-mu-sq', { onclick }, h('span
 const storyOn = c => !!M().storySongs && (!M().storyWho || M().storyWho.includes(c.id));
 const charCard = c => { const n = P.charSongs(c).length; return songCard({ name: `${net(c)}的歌单`, sub: n ? `${P.charLists(c).length} 个歌单 · ${n} 首` : '还没有歌' }, () => openCharList(c), [avatar(c.avatar, nameOf(c), 80, 'square'), h('i.as-mu-badge', { hidden: !storyOn(c) }, icon('music', 15, 2.2))]); };
 /** 角色歌单的顺序：拖过的按拖好的排（存在联系人身上 songOrder），没拖过的接在后面 */
-const charList = () => friends().map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+const charList = () => friends().filter(c => c.id !== M().asId).map((c, i) => [c, c.songOrder ?? 1e6 + i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
 function openAllChars() {
   const p = page({ app: 'music', id: 'music-chars', title: '角色的歌单', back: true });
   const grid = h('div.as-mu-grid', charList().map(c => { const el = charCard(c); el.dataset.id = c.id; sortable(el, kids => { kids.forEach((x, i) => { state.contacts.find(c => c.id === x.dataset.id).songOrder = i; }); commit('contacts'); }); return el; }));
@@ -204,7 +204,7 @@ function multiPick(host, box, all, del) {
 // 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
 let batch = null;   // 一批人挨个挑歌时的那个「取消」
 const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
-export function openCharList(c) {
+function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
     if (picking[c.id]) { picking[c.id].abort(); return; }
     const ac = picking[c.id] = new AbortController(), wait = { label: '取消', fn: () => ac.abort(), wait: true }; ai.textContent = '取消'; toast(`${real(c)}正在挑歌…`, wait);

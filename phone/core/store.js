@@ -105,12 +105,14 @@ export function subscribe(fn) { listeners.add(fn); return () => listeners.delete
 const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me', 'musicNotes', 'diary', 'forum'];
 export let win = { key: '', card: '', label: '' };
 let entered = false;
+/** 查手机里用 TA 的身份看论坛、音乐时，state 里那一块临时换成给界面看的；真的放在这里，存盘存的一直是真的 */
+export const shadow = {};
 async function saveNow() {
   // 浅拷贝就够（存进 IndexedDB 时它自己会复制一份）；整个 JSON 转一遍再转回来，放歌时每 5 秒一次，手机上会顿一下
   const split = s => { const w = { label: win.label }; SCOPED.forEach(k => { w[k] = s[k]; delete s[k]; }); return [s, w]; };
   const write = ([s, w]) => Promise.all([kvSet('state', s), entered && kvSet('win:' + win.key, w)]);   // 还没认出是哪个窗口前不写，免得空数据盖掉
-  try { await write(split({ ...state })); }
-  catch (e) { if (e.name !== 'DataCloneError') throw e; await write(split(JSON.parse(JSON.stringify(state)))); }   // 里面混进了存不了的东西（函数之类）：按老办法过一遍 JSON
+  try { await write(split({ ...state, ...shadow })); }
+  catch (e) { if (e.name !== 'DataCloneError') throw e; await write(split(JSON.parse(JSON.stringify({ ...state, ...shadow })))); }   // 里面混进了存不了的东西（函数之类）：按老办法过一遍 JSON
 }
 const persist = debounce(() => saveNow().catch(e => console.error('[AsterPhone] 保存失败', e)), 300);
 /** 换到另一个窗口（w = bridge 的 chatWindow()，没开聊天是 null）。真的换了返回 true */
@@ -231,7 +233,7 @@ export function chatForContact(cid, create = true) {
 
 /* ---------- 导出 / 导入 / 清空 ---------- */
 export async function exportAll({ withKeys = false, apps = null } = {}) {
-  const s = JSON.parse(JSON.stringify(state));
+  const s = JSON.parse(JSON.stringify({ ...state, ...shadow }));
   if (!withKeys) for (const kind of ['text', 'image', 'tts']) s.connections[kind].forEach(c => { if (c.key) c.key = ''; });
   const msgs = {};
   for (const c of state.chats) msgs[c.id] = await getMsgs(c.id);

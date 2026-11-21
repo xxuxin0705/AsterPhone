@@ -105,9 +105,8 @@ export function open() {
   function openApp(name) {
     if (!c) { choose(); return; }
     if (name === '资源库') { show(name, library); return; }
-    // 论坛、音乐就是你手机里那两个应用里 TA 的那一页（样子、皮肤、名字都是同一份）
-    if (name === '论坛') { import('../forum/forum.js').then(F => F.openProfile({ k: 'c', id: c.id })); return; }
-    if (name === '音乐') { import('../music/music.js').then(M => M.openCharList(c)); return; }
+    // 论坛、音乐就是你手机里那两个应用，换成 TA 的身份看（as.js）
+    if (name === '论坛' || name === '音乐') { import('./as.js').then(A => A[name === '论坛' ? 'forumAs' : 'musicAs'](c)).catch(e => toast('打不开：' + e.message)); return; }
     if (name !== '设置' && !VIEWS[name]) { toast(`「${name}」还没做`); return; }
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));

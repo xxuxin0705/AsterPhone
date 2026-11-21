@@ -26,7 +26,11 @@ export async function load() {
   Dkey = k; D = d || { posts: [], dms: {} };
   return D;
 }
-export async function save() { await kvSet('forum:' + Dkey, D); commit('forum'); }
+let lent = false;
+/** 查手机：借一份换了身份的帖子给论坛看（d 空 = 还回去，下次重新读真的）；借着的时候不存盘 */
+export function lend(d) { lent = !!d; D = d || null; if (d) Dkey = win.key; }
+export const isLent = () => lent;
+export async function save() { if (!lent) await kvSet('forum:' + Dkey, D); commit('forum'); }
 export const postOf = id => D && D.posts.find(p => p.id === id);
 export async function removePost(id) { D.posts = D.posts.filter(p => p.id !== id); await save(); }
 // 最多留 300 条：超了删最旧的，收藏的不删

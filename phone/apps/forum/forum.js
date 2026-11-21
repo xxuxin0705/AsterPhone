@@ -40,6 +40,7 @@ function jobBtn(key, idle, start, tag = 'button.as-navbar__btn.as-fo-job') {
 }
 function paintJob(b) { const on = !!jobs[b.dataset.job]; b.classList.toggle('is-busy', on); b.replaceChildren(...(on ? [h('span.as-spin'), aiCount()] : b._idle())); }
 function go(key, msg, fn) {
+  if (E.isLent()) { toast('这是 TA 的手机，只能看'); return Promise.resolve(); }   // 查手机里看 TA 的论坛：不找 AI
   const ac = jobs[key] = new AbortController(), repaint = () => { for (const b of jbs) if (b.dataset.job === key) { if (b.isConnected) paintJob(b); else jbs.delete(b); } };
   repaint();
   return waiting(msg, fn, ac).catch(e => { toast(e.message); }).finally(() => { delete jobs[key]; repaint(); });
@@ -640,11 +641,6 @@ function openUser(by) {
   pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
   nav.push(pg.el); applyTexts();
 }
-/** 从别处（查手机）直接看某个人的主页：论坛没开过也先把样子、缩放、帖子备好 */
-export async function openProfile(by) {
-  applyLook(); phone().style.setProperty('--fo-zoom', (phone().clientWidth / 393).toFixed(3)); phone().dataset.forumTr = E.A().tr || 'both';
-  await E.load(); openUser(by);
-}
 /** 主页底栏「推荐」：论坛里出现过的别的人，横着一排，可以直接关注；不找 AI */
 async function recommend(by) {
   const k0 = keyOf(by), seen = new Set([k0]), out = [];
@@ -698,7 +694,8 @@ function userView(by, host) {
     const o = O(), t = acc || 'tag1' in o ? [o.tag1, o.tag2].filter(Boolean) : [...new Set([all[seed % 3], all[(seed >>> 4) % 3]])];
     return t.length ? h('div.as-fo-user__tags', t.slice(0, 2).map(x => h('span', x))) : editing ? h('div.as-fo-user__tags', h('span', ph('橙色小字'))) : null;
   };
-  const seed = hash(key), fans = b ? b.fans : mine ? 0 : 50 + seed % 5000;
+  const as = mine && (E.accOf(by.id) || {}).as;   // 查手机里用 TA 的身份看：粉丝数照你平时看 TA 主页的那个算
+  const seed = hash(as || key), fans = b ? b.fans : mine && !as ? 0 : 50 + seed % 5000;
   const list = h('div.as-fo-list.is-user');
   const more = mine ? null : jobBtn('more:' + key, () => ['看看 TA 还发了什么'], () => go('more:' + key, '正在刷新…', s => E.feed(b ? 'global' : 'local', {
     count: 3, only: by.k === 'bot' ? ['b:' + by.id] : by.k === 'c' ? ['c:' + by.id] : [], pick: `只由「${w.name}」发，${by.k === 'n' ? '这是一个普通网友，' : ''}写 TA 最近会发的` }, s)).then(got => { if (got) { landed(got); toast('刷到了'); } }),
