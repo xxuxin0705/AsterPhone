@@ -7,7 +7,7 @@ import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } fro
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running, setWall, S } from './gen.js';
-import { VIEWS, RAW } from './apps.js';
+import { VIEWS, RAW, trs } from './apps.js';
 import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
@@ -41,6 +41,8 @@ export function open() {
     h('div.pk-grid', APPS.map((n, i) => app(n, i, openApp))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i, openApp))));
   const stage = h('div.pk-stage', art, lock, home);
   p.el.prepend(stage);
+  // TA 写的外文后面附着翻译：盖上去的页面一放进来就换成能切换的（apps.js 的 trs）
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.isConnected && n.parentNode && trs(n.nodeType === 1 ? n : n.parentNode)))).observe(stage, { childList: true, subtree: true });
 
   // 看的是谁、TA 手机里现在有什么
   let c = null, D = { apps: {}, real: [], pairs: [] };
