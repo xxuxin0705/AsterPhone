@@ -6,7 +6,7 @@ import { kvGet, kvSet, contact, friends, win } from '../../core/store.js';
 import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
-import { FORMS, load, make, pickApps, running, setWall } from './gen.js';
+import { FORMS, load, make, pickApps, running, setWall, S } from './gen.js';
 import { VIEWS } from './apps.js';
 import { setup } from './setup.js';
 
@@ -70,6 +70,8 @@ export function open() {
     el._a = el.animate(sub ? [{ transform: 'translateX(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.3, .7, .2, 1)' });
   }
   function pop() { const el = layers.pop(); el._a.reverse(); el._a.finished.then(() => el.remove()); }
+  // TA 手机的日间 / 夜间：设置里选，「跟随」就是跟你手机现在的
+  const paintMode = () => stage.classList.toggle('is-dark', S().mode === 'night' || (S().mode !== 'day' && p.el.closest('.as-phone').dataset.mode === 'night'));
   // TA 的壁纸（每个人一张，没换过就是默认那张）：只改几个变量，锁屏和桌面一起换
   const paintWall = () => { const w = D.wall, st = stage.style; st.setProperty('--wall', w ? `url("${w.img}")` : ''); st.setProperty('--wo', w ? w.fx[0] : ''); st.setProperty('--wb', w ? w.fx[1] : ''); };
   async function wall() {
@@ -89,7 +91,7 @@ export function open() {
     // 一个应用的内容：有 AI 写的就排出来；消息、音乐、论坛里你手机上现成的（聊天、歌单、帖子）不用生成也能看
     const has = { 消息: () => D.real.length, 音乐: () => D.lists.length, 论坛: () => D.posts.length };
     const body = n => () => D.apps[n] || (has[n] && has[n]()) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
-    show(name, name === '设置' ? () => setup(t => show(t, body(t), '', '设置')) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
+    show(name, name === '设置' ? () => setup(t => show(t, body(t), '', '设置'), paintMode) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 
   // 拿起手机：手机从桌上飞起来、摆正，屏幕正好铺满；到了再亮起锁屏。
@@ -103,6 +105,7 @@ export function open() {
       fly = phone.animate(Array.from({ length: 13 }, (_, i) => at(i / 12)), { duration: 700, easing: 'cubic-bezier(.3, .7, .2, 1)', fill: 'both' });
     } else fly?.reverse();
     stage.classList.toggle('is-near', on); p.el.classList.toggle('is-in', on);
+    if (on) paintMode();
     if (on && c) load(c).then(x => { D = x; });   // 你手机里的聊天可能有新的
     if (!on) stage.classList.remove('is-open');
   }

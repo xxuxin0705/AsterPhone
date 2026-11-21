@@ -260,7 +260,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     } else throw new Error('这个渠道还不能用来生成文字：' + conn.type);
     // 走酒馆的：接口出错时酒馆不报错，而是把「[API 错误] … failed with status 502: <html>…」当回复交回来，要当失败（5xx 会照设置重试）
     const bad = /^\s*\[API (?:错误|Error)\]/i.test(String(out || '')) && String(out);
-    if (bad) { call.part(bad); throw new Error(`${(/status (\d{3})/.exec(bad) || [])[1] || ''} 接口出错了${(/<title>([^<]*)<\/title>/i.exec(bad) || [])[1] ? `（${/<title>([^<]*)<\/title>/i.exec(bad)[1].trim()}）` : ''}`.trim()); }
+    if (bad) throw Object.assign(new Error(`${(/status (\d{3})/.exec(bad) || [])[1] || ''} 接口出错了${(/<title>([^<]*)<\/title>/i.exec(bad) || [])[1] ? `（${/<title>([^<]*)<\/title>/i.exec(bad)[1].trim()}）` : ''}`.trim()), { raw: bad });   // raw：这段是报错不是正文，别当成「写到一半」拿去续写
     // 回了字、连接也好好结束了，其实是字数到上限被掐断的（作者：只写了关系就停了，还标着成功）：开了自动补写就当断了、接着写；没开就照样给，日志记成警告
     if (/^(length|max_tokens|MAX_TOKENS)$/.test(why)) {
       if (resume > 0) throw Object.assign(new Error('字数到上限了'), { cut: String(out) });

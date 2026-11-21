@@ -71,7 +71,7 @@ export const running = () => job;
 function parse(raw) {
   const out = {}; let cur = null;
   for (const l of String(raw).replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').split('\n').map(x => x.trim()).filter(Boolean)) {
-    const m = l.match(/^【(.+?)】$/);
+    const m = !/[｜|]/.test(l) && l.match(/【(.+?)】/);   // AI 有时在【应用名】前后多写几个符号
     if (m) cur = FORMS[m[1]] ? out[m[1]] = [] : null;
     else if (cur && /[｜|]/.test(l)) cur.push(l.split(/[｜|]/).map(x => x.trim()));
   }

@@ -13,7 +13,7 @@ function pick(title, list, get, set, show = String) {
   return h('button.pk-row', { onclick: async () => { const r = await pickWheels(title, [[list.map(x => [x, show(x)]), get()]]); if (!r) return; set(r[0]); commit('apps'); v.textContent = show(get()); } }, h('b', title), v, icon('chevron', 16, 2.2));
 }
 
-export function setup(open) {
+export function setup(open, mode) {
   const P = S();
   const times = pick('最多续几次', [1, 2, 3, 4, 5, 6, 8, 10], () => P.fillMax || 3, n => { P.fillMax = n; }, n => n + ' 次'); times.hidden = !P.fill;
   const sw = h('i.pk-sw' + (P.fill ? '.is-on' : ''));
@@ -25,6 +25,7 @@ export function setup(open) {
       pick('每个应用几条', [3, 4, 5, 6, 8, 10, 12, 15, 20], () => P.count || 6, n => { P.count = n; }, n => n + ' 条'),
       h('button.pk-row', { role: 'switch', onclick: () => { P.fill = !P.fill; commit('apps'); sw.classList.toggle('is-on', P.fill); times.hidden = !P.fill; } }, h('b', '断了自动续写'), sw),
       times),
-    h('div.pk-list.pk-gap', h('button.pk-row', { onclick: () => open('屏幕使用时间') }, h('b', '屏幕使用时间'), icon('chevron', 16, 2.2))),
+    h('div.pk-list.pk-gap', pick('显示', ['follow', 'day', 'night'], () => P.mode || 'follow', v => { P.mode = v; mode(); }, v => ({ follow: '跟随', day: '日间', night: '夜间' })[v]),
+      h('button.pk-row', { onclick: () => open('屏幕使用时间') }, h('b', '屏幕使用时间'), icon('chevron', 16, 2.2))),
   ];
 }
