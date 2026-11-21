@@ -640,6 +640,11 @@ function openUser(by) {
   pg.body.addEventListener('scroll', () => pg.el.classList.toggle('is-up', pg.body.scrollTop > 200), { passive: true });   // 背景图翻上去了：顶栏变白、显示名字
   nav.push(pg.el); applyTexts();
 }
+/** 从别处（查手机）直接看某个人的主页：论坛没开过也先把样子、缩放、帖子备好 */
+export async function openProfile(by) {
+  applyLook(); phone().style.setProperty('--fo-zoom', (phone().clientWidth / 393).toFixed(3)); phone().dataset.forumTr = E.A().tr || 'both';
+  await E.load(); openUser(by);
+}
 /** 主页底栏「推荐」：论坛里出现过的别的人，横着一排，可以直接关注；不找 AI */
 async function recommend(by) {
   const k0 = keyOf(by), seen = new Set([k0]), out = [];

@@ -43,7 +43,7 @@ export function open() {
   p.el.prepend(stage);
 
   // 看的是谁、TA 手机里现在有什么
-  let c = null, D = { apps: {}, real: [], pairs: [], lists: [], posts: [] };
+  let c = null, D = { apps: {}, real: [], pairs: [] };
   const paintGen = () => { genB.textContent = running() ? '取消' : '生成'; };
   async function setWho(x) {
     while (layers.length) layers.pop().remove();
@@ -104,13 +104,15 @@ export function open() {
   function openApp(name) {
     if (!c) { choose(); return; }
     if (name === '资源库') { show(name, library); return; }
+    // 论坛、音乐就是你手机里那两个应用里 TA 的那一页（样子、皮肤、名字都是同一份）
+    if (name === '论坛') { import('../forum/forum.js').then(F => F.openProfile({ k: 'c', id: c.id })); return; }
+    if (name === '音乐') { import('../music/music.js').then(M => M.openCharList(c)); return; }
     if (name !== '设置' && !VIEWS[name]) { toast(`「${name}」还没做`); return; }
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
-    // 一个应用的内容：有 AI 写的就排出来；消息、音乐、论坛里你手机上现成的（聊天、歌单、帖子）不用生成也能看
-    const has = { 消息: () => D.real.length, 音乐: () => D.lists.length, 论坛: () => D.posts.length };
-    const body = n => () => D.apps[n] || (has[n] && has[n]()) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
-    show(name, name === '设置' ? () => setup(t => show(t, body(t), '', '设置'), paintMode) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
+    // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
+    const body = n => () => D.apps[n] || (n === '消息' && D.real.length) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
+    show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 
   // 拿起手机：手机从桌上飞起来、摆正，屏幕正好铺满；到了再亮起锁屏。

@@ -204,7 +204,7 @@ function multiPick(host, box, all, del) {
 // 一个角色的歌单们（按心情、风格分）；长按删掉一个。「AI 挑歌」同一个人同时只挑一次，退出再进来按钮还是「取消」
 let batch = null;   // 一批人挨个挑歌时的那个「取消」
 const picking = {}, charViews = {};   // charViews：每个人现在开着的那页（挑完了改它的按钮、重画它）
-function openCharList(c) {
+export function openCharList(c) {
   const ai = navText(picking[c.id] ? '取消' : 'AI 挑歌', async () => {
     if (picking[c.id]) { picking[c.id].abort(); return; }
     const ac = picking[c.id] = new AbortController(), wait = { label: '取消', fn: () => ac.abort(), wait: true }; ai.textContent = '取消'; toast(`${real(c)}正在挑歌…`, wait);

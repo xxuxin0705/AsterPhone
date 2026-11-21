@@ -11,8 +11,6 @@ function tabs(names, show) {
   const el = h('div.pk-tabs', names.map((n, i) => h('button' + (i ? '' : '.is-on'), { onclick: e => { [...el.children].forEach(b => b.classList.toggle('is-on', b === e.currentTarget)); show(n); } }, n)));
   show(names[0]); return el;
 }
-const cover = s => h('i.pk-cover', { style: { backgroundImage: s && s.pic ? `url("${s.pic}")` : '' } });
-const song = s => h('div.pk-row', cover(s), h('div', h('b', s.name), h('span', s.artist)));
 const groupBy = (R, k) => { const m = new Map(); R.forEach(r => (m.get(r[k]) || m.set(r[k], []).get(r[k])).push(r)); return [...m]; };
 
 // 消息：你手机里真有的（和你的私聊、TA 在的群）排前面，后面是 AI 写的 TA 和别人的聊天；都从 TA 那边看，TA 说的在右边
@@ -24,15 +22,6 @@ function chats(R, D) {
 }
 
 export const VIEWS = {
-  音乐: (R, push, D) => [D.mname && h('div.pk-day', D.mname),
-    D.lists.length && [h('div.pk-day', '歌单'), list(D.lists.map(l => h('button.pk-row', { onclick: () => push(l.name, [l.intro && h('p.pk-intro', l.intro), list(l.songs.map(song))]) }, cover(l.songs[0]), h('div', h('b', l.name), h('span', `${l.songs.length} 首`)), icon('chevron', 16, 2.2))))],
-    of(R, '常听').length && [h('div.pk-day', '这周常听'), list(of(R, '常听').map(([, s, n]) => h('div.pk-row', h('b', s), h('time', (parseInt(n) || 1) + ' 遍'))))],
-    of(R, '搜过').length && [h('div.pk-day', '搜过'), list(of(R, '搜过').map(([, q, t]) => h('div.pk-row', icon('search', 17, 2), h('b', q), h('time', t))))]],
-  论坛: (R, push, D) => {
-    const box = list(), line = (a, b, t) => h('div.pk-row', h('div', h('b', a), b && h('span', b)), t && h('time', t));
-    const all = { 发过的: () => D.posts.map(x => line(x.title, x.text, x.t)), 浏览: () => of(R, '浏览').map(r => line(r[1], r[2], r[3])), 收藏: () => of(R, '收藏').map(r => line(r[1], r[2])), 草稿: () => of(R, '草稿').map(r => line(r[1])) };
-    return [D.fname && h('div.pk-day', D.fname), tabs(Object.keys(all), k => box.replaceChildren(...all[k]())), box];
-  },
   相册: (R, push) => {
     const box = h('div.pk-photos'), hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
     const shot = ([k, what, t, more]) => h('button', { style: { '--h': hue(what) }, onclick: () => push(t || k, [h('div.pk-photo', { style: { '--h': hue(what) } }, what), h('div.pk-list', h('div.pk-row', h('b', k === '删除' ? '为什么删' : '地点'), h('span', more || '没写')))]) }, what);
