@@ -142,7 +142,7 @@ export function parse(raw) {
     if (m[1] === '事件' && f[3]) {
       const [at, guess] = day(f[0]), imp = Math.min(5, Math.max(1, parseInt(f[7], 10) || 2)), l = list(f[11]), big = l.filter(t => bigs().includes(t));
       out.ev.push({ at, guess, part: f[1] === '不知道' ? '' : f[1] || '', place: f[2] === '不知道' ? '' : f[2] || '', title: f[3], text: f[4] || '', who: folk(f[5]), tags: [...new Set([...list(f[6]), ...l.filter(t => !big.includes(t))])], imp,
-        after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: folk(f[12]), from: f[13] || '', to: f[14] || '' });
+        after: f[8] || '', keys: list(f[9]), quote: f[10] || '', big: big.length ? big : imp >= 4 ? ['重要'] : [], know: folk(f[12]), from: f[13] || '', to: f[14] || '', ...(/拿不准/.test(f[15] || '') ? { mark: 'doubt' } : /噪声/.test(f[15] || '') ? { mark: 'no' } : {}) });
     } else if (m[1] === '关系' && f[1]) out.rel.push({ a: bare(f[0]), b: bare(f[1]), kind: (f[2] || '').replace(/(.)关系$/, '$1'), since: f[3] || '', now: f[4] || '', lv: /^[0-5]/.test(f[5] || '') ? +f[5][0] : undefined, va: unq(f[6]), vb: unq(f[7]), sa: unq(f[8]), sb: unq(f[9]) });   // 后四格是旧格式（两个人挤一行），照认
     else if (m[1] === '印象' && f[1]) { const t = f[3] ? null : /^(.{2,}?)对(.{2,})$/.exec(f[0]); if (t) f.splice(0, 1, t[1], t[2]);   // 两个名字挤在一格（「甲对乙｜看法｜一句话」）
       imp.push([bare(f[0]), whom(f[1]), unq(f[2]), unq(f[3])]); }
@@ -723,7 +723,7 @@ export async function memoryFor(people, scan = '', upto = ctxFrom(), byWords = f
   // 话里说到了哪段日子（去年夏天、上个月、三天前）：那段日子里的事按重要度带上最多 3 件
   const span = whenOf(scan.slice(scan.lastIndexOf('\n') + 1), time.isStory() ? time.story().date : new Date());
   const then = span ? live.filter(e => !e.pin && !onDay.includes(e) && !got.includes(e) && e !== drift && e.at >= span[0] && e.at <= span[1] && floorOf(e) < from).sort((a, b) => b.imp - a.imp).slice(0, 3).sort(byAt) : [];
-  const brief = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${tail(e, pool)}`;
+  const brief = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${e.mark === 'doubt' ? '（这件事记得不一定准，提起时留点余地，别说死）' : ''}${tail(e, pool)}`;
   // 同一个小标签的事：想起一件，另外几件（最近的 5 件）各一句、按先后带上；一个小标签只带一次
   const shown = new Set(), kin = e => {
     const t = e.tags.find(t => t !== '手机' && !shown.has(t) && pool.some(x => x !== e && x.tags.includes(t))); if (!t) return '';
