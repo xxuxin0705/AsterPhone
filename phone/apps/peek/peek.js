@@ -36,7 +36,7 @@ export function open() {
   const art = h('div.pk-art', h('img', { src: `${BASE}desk-${mode}.webp`, alt: '', draggable: false }), THINGS.map(t => thing(t, move)), h('div.pk-dim'), phone);
   const [t, d] = clock();
   const lock = h('div.pk-lock', { dataset: { noSwipe: '' } }, h('b', t), h('span', d), h('em', '上滑解锁'));
-  const pill = h('div.pk-pill', { role: 'button', onclick: () => leave() }), genB = h('div.pk-pill', { role: 'button', onclick: () => running() ? running().ac.abort() : pickApps(c, D, start) });
+  const pill = h('div.pk-pill', { role: 'button', onclick: () => leave() }), genB = h('div.pk-pill', { role: 'button', onclick: () => running() ? running().ac.abort() : c ? pickApps(c, D, start) : choose() });
   const home = h('div.pk-home', h('div.pk-top', pill, genB),
     h('div.pk-grid', APPS.map((n, i) => app(n, i, openApp))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i, openApp))));
   const stage = h('div.pk-stage', art, lock, home);
@@ -69,7 +69,26 @@ export function open() {
     stage.append(el); layers.push(el);
     el._a = el.animate(sub ? [{ transform: 'translateX(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.3, .7, .2, 1)' });
   }
-  function pop() { const el = layers.pop(); el._a.reverse(); el._a.finished.then(() => el.remove()); }
+  function pop() { const el = layers.pop(); if (!el) return; el._a.reverse(); el._a.finished.then(() => el.remove()); }
+  // 手机里的右滑返回：最上面那层跟着手指走、露出下面那层，松手时过了三分之一（或者甩得快）就退掉；在 TA 的桌面上右滑是放下手机。
+  // 你自己手机的右滑会把整页查手机拖走，所以进了 TA 的手机就关掉那个（near 里），用这个
+  let sw = null;
+  stage.addEventListener('pointerdown', e => { if (stage.classList.contains('is-open') && !e.target.closest('.pk-tabs')) sw = { x: e.clientX, y: e.clientY, t: performance.now(), el: layers[layers.length - 1], on: false }; });
+  stage.addEventListener('pointermove', e => {
+    if (!sw) return;
+    const dx = e.clientX - sw.x, dy = Math.abs(e.clientY - sw.y);
+    if (!sw.on) { if (dx > 16 && dx > dy * 1.6) { sw.on = true; stage.setPointerCapture(e.pointerId); } else { if (dy > 14 || dx < -20) sw = null; return; } }
+    if (sw.el) sw.el.style.transform = `translateX(${Math.max(0, dx)}px)`;
+  });
+  const swEnd = e => {
+    const s = sw; sw = null; if (!s || !s.on) return;
+    const dx = e.clientX - s.x, go = e.type === 'pointerup' && (dx > stage.clientWidth / 3 || dx / (performance.now() - s.t) > .6);
+    if (!s.el) { if (go) leave(); return; }
+    s.el.style.transition = 'transform .22s ease-out'; s.el.style.transform = go ? 'translateX(100%)' : '';
+    if (go) layers.splice(layers.indexOf(s.el), 1);
+    setTimeout(() => go ? s.el.remove() : s.el.style.transition = '', 230);
+  };
+  stage.addEventListener('pointerup', swEnd); stage.addEventListener('pointercancel', swEnd);
   // TA 手机的日间 / 夜间：设置里选，「跟随」就是跟你手机现在的
   const paintMode = () => stage.classList.toggle('is-dark', S().mode === 'night' || (S().mode !== 'day' && p.el.closest('.as-phone').dataset.mode === 'night'));
   // TA 的壁纸（每个人一张，没换过就是默认那张）：只改几个变量，锁屏和桌面一起换
@@ -104,7 +123,7 @@ export function open() {
       const at = t => { const a = g.map((r, i) => r.map((v, j) => (i === j ? 1 - t : 0) + t * v)); return { transform: `matrix3d(${a[0][0]},${a[1][0]},0,${a[2][0]},${a[0][1]},${a[1][1]},0,${a[2][1]},0,0,1,0,${a[0][2]},${a[1][2]},0,${a[2][2]})` }; };
       fly = phone.animate(Array.from({ length: 13 }, (_, i) => at(i / 12)), { duration: 700, easing: 'cubic-bezier(.3, .7, .2, 1)', fill: 'both' });
     } else fly?.reverse();
-    stage.classList.toggle('is-near', on); p.el.classList.toggle('is-in', on);
+    stage.classList.toggle('is-near', on); p.el.classList.toggle('is-in', on); on ? stage.dataset.noSwipe = '' : delete stage.dataset.noSwipe;
     if (on) paintMode();
     if (on && c) load(c).then(x => { D = x; });   // 你手机里的聊天可能有新的
     if (!on) stage.classList.remove('is-open');

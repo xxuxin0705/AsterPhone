@@ -18,7 +18,7 @@ const groupBy = (R, k) => { const m = new Map(); R.forEach(r => (m.get(r[k]) || 
 // 消息：你手机里真有的（和你的私聊、TA 在的群）排前面，后面是 AI 写的 TA 和别人的聊天；都从 TA 那边看，TA 说的在右边
 function chats(R, D) {
   const note = (R.find(r => r[0] === '备注') || [])[2], drafts = R.filter(r => r[0] === '草稿'), by = groupBy(R.filter(r => r[0] !== '备注' && r[0] !== '草稿'), 0);
-  return [...D.real.map(x => ({ ...x, title: x.you ? note || x.msgs.find(m => !m.me)?.who || '' : x.title })), ...D.pairs,
+  return [...D.real.map(x => ({ ...x, title: x.you && note || x.title })), ...D.pairs,
     ...by.map(([who, L]) => ({ title: who.replace(/^群[：:]/, ''), group: /^群[：:]/.test(who), msgs: L.map(r => ({ me: /自己/.test(r[2]), who: r[2], t: r[1], text: r[3] })) }))]
     .map(x => ({ ...x, draft: (drafts.find(r => r[1] === x.title) || [])[2] }));
 }

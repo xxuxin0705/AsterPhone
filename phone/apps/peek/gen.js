@@ -54,7 +54,7 @@ export async function load(c) {
   d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
     .map(([x, L]) => ({ title: nameOf(x), avatar: x.avatar, msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
-  d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : '', group: ch.type === 'group', you: ch.type !== 'group', avatar: ch.type === 'group' ? ch.avatar : myAvatar(),
+  d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : myName(), group: ch.type === 'group', you: ch.type !== 'group', avatar: ch.type === 'group' ? ch.avatar : myAvatar(),
     msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
   // 你手机里现成的：TA 的歌单、TA 在论坛发过的帖子和评论（名字用的也是那边的同一个）
   d.lists = charLists(c).filter(l => l.songs.length); d.mname = nickIn(c, 'music'); d.fname = nickIn(c, 'forum');
@@ -115,7 +115,7 @@ export async function make(c, names, done) {
 
 /** 勾选要生成哪些应用（默认全勾） */
 export function pickApps(c, d, start) {
-  const on = new Set(S().last || Object.keys(FORMS));
+  const on = new Set((S().last || Object.keys(FORMS)).filter(n => FORMS[n]));
   const rows = Object.keys(FORMS).map(n => { const b = h('button.pk-tick.is-on', { onclick: () => { on.has(n) ? on.delete(n) : on.add(n); mark(); } }, h('i'), h('span', n), h('small', d.apps[n] ? '有了，会换成新的' : '')); b._n = n; return b; });
   const all = h('button.pk-sheet__all', { onclick: () => { const full = on.size === rows.length; rows.forEach(b => full ? on.delete(b._n) : on.add(b._n)); mark(); } });
   const go = h('button.as-btn.as-btn--primary', { onclick: () => { s.close(); S().last = [...on]; commit('apps'); start([...on]); } });
