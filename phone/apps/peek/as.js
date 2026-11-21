@@ -31,10 +31,11 @@ export async function forumAs(c) {
 /** 音乐：「我的」是 TA 的资料和歌单，喜欢的歌是 TA 的「喜欢的音乐」；正在放的歌、播放器、皮肤还是你手机那一份（没有电台，角色歌单里不列 TA 自己：asId） */
 export async function musicAs(c) {
   if (shadow.music) return;
-  const { open } = await import('../music/music.js');
+  const { open } = await import('../music/music.js'), { load } = await import('./gen.js');
   const real = state.music, L = charLists(c), fav = L.find(l => l.name === '喜欢的音乐');
-  const own = { profile: { nick: nickOf(c, 'music') || c.name || nameOf(c), avatar: c.avatar || '', sign: '', bg: '' }, liked: fav ? [...fav.songs] : [], lists: L.filter(l => l !== fav).map(l => ({ ...l, songs: [...l.songs] })),
-    asId: c.id, likedInfo: null, recent: [], history: [], local: [], plays: {}, follows: [], heard: 0, storySongs: false };
+  const R = ((await load(c)).apps.音乐 || {}).rows || [], info = R.find(r => r[0] === '资料') || [], fol = (R.find(r => r[0] === '关注') || [])[1] || '';   // 关注、粉丝、等级、听歌时长：生成时 AI 写的
+  const own = { profile: { nick: nickOf(c, 'music') || c.name || nameOf(c), avatar: c.avatar || '', sign: '', bg: '', fans: parseInt(info[1]) || 0, lv: parseInt(info[2]) || 1 }, liked: fav ? [...fav.songs] : [], lists: L.filter(l => l !== fav).map(l => ({ ...l, songs: [...l.songs] })),
+    asId: c.id, likedInfo: null, recent: [], history: [], local: [], plays: {}, follows: fol.split(/[、,，/]/).map(x => x.trim()).filter(Boolean), heard: (parseFloat(info[3]) || 0) * 3600, storySongs: false };
   shadow.music = real;
   state.music = new Proxy(real, { get: (t, k) => k in own ? own[k] : t[k], set: (t, k, v) => { (k in own ? own : t)[k] = v; return true; }, has: (t, k) => k in own || k in t });
   show(open(), () => { state.music = shadow.music; delete shadow.music; commit('music'); });

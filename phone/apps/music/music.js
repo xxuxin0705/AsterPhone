@@ -94,7 +94,7 @@ function renderHome(ctx) {
   const paintRecent = keep(recent, () => M().recent.slice(0, 8).map(s => s.id).join(), () => M().recent.length ? [
     h('div.as-mu-h', '最近播放', h('button.as-mu-h__more', { onclick: () => openList('最近播放', M().recent) }, '全部')),
     h('div.as-mu-grid', M().recent.slice(0, 8).map((s, i) => songCard(s, () => play(M().recent, i, '最近播放'))))] : []);
-  const paintChars = keep(chars, () => JSON.stringify(charList().map(c => [c.id, net(c), P.charSongs(c).length, P.charLists(c).length, c.avatar, storyOn(c)])), () => friends().length ? [
+  const paintChars = keep(chars, () => JSON.stringify(charList().map(c => [c.id, net(c), P.charSongs(c).length, P.charLists(c).length, c.avatar, storyOn(c)])), () => friends().length && !M().asId ? [
     h('div.as-mu-h', '角色的歌单', h('button.as-mu-h__more', { onclick: openAllChars }, '全部')),
     h('div.as-mu-grid', charList().slice(0, 8).map(charCard))] : []);
   paintRecent(); paintChars();

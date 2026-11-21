@@ -7,7 +7,7 @@ const yuan = v => (parseFloat(String(v).replace(/[^\d.+-]/g, '')) || 0).toFixed(
 const list = kids => h('div.pk-list', kids);
 const face = (name, url) => h('i.pk-face', url ? { style: { backgroundImage: `url("${url}")` } } : name.slice(0, 1));
 // 这几个图标公共那套里没有（听筒、钟、九宫格、三条线）：自己描的线条，借 icon() 的壳换一条路径
-const G = { call: 'M7.2 5.2C5.5 10 14 18.5 18.8 16.8', clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7.5V12l3 2', lines: 'M4 7h16M7 12h10M10 17h4', updown: 'M8 9l4-4 4 4M8 15l4 4 4-4',
+const G = { call: 'M7.2 5.2C5.5 10 14 18.5 18.8 16.8', clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7.5V12l3 2', lines: 'M4 7h16M7 12h10M10 17h4',
   pad: 'M6 5h.01M12 5h.01M18 5h.01M6 11h.01M12 11h.01M18 11h.01M6 17h.01M12 17h.01M18 17h.01' };
 // 实心的：听筒、钟、小人、九个点（标签栏、拨打键用）。.cut 是挖空的那几笔，颜色跟着页面底色
 const F = { call: '<path d="M6.3 3.2c.9-.4 1.9 0 2.3.9l1.3 2.9c.4.8.1 1.8-.6 2.3l-1.4 1c1 2.2 2.8 4 5 5l1-1.4c.5-.7 1.5-1 2.3-.6l2.9 1.3c.9.4 1.3 1.4.9 2.3l-.6 1.4c-.6 1.3-2 2.1-3.4 1.8C9.4 18.9 5.1 14.6 3.8 8.3c-.3-1.4.5-2.8 1.8-3.4z"/>',
@@ -112,8 +112,7 @@ export const VIEWS = {
         return [h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('b', '联系人'), h('button.pk-glass.is-round', { 'aria-label': '新建' }, icon('plus', 22, 2.2))),
           list, h('div.pk-index', [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'].map(k => h('button', { onclick: () => jump(k) }, k)))];
       },
-      拨号键盘: () => [h('div.pk-sim', h('em', '数据'), ink('updown', 16, 2)), num, h('div.pk-pad', [...'123456789*0#'].map((d, i) => h('button', { onclick: () => { num.textContent += d; } }, h('b', d), h('small', ABC[i])))),
-        h('button.pk-pad__call', { 'aria-label': '拨打', onclick: () => { num.textContent = ''; } }, fill('call', 36))],
+      拨号键盘: () => [num, h('div.pk-pad', [...'123456789*0#'].map((d, i) => h('button', { onclick: () => { num.textContent += d; } }, h('b', d), h('small', ABC[i]))))],
     };
     const tab = n => { [...bar.children].forEach(b => b.classList.toggle('is-on', b.dataset.n === n)); box.dataset.pane = { 通话: 'calls', 通讯录: 'book', 拨号键盘: 'pad' }[n]; box.replaceChildren(...panes[n]()); float.replaceChildren(bar, findB); };
     const bar = h('div.pk-glass.pk-tabbar', [['通话', 'clock'], ['通讯录', 'person'], ['拨号键盘', 'dots']].map(([n, ic]) => h('button', { dataset: { n }, onclick: () => tab(n) },

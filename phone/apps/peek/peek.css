@@ -183,7 +183,6 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pad button { width: 80px; height: 80px; border: 0; border-radius: 50%; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--pk-ink); background: var(--pk-fill); font-family: inherit; cursor: pointer; }
 .pk-pad button:active { filter: brightness(.9); }
 .pk-pad b { font-size: 40px; font-weight: 400; line-height: 1; } .pk-pad small { height: 10px; font-size: 10px; font-weight: 700; letter-spacing: 2px; margin-right: -2px; }
-.pk-pad .pk-pad__call { grid-column: 2; color: #fff; background: #34c759; }
 /* 电话：照作者发的 iPhone 截图量的（393 宽的 iPhone，1pt 当 1px） */
 .pk-pane[data-pane="pad"] { flex: 1; min-height: 0; }
 .pk-calls { flex: none; }
@@ -223,17 +222,15 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-index { position: absolute; right: 2px; top: 50%; translate: 0 -50%; z-index: 2; display: flex; flex-direction: column; }
 .pk-index button { border: 0; background: none; padding: 0 4px; color: #007aff; font-size: 11px; font-weight: 600; line-height: 13.4px; font-family: inherit; cursor: pointer; }
 /* 拨号键盘：白键带一圈很淡的影子，绿键在键盘下面、离标签栏一段 */
-.pk-sim { position: absolute; left: 17px; top: 72px; display: flex; align-items: center; gap: 2px; color: var(--pk-sub); } .pk-sim em { padding: 2px 6px; border-radius: 7px; font-style: normal; font-size: 21px; font-weight: 700; color: #fff; background: #3c8cf5; }
 .pk-pane[data-pane="pad"] { justify-content: flex-end; align-items: center; padding-bottom: 56px; }
 .pk-pad__num { box-sizing: border-box; flex: 1; height: auto; min-height: 60px; padding: 0; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; font-size: 36px; }
-.pk-pad { grid-template-columns: repeat(3, 76px); gap: 18px 24px; }
+.pk-pad { flex: none; grid-template-columns: repeat(3, 76px); gap: 18px 24px; }
 .pk-pad button { width: 76px; height: 76px; gap: 2px; background: var(--pk-card); box-shadow: 0 6px 22px rgba(0, 0, 0, .07), 0 0 0 .5px rgba(0, 0, 0, .03); }
 .is-dark .pk-pad button { background: var(--pk-fill); box-shadow: none; }
 .pk-pad b { font-size: 37px; font-weight: 400; } .pk-pad small { font-size: 10px; letter-spacing: 2.5px; }
-.pk-pad__call { width: 77px; height: 77px; margin-top: 18px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #fff; background: #65cd6f; cursor: pointer; }
 /* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去，那两块是一层渐隐的毛玻璃 */
 .is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-.is-raw .pk-top2::before { inset: 0 0 -34px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 92%, transparent) 30%, color-mix(in srgb, var(--pk-page) 40%, transparent) 75%, transparent); -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); }
+.is-raw .pk-top2::before { inset: 0; background: linear-gradient(color-mix(in srgb, var(--pk-page) 92%, transparent) 30%, color-mix(in srgb, var(--pk-page) 40%, transparent) 75%, transparent); -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); }
 .is-raw .pk-float::before { inset: -28px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 55%, transparent) 45%, color-mix(in srgb, var(--pk-page) 85%, transparent)); -webkit-mask: linear-gradient(transparent, #000 40%); mask: linear-gradient(transparent, #000 40%); }
 .pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane .pk-top2 > b { opacity: 1; }
 .pk-sms .pk-msg { min-height: 99px; padding: 10px 14px 10px 25px; gap: 12px; }
