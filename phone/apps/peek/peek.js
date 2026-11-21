@@ -7,7 +7,7 @@ import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } fro
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running, setWall, S } from './gen.js';
-import { VIEWS } from './apps.js';
+import { VIEWS, RAW } from './apps.js';
 import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
@@ -63,7 +63,8 @@ export function open() {
   const layers = [];
   function show(title, fill, cls, sub) {
     const body = h('div.pk-app__body');
-    const el = h('div.pk-app' + (cls ? '.' + cls : ''), h('div.pk-app__bar', sub && h('button', { onclick: () => pop() }, icon('back', 20, 2.4), sub)), h(sub ? 'h2' : 'h1', title), body,
+    const raw = /is-raw/.test(cls);   // 整页自己画的（信息、电话）：不要这里的标题栏
+    const el = h('div.pk-app' + (cls ? '.' + cls : ''), !raw && h('div.pk-app__bar', sub && h('button', { onclick: () => pop() }, icon('back', 20, 2.4), sub)), !raw && h(sub ? 'h2' : 'h1', title), body,
       h('button.pk-app__home', { 'aria-label': '回到桌面', onclick: () => { while (layers.length > 1) layers.pop().remove(); pop(); } }));
     el._fill = () => body.replaceChildren(...[fill()].flat(3).filter(Boolean)); el._fill();
     stage.append(el); layers.push(el);
@@ -111,8 +112,8 @@ export function open() {
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
     // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
-    const body = n => () => D.apps[n] || (n === '消息' && D.real.length) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
-    show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
+    const body = n => () => D.apps[n] || (n === '消息' && D.real.length) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D, pop) : none(n);
+    show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), RAW.includes(name) && D.apps[name] ? 'is-raw' : 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 
   // 拿起手机：手机从桌上飞起来、摆正，屏幕正好铺满；到了再亮起锁屏。
