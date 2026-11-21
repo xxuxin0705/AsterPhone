@@ -1,23 +1,19 @@
 // 查手机：TA 桌上的一角（作者让 GPT 画的一整张画，白天 / 夜里各一张，东西的位置一样）。
-// 桌上的耳机、水杯、本子、笔、照片点了只有一点反应；只有点手机会凑近，上滑解锁后是 TA 的满屏手机。
+// 水杯、照片、笔、耳机、手机是从画里抠出来单独放的，点一下各自动一动；只有点手机会把它拿起来，上滑解锁后是 TA 的满屏手机。
 // 手机里的各个应用还没做，点了先提示。
 import { h } from '../../core/util.js';
-import { page, icon, toast } from '../../core/ui.js';
+import { page, toast } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
 const pc = (v, all) => v / all * 100 + '%';
-// 桌上能点的东西：[名字, 左, 上, 宽, 高（画上的像素）, 点了说的一句]
-const THINGS = [
-  ['耳机', 285, 285, 200, 150, '耳机线还缠着，像是刚摘下来。'],
-  ['水杯', 510, 260, 285, 385, '水还剩大半杯。'],
-  ['本子', 105, 830, 745, 790, '本子摊开着，这一页还没写字。'],
-  ['照片', 180, 990, 275, 285, '本子里夹着一张海边的照片。'],
-  ['笔', 555, 1015, 260, 360, '笔帽没盖。'],
-];
-const PHONE = { x: 20, y: 400, w: 440, h: 495, cx: 238, cy: 645, turn: 23 };   // 手机在画上的位置、屏幕正中、斜了多少度
-const DOCK = [['电话', 'phone'], ['搜索', 'search'], ['消息', 'chat'], ['音乐', 'music']];
-const APPS = [['备忘录', 'note'], ['相册', 'image'], ['日历', 'bookmark'], ['钱包', 'wallet'], ['购物车', 'shop'], ['饿了吗', 'flame'], ['论坛', 'comment'], ['短信', 'mail'], ['AI', 'sparkle'], ['设置', 'gear']];
+// 桌上能动的东西：[名字, 图, 左, 上, 宽, 高（画上的像素）]
+const THINGS = [['水杯', 'water', 505, 300, 240, 345], ['照片', 'photo', 171, 980, 295, 305], ['笔', 'pen', 535, 1006, 302, 380], ['耳机', 'buds', 277, 285, 213, 168]];
+const PHONE = ['手机', 'phone', 10, 392, 456, 516];
+// 把斜放的手机屏摆正：屏幕四个角 → 一个 1×1 方块的四个角（事先算好的透视矩阵，三行）
+const FACE = [[1.9219, -0.9494, 0.0676], [0.3933, 1.4361, -0.2326], [0.0261, 0.2559, 1]];
+const APPS = ['备忘录', '相册', '日历', '钱包', '购物车', '饿了吗', '论坛', '短信', 'AI', '设置', '相机'];
+const DOCK = ['电话', '搜索', '消息', '音乐'];
 
 const night = () => { const hh = time.isStory() ? time.story().hh : new Date().getHours(); return hh < 6 || hh >= 19; };
 const clock = () => { const s = time.isStory() ? time.story() : { hh: new Date().getHours(), mm: new Date().getMinutes(), date: new Date() }; return [`${s.hh}:${String(s.mm).padStart(2, '0')}`, s.date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })]; };
@@ -27,24 +23,28 @@ export function open() {
   const p = page({ app: 'peek', id: 'peek-main', title: '', back: true, cls: 'as-peek', onBack: () => back() || p.el.dispatchEvent(new CustomEvent('as-back', { bubbles: true })) });
   const mode = night() ? 'night' : 'day';
   p.el.dataset.mode = mode;
-  const say = h('div.pk-say', { role: 'status' });
-  let sayT = 0;
-  const tell = t => { say.textContent = t; say.classList.add('on'); clearTimeout(sayT); sayT = setTimeout(() => say.classList.remove('on'), 2200); };
-  const spot = ([name, x, y, w, hh, line]) => h('button.pk-spot', { 'aria-label': name, style: { left: pc(x, W), top: pc(y, H), width: pc(w, W), height: pc(hh, H) },
-    onclick: e => { const b = e.currentTarget; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); tell(line); } });
-  const art = h('div.pk-art', h('img', { src: `${BASE}desk-${mode}.webp`, alt: '', draggable: false }), THINGS.map(spot),
-    h('button.pk-spot.pk-phone', { 'aria-label': '手机', style: { left: pc(PHONE.x, W), top: pc(PHONE.y, H), width: pc(PHONE.w, W), height: pc(PHONE.h, H) }, onclick: () => near(true) }));
+  const thing = ([name, k, x, y, w, hh], onclick) => h('button.pk-thing', { 'aria-label': name, dataset: { k }, style: { left: pc(x, W), top: pc(y, H), width: pc(w, W), height: pc(hh, H) }, onclick },
+    h('img', { src: `${BASE}${k}-${mode}.webp`, alt: '', draggable: false }));
+  const move = e => { const b = e.currentTarget; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); };
+  const phone = thing(PHONE, () => near(true));
+  const art = h('div.pk-art', h('img', { src: `${BASE}desk-${mode}.webp`, alt: '', draggable: false }), THINGS.map(t => thing(t, move)), h('div.pk-dim'), phone);
   const [t, d] = clock();
   const lock = h('div.pk-lock', { dataset: { noSwipe: '' } }, h('b', t), h('span', d), h('em', '上滑解锁'));
   const home = h('div.pk-home', h('div.pk-pill', { role: 'button', onclick: () => leave() }, 'TA 的手机'),
-    h('div.pk-grid', APPS.map(app)), h('div.pk-dock', DOCK.map(app)));
-  const stage = h('div.pk-stage', { dataset: { noSwipe: '' } }, art, say, lock, home);
+    h('div.pk-grid', APPS.map((n, i) => app(n, i))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i))));
+  const stage = h('div.pk-stage', { dataset: { noSwipe: '' } }, art, lock, home);
   p.el.prepend(stage);
 
-  // 凑近：整张画朝手机推过去、转正；到了再亮起锁屏
+  // 拿起手机：手机从桌上飞起来、摆正，屏幕正好铺满；到了再亮起锁屏。
+  // 斜着到正着之间切成十几小步（让浏览器自己从头补到尾，中间会乱飞）
+  let fly;
   function near(on) {
-    const k = 2.3;
-    art.style.transform = on ? `rotate(${PHONE.turn}deg) scale(${k}) translate(${50 - PHONE.cx / W * 100}%, ${50 - PHONE.cy / H * 100}%)` : '';
+    if (on) {
+      const sw = stage.clientWidth, sh = stage.clientHeight, tx = -art.offsetLeft - phone.offsetLeft, ty = -art.offsetTop - phone.offsetTop;
+      const g = [FACE[0].map((v, i) => sw * v + tx * FACE[2][i]), FACE[1].map((v, i) => sh * v + ty * FACE[2][i]), FACE[2]].map(r => [r[0] / phone.offsetWidth, r[1] / phone.offsetHeight, r[2]]);
+      const at = t => { const a = g.map((r, i) => r.map((v, j) => (i === j ? 1 - t : 0) + t * v)); return { transform: `matrix3d(${a[0][0]},${a[1][0]},0,${a[2][0]},${a[0][1]},${a[1][1]},0,${a[2][1]},0,0,1,0,${a[0][2]},${a[1][2]},0,${a[2][2]})` }; };
+      fly = phone.animate(Array.from({ length: 13 }, (_, i) => at(i / 12)), { duration: 700, easing: 'cubic-bezier(.3, .7, .2, 1)', fill: 'both' });
+    } else fly?.reverse();
     stage.classList.toggle('is-near', on);
     if (!on) stage.classList.remove('is-open');
   }
@@ -63,6 +63,6 @@ export function open() {
   return p.el;
 }
 
-function app([name, ic]) {
-  return h('button.as-home-app', { onclick: () => toast(`「${name}」还没做`) }, h('span.as-home-app__icon', icon(ic, 28, 1.7)), h('span.as-home-app__name', name));
+function app(name, i) {
+  return h('button.as-home-app', { onclick: () => toast(`「${name}」还没做`) }, h('span.as-home-app__icon', { style: { backgroundPosition: `${i % 4 / 3 * 100}% ${(i >> 2) / 3 * 100}%` } }), h('span.as-home-app__name', name));
 }
