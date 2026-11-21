@@ -263,3 +263,36 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pad__call { width: 77px; height: 77px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #fff; background: #65cd6f; cursor: pointer; }
 .pk-pad__del { width: 36px; height: 26px; border: 0; padding: 0 0 0 6px; display: grid; place-items: center; color: var(--pk-ink); background: var(--pk-fill); clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%); border-radius: 5px; cursor: pointer; }
 .pk-pad__del[hidden] { visibility: hidden; display: grid; }
+/* 搜索：谷歌那样。中间彩色的 Google，圆的搜索框，下面一排下划线的分类，白卡片 */
+.pk-app.is-raw:has(.pk-web) { background: #f1f3f6; } .is-dark .pk-app.is-raw:has(.pk-web) { background: var(--pk-bg); }
+.pk-web { flex: 1; padding: 20px 18px 20px; }
+.pk-web__top { position: sticky; top: 0; z-index: 2; flex: none; height: 44px; background: linear-gradient(#f1f3f6 70%, transparent); } .is-dark .pk-web__top { background: linear-gradient(var(--pk-bg) 70%, transparent); }
+.pk-web__logo { text-align: center; font: 600 48px/1 "Product Sans", -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: -2px; padding: 6px 0 22px; }
+.pk-web__logo span:nth-child(1), .pk-web__logo span:nth-child(4) { color: #4285f4; } .pk-web__logo span:nth-child(2), .pk-web__logo span:nth-child(6) { color: #ea4335; }
+.pk-web__logo span:nth-child(3) { color: #fbbc05; } .pk-web__logo span:nth-child(5) { color: #34a853; }
+.pk-web__field { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 16px; border-radius: 25px; border: 1px solid var(--pk-line); background: var(--pk-card); box-shadow: 0 3px 10px rgba(48, 67, 96, .06); color: var(--pk-sub); }
+.pk-web__field span { flex: 1; font-size: 15px; }
+.pk-web__sites { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; margin: 20px 2px 4px; }
+.pk-web__sites div { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pk-web__sites i, .pk-web__row > i { flex: none; width: 46px; height: 44px; display: grid; place-items: center; border-radius: 13px; border: 1px solid var(--pk-line); background: var(--pk-card); box-shadow: 0 3px 9px rgba(48, 67, 96, .07); font-style: normal; font-size: 19px; font-weight: 700; color: #4285f4; }
+.pk-web__sites small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--pk-sub); }
+.pk-web__tabs { display: flex; gap: 22px; margin: 20px 0 6px; border-bottom: 1px solid var(--pk-line); overflow-x: auto; scrollbar-width: none; }
+.pk-web__tabs button { flex: none; border: 0; border-bottom: 2px solid transparent; background: none; padding: 10px 0; font-size: 14px; font-family: inherit; color: var(--pk-sub); cursor: pointer; }
+.pk-web__tabs button[aria-pressed="true"] { color: #4285f4; border-bottom-color: #4285f4; }
+.pk-web__head { display: flex; align-items: baseline; justify-content: space-between; margin: 20px 2px 10px; } .pk-web__head b { font-size: 17px; } .pk-web__head small { font-size: 12px; color: var(--pk-sub); }
+.pk-web__card { margin-bottom: 14px; padding: 16px 18px; border-radius: 19px; background: var(--pk-card); overflow-wrap: anywhere; }
+.pk-web__card > small { display: block; margin-bottom: 6px; font-size: 12px; color: var(--pk-sub); }
+.pk-web__card > a { display: block; font-size: 18px; font-weight: 500; line-height: 1.35; color: #3869b2; }
+.pk-web__card > p { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: var(--pk-sub); }
+.pk-web__card.is-list { padding: 4px 16px; }
+.pk-web__q, .pk-web__row { display: flex; align-items: center; gap: 12px; min-height: 50px; } .pk-web__q + .pk-web__q, .pk-web__row + .pk-web__row { border-top: .5px solid var(--pk-line); }
+.pk-web__q svg { flex: none; color: var(--pk-sub); } .pk-web__q b { flex: 1; min-width: 0; font-size: 16px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-web__q time, .pk-web__row time { flex: none; font-size: 13px; color: var(--pk-sub); }
+.pk-web__row { padding: 6px 0; } .pk-web__row > i { width: 36px; height: 36px; border-radius: 10px; font-size: 16px; box-shadow: none; }
+.pk-web__row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .pk-web__row b { font-size: 15px; font-weight: 500; color: #3869b2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pk-web__row small { font-size: 12px; color: var(--pk-sub); }
+.pk-web__row > svg { flex: none; color: #4285f4; }
+.pk-web__card.is-dark { background: #2b2d31; color: #e8eaed; } .pk-web__card.is-dark .pk-web__q { border-color: rgba(255, 255, 255, .12); } .pk-web__card.is-dark .pk-web__q b { color: #e8eaed; } .pk-web__card.is-dark :is(svg, time) { color: rgba(232, 234, 237, .55); }
+.pk-web__bar { position: sticky; bottom: 0; z-index: 2; flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 16px 34px; background: color-mix(in srgb, var(--pk-card) 92%, transparent); border-top: .5px solid var(--pk-line); color: var(--pk-sub); }
+.pk-web__bar > div { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px; background: var(--pk-fill); font-size: 13px; }
+.pk-web__bar > div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-web__bar button { border: 0; background: none; padding: 0; color: #4285f4; cursor: pointer; line-height: 0; } .pk-web__bar > svg { flex: none; }

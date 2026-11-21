@@ -35,7 +35,7 @@ const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setA
 const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
 /** 整页自己画的应用（不要公共的标题栏） */
-export const RAW = ['短信', '电话'];
+export const RAW = ['短信', '电话', '搜索'];
 const of = (R, k) => R.filter(r => r[0] === k);
 // 一排分段按钮：点了只换下面那一块
 function tabs(names, show) {
@@ -68,9 +68,31 @@ export const VIEWS = {
     return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
   备忘录: (R, push) => list(R.map(([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') },
     h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' '))))),
+  // 搜索：谷歌那样，中间彩色的字、圆的搜索框；下面分 搜索 / 历史记录 / 收藏夹 / 无痕。网址是 AI 编的，只给人看，点了不打开
   搜索: R => {
-    const kind = r => /收藏/.test(r[2]) ? '收藏' : /无痕|私密/.test(r[2]) ? '无痕' : '历史', box = list();
-    return [tabs(['历史', '收藏', '无痕'], k => box.replaceChildren(...R.filter(r => kind(r) === k).map(([q, t]) => h('div.pk-row', icon(k === '收藏' ? 'bookmark' : 'search', 17, 2), h('b', q), h('time', t))))), box];
+    const old = r => !['搜索', '看过', '收藏', '无痕'].includes(r[0]);   // 以前存的：搜的话｜时间｜历史/收藏/无痕
+    const rows = k => R.filter(r => old(r) ? (k === '搜索' ? !/收藏|无痕|私密/.test(r[2]) : k === '收藏' ? /收藏/.test(r[2]) : k === '无痕' && /无痕|私密/.test(r[2])) : r[0] === k).map(r => old(r) ? [k, r[0], k === '收藏' ? '' : r[1]] : r);
+    const host = u => { try { return new URL(/^https?:/.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch { return u || ''; } };
+    const site = (title, u, right) => h('div.pk-web__row', h('i', (host(u) || title || '?').slice(0, 1).toUpperCase()), h('div', h('b', title), h('small', host(u))), right);
+    const query = ([, q, t], ic = 'search') => h('div.pk-web__q', icon(ic, 18, 2.2), h('b', q), t && h('time', when(t)));
+    const box = h('div.pk-web__pane'), seen = rows('看过'), go = k => { [...tabsEl.children].forEach(b => b.setAttribute('aria-pressed', b.textContent === k)); box.replaceChildren(...[panes[k]()].flat(4).filter(Boolean)); };
+    const panes = {
+      搜索: () => [rows('搜索').length ? [h('div.pk-web__head', h('b', '最近搜索')), h('div.pk-web__card.is-list', rows('搜索').map(r => query(r)))] : null,
+        seen.length ? [h('div.pk-web__head', h('b', '浏览手记'), h('small', `${seen.length} 条`)), seen.map(([, title, u, note]) => h('div.pk-web__card', h('small', host(u)), h('a', title), note && h('p', note)))] : null],
+      历史记录: () => [h('div.pk-web__head', h('b', '最近访问'), h('small', `${seen.length} 条`)), h('div.pk-web__card.is-list', seen.map(([, title, u, , t]) => site(title, u, h('time', when(t)))))],
+      收藏夹: () => { const L = rows('收藏'); return [h('div.pk-web__head', h('b', '网页收藏'), h('small', `${L.length} 条`)), h('div.pk-web__card.is-list', L.map(([, title, u]) => site(title, u, icon('bookmark', 17, 2))))]; },
+      无痕: () => [h('div.pk-web__head', h('b', '无痕浏览'), h('small', '关掉就不留记录')), h('div.pk-web__card.is-list.is-dark', rows('无痕').map(r => query(r, 'eyeOff')))],
+    };
+    const tabsEl = h('nav.pk-web__tabs', Object.keys(panes).map(k => h('button', { onclick: () => go(k) }, k)));
+    // 常去的：看过的网页里出现最多的几个网站
+    const top = [...seen.reduce((m, r) => m.set(host(r[2]), (m.get(host(r[2])) || 0) + 1), new Map())].filter(x => x[0]).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    go('搜索');
+    return [h('i.pk-web__top'), h('div.pk-web',
+      h('div.pk-web__logo', [...'Google'].map(c => h('span', c))),
+      h('div.pk-web__field', icon('search', 18, 2.2), h('span', '搜索或输入网址'), icon('mic', 18, 2)),
+      top.length ? h('div.pk-web__sites', top.map(([u]) => h('div', h('i', u.slice(0, 1).toUpperCase()), h('small', u)))) : null,
+      tabsEl, box),
+      h('div.pk-web__bar', h('div', icon('globe', 15, 2), h('span', seen[0] ? host(seen[0][2]) : 'google.com')), icon('back', 20, 2.2), icon('chevron', 20, 2.2), h('button', { 'aria-label': '收藏夹', onclick: () => go('收藏夹') }, icon('bookmark', 20, 2)), h('button', { 'aria-label': '历史记录', onclick: () => go('历史记录') }, icon('hourglass', 20, 2)))];
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
   短信: (R, push, D, pop) => {
