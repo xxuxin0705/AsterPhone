@@ -1,10 +1,11 @@
 // 查手机里的内容：每个联系人一份，存在 kv 的 peek:联系人 id（{ apps: { 应用: { at, rows } } }）。
 // 只在你点「生成」时找 AI，勾了几个应用也只找一次；AI 一行一条地回，写到哪个应用算哪个，没写到的留着旧的。
 import { h, shortTime } from '../../core/util.js';
-import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
+import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win, nickIn, setNick } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { generate, resolveConn } from '../../core/api.js';
-import { compose, myName, myPersona } from '../../core/promptstore.js';
+import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js';
+import { charLists } from '../../core/music.js';
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
@@ -13,13 +14,15 @@ import { previewOf } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
 export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
+/** 换 TA 手机的壁纸（w = cropImage 给的 { img, src, box, fx }，空的就是恢复默认） */
+export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }; if (w) d.wall = w; else delete d.wall; await kvSet('peek:' + c.id, d); }
 
 /** 能生成的应用：名字 → 给 AI 看的一行怎么写 */
 export const FORMS = {
   备忘录: '标题｜日期｜正文',
   搜索: '搜的话｜时间｜历史 / 收藏 / 无痕（三选一）',
   短信: '对方（名字或号码）｜时间｜对方 / 自己（这条谁发的）｜内容\n（同一个人的几条挨着写，按先后）',
-  电话: '对方｜呼入 / 呼出 / 未接（三选一）｜时间｜通话多久',
+  电话: '对方｜呼入 / 呼出 / 未接（三选一）｜时间｜通话多久\n联系人｜{{char}} 存的名字（会起备注就写备注）｜这是谁（几个字）\n（通话记录之外，再写 6～10 行联系人）',
   购物车: '商品｜价格（只写数字）｜数量｜店铺｜为什么想买（{{char}} 心里的一句话）',
   饿了吗: '店名｜点了什么｜花了多少（只写数字）｜时间｜给商家的备注',
   日历: '日期｜几点｜什么事｜地点',
@@ -29,7 +32,19 @@ export const FORMS = {
 草稿｜对谁｜打了没发出去的话（有才写，最多两行）
 （写 3～5 个对话，每个 6～12 句，同一个对话的挨着写、按先后；{{char}} 自己说的那句「这句谁说的」写「自己」；不要写和 {{user}} 的聊天，那个手机里已经有了；可以有 {{user}} 不在的群）`,
   屏幕使用时间: '应用名｜今天用了多少分钟（只写数字）\n（写 6～8 个，从多到少）',
+  音乐: '常听｜歌名 - 歌手｜这周听了几遍（只写数字）\n搜过｜搜的歌或歌手｜时间{{music}}',
+  论坛: '浏览｜看过的帖子标题｜哪个版块｜时间\n收藏｜帖子标题｜为什么收藏（心里的一句话）\n草稿｜写了没发出去的帖子或评论{{forum}}',
+  相册: `图库｜这张照片拍的是什么（一句话写清画面）｜时间｜地点
+隐藏｜画面｜时间｜地点（不想被人看到的，有才写）
+删除｜画面｜时间｜为什么删（最近删掉的，有才写）`,
+  AI: `哪个 AI｜这次对话的标题｜这句谁说的（自己 / AI）｜内容
+（「哪个 AI」只能是 Claude、GPT、Gemini、豆包、DeepSeek；{{char}} 会用的才写，每个用到的写 1～2 次对话、每次 4～8 句，同一次对话的挨着写；问的是 {{char}} 真会拿去问 AI 的事，可以和最近发生的事有关；AI 回答完 {{char}} 可以有反应。
+五个 AI 说话不一样：Claude 客气谨慎、爱先说清楚前提；GPT 喜欢分点列条、末尾问要不要继续；Gemini 嘴甜爱夸人；豆包也爱夸人，热情但常常答不到点上；DeepSeek 先想一大段再答，偶尔想太多。）`,
 };
+// TA 在论坛 / 音乐里的网名整部手机只有一份：有了就告诉 AI，没有就让它顺手起一个（写完存回那一份）
+const NICK = { 音乐: 'music', 论坛: 'forum' };
+const form = (n, c) => FORMS[n].replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName())
+  .replace(/\{\{(?:music|forum)\}\}/, () => nickIn(c, NICK[n]) ? `\n（${c.name || nameOf(c)} 在这里的网名是「${nickIn(c, NICK[n])}」）` : `\n网名｜${c.name || nameOf(c)} 在这里用的网名（只写这一行）`);
 
 const pairKey = (a, b) => 'peek:pair:' + [a, b].sort().join('|');
 const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 'text' ? m.text : previewOf(m) });
@@ -37,10 +52,15 @@ const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 't
 export async function load(c) {
   const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
   d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
-    .map(([x, L]) => ({ title: nameOf(x), msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
+    .map(([x, L]) => ({ title: nameOf(x), avatar: x.avatar, msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
-  d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : '', group: ch.type === 'group', you: ch.type !== 'group',
+  d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : '', group: ch.type === 'group', you: ch.type !== 'group', avatar: ch.type === 'group' ? ch.avatar : myAvatar(),
     msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
+  // 你手机里现成的：TA 的歌单、TA 在论坛发过的帖子和评论（名字用的也是那边的同一个）
+  d.lists = charLists(c).filter(l => l.songs.length); d.mname = nickIn(c, 'music'); d.fname = nickIn(c, 'forum');
+  const posts = ((await kvGet('forum:' + win.key).catch(() => null)) || {}).posts || [], own = by => by.k === 'c' && by.id === c.id && !by.anon;
+  d.posts = [...posts.filter(p => own(p.by)).map(p => ({ title: p.title || p.text, text: p.title ? p.text : '', at: p.at })),
+    ...posts.flatMap(p => (p.floors || []).filter(f => own(f.by)).map(f => ({ title: f.text, text: '回复：' + (p.title || p.text), at: f.at })))].sort((a, b) => b.at - a.at).map(x => ({ ...x, t: shortTime(x.at) }));
   return d;
 }
 
@@ -65,11 +85,11 @@ export async function make(c, names, done) {
   try {
     const got = await waiting(`正在写${nameOf(c)}的手机…`, async stop => {
       const story = storyText() || '（暂无）', now = time.isStory() ? time.story() : null;
-      const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
+      const raw = await generate({ conn: resolveConn('text', 'peek'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
-          count: S().count || 6, apps: names.map(n => `【${n}】\n${FORMS[n].replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName())}`).join('\n') }) });
+          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c)}`).join('\n') }) });
       const got = parse(raw);
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       return got;
@@ -82,6 +102,7 @@ export async function make(c, names, done) {
       got.消息 = got.消息.filter(r => { const x = who(r[0]); if (x) (by.get(x) || by.set(x, []).get(x)).push({ from: /自己/.test(r[2]) || r[2] === c.name ? c.id : x.id, t: r[1], text: r[3] }); return !x; });
       await Promise.all([...by].map(([x, L]) => kvSet(pairKey(c.id, x.id), L)));
     }
+    ok.filter(n => NICK[n]).forEach(n => { const r = got[n].find(r => r[0] === '网名'); if (r && r[1] && !nickIn(c, NICK[n])) { setNick(c, NICK[n], r[1]); commit('contacts'); } });
     ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: got[n] }; });
     await kvSet('peek:' + c.id, d);
     const miss = names.filter(n => !ok.includes(n));

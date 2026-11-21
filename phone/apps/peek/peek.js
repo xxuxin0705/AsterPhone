@@ -1,12 +1,12 @@
 // 查手机：TA 桌上的一角（作者让 GPT 画的一整张画，白天 / 夜里各一张，东西的位置一样）。
 // 水杯、照片、笔、耳机、手机是从画里抠出来单独放的，点一下各自动一动；只有点手机会把它拿起来，上滑解锁后是 TA 的满屏手机。
 // 看谁的手机：桌上右上角点名字换人（记在 kv 的 peek:who:窗口）。手机里的内容只在点「生成」时找 AI（gen.js），各应用的样子在 apps.js。
-import { h } from '../../core/util.js';
+import { h, pickFile } from '../../core/util.js';
 import { kvGet, kvSet, contact, friends, win } from '../../core/store.js';
-import { page, toast, navText, sheet, avatar, icon } from '../../core/ui.js';
+import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
-import { FORMS, load, make, pickApps, running } from './gen.js';
+import { FORMS, load, make, pickApps, running, setWall } from './gen.js';
 import { VIEWS } from './apps.js';
 import { setup } from './setup.js';
 
@@ -39,15 +39,15 @@ export function open() {
   const pill = h('div.pk-pill', { role: 'button', onclick: () => leave() }), genB = h('div.pk-pill', { role: 'button', onclick: () => running() ? running().ac.abort() : pickApps(c, D, start) });
   const home = h('div.pk-home', h('div.pk-top', pill, genB),
     h('div.pk-grid', APPS.map((n, i) => app(n, i, openApp))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i, openApp))));
-  const stage = h('div.pk-stage', { dataset: { noSwipe: '' } }, art, lock, home);
+  const stage = h('div.pk-stage', art, lock, home);
   p.el.prepend(stage);
 
   // 看的是谁、TA 手机里现在有什么
-  let c = null, D = { apps: {} };
+  let c = null, D = { apps: {}, real: [], pairs: [], lists: [], posts: [] };
   const paintGen = () => { genB.textContent = running() ? '取消' : '生成'; };
   async function setWho(x) {
     while (layers.length) layers.pop().remove();
-    c = x; D = await load(c);
+    c = x; D = await load(c); paintWall();
     whoB.textContent = nameOf(c); pill.textContent = `${nameOf(c)}的手机`;
     kvSet('peek:who:' + win.key, c.id).catch(() => {});
   }
@@ -70,13 +70,25 @@ export function open() {
     el._a = el.animate(sub ? [{ transform: 'translateX(100%)' }, { transform: 'none' }] : [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.3, .7, .2, 1)' });
   }
   function pop() { const el = layers.pop(); el._a.reverse(); el._a.finished.then(() => el.remove()); }
+  // TA 的壁纸（每个人一张，没换过就是默认那张）：只改几个变量，锁屏和桌面一起换
+  const paintWall = () => { const w = D.wall, st = stage.style; st.setProperty('--wall', w ? `url("${w.img}")` : ''); st.setProperty('--wo', w ? w.fx[0] : ''); st.setProperty('--wb', w ? w.fx[1] : ''); };
+  async function wall() {
+    const w = D.wall, how = w ? await actionSheet('壁纸', [{ value: 'box', label: '重新框、调亮度' }, { value: 'new', label: '换一张' }, { value: 'off', label: '恢复默认' }]) : 'new';
+    if (!how) return;
+    const f = how === 'new' ? await pickFile() : how === 'box' ? w.src : null; if (how !== 'off' && !f) return;
+    const r = how === 'off' ? null : await cropImage(f, stage.clientWidth / stage.clientHeight, 1100, false, { fx: how === 'box' ? w.fx : [1, 1], box: how === 'box' ? w.box : null }); if (how !== 'off' && !r) return;
+    await setWall(c, r); if (r) D.wall = r; else delete D.wall; paintWall();
+  }
+  const library = () => h('div.pk-list', h('button.pk-row', { onclick: wall }, h('b', '壁纸'), icon('chevron', 16, 2.2)));
   function openApp(name) {
     if (!c) { choose(); return; }
+    if (name === '资源库') { show(name, library); return; }
     if (name !== '设置' && !VIEWS[name]) { toast(`「${name}」还没做`); return; }
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
-    // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
-    const body = n => () => D.apps[n] || (n === '消息' && D.real.length) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
+    // 一个应用的内容：有 AI 写的就排出来；消息、音乐、论坛里你手机上现成的（聊天、歌单、帖子）不用生成也能看
+    const has = { 消息: () => D.real.length, 音乐: () => D.lists.length, 论坛: () => D.posts.length };
+    const body = n => () => D.apps[n] || (has[n] && has[n]()) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D) : none(n);
     show(name, name === '设置' ? () => setup(t => show(t, body(t), '', '设置')) : body(name), 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 
