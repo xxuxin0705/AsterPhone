@@ -176,7 +176,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pane { flex: none; display: flex; flex-direction: column; }
 .pk-tabbar { flex: 1; height: 62px; border-radius: 31px; padding: 4px; gap: 0; justify-content: stretch; cursor: default; }
 .pk-tabbar button { flex: 1; height: 100%; border: 0; border-radius: 27px; background: none; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--pk-ink); font-weight: 500; font-size: 11px; line-height: 1; font-family: inherit; cursor: pointer; }
-.pk-tabbar button.is-on { color: #007aff; background: var(--pk-fill); }
+.pk-tabbar button.is-on { color: #007aff; }
 .pk-float .pk-tabbar + .is-round { width: 62px; height: 62px; border-radius: 31px; }
 .pk-pad__num { box-sizing: border-box; height: 276px; padding-top: 176px; text-align: center; font-size: 36px; letter-spacing: 1px; }
 .pk-pad { align-self: center; display: grid; grid-template-columns: repeat(3, 80px); gap: 15px 21px; justify-items: center; }
@@ -205,7 +205,6 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-tabbar button { gap: 3px; font-size: 12px; font-weight: 600; } .pk-tabbar button > i { position: relative; display: block; line-height: 0; }
 .pk-tabbar sup { position: absolute; left: 15px; top: -7px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: #ff3b30; color: #fff; font-size: 13px; font-weight: 500; line-height: 20px; text-align: center; }
 .pk-app svg .cut { fill: var(--pk-page); stroke: var(--pk-page); } .pk-tabbar button.is-on svg .cut { fill: var(--pk-page); }
-.pk-tabbar button.is-on { background: color-mix(in srgb, var(--pk-ink) 7%, transparent); }
 .pk-float > .is-round svg { flex: none; }
 .pk-float:has(.pk-find) .is-round { width: 54px; height: 54px; border-radius: 27px; } .pk-float:has(.pk-find) .pk-find { height: 54px; border-radius: 27px; font-size: 19px; color: var(--pk-ink); } .pk-float:has(.pk-find) .pk-find span { color: var(--pk-ink); } .pk-find svg:last-child { color: var(--pk-ink); }
 /* 通讯录：A、B、C 分组，右边一条字母 */
@@ -258,3 +257,9 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-spam button { border: 0; border-radius: 13px; padding: 5px 12px; font-size: 16px; font-weight: 600; font-family: inherit; color: #007aff; background: var(--pk-fill); cursor: pointer; }
 .pk-sms .pk-float .is-round { width: 40px; height: 40px; border-radius: 20px; } .pk-sms .pk-find { height: 46px; border-radius: 23px; font-size: 19px; }
 .pk-sms .pk-top2.is-chat ~ .pk-float .pk-find span, .pk-sms .pk-top2.is-chat ~ .pk-float .pk-find svg { color: var(--pk-sub); }
+.pk-tabbar { position: relative; overflow: hidden; } .pk-tabbar button { position: relative; z-index: 1; transition: color .25s; }
+.pk-tabpill { position: absolute; left: 4px; top: 4px; bottom: 4px; width: calc((100% - 8px) / 3); border-radius: 27px; background: color-mix(in srgb, var(--pk-ink) 8%, transparent); transition: transform .5s cubic-bezier(.3, 1.18, .45, 1); }
+.pk-pad__row { flex: none; margin-top: 18px; display: grid; grid-template-columns: repeat(3, 76px); gap: 24px; align-items: center; justify-items: center; }
+.pk-pad__call { width: 77px; height: 77px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #fff; background: #65cd6f; cursor: pointer; }
+.pk-pad__del { width: 36px; height: 26px; border: 0; padding: 0 0 0 6px; display: grid; place-items: center; color: var(--pk-ink); background: var(--pk-fill); clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%); border-radius: 5px; cursor: pointer; }
+.pk-pad__del[hidden] { visibility: hidden; display: grid; }

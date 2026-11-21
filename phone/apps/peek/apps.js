@@ -115,10 +115,17 @@ export const VIEWS = {
         return [h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('b', '联系人'), h('button.pk-glass.is-round', { 'aria-label': '新建' }, icon('plus', 22, 2.2))),
           list, h('div.pk-index', [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'].map(k => h('button', { onclick: () => jump(k) }, k)))];
       },
-      拨号键盘: () => [num, h('div.pk-pad', [...'123456789*0#'].map((d, i) => h('button', { onclick: () => { num.textContent += d; } }, h('b', d), h('small', ABC[i]))))],
+      // 按了数字，拨打键右边出来一个删除键；拨打 = 清空
+      拨号键盘: () => { const del = h('button.pk-pad__del', { 'aria-label': '删除', hidden: true, onclick: () => { num.textContent = num.textContent.slice(0, -1); del.hidden = !num.textContent; } }, icon('close', 18, 2.6));
+        return [num, h('div.pk-pad', [...'123456789*0#'].map((d, i) => h('button', { onclick: () => { num.textContent += d; del.hidden = false; } }, h('b', d), h('small', ABC[i])))),
+          h('div.pk-pad__row', h('i'), h('button.pk-pad__call', { 'aria-label': '拨打', onclick: () => { num.textContent = ''; del.hidden = true; } }, fill('call', 36)), del)]; },
     };
-    const tab = n => { [...bar.children].forEach(b => b.classList.toggle('is-on', b.dataset.n === n)); box.dataset.pane = { 通话: 'calls', 通讯录: 'book', 拨号键盘: 'pad' }[n]; box.replaceChildren(...panes[n]()); float.replaceChildren(bar, findB); };
-    const bar = h('div.pk-glass.pk-tabbar', [['通话', 'clock'], ['通讯录', 'person'], ['拨号键盘', 'dots']].map(([n, ic]) => h('button', { dataset: { n }, onclick: () => tab(n) },
+    // 底下的标签：灰色的那块像一滴水滑到新的那格（中途鼓一下），新那格的图标也跟着鼓一下
+    const tab = n => { const bs = [...bar.querySelectorAll('button')], i = bs.findIndex(b => b.dataset.n === n), old = bs.find(b => b.classList.contains('is-on'));
+      if (old && old !== bs[i]) { pill.animate([{ scale: '1 1' }, { scale: '1.14 1.06', offset: .35 }, { scale: '1 1' }], { duration: 460, easing: 'ease-out' }); bs[i].firstChild.animate([{ scale: 1 }, { scale: 1.28, offset: .4 }, { scale: 1 }], { duration: 420, easing: 'ease-out' }); }
+      pill.style.transform = `translateX(${i * 100}%)`; bs.forEach(b => b.classList.toggle('is-on', b === bs[i])); box.dataset.pane = { 通话: 'calls', 通讯录: 'book', 拨号键盘: 'pad' }[n]; box.replaceChildren(...panes[n]()); float.replaceChildren(bar, findB); };
+    const pill = h('i.pk-tabpill');
+    const bar = h('div.pk-glass.pk-tabbar', pill, [['通话', 'clock'], ['通讯录', 'person'], ['拨号键盘', 'dots']].map(([n, ic]) => h('button', { dataset: { n }, onclick: () => tab(n) },
       h('i', fill(ic, 26), n === '通话' && calls.some(r => miss(r[1])) ? h('sup', calls.filter(r => miss(r[1])).length) : null), h('span', n))));
     // 搜索：上面是通话和语音留言各几条，底下是 键盘 · 搜索条 · 关
     const find = () => { box.dataset.pane = 'find'; box.replaceChildren(head('通话', () => tab('通话')), h('div.pk-calls', calls.slice(0, 5).map(call)), ...(notes.length ? [head('语音留言', () => tab('通话')), h('div.pk-calls', notes.map(note))] : []));
