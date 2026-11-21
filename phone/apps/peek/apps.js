@@ -66,8 +66,19 @@ export const VIEWS = {
     face(x.title, x.avatar), h('div', h('b', x.title, h('time', last.t)), h('span', x.draft ? [h('em', '[草稿] '), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); })),
   屏幕使用时间: R => { const max = Math.max(...R.map(r => +r[1] || 0), 1), all = R.reduce((a, r) => a + (+r[1] || 0), 0), hm = m => (m >= 60 ? Math.floor(m / 60) + ' 小时 ' : '') + (m % 60) + ' 分钟';
     return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
-  备忘录: (R, push) => list(R.map(([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') },
-    h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' '))))),
+  // 备忘录：最上面一张上了锁的「只给自己看」（心声和情绪），下面是便签；涂鸦点开是一张能左右拖的字符画，下面写着解析
+  备忘录: (R, push) => {
+    const kind = r => ['便签', '心声', '涂鸦'].includes(r[0]) ? r[0] : '便签', notes = R.filter(r => kind(r) === '便签').map(r => r[0] === '便签' ? r.slice(1) : r);
+    const heart = R.find(r => kind(r) === '心声'), doodles = R.filter(r => kind(r) === '涂鸦');
+    const note = ([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') }, h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' ')));
+    return [heart ? list(h('button.pk-row.pk-locked', { onclick: () => push('只给自己看', [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'),
+      h('div.pk-moods', (heart[1] || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => h('span', x))), ...(heart[2] || '').split('//').map(x => h('p', x.trim()))], 'pk-note') },
+      icon('lock', 18, 2.2), h('b', '只给自己看'), h('span', '已锁定'))) : null,
+      notes.length ? [h('div.pk-day', '便签'), list(notes.map(note))] : null,
+      doodles.length ? [h('div.pk-day', '涂鸦'), list(doodles.map(([, t, art = '', why]) => h('button.pk-row.is-col', { onclick: () => push(t || '随手涂鸦', [
+        h('pre.pk-doodle', art.split('//').map(x => x.replace(/\s+$/, '')).join('\n')), why && h('div.pk-card', h('small', '涂鸦解析'), h('p', why))], 'pk-note') },
+        h('b', t || '随手涂鸦'), h('span', why || ''))))] : null];
+  },
   // 搜索：谷歌那样，中间彩色的字、圆的搜索框；下面分 搜索 / 历史记录 / 收藏夹 / 无痕。网址是 AI 编的，只给人看，点了不打开
   搜索: R => {
     const old = r => !['搜索', '看过', '收藏', '无痕'].includes(r[0]);   // 以前存的：搜的话｜时间｜历史/收藏/无痕
@@ -160,10 +171,32 @@ export const VIEWS = {
   购物车: R => [...R.map(([name, price, n, shop, why]) => h('div.pk-card', h('small', shop), h('b', name), h('div.pk-card__foot', h('strong', '¥' + yuan(price)), h('span', '×' + (parseInt(n) || 1))), why && h('q', why))),
     h('div.pk-sum', '合计 ', h('strong', '¥' + R.reduce((a, r) => a + yuan(r[1]) * (parseInt(r[2]) || 1), 0).toFixed(2)))],
   饿了吗: R => R.map(([shop, what, price, t, note]) => h('div.pk-card', h('div.pk-card__head', h('b', shop), h('span', '已送达')), h('p', what), h('div.pk-card__foot', h('time', t), h('strong', '¥' + yuan(price))), note && h('q', '备注：' + note))),
-  日历: R => groupBy(R, 0).map(([day, L]) => [h('div.pk-day', day), list(L.map(([, t, what, where]) => h('div.pk-row.is-plan', h('time', t || '全天'), h('div', h('b', what), where && h('span', where)))))]),
+  // 日历：上面一张天气，下面五天一排（能往前往后翻），点哪天看哪天的事
+  日历: R => {
+    const w = R.find(r => r[0] === '天气'), L = R.filter(r => r !== w), now = time.isStory() ? time.story().date : new Date();
+    const key = s => { const m = /(?:(\d{4})[/.\-年])?(\d{1,2})[/.\-月](\d{1,2})/.exec(s || ''); return m ? `${+m[2]}-${+m[3]}` : s; }, kd = d => `${d.getMonth() + 1}-${d.getDate()}`;
+    let start = 0, pick = kd(now);
+    const strip = h('div.pk-days'), box = list();
+    const paint = () => {
+      strip.replaceChildren(h('button', { 'aria-label': '前五天', onclick: () => { start -= 5; paint(); } }, icon('back', 16, 2.4)), ...[0, 1, 2, 3, 4].map(i => { const d = new Date(now); d.setDate(d.getDate() + start + i); const k = kd(d);
+        return h('button.pk-days__d' + (k === pick ? '.is-on' : '') + (L.some(r => key(r[0]) === k) ? '.has' : ''), { onclick: () => { pick = k; paint(); } }, h('small', '日一二三四五六'[d.getDay()]), h('b', d.getDate())); }),
+        h('button', { 'aria-label': '后五天', onclick: () => { start += 5; paint(); } }, icon('chevron', 16, 2.4)));
+      const day = L.filter(r => key(r[0]) === pick);
+      box.replaceChildren(...(day.length ? day.map(([, t, what, where]) => h('div.pk-row.is-plan', h('time', t || '全天'), h('div', h('b', what), where && h('span', where)))) : [h('div.pk-row', h('span', '这天没有安排'))]));
+    };
+    paint();
+    return [w ? h('div.pk-weather', h('div', h('b', `${parseInt(w[2]) || 0}°`), h('span', w[1])), h('small', `最高 ${parseInt(w[3]) || 0}° · 最低 ${parseInt(w[4]) || 0}°`)) : null, strip, box];
+  },
+  // 钱包：余额点眼睛能藏起来；花掉的按分类画一条彩色的条，下面是每类多少钱，再下面是交易
   钱包: R => {
-    const bal = R.find(r => r[0] === '余额'), L = R.filter(r => r !== bal);
-    return [h('div.pk-wallet', h('span', '余额'), h('b', '¥' + yuan(bal ? bal[1] : 0))), h('div.pk-day', '最近的交易'),
-      list(L.map(([t, what, v]) => h('div.pk-row', h('div', h('b', what), h('span', t)), h('strong' + (/^\s*\+/.test(v) ? '.is-in' : ''), (/^\s*\+/.test(v) ? '+' : '-') + yuan(String(v).replace(/[+-]/g, ''))))))];
+    const bal = R.find(r => r[0] === '余额'), L = R.filter(r => r !== bal), out = L.filter(r => !/^\s*\+/.test(r[2])), total = out.reduce((a, r) => a + +yuan(r[2].replace(/[+-]/g, '')), 0);
+    const cats = [...out.reduce((m, r) => m.set(r[3] || '其他', (m.get(r[3] || '其他') || 0) + +yuan(r[2].replace(/[+-]/g, ''))), new Map())].sort((a, b) => b[1] - a[1]);
+    const COL = ['#ff9f0a', '#ff375f', '#30b0c7', '#5e5ce6', '#34c759', '#8e8e93'];
+    const money = h('b', '¥' + yuan(bal ? bal[1] : 0)), eye = h('button', { 'aria-label': '隐藏余额', onclick: () => { const hide = eye.classList.toggle('is-off'); money.textContent = hide ? '¥ ****' : '¥' + yuan(bal ? bal[1] : 0); eye.replaceChildren(icon(hide ? 'eyeOff' : 'eye', 18, 2)); } }, icon('eye', 18, 2));
+    return [h('div.pk-wallet', h('div', h('span', '余额'), eye), money),
+      total ? [h('div.pk-day', '这段时间花了 ¥' + total.toFixed(2)), h('div.pk-card', h('div.pk-spend', cats.map(([, v], i) => h('i', { style: { flex: v, background: COL[i % COL.length] } }))),
+        h('div.pk-spend__list', cats.map(([k, v], i) => h('div', h('i', { style: { background: COL[i % COL.length] } }), h('span', k), h('small', Math.round(v / total * 100) + '%'), h('b', '¥' + v.toFixed(2))))))] : null,
+      h('div.pk-day', '最近的交易'),
+      list(L.map(([t, what, v, cat]) => h('div.pk-row', h('div', h('b', what), h('span', [t, cat].filter(Boolean).join(' · '))), h('strong' + (/^\s*\+/.test(v) ? '.is-in' : ''), (/^\s*\+/.test(v) ? '+' : '-') + yuan(String(v).replace(/[+-]/g, ''))))))];
   },
 };

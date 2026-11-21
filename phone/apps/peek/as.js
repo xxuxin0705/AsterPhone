@@ -14,6 +14,8 @@ export async function forumAs(c) {
   if (shadow.forum) return;
   const E = await import('../forum/engine.js'), { open } = await import('../forum/forum.js');
   const real = state.forum, D = await E.load(), w = E.who({ k: 'c', id: c.id });
+  // 生成时 AI 写的「树洞」：TA 匿名发的心事，放进树洞（只在这里看得到，不存进你的论坛）
+  const tree = (((await (await import('./gen.js')).load(c)).apps.论坛 || {}).rows || []).filter(r => r[0] === '树洞' && r[1]).map((r, i) => ({ id: 'ta-tree-' + i, board: 'anon', by: { k: 'me', id: 'ta', anon: true, no: 0 }, title: '', text: r[1], tr: '', img: '', pic: '', rp: '', dev: '', likes: 3 + (r[1].length * 7) % 90, cmts: 0, reposts: 0, floors: [], at: Date.now() - (i + 1) * 9e6 }));
   const mine = Object.fromEntries(real.accounts.map(a => [a.id, E.accName(a)])), you = id => ({ k: 'n', name: mine[id] || mine.main });
   const swap = by => by && by.k === 'c' && by.id === c.id ? { ...by, k: 'me', id: 'ta' } : by && by.k === 'me' ? { ...by, id: undefined, ...you(by.id) } : by;
   const fix = o => ({ ...o, by: swap(o.by), ...(o.likers ? { likers: o.likers.map(swap) } : {}) });
@@ -24,7 +26,7 @@ export async function forumAs(c) {
   shadow.forum = real;
   state.forum = { ...real, accounts: [{ ...real.people[c.id], ...(real.over || {})['c:' + c.id], id: 'ta', as: 'c:' + c.id, name: w.name, avatar: w.avatar || '', v: w.v, vip: w.vip, ip: w.ip }], cur: 'ta', over, decos, seen: {},
     follows: [...real.accounts.map(a => 'n:' + mine[a.id]), ...E.onForum().filter(x => x.id !== c.id).map(x => 'c:' + x.id)] };
-  E.lend({ posts: D.posts.map(p => ({ ...fix(p), floors: (p.floors || []).map(fix) })), dms });
+  E.lend({ posts: [...tree, ...D.posts.map(p => ({ ...fix(p), floors: (p.floors || []).map(fix) }))], dms });
   show(open(), () => { state.forum = shadow.forum; delete shadow.forum; E.lend(null); commit('forum'); });
 }
 
