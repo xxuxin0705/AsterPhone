@@ -285,9 +285,6 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-web__tabs button[aria-pressed="true"] { color: #4285f4; border-bottom-color: #4285f4; }
 .pk-web__head { display: flex; align-items: baseline; justify-content: space-between; margin: 20px 2px 10px; } .pk-web__head b { font-size: 17px; } .pk-web__head small { font-size: 12px; color: var(--pk-sub); }
 .pk-web__card { margin-bottom: 14px; padding: 16px 18px; border-radius: 19px; background: var(--pk-card); overflow-wrap: anywhere; }
-.pk-web__card > small { display: block; margin-bottom: 6px; font-size: 12px; color: var(--pk-sub); }
-.pk-web__card > a { display: block; font-size: 18px; font-weight: 500; line-height: 1.35; color: #3869b2; }
-.pk-web__card > p { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: var(--pk-sub); }
 .pk-web__card.is-list { padding: 4px 16px; }
 .pk-web__q, .pk-web__row { display: flex; align-items: center; gap: 12px; min-height: 50px; } .pk-web__q + .pk-web__q, .pk-web__row + .pk-web__row { border-top: .5px solid var(--pk-line); }
 .pk-web__q svg { flex: none; color: var(--pk-sub); } .pk-web__q b { flex: 1; min-width: 0; font-size: 16px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -299,12 +296,9 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 /* 点进去的结果页、网页：顶上返回键 + 搜索框 / 网址条，下面照谷歌的卡片排 */
 .pk-web [role="button"] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .pk-web__top2 { position: sticky; top: 0; z-index: 2; flex: none; display: flex; align-items: center; gap: 10px; padding: 44px 14px 12px; background: linear-gradient(#f1f3f6 80%, transparent); } .is-dark .pk-web__top2 { background: linear-gradient(var(--pk-bg) 80%, transparent); }
-.pk-web__top2 > .pk-web__field { flex: 1; min-width: 0; height: auto; min-height: 46px; padding: 9px 16px; box-sizing: border-box; }
-.pk-web__top2 > .pk-web__field span { color: var(--pk-ink); font-size: 16px; line-height: 1.35; }
 .pk-web__url { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 20px; background: var(--pk-fill); font-size: 14px; color: var(--pk-ink); }
 .pk-web__url svg { flex: none; color: var(--pk-sub); } .pk-web__url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-web.is-sub { padding-top: 6px; }
-.pk-web__seen { display: inline-block; margin-top: 10px; padding: 2px 8px; border-radius: 6px; font-style: normal; font-size: 12px; color: #1a73e8; background: color-mix(in srgb, #1a73e8 12%, transparent); }
 /* 点进去的网页：照百科那种排，网站名一行、大标题、分隔线、开头一段、「■小标题」一节一节带圆点，要紧的词蓝色 */
 .pk-web.is-sub:has(.pk-web__art) { background: var(--pk-card); margin: 0 0 -1px; border-radius: 22px 22px 0 0; padding: 22px 20px 40px; }
 .pk-web__brand { display: flex; align-items: center; gap: 8px; } .pk-web__brand i { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; font-style: normal; font-size: 14px; font-weight: 700; color: #fff; background: #2f6bff; } .pk-web__brand b { font-size: 14px; color: var(--pk-sub); font-weight: 500; }

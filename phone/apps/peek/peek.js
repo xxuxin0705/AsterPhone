@@ -6,8 +6,8 @@ import { kvGet, kvSet, contact, friends, win } from '../../core/store.js';
 import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
-import { FORMS, load, make, pickApps, running, setWall, S } from './gen.js';
-import { VIEWS, RAW, trs } from './apps.js';
+import { FORMS, load, make, pickApps, running, setWall, S, speakIn, relangPeek } from './gen.js';
+import { VIEWS, RAW, trs, setView } from './apps.js';
 import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
@@ -42,6 +42,8 @@ export function open() {
   const stage = h('div.pk-stage', art, lock, home);
   p.el.prepend(stage);
   // TA 写的外文后面附着翻译：盖上去的页面一放进来就换成能切换的（apps.js 的 trs）
+  // TA 说中文就只给中文；说的就是生成时那种语言给原文；换成别的语言给机翻的那版（gen.js 的 relangPeek）
+  setView((a, zh) => { const l = speakIn(c); return /^zh/.test(l) ? [zh, ''] : l === (D.lang || l) ? [a, zh] : [(D.mt?.[l] || {})[zh] || a, zh]; });
   new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.isConnected && n.parentNode && trs(n.nodeType === 1 ? n : n.parentNode)))).observe(stage, { childList: true, subtree: true });
 
   // 看的是谁、TA 手机里现在有什么
@@ -50,6 +52,7 @@ export function open() {
   async function setWho(x) {
     while (layers.length) layers.pop().remove();
     c = x; D = await load(c); paintWall();
+    relangPeek(c, D).then(n => n && layers.forEach(l => l._fill && l._fill()), e => toast(e.message));
     whoB.textContent = nameOf(c); pill.textContent = `${nameOf(c)}的手机`;
     kvSet('peek:who:' + win.key, c.id).catch(() => {});
   }

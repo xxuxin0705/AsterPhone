@@ -56,7 +56,7 @@ export const PROMPT_CATS = [
   { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
     { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
     { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
-  { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'people', 'count', 'apps'] }] },
+  { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'people', 'count', 'apps', 'lang'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -842,7 +842,7 @@ ${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）�
 - 提到人时优先用上面认识的人；{{char}} 会给人起备注就用备注。
 - 每个应用写 {{count}} 条左右（应用自己另写了要几条的照它的），长短不一，别写成一个模子。
 - 一条一行，用「｜」隔开各格，格子里不要换行（备忘录正文要分行就用「//」）。空着的格子留空，不要省掉「｜」。
-- 不是中文的文字（{{char}} 用外语写的、搜的、看的外文网页），每一格在原文后面紧跟「[翻译：中文意思]」，翻译要照 {{char}} 的人设和语气；人名、网址、时间不用翻。
+- 不是中文的文字（{{char}} 用外语写的、搜的、看的外文网页），每一格在原文后面紧跟「[翻译：中文意思]」，翻译要照 {{char}} 的人设和语气；人名、网址、时间不用翻。{{lang}}
 
 只输出下面这些应用，每个应用先单独一行写【应用名】，下面按给的格式一行一条，不要别的文字：
 {{apps}}` },
