@@ -231,7 +231,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; }
 .is-raw .pk-top2::before { inset: 0; background: linear-gradient(var(--pk-page) 70%, color-mix(in srgb, var(--pk-page) 85%, transparent) 88%, transparent); }
 .is-raw .pk-float::before { inset: -24px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 75%, transparent) 40%, var(--pk-page) 75%); }
-.pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane .pk-top2 > b { opacity: 1; }
+.pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane:not([data-pane="calls"]) .pk-top2 > b { opacity: 1; }
 .pk-sms .pk-msg { min-height: 99px; padding: 10px 14px 10px 25px; gap: 12px; }
 .pk-sms .pk-msg::after { left: 81px; }
 .pk-sms .pk-msg.is-new::before { left: 7px; width: 11px; height: 11px; margin-top: -5.5px; }
@@ -317,3 +317,11 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-spend { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; } .pk-spend i { min-width: 3px; }
 .pk-spend__list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; } .pk-spend__list div { display: flex; align-items: center; gap: 8px; font-size: 15px; }
 .pk-spend__list i { width: 10px; height: 10px; border-radius: 3px; } .pk-spend__list span { flex: 1; } .pk-spend__list small { color: var(--pk-sub); } .pk-spend__list b { width: 84px; text-align: right; font-weight: 600; }
+/* 信息对话页：照作者发的截图，自己发的是蓝色（原来的绿色改成蓝色），换人、隔了时间就空开一点 */
+.is-raw.pk-sms .pk-bub.is-me { background: #0a84ff; color: #fff; }
+.is-raw.pk-sms .pk-bub.is-tail { margin-bottom: 12px; }
+.is-raw.pk-sms .pk-bub { padding: 10px 15px; }
+.pk-sms .pk-by { flex: none; margin: 4px 0 2px 30px; font-size: 13px; }
+.pk-msg div > span em.is-draft { background: #ff3b30; }
+.pk-msg div > span em, .pk-call em { background: #8e8e93; }
+.pk-pane[data-pane="calls"] h1 { margin: 6px 16px 12px; font-size: 36px; font-weight: 700; line-height: 1.1; }

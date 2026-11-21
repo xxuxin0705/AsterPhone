@@ -35,7 +35,7 @@ const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setA
 const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
 /** 整页自己画的应用（不要公共的标题栏） */
-export const RAW = ['短信', '电话', '搜索'];
+export const RAW = ['短信', '消息', '电话', '搜索'];
 const of = (R, k) => R.filter(r => r[0] === k);
 // 一排分段按钮：点了只换下面那一块
 function tabs(names, show) {
@@ -52,6 +52,36 @@ function chats(R, D) {
     .map(x => ({ ...x, draft: (drafts.find(r => r[1] === x.title) || [])[2] }));
 }
 
+// 大标题往上滑、碰到顶栏时，顶栏中间换成小标题（和 iPhone 一样）
+function bigTitle(head, big) {
+  requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - 4 < head.getBoundingClientRect().bottom); }, { passive: true }); });
+}
+/** 短信、消息都照 iPhone 的「信息」排：列表（蓝点 = 最后一条是对方发的、还没点开过，点开过的记在 D.read）和对话页。
+ *  一个对话：同一个人连着发的只有最后一条带小尾巴，换人、隔了时间就隔开一点；群里别人说的第一条上面写名字 */
+// 两条之间隔了一小时以上（或者不是同一天）才在中间写时间，和 iPhone 一样
+const far = (a, b) => { const day = t => String(t || '').replace(/\s*\d{1,2}:\d{2}.*$/, ''), min = t => { const m = /(\d{1,2}):(\d{2})/.exec(t || ''); return m ? m[1] * 60 + +m[2] : null; };
+  return day(a) !== day(b) || min(a) == null || min(b) == null || Math.abs(min(b) - min(a)) >= 60; };
+function messenger(threads, push, D, pop, o) {
+  const seen = D.read ||= [], isNew = x => !x.msgs[x.msgs.length - 1].me && !seen.includes(o.key + x.title);
+  let unread = threads.filter(isNew).length;
+  const open = (x, row) => { const L = x.msgs; if (isNew(x)) { seen.push(o.key + x.title); unread--; row.classList.remove('is-new'); saveRead(D); } push(x.title, [
+    h('div.pk-top2.is-chat', h('button.pk-glass.pk-backpill', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4), unread ? h('em', unread) : null),
+      h('div.pk-peer', ava(x.title, x.avatar), h('b.pk-glass', h('span', x.title), icon('chevron', 12, 2.6)))),
+    h('small.pk-meta', '信息 · ' + o.kind, h('br'), when(L[0].t, true)),
+    L.map((m, i) => { const p = L[i - 1], n = L[i + 1], gap = p && far(p.t, m.t);
+      return [gap ? h('small.pk-meta.is-gap', when(m.t, true)) : null, x.group && !m.me && (!p || gap || p.me || p.who !== m.who) ? h('small.pk-by', m.who) : null,
+        h('div.pk-bub' + (m.me ? '.is-me' : '') + (!n || n.me !== m.me || n.t !== m.t || (x.group && n.who !== m.who) ? '.is-tail' : ''), m.text)]; }),
+    o.spam && o.spam(x) ? h('div.pk-spam', h('span', '不认识此商家？'), h('button', '报告垃圾信息')) : null,
+    h('div.pk-float', h('button.pk-glass.is-round', { 'aria-label': '更多' }, icon('plus', 22, 2.2)), h('div.pk-glass.pk-find', h('span', '信息 · ' + o.kind), icon('mic', 20, 2)))], 'is-raw.pk-sms'); };
+  const head = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', o.title), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 22, 2.2))), big = h('h1', o.title);
+  bigTitle(head, big);
+  return [head, big,
+    h('div.pk-msgs', threads.map(x => { const last = x.msgs[x.msgs.length - 1], row = h('button.pk-msg' + (isNew(x) ? '.is-new' : ''), { onclick: () => open(x, row) },
+      ava(x.title, x.avatar), h('div', h('b', h('span', x.title), h('time', when(last.t)), icon('chevron', 14, 2.6)),
+        h('span', o.tag ? h('em', o.tag) : null, x.draft ? [h('em.is-draft', '草稿'), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); return row; })),
+    h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
+}
+
 export const VIEWS = {
   相册: (R, push) => {
     const box = h('div.pk-photos'), hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
@@ -62,8 +92,6 @@ export const VIEWS = {
     const box = list(), names = [...new Set(R.map(r => r[0]))];
     return [tabs(names, k => box.replaceChildren(...groupBy(R.filter(r => r[0] === k), 1).map(([title, L]) => h('button.pk-row.is-col', { onclick: () => push(k, L.map(r => h('div.pk-bub' + (/自己/.test(r[2]) ? '.is-me' : ''), r[3])), 'pk-sms.pk-im') }, h('b', title), h('span', L[L.length - 1][3]))))), box];
   },
-  消息: (R, push, D) => list(chats(R, D).map(x => { const last = x.msgs[x.msgs.length - 1]; return h('button.pk-row', { onclick: () => push(x.title, x.msgs.map((m, i) => [x.group && !m.me && (!i || x.msgs[i - 1].who !== m.who) && h('small.pk-by', m.who), h('div.pk-bub' + (m.me ? '.is-me' : ''), m.text)]), 'pk-sms.pk-im') },
-    face(x.title, x.avatar), h('div', h('b', x.title, h('time', last.t)), h('span', x.draft ? [h('em', '[草稿] '), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); })),
   屏幕使用时间: R => { const max = Math.max(...R.map(r => +r[1] || 0), 1), all = R.reduce((a, r) => a + (+r[1] || 0), 0), hm = m => (m >= 60 ? Math.floor(m / 60) + ' 小时 ' : '') + (m % 60) + ' 分钟';
     return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
   // 备忘录：最上面一张上了锁的「只给自己看」（心声和情绪），下面是便签；涂鸦点开是一张能左右拖的字符画，下面写着解析
@@ -106,29 +134,10 @@ export const VIEWS = {
       h('div.pk-web__bar', h('div', icon('globe', 15, 2), h('span', seen[0] ? host(seen[0][2]) : 'google.com')), icon('back', 20, 2.2), icon('chevron', 20, 2.2), h('button', { 'aria-label': '收藏夹', onclick: () => go('收藏夹') }, icon('bookmark', 20, 2)), h('button', { 'aria-label': '历史记录', onclick: () => go('历史记录') }, icon('hourglass', 20, 2)))];
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
-  短信: (R, push, D, pop) => {
-    // 蓝点：最后一条是对方发的、TA 还没点开看过的（点开过的记在 D.read，退出来蓝点就没了）
-    const threads = groupBy(R, 0), seen = D.read ||= [], isNew = (who, L) => !/自己/.test(L[L.length - 1][2]) && !seen.includes(who);
-    let unread = threads.filter(([w, L]) => isNew(w, L)).length;
-    const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').map(r => r[1]));
-    const me = r => /自己/.test(r[2]);
-    // 一个对话：同一个人连着发的几条只有最后一条带小尾巴；时间变了就在中间写一行时间
-    const open = (who, L, row) => { if (isNew(who, L)) { seen.push(who); unread--; row.classList.remove('is-new'); saveRead(D); } push(who, [
-      h('div.pk-top2.is-chat', h('button.pk-glass.pk-backpill', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4), unread ? h('em', unread) : null),
-        h('div.pk-peer', ava(who), h('b.pk-glass', h('span', who), icon('chevron', 12, 2.6)))),
-      h('small.pk-meta', '信息 · 短信', h('br'), when(L[0][1], true)),
-      L.map((r, i) => [i && r[1] !== L[i - 1][1] ? h('small.pk-meta.is-gap', when(r[1], true)) : null,
-        h('div.pk-bub' + (me(r) ? '.is-me' : '') + (!L[i + 1] || me(L[i + 1]) !== me(r) || L[i + 1][1] !== r[1] ? '.is-tail' : ''), r[3])]),
-      /^[\d\s()+-]{5,}$/.test(who) && !known.has(who) && !L.some(me) ? h('div.pk-spam', h('span', '不认识此商家？'), h('button', '报告垃圾信息')) : null,
-      h('div.pk-float', h('button.pk-glass.is-round', { 'aria-label': '更多' }, icon('plus', 22, 2.2)), h('div.pk-glass.pk-find', h('span', '信息 · RCS'), icon('mic', 20, 2)))], 'is-raw.pk-sms'); };
-    const head = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '信息'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 22, 2.2))), big = h('h1', '信息');
-    // 大标题往上滑、碰到顶栏时，顶栏中间换成小标题（和 iPhone 一样）
-    requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - 4 < head.getBoundingClientRect().bottom); }, { passive: true }); });
-    return [head, big,
-      h('div.pk-msgs', threads.map(([who, L]) => { const last = L[L.length - 1], row = h('button.pk-msg' + (isNew(who, L) ? '.is-new' : ''), { onclick: () => open(who, L, row) },
-        ava(who), h('div', h('b', h('span', who), h('time', when(last[1])), icon('chevron', 14, 2.6)), h('span', h('em', '数据'), last[3]))); return row; })),
-      h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
-  },
+  短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').map(r => r[1]));
+    return messenger(groupBy(R, 0).map(([who, L]) => ({ title: who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) })), push, D, pop,
+      { title: '信息', kind: '短信', key: '', tag: '数据', spam: x => /^[\d\s()+-]{5,}$/.test(x.title) && !known.has(x.title) && !x.msgs.some(m => m.me) }); },
+  消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关
   电话: (R, push, D, pop) => {
     const box = h('div.pk-pane'), calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言'), notes = of(R, '留言'), num = h('div.pk-pad__num');
@@ -138,7 +147,7 @@ export const VIEWS = {
     const note = ([, who, t, len, text]) => h('div.pk-call.is-note', ava(who), h('div', h('b', who), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn());
     const head = (t, go) => h('div.pk-sec', h('b', t), h('button', { onclick: go }, '查看全部'));
     const panes = {
-      通话: () => [h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '通话'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 20, 2.2))), h('div.pk-calls', calls.map(call))],
+      通话: () => { const top = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '通话'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 20, 2.2))), big = h('h1', '通话'); bigTitle(top, big); return [top, big, h('div.pk-calls', calls.map(call))]; },
       通讯录: () => {
         const by = new Map(); of(R, '联系人').sort((a, b) => sortZh(a[1], b[1])).forEach(r => { const k = initial(r[1]); (by.get(k) || by.set(k, []).get(k)).push(r); });
         const secs = [...by].sort((a, b) => (a[0] === '#') - (b[0] === '#') || a[0].localeCompare(b[0]));
