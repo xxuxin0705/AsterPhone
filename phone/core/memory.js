@@ -720,6 +720,9 @@ export async function memoryFor(people, scan = '', upto = ctxFrom(), byWords = f
   const from = upto, keep = [...pool.filter(e => e.pin), ...onDay];
   const [got, drift, why, how] = await recollect(live.filter(e => !e.pin && !onDay.includes(e) && floorOf(e) < from), scan, new Set([...ns, myName(), '我']), here, byWords);
   const cap = m.origMax ?? 500, byAt = (a, b) => (a.at || '9999').localeCompare(b.at || '9999');
+  // 话里说到了哪段日子（去年夏天、上个月、三天前）：那段日子里的事按重要度带上最多 3 件
+  const span = whenOf(scan.slice(scan.lastIndexOf('\n') + 1), time.isStory() ? time.story().date : new Date());
+  const then = span ? live.filter(e => !e.pin && !onDay.includes(e) && !got.includes(e) && e !== drift && e.at >= span[0] && e.at <= span[1] && floorOf(e) < from).sort((a, b) => b.imp - a.imp).slice(0, 3).sort(byAt) : [];
   const brief = e => `- ${[e.at, e.part, e.place].filter(Boolean).join(' ')}：${cut(e.title + '。' + e.text, 160)}${e.quote ? `（原话：${e.quote}）` : ''}${tail(e, pool)}`;
   // 同一个小标签的事：想起一件，另外几件（最近的 5 件）各一句、按先后带上；一个小标签只带一次
   const shown = new Set(), kin = e => {
@@ -736,10 +739,11 @@ export async function memoryFor(people, scan = '', upto = ctxFrom(), byWords = f
   if (pl && (pl.intro || pl.area)) fresh.push(`现在在：${here}${pl.area ? `（${pl.area}）` : ''}${pl.intro ? '，' + pl.intro : ''}`);
   if (ppl.length) fresh.push('聊到的人：' + ppl.map(p => `${p.name}：${p.who}`).join('；'));
   if (got.length) fresh.push(`想起的事（${NOTE}；不知道这件事的人不会提起）：\n` + got.map(full).join('\n'));
-  if (drift) fresh.push('忽然想起的（和现在有点关系，合适就顺口提一句，不合适就不提）：\n' + brief(drift));
+  if (then.length) fresh.push(`那段日子的事（${span[0]}${span[1] === span[0] ? '' : ' 到 ' + span[1]}；${NOTE}）：\n` + then.map(brief).join('\n'));
+  if (drift) fresh.push('忽然想起的（和现在有点关系，合适就顺口提一句，不合适就不提；对方正难受时，会让人更难受的旧事先别提）：\n' + brief(drift));
   const out = [lines.length ? `\n【TA 记得的事】\n${lines.join('\n')}\n` : '', fresh.length ? `\n【TA 这会儿想起的】\n${fresh.join('\n')}\n` : ''];
   peeks.unshift({ at: Date.now(), who: people.map(c => c.name || c.nick).filter(Boolean), said: scan.slice(scan.lastIndexOf('\n') + 1), how, size: [out[0].length, out[1].length],
-    items: [...keep.map(e => [e, e.pin ? '钉住的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
+    items: [...keep.map(e => [e, e.pin ? '钉住的' : '日子到了']), ...got.map(e => [e, ...why.get(e)]), ...then.map(e => [e, '日子对上', []]), ...(drift ? [[drift, '忽然想起 · ' + why.get(drift)[0], why.get(drift)[1]]] : [])] });
   peeks.length = Math.min(peeks.length, 20);
   return out;
 }
@@ -802,6 +806,29 @@ export function cast(d = D) {
 }
 export { isMe };
 
+/** 话里说到的是哪段日子：「前天」「三个月前」「上周」「去年夏天」「8月3号」→ [从哪天, 到哪天]，没说到是 null。now 是故事里的今天 */
+export function whenOf(s, now) {
+  const y = now.getFullYear(), mo = now.getMonth(), d = now.getDate(), f = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  const span = (a, b) => [f(a), f(b)], n = t => /\d/.test(t) ? +t : t === '两' ? 2 : t.length > 1 ? 10 + '零一二'.indexOf(t[1]) : '零一二三四五六七八九十'.indexOf(t);
+  let m = /大前天|前天|昨天/.exec(s);
+  if (m) { const x = new Date(y, mo, d - { 昨天: 1, 前天: 2, 大前天: 3 }[m[0]]); return span(x, x); }
+  if ((m = /(\d+|[一二两三四五六七八九十])\s*(天|周|星期|个月|年)前/.exec(s))) {
+    const k = n(m[1]);
+    if (m[2] === '天') { const x = new Date(y, mo, d - k); return span(x, x); }
+    if (m[2] === '年') return span(new Date(y - k, 0, 1), new Date(y - k, 11, 31));
+    if (m[2] === '个月') return span(new Date(y, mo - k, 1), new Date(y, mo - k + 1, 0));
+    return span(new Date(y, mo, d - k * 7 - 3), new Date(y, mo, d - k * 7 + 3));
+  }
+  if (/上(周|星期|礼拜)/.test(s)) { const w = (now.getDay() + 6) % 7; return span(new Date(y, mo, d - w - 7), new Date(y, mo, d - w - 1)); }
+  if (/上个?月/.test(s)) return span(new Date(y, mo - 1, 1), new Date(y, mo, 0));
+  const yr = /前年|去年|今年/.exec(s), mon = /(\d{1,2}|十[一二]|[一二三四五六七八九十])月(?:(\d{1,2})[日号])?/.exec(s), sea = yr && /([春夏秋冬])[天季]/.exec(s);
+  if (!mon && !sea && (!yr || yr[0] === '今年')) return null;
+  let Y = y - (yr ? { 前年: 2, 去年: 1, 今年: 0 }[yr[0]] : 0);
+  if (mon) { const M = n(mon[1]) - 1; if (!yr && M > mo) Y--; return mon[2] ? span(new Date(Y, M, +mon[2]), new Date(Y, M, +mon[2])) : span(new Date(Y, M, 1), new Date(Y, M + 1, 0)); }
+  if (sea) { const a = '春夏秋冬'.indexOf(sea[1]) * 3 + 2; return span(new Date(Y, a, 1), new Date(Y, a + 3, 0)); }
+  return span(new Date(Y, 0, 1), new Date(Y, 11, 31));
+}
+
 /* ---------- 想起哪几件：按意思找（向量找出最像的 20 件，重排再挑最准的），不行就退回按词找（下面的 recall） ---------- */
 const TH = [[.2, .5], [.35, .56], [.6, .64]];   // 多像才算想起，[有重排时看重排的分, 只有向量时看相似度]：容易想起的 / 一般的 / 日常
 const tier = e => e.mark === 'hi' || e.big.some(b => EASY.has(b)) ? 0 : e.big.length && e.big.every(b => b === '日常') ? 2 : 1;
@@ -838,7 +865,10 @@ async function recollect(pool, scan, self, here, byWords) {
       if ((max && pick.length >= max) || tags.some(t => used.has(t))) continue;
       tags.forEach(t => used.add(t)); pick.push(e); why.set(e, [`意思相近 · ${sim.toFixed(2)}`, []]);
     }
-    const drift = near[0] || null;
+    // 字面也对一遍（人名、地名、东西的名字按意思常找不准）：按词找里够格、上面又没找到的补进来，名额满了也让最准的一件进
+    const [lit, , lw] = recall(pool, scan, self, true);
+    for (const e of lit) if (!pick.includes(e) && !(max && pick.length > max)) { pick.push(e); why.set(e, lw.get(e)); }
+    const drift = near.find(e => !pick.includes(e)) || null;
     noted(pick, drift); vecErr = '';
     return [pick, drift, why, k ? '按意思找' : '按意思找 + 重排'];
   } catch (e) {
@@ -854,7 +884,7 @@ async function recollect(pool, scan, self, here, byWords) {
  * 2. 漫开：亮光顺着线往旁边走两步，每走一步打对折；一颗星连着的事越多，分给每条线的越少（谁都连着的星不算数）。
  * 3. 挑事：一件事的分 = 它挂的星亮多少（越常见的星分越少）+ 字面像不像 + 重要度 + 以前被想起过几次；
  *    字面按「越少见的词越算数」比（BM25）；不按时间变淡。最多 3 件，分不够的不带。 */
-function recall(pool, scan, self) {
+function recall(pool, scan, self, quiet) {
   const why = new Map();   // 想起的每一件：[为什么（给人看）, 是哪几个词（点「不该想起」时记进错题本）]
   if (!pool.length || !scan) return [[], null, why];
   const stars = e => [...new Set([...e.who, e.place, ...e.tags, ...(e.keys || [])].filter(n => n && n.length > 1 && !self.has(n)))];
@@ -893,7 +923,7 @@ function recall(pool, scan, self) {
   const scored = pool.map(e => [e, score(e)]), pick = scored.filter(([, s]) => s >= .8).sort((a, b) => b[1] - a[1]).slice(0, state.apps.memory.slots ?? 3).map(([e]) => e);
   // 忽然想起：和现在有点关系（沾边但不够格）的里面分数最高的那件，有就一定带上（作者定的：同一句话重新生成，想起的该是同样的事，不靠抽签）
   const drift = (scored.filter(([e, s]) => s > 0 && s < .8 && !pick.includes(e)).sort((a, b) => b[1] - a[1])[0] || [null])[0];
-  noted(pick, drift);
+  if (!quiet) noted(pick, drift);
   for (const e of [...pick, drift].filter(Boolean)) { const [st, hit] = words(e), w = [...new Set([...st, ...hit])]; why.set(e, ['对上：' + (w.filter(x => x.length > 1).join('、') || w.join('、')), w]); }
   return [pick, drift, why];
 }
