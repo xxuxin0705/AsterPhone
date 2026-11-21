@@ -2,6 +2,7 @@
 import { h, sortZh } from '../../core/util.js';
 import { icon } from '../../core/ui.js';
 import * as time from '../../core/time.js';
+import { saveRead } from './gen.js';
 
 const yuan = v => (parseFloat(String(v).replace(/[^\d.+-]/g, '')) || 0).toFixed(2);
 const list = kids => h('div.pk-list', kids);
@@ -73,24 +74,26 @@ export const VIEWS = {
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
   短信: (R, push, D, pop) => {
-    const threads = groupBy(R, 0), unread = threads.filter(([, L]) => !/自己/.test(L[L.length - 1][2])).length;
+    // 蓝点：最后一条是对方发的、TA 还没点开看过的（点开过的记在 D.read，退出来蓝点就没了）
+    const threads = groupBy(R, 0), seen = D.read ||= [], isNew = (who, L) => !/自己/.test(L[L.length - 1][2]) && !seen.includes(who);
+    let unread = threads.filter(([w, L]) => isNew(w, L)).length;
     const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').map(r => r[1]));
     const me = r => /自己/.test(r[2]);
     // 一个对话：同一个人连着发的几条只有最后一条带小尾巴；时间变了就在中间写一行时间
-    const open = (who, L) => push(who, [
+    const open = (who, L, row) => { if (isNew(who, L)) { seen.push(who); unread--; row.classList.remove('is-new'); saveRead(D); } push(who, [
       h('div.pk-top2.is-chat', h('button.pk-glass.pk-backpill', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4), unread ? h('em', unread) : null),
         h('div.pk-peer', ava(who), h('b.pk-glass', h('span', who), icon('chevron', 12, 2.6)))),
       h('small.pk-meta', '信息 · 短信', h('br'), when(L[0][1], true)),
       L.map((r, i) => [i && r[1] !== L[i - 1][1] ? h('small.pk-meta.is-gap', when(r[1], true)) : null,
         h('div.pk-bub' + (me(r) ? '.is-me' : '') + (!L[i + 1] || me(L[i + 1]) !== me(r) || L[i + 1][1] !== r[1] ? '.is-tail' : ''), r[3])]),
-      !known.has(who) && !L.some(me) ? h('div.pk-spam', h('span', '不认识此商家？'), h('button', '报告垃圾信息')) : null,
-      h('div.pk-float', h('button.pk-glass.is-round', { 'aria-label': '更多' }, icon('plus', 22, 2.2)), h('div.pk-glass.pk-find', h('span', '信息 · RCS'), icon('mic', 20, 2)))], 'is-raw.pk-sms');
+      /^[\d\s()+-]{5,}$/.test(who) && !known.has(who) && !L.some(me) ? h('div.pk-spam', h('span', '不认识此商家？'), h('button', '报告垃圾信息')) : null,
+      h('div.pk-float', h('button.pk-glass.is-round', { 'aria-label': '更多' }, icon('plus', 22, 2.2)), h('div.pk-glass.pk-find', h('span', '信息 · RCS'), icon('mic', 20, 2)))], 'is-raw.pk-sms'); };
     const head = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '信息'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 22, 2.2))), big = h('h1', '信息');
-    // 大标题滚到顶栏底下时，顶栏中间出现小标题（和 iPhone 一样）
-    new IntersectionObserver(([e]) => head.classList.toggle('is-up', !e.isIntersecting), { rootMargin: '-100px 0px 0px 0px' }).observe(big);
+    // 大标题往上滑、碰到顶栏时，顶栏中间换成小标题（和 iPhone 一样）
+    requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - 4 < head.getBoundingClientRect().bottom); }, { passive: true }); });
     return [head, big,
-      h('div.pk-msgs', threads.map(([who, L]) => { const last = L[L.length - 1]; return h('button.pk-msg' + (me(last) ? '' : '.is-new'), { onclick: () => open(who, L) },
-        ava(who), h('div', h('b', h('span', who), h('time', when(last[1])), icon('chevron', 14, 2.6)), h('span', h('em', '数据'), last[3]))); })),
+      h('div.pk-msgs', threads.map(([who, L]) => { const last = L[L.length - 1], row = h('button.pk-msg' + (isNew(who, L) ? '.is-new' : ''), { onclick: () => open(who, L, row) },
+        ava(who), h('div', h('b', h('span', who), h('time', when(last[1])), icon('chevron', 14, 2.6)), h('span', h('em', '数据'), last[3]))); return row; })),
       h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
   },
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关

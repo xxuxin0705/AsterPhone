@@ -6,7 +6,7 @@
 .as-peek .as-navbar { pointer-events: none; }
 .as-peek .as-navbar__back { color: #fff; pointer-events: auto; }
 .as-peek .as-page__body { pointer-events: none; }
-.pk-stage { position: absolute; inset: 0; overflow: hidden; display: grid; place-items: center; }
+.pk-stage { position: absolute; inset: 0; overflow: hidden; overflow: clip; display: grid; place-items: center; }
 /* 画不裁（比手机屏窄的那一边留给背景色），宽高比固定，点击区才对得上 */
 .pk-art { position: relative; aspect-ratio: 852 / 1846; min-width: 100%; min-height: 100%; flex: none; }
 .pk-art > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; -webkit-user-select: none; user-select: none; }
@@ -228,10 +228,10 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pad button { width: 76px; height: 76px; gap: 2px; background: var(--pk-card); box-shadow: 0 6px 22px rgba(0, 0, 0, .07), 0 0 0 .5px rgba(0, 0, 0, .03); }
 .is-dark .pk-pad button { background: var(--pk-fill); box-shadow: none; }
 .pk-pad b { font-size: 37px; font-weight: 400; } .pk-pad small { font-size: 10px; letter-spacing: 2.5px; }
-/* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去，那两块是一层渐隐的毛玻璃 */
-.is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-.is-raw .pk-top2::before { inset: 0; background: linear-gradient(color-mix(in srgb, var(--pk-page) 92%, transparent) 30%, color-mix(in srgb, var(--pk-page) 40%, transparent) 75%, transparent); -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); }
-.is-raw .pk-float::before { inset: -28px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 55%, transparent) 45%, color-mix(in srgb, var(--pk-page) 85%, transparent)); -webkit-mask: linear-gradient(transparent, #000 40%); mask: linear-gradient(transparent, #000 40%); }
+/* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去，那两块是渐渐变白（不用毛玻璃：安卓上边缘会糊成黑的） */
+.is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; }
+.is-raw .pk-top2::before { inset: 0; background: linear-gradient(var(--pk-page) 70%, color-mix(in srgb, var(--pk-page) 85%, transparent) 88%, transparent); }
+.is-raw .pk-float::before { inset: -24px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 75%, transparent) 40%, var(--pk-page) 75%); }
 .pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane .pk-top2 > b { opacity: 1; }
 .pk-sms .pk-msg { min-height: 99px; padding: 10px 14px 10px 25px; gap: 12px; }
 .pk-sms .pk-msg::after { left: 81px; }

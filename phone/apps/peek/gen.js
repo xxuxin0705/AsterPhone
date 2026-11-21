@@ -45,7 +45,7 @@ const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 't
 /** c 的手机里有什么：AI 写的各应用（apps）、和别的联系人的聊天（pairs：两个人共用一份，谁的手机里看都一样）、你手机里真有的聊天（real：和你的私聊、TA 在的群） */
 export async function load(c) {
   const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
-  d.name = nameOf(c); d.avatar = c.avatar;
+  d.id = c.id; d.name = nameOf(c); d.avatar = c.avatar;
   d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
     .map(([x, L]) => ({ title: nameOf(x), avatar: x.avatar, msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
@@ -53,6 +53,9 @@ export async function load(c) {
     msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
   return d;
 }
+
+/** 记下 TA 手机里哪些信息点开看过了（只存这一项，别的照旧） */
+export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; d.read = D.read; await kvSet('peek:' + D.id, d).catch(() => {}); }
 
 // 正在生成的那一次（放在模块里：退出再进来还是「取消」，不会又发一个）
 let job = null;
