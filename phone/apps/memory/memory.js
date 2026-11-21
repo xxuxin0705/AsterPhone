@@ -624,7 +624,7 @@ function openSort() {
     h('div.as-mem-imp', h('div.as-chips', chips)), h('div.as-mem-imp', segmented([['add', '补充'], ['redo', '重新生成']], redo ? 'redo' : 'add', v => { redo = v === 'redo'; paintWant(); remember(); }))]);
   const off = M.onJob(() => paintRun());
   p.el._onLeave = off;
-  p.body.append(group('', [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天'], ['known', '记下的事']], src, v => { src = v; remember(); paintPick(); }))]), pick, what, sum, act);
+  p.body.append(group(withInfo('根据什么', '记下的事：不读原文，让 AI 把已经记下的事回头再理一遍，重新写关系、看法、了解、成长和地点。找一次 AI。'), [h('div.as-mem-src', segmented([['book', '世界书'], ['file', '文件'], ['chat', '当前聊天'], ['known', '记下的事']], src, v => { src = v; remember(); paintPick(); }))]), pick, what, sum, act);
   paintPick();
   nav.push(p.el);
 }
