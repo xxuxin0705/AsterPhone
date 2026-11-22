@@ -1,6 +1,6 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
 import { h, sortZh } from '../../core/util.js';
-import { icon } from '../../core/ui.js';
+import { icon, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { saveRead } from './gen.js';
 import { myName } from '../../core/promptstore.js';
@@ -220,7 +220,10 @@ export const VIEWS = {
     const note = ([, who, t, len, text]) => h('div.pk-call.is-note', ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn());
     const head = (t, go) => h('div.pk-sec', h('b', t), h('button', { onclick: go }, '查看全部'));
     const panes = {
-      通话: () => { const top = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '通话'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 20, 2.2))), big = h('h1', '通话'); bigTitle(top, big); return [top, big, h('div.pk-calls', calls.map(call))]; },
+      通话: () => { let f = '全部'; const L = h('div.pk-calls', calls.map(call));
+        const pick = async () => { const v = await actionSheet('筛选', ['全部', '未接来电', '语音留言'].map(label => ({ value: label, label, active: label === f }))); if (!v || v === f) return;
+          f = v; L.replaceChildren(...(v === '语音留言' ? notes.map(note) : calls.filter(r => v === '全部' || miss(r[1])).map(call))); };
+        const top = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '通话'), h('button.pk-glass.is-round', { 'aria-label': '筛选', onclick: pick }, ink('lines', 20, 2.2))), big = h('h1', '通话'); bigTitle(top, big); return [top, big, L]; },
       通讯录: () => {
         const by = new Map(); of(R, '联系人').map(r => r.length > 3 ? r[2] || r[1] : r[1]).sort(sortZh).forEach(n => { const k = initial(n); (by.get(k) || by.set(k, []).get(k)).push(n); });
         const secs = [...by].sort((a, b) => (a[0] === '#') - (b[0] === '#') || a[0].localeCompare(b[0]));
