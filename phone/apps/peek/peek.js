@@ -7,7 +7,7 @@ import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } fro
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running, setWall, S, speakIn, relangPeek } from './gen.js';
-import { VIEWS, RAW, trs, trBtn, setView } from './apps.js';
+import { VIEWS, RAW, trs, trBtn, setView, pull } from './apps.js';
 import { setup } from './setup.js';
 
 const BASE = 'assets/peek/', W = 852, H = 1846;
@@ -67,7 +67,7 @@ export function open() {
   // 手机里一层层盖上去的页面：应用是从小放大，点进去的详情从右边滑进来
   const layers = [];
   function show(title, fill, cls, sub) {
-    const body = h('div.pk-app__body');
+    const body = h('div.pk-app__body'); pull(body);
     const raw = /is-raw/.test(cls);   // 整页自己画的（信息、电话）：不要这里的标题栏
     const el = h('div.pk-app' + (cls ? '.' + cls : ''), !raw && h('div.pk-app__bar', sub && h('button', { onclick: () => pop() }, icon('back', 20, 2.4), sub)), !raw && h(sub ? 'h2' : 'h1', title), body,
       h('button.pk-app__home', { 'aria-label': '回到桌面', onclick: () => { while (layers.length > 1) layers.pop().remove(); pop(); } }));
@@ -80,7 +80,7 @@ export function open() {
   // 手机里的右滑返回：最上面那层跟着手指走、露出下面那层，松手时过了三分之一（或者甩得快）就退掉；在 TA 的桌面上右滑是放下手机。
   // 你自己手机的右滑会把整页查手机拖走，所以进了 TA 的手机就关掉那个（near 里），用这个
   let sw = null;
-  stage.addEventListener('pointerdown', e => { if (stage.classList.contains('is-open') && !e.target.closest('.pk-tabs')) sw = { x: e.clientX, y: e.clientY, t: performance.now(), el: layers[layers.length - 1], on: false }; });
+  stage.addEventListener('pointerdown', e => { if (stage.classList.contains('is-open') && !e.target.closest('.pk-tabs, .pk-swipe')) sw = { x: e.clientX, y: e.clientY, t: performance.now(), el: layers[layers.length - 1], on: false }; });
   stage.addEventListener('pointermove', e => {
     if (!sw) return;
     const dx = e.clientX - sw.x, dy = Math.abs(e.clientY - sw.y);

@@ -72,6 +72,9 @@ export function forPrompt() {
 }
 /** 存到每条消息上的时间戳：现实 + 剧情各一份 */
 export function stamp() { const s = story(); return { at: Date.now(), st: { d: s.day, m: s.min } }; }
+/** 带 stamp() 的那条写成「年/月/日 时:分」（查手机那几页认这个样子），剧情时间就用剧情那份 */
+export function stampText(x) { const s = isStory() && x.st, D = s ? dayToDate(s.d) : new Date(x.at), mm = s ? s.m : D.getHours() * 60 + D.getMinutes();
+  return `${D.getFullYear()}/${D.getMonth() + 1}/${D.getDate()} ${pad(mm / 60 | 0)}:${pad(mm % 60)}`; }
 
 /** 消息之间的时间分隔线文字 */
 export function sepLabel(msg, prev) {

@@ -25,7 +25,7 @@ const initial = s => { const c = String(s).trim()[0] || '#'; if (/[a-z]/i.test(c
   let k = '#'; for (let i = 0; i < PY.length && c.localeCompare(PY[i], 'zh-CN-u-co-pinyin') >= 0; i++) k = PYK[i]; return k; };
 // 时间照 iPhone 写：列表里今天写几点，昨天、这一周写星期几，再早写年/月/日；对话里写日子 + 几点（AI 有时写成完整日期）
 const DT = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}):(\d{2}))?/, ts = t => { const m = DT.exec(t || ''); return m ? +new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : 0; };
-const when = (t, full) => {
+export const when = (t, full) => {
   const m = DT.exec(t || ''); if (!m) return t || '';
   const d = new Date(+m[1], m[2] - 1, +m[3]), now = time.isStory() ? time.story().date : new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - d) / 864e5);
   const hm = m[4] ? `${m[4].padStart(2, '0')}:${m[5]}` : '', wk = '日一二三四五六'[d.getDay()];
@@ -54,6 +54,57 @@ function flipAll(root) {
   root.querySelectorAll('.pk-tl').forEach(b => { b.textContent = zh ? '原' : '译'; b.classList.toggle('is-on', zh); });
 }
 // 这一页有能翻译的字，就在顶栏右边放「译」（顶栏右边已经有按钮的，放在它左边）
+// 照 iPhone：内容滑到顶栏下面多少，顶栏的毛玻璃就显出来多少（--fade）；滚到头了还能再拖一段，松手弹回（--pull，只跟手指，不碰滚动本身）
+export function pull(body) {
+  let last = null, off = 0;
+  const set = () => body.style.setProperty('--pull', (Math.sign(off) * Math.min(140, Math.abs(off) * .4)).toFixed(1) + 'px');
+  body.addEventListener('scroll', () => body.style.setProperty('--fade', Math.min(1, body.scrollTop / 40).toFixed(2)), { passive: true });
+  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });
+  body.addEventListener('touchmove', e => {
+    const y = e.touches[0].clientY, dy = y - last; last = y;
+    const top = body.scrollTop <= 0, end = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
+    if (!off && !(dy > 0 && top) && !(dy < 0 && end)) return;
+    const was = off; off += dy; if (was && Math.sign(off) !== Math.sign(was)) off = 0; set();
+  }, { passive: true });
+  body.addEventListener('touchend', () => { if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
+}
+// 你自己手机里照 iPhone 画的页（电话、短信）：和查手机同一套样子；照 393 宽量的整体缩放，日间 / 夜间跟着手机，外语右上一个「译」
+export function iosPage(app, id, cls = '') {
+  const body = h('div.pk-app__body'), L = h('div.pk-app.is-raw' + cls, body), el = h('section.as-page.as-ios', { dataset: { asApp: app, asPage: id } }, L);
+  const phone = document.querySelector('.as-phone');
+  pull(body);   // 「译」是整部手机一起换的：别的页上的「译 / 原」也要跟着变
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.isConnected) { trs(n.nodeType === 1 ? n : n.parentNode); trBtn(L, phone || el); } }))).observe(body, { childList: true, subtree: true });
+  const dark = () => el.classList.toggle('is-dark', phone?.dataset.mode === 'night'), mo = phone && new MutationObserver(dark);
+  mo?.observe(phone, { attributes: true, attributeFilter: ['data-mode'] }); dark();
+  requestAnimationFrame(() => { body.style.zoom = (el.clientWidth / 393).toFixed(3); });
+  el._onLeave = () => mo?.disconnect();
+  return { el, body };
+}
+// 照 iPhone 的左滑 / 右滑：这一行跟着手指走、露出后面的圆按钮，过了一半就停在打开的样子；点按钮做事，点这一行或别的地方收回。
+// left：左滑露出的（在右边），right：右滑露出的（在左边），每个 [图标, 颜色, 点了做什么]。贴着左边缘起手的留给「右滑返回」
+let opened = null;
+export function swipe(row, left = [], right = []) {
+  const btn = ([ic, bg, fn]) => h('button.pk-swipe__b', { style: { background: bg }, onclick: e => { e.stopPropagation(); shut(); fn(wrap); } }, icon(ic, 22, 2));
+  const wrap = h('div.pk-swipe', right.length ? h('div.pk-swipe__l', right.map(btn)) : null, left.length ? h('div.pk-swipe__r', left.map(btn)) : null, row);
+  const wL = left.length * 58 + 6, wR = right.length * 58 + 6;
+  let s = null, x = 0, dragged = false;   // dragged：刚拖完，紧跟着的那下 click 不算点
+  const go = v => { x = v; row.style.transform = v ? `translateX(${v}px)` : ''; wrap.classList.toggle('is-open', !!v); };
+  const shut = () => { go(0); if (opened === shut) opened = null; };
+  row.addEventListener('pointerdown', e => { dragged = false; if (e.clientX - wrap.getBoundingClientRect().left < 24) return; e.stopPropagation(); s = { x0: e.clientX - x, y0: e.clientY, on: false, id: e.pointerId }; });
+  row.addEventListener('pointermove', e => {
+    if (!s || e.pointerId !== s.id) return;
+    const dx = e.clientX - s.x0, dy = Math.abs(e.clientY - s.y0);
+    if (!s.on) { if (Math.abs(dx - x) > 8 && Math.abs(dx - x) > dy * 1.3) { s.on = true; row.setPointerCapture(e.pointerId); wrap.classList.add('is-drag'); if (opened && opened !== shut) opened(); } else { if (dy > 10) s = null; return; } }
+    const v = Math.max(left.length ? -wL - 40 : 0, Math.min(right.length ? wR + 40 : 0, dx));
+    row.style.transform = `translateX(${v}px)`; wrap.classList.add('is-open');
+  });
+  const end = e => { if (!s) return; const on = s.on, v = e.clientX - s.x0; s = null; wrap.classList.remove('is-drag'); if (!on) return;
+    dragged = true;
+    go(v < -wL / 2 && left.length ? -wL : v > wR / 2 && right.length ? wR : 0); if (x) opened = shut; };
+  row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
+  row.addEventListener('click', e => { if (dragged || x) { e.stopPropagation(); e.preventDefault(); if (!dragged) shut(); dragged = false; } }, { capture: true });
+  return wrap;
+}
 export function trBtn(layer, root) {
   const slot = layer.querySelector('.pk-top2, .pk-app__bar');
   if (!slot || layer.querySelector('.pk-tl') || !layer.querySelector('.pk-trs, .pk-trx')) return;
@@ -63,7 +114,7 @@ export function trBtn(layer, root) {
 }
 const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
-const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
+export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
 /** 整页自己画的应用（不要公共的标题栏） */
 export const RAW = ['短信', '消息', '电话', '搜索'];
@@ -84,13 +135,13 @@ function chats(R, D) {
 }
 
 // 大标题往上滑、碰到顶栏时，顶栏中间换成小标题（和 iPhone 一样）
-function bigTitle(head, big) {
+export function bigTitle(head, big) {
   requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - 4 < head.getBoundingClientRect().bottom); }, { passive: true }); });
 }
 /** 短信、消息都照 iPhone 的「信息」排：列表（蓝点 = 最后一条是对方发的、还没点开过，点开过的记在 D.read）和对话页。
  *  一个对话：同一个人连着发的只有最后一条带小尾巴，换人、隔了时间就隔开一点；群里别人说的第一条上面写名字 */
 // 两条之间隔了一小时以上（或者不是同一天）才在中间写时间，和 iPhone 一样
-const far = (a, b) => { const day = t => String(t || '').replace(/\s*\d{1,2}:\d{2}.*$/, ''), min = t => { const m = /(\d{1,2}):(\d{2})/.exec(t || ''); return m ? m[1] * 60 + +m[2] : null; };
+export const far = (a, b) => { const day = t => String(t || '').replace(/\s*\d{1,2}:\d{2}.*$/, ''), min = t => { const m = /(\d{1,2}):(\d{2})/.exec(t || ''); return m ? m[1] * 60 + +m[2] : null; };
   return day(a) !== day(b) || min(a) == null || min(b) == null || Math.abs(min(b) - min(a)) >= 60; };
 function messenger(threads, push, D, pop, o) {
   const seen = D.read ||= [], isNew = x => !x.msgs[x.msgs.length - 1].me && !seen.includes(o.key + x.title);
@@ -218,8 +269,9 @@ export const VIEWS = {
     const miss = k => /未接/.test(k), place = (s, who) => !s || /\d\s*[分秒:：]|^\d+$/.test(s) ? (/\d{3}/.test(who) ? '未知' : '手机') : s;   // 以前存的这一格是通话时长，不是归属地
     // D.dial / D.note：你自己的「电话」App 也用这一页，那边按了真打、点留言能听；查手机里没有，就只是样子
     const callBtn = (who, loc) => h('i.pk-dial', D.dial ? { onclick: e => { e.stopPropagation(); D.dial(who, loc); } } : null, fill('call', 22));
-    const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn(who, loc));
-    const note = r => { const [, who, t, len, text] = r; return h('div.pk-call.is-note', D.note ? { onclick: () => D.note(r) } : null, ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn(who)); };
+    const call = r => { const [who, kind = '', t, loc] = r, el = h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who), D.face?.(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn(who, loc));
+      return D.del ? swipe(el, [['trash', '#ff3b30', w => D.del(r, w)]]) : el; };
+    const note = r => { const [, who, t, len, text] = r; return h('div.pk-call.is-note', D.note ? { onclick: () => D.note(r) } : null, ava(nm(who), D.face?.(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn(who)); };
     const head = (t, go) => h('div.pk-sec', h('b', t), h('button', { onclick: go }, '查看全部'));
     const panes = {
       通话: () => { let f = '全部'; const L = h('div.pk-calls', calls.map(call));
@@ -230,7 +282,7 @@ export const VIEWS = {
         const by = new Map(); of(R, '联系人').map(r => r.length > 3 ? r[2] || r[1] : r[1]).sort(sortZh).forEach(n => { const k = initial(n); (by.get(k) || by.set(k, []).get(k)).push(n); });
         const secs = [...by].sort((a, b) => (a[0] === '#') - (b[0] === '#') || a[0].localeCompare(b[0]));
         const list = h('div.pk-book', h('div.pk-book__me', face2(D.name, D.avatar, '.is-me'), h('div', h('b', D.name), h('span', '我的名片'))),
-          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(who => h('div.pk-book__row', D.dial ? { onclick: () => D.dial(who) } : null, face2(who), h('div', h('b', who))))]));
+          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(who => h('div.pk-book__row', D.dial ? { onclick: () => D.dial(who) } : null, face2(who, D.face?.(who)), h('div', h('b', who))))]));
         const jump = k => { const el = list.querySelector(`[data-k="${k}"]`); el && el.scrollIntoView({ block: 'start' }); };
         return [h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('b', '联系人'), h('button.pk-glass.is-round', { 'aria-label': '新建' }, icon('plus', 22, 2.2))),
           list, h('div.pk-index', [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'].map(k => h('button', { onclick: () => jump(k) }, k)))];

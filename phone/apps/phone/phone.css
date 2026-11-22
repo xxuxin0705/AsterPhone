@@ -1,5 +1,4 @@
-/* 电话：整页用查手机那套（peek.css 的 .pk-app），这里只有点开语音留言的那张单子 */
-.as-ph .pk-app { inset: 0; }
+/* 电话：整页用查手机那套（peek.css 的 .pk-app，apps.js 的 iosPage），这里只有点开语音留言的那张单子 */
 .as-ph-vm { display: grid; gap: 10px; padding: 4px 4px 12px; }
 .as-ph-vm small { color: var(--as-color-text-2); font-size: 13px; }
 .as-ph-vm__text { margin: 0; font-size: 16px; line-height: 1.6; white-space: pre-wrap; }

@@ -226,12 +226,15 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pad button { width: 76px; height: 76px; gap: 2px; background: var(--pk-card); box-shadow: 0 6px 22px rgba(0, 0, 0, .07), 0 0 0 .5px rgba(0, 0, 0, .03); }
 .is-dark .pk-pad button { background: var(--pk-fill); box-shadow: none; }
 .pk-pad b { font-size: 37px; font-weight: 400; } .pk-pad small { font-size: 10px; letter-spacing: 2.5px; }
-/* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去，那两块是渐渐变白（不用毛玻璃：安卓上边缘会糊成黑的） */
+/* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去；底下那块是渐渐变白 */
 .is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; }
 .is-raw .pk-top2::before { inset: 0; background: linear-gradient(var(--pk-page) 70%, color-mix(in srgb, var(--pk-page) 85%, transparent) 88%, transparent); }
+/* 顶上是毛玻璃，越往下越淡；内容滑上去多少它才显出来多少（--fade 由 pull() 按滚动写，照作者录的 iPhone 视频）。
+   左右伸出页面外再被裁掉：安卓上毛玻璃的边会发黑，让发黑的那条落在屏幕外 */
+.is-raw .pk-top2:not(.pk-web__top)::before { inset: 0 -24px -20px; opacity: var(--fade, 0); background: linear-gradient(color-mix(in srgb, var(--pk-page) 50%, transparent), color-mix(in srgb, var(--pk-page) 10%, transparent));
+  -webkit-backdrop-filter: blur(8px) saturate(1.3); backdrop-filter: blur(8px) saturate(1.3); -webkit-mask: linear-gradient(#000 55%, transparent); mask: linear-gradient(#000 55%, transparent); }
 .is-raw .pk-float::before { inset: -24px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 75%, transparent) 40%, var(--pk-page) 75%); }
-/* 对话页更透：顶上、底下只是淡淡发白，滑过去的气泡还看得见（照作者录的 iPhone 视频） */
-.is-raw .pk-top2.is-chat::before { bottom: -12px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 96%, transparent), color-mix(in srgb, var(--pk-page) 85%, transparent) 28%, color-mix(in srgb, var(--pk-page) 40%, transparent) 62%, transparent); }
+/* 对话页底下更透：只是淡淡发白，滑过去的气泡还看得见（照作者录的 iPhone 视频） */
 .pk-top2.is-chat .pk-glass, .pk-top2.is-chat ~ .pk-float .pk-glass { background: color-mix(in srgb, var(--pk-page) 90%, transparent); }
 .is-raw .pk-top2.is-chat ~ .pk-float::before { inset: -12px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 45%, transparent) 60%, color-mix(in srgb, var(--pk-page) 70%, transparent)); }
 .pk-top2 > b { opacity: 0; transition: opacity .2s; } .pk-top2.is-up > b, .pk-pane:not([data-pane="calls"]) .pk-top2 > b { opacity: 1; }
@@ -351,3 +354,19 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-msg div > span em.is-draft { background: #ff3b30; }
 .pk-msg div > span em, .pk-call em { background: #8e8e93; }
 .pk-pane[data-pane="calls"] h1 { margin: 6px 16px 12px; font-size: 36px; font-weight: 700; line-height: 1.1; }
+/* 滚到头了还能再拖一段，松手弹回去（内容不够长也能拖）；顶栏、底下浮着的、字母索引不动。--pull 由 pull() 写 */
+.pk-app:not(.is-raw) .pk-app__body > *, .pk-top2 ~ :not(.pk-float, .pk-index) { translate: 0 var(--pull, 0); }
+.pk-app__body.is-back > *, .pk-app__body.is-back .pk-top2 ~ * { transition: translate .5s cubic-bezier(.2, .9, .3, 1); }
+/* 左滑 / 右滑：这一行跟着手指走，后面露出圆按钮；拖着、打开着时这一行变成浅灰的圆角块（照作者录的 iPhone 视频） */
+.pk-swipe { position: relative; }
+.pk-swipe__l, .pk-swipe__r { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.pk-swipe__l { left: 0; } .pk-swipe__r { right: 0; }
+.pk-swipe__b { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer; }
+.pk-swipe > :last-child { position: relative; z-index: 1; background: var(--pk-page); touch-action: pan-y; transition: transform .35s cubic-bezier(.2, .9, .3, 1), border-radius .2s, background-color .2s; }
+.pk-swipe.is-drag > :last-child { transition: border-radius .2s, background-color .2s; }
+.pk-swipe.is-open > :last-child { border-radius: 24px; background: color-mix(in srgb, var(--pk-ink) 7%, var(--pk-page)); }
+/* 你自己手机的短信：底下那条是真能打字的 */
+.pk-find__in { flex: 1; min-width: 0; max-height: 120px; field-sizing: content; padding: 0; border: 0; background: none; color: var(--pk-ink); font: inherit; line-height: 1.3; resize: none; outline: none; }
+.pk-find__in::placeholder { color: var(--pk-sub); }
+.pk-find:has(.pk-find__in) { height: auto; min-height: 46px; padding-block: 11px; cursor: text; }
+.pk-float .pk-ask { flex: none; color: var(--tint); } .pk-sms .pk-float .pk-ask.is-busy { width: auto; padding: 0 14px; gap: 4px; font-size: 14px; }
