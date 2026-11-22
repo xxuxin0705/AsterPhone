@@ -3,7 +3,7 @@
 import { h, shortTime } from '../../core/util.js';
 import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
-import { langFor, langName, translate } from '../../core/translate.js';
+import { langFor, langName, translate, zhOf } from '../../core/translate.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js';
 import { storyText, worldText } from '../../core/context.js';
@@ -94,8 +94,8 @@ export async function relangPeek(c, D) {
 }
 
 // TA 说外语时 AI 是先写中文、再附 [原文：…]（中文写在前面就不会漏）：换回手机里一直用的「原文[翻译：中文]」。
-// 哪几格该有翻译照 FORMS 里的 ※，不猜：标了的格子里只写了一种的，拿去免费机翻成中文（几段并成一次问）——
-// 翻出来和原样一样，就是 AI 只写了中文，留着；不一样就是只写了外文，把机翻的中文补上。什么语言都是这一条，不再找 AI
+// 哪几格该有翻译照 FORMS 里的 ※，不猜：标了的格子里只写了一种的，用 zhOf（core/translate.js）免费机翻核对——
+// 本来就是中文的留着，只写了外文的补上中文。什么语言都是这一条，不再找 AI
 const ORIG = /\s*[[［【]原文[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;
 const seg = p => { const m = ORIG.exec(p), fig = /^\s*[[［【][图図][:：]\s*([\s\S]*)[\]］】]\s*$/.exec(p);
   if (fig && ORIG.test(fig[1])) { const [a, cn] = seg(fig[1]).split('[翻译：'); return `[図：${a}][翻译：[图：${cn.slice(0, -1)}]]`; }   // 配图写成「[图：中文[原文：外文]]」
@@ -103,18 +103,11 @@ const seg = p => { const m = ORIG.exec(p), fig = /^\s*[[［【][图図][:：]\s*
   const a = m[1].trim(), q = (/^\s*([>＞》]\s*)/.exec(p) || ['', ''])[1];   // 引用那段，原文那版也要带「>」
   return `${q && !/^[>＞》]/.test(a) ? q : ''}${a}[翻译：${(p.slice(0, m.index) + p.slice(m.index + m[0].length)).trim()}]`; };
 async function toOrig(got, say) {
-  const lone = [], norm = x => x.replace(/[^\p{L}\p{N}]/gu, '');
+  const lone = [];
   for (const [n, rows] of Object.entries(got)) for (const r of rows) { const tc = trCols(n, r);
     r.forEach((v, i) => { if (typeof v !== 'string' || !v) return; const S = r[i] = v.split(/(?<!:)\/\//).map(seg);
       if (tc.includes(i)) S.forEach((p, k) => { if (/\p{L}/u.test(p) && !/[[［【]翻译[:：]/.test(p)) lone.push([S, k]); }); }); }
-  if (lone.length) say(lone.length);
-  const put = ([S, k], z) => { if (z && norm(z) !== norm(S[k])) S[k] = `${S[k]}[翻译：${z.trim()}]`; };
-  for (let i = 0, j; i < lone.length; i = j) {   // 一次问 400 字以内（网址太长谷歌不收）
-    for (j = i + 1; j < lone.length && lone.slice(i, j + 1).reduce((a, [S, k]) => a + S[k].length + 1, 0) < 400; j++);
-    const part = lone.slice(i, j), out = (await translate(part.map(([S, k]) => S[k]).join('\n'), 'zh-CN').catch(() => '')).split('\n');
-    if (out.length === part.length) part.forEach((x, k) => put(x, out[k]));
-    else for (const x of part) put(x, await translate(x[0][x[1]], 'zh-CN').catch(() => ''));   // 行数对不上（谷歌把行并了）：一句一句问
-  }
+  if (lone.length) { say(lone.length); (await zhOf(lone.map(([S, k]) => S[k]))).forEach((z, i) => { if (z) lone[i][0][lone[i][1]] += `[翻译：${z}]`; }); }
   for (const rows of Object.values(got)) for (const r of rows) r.forEach((v, i) => { if (Array.isArray(v)) r[i] = v.join('//'); });
 }
 

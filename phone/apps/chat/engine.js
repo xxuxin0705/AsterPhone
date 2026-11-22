@@ -11,7 +11,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
-import { translate, langName, langFor } from '../../core/translate.js';
+import { translate, langName, langFor, zhOf, fillZh } from '../../core/translate.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -116,16 +116,26 @@ export function replyCfg(chat) {
 export const voiceKey = (chat, m) => `tts:${chat.id}:${m.id}`;
 /** 语音超过上限的改成文字；收到语音就先合成存好（点开直接放） */
 function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? { type: 'text', text: p.text, tr: p.tr } : p; }
-/* 说外语的 TA：私聊设置里「TA 说的语言」（没选就跟着聊天 App 的、再跟着设置里总的）是外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
+/* 说外语的 TA：私聊设置里「TA 说的语言」（没选就跟着聊天 App 的、再跟着设置里总的）是外语，AI 先写中文、后面紧跟 [原文:外文]（中文写在前面才不会漏；以前的「外文 [翻译:中文]」也认），
    拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
 export const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = langFor('chat', ch && ch.cfg.speak); return l !== 'zh-CN' ? l : ''; };
-export const takeTr = l => { l = parenTr(l); const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
+// 外语那句话怎么写（各处提示词共用这一句）
+export const trHow = lang => `写成「中文意思[原文：${lang}原文]」：先写中文，后面紧跟原文，两样都要有`;   // lang：「日语」这样的名字
+export const takeTr = l => { l = parenTr(l);
+  const o = /\s*[\[【]\s*原文\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l);   // 「[语音] 中文[原文：外文]」→ 正文是「[语音] 外文」，中文是翻译
+  if (o) { const zh = l.slice(0, o.index), tag = /^\s*((?:[\[【][^\]】]*[\]】]\s*)*)/.exec(zh)[1]; return [tag + o[1].trim(), zh.slice(tag.length).trim()]; }
+  const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
 // AI 有时不照格式，把翻译写成末尾的「（中文）」：前面是外文（有假名 / 谚文，或者全是字母没有汉字）、括号里是两个字以上的中文（没有假名）才算，换成 [翻译：…]
 export const parenTr = s => typeof s !== 'string' || /[[［【]翻译[:：]/.test(s) ? s : s.split(/(?<!:)\/\//).map(p => {
   const m = /^([\s\S]+?)\s*[（(]([^（）()]+)[）)]\s*$/.exec(p);
   const foreign = a => /[\u3040-\u30ff\uac00-\ud7af]/.test(a) || (!/[\u4e00-\u9fff]/.test(a) && /[A-Za-z]{2}/.test(a));
   return m && foreign(m[1]) && /[\u4e00-\u9fff].*[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff\uac00-\ud7af]/.test(m[2]) ? `${m[1]}[翻译：${m[2]}]` : p; }).join('//');
-const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}直接用自己的语言写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
+/** 说外语的人写的这几行里，AI 漏了中文的（普通的话、[语音]）并成一次免费机翻补上（zhOf），不找 AI。head(l)：这行前面「名字：」那一截，不用查的行给 null */
+async function fillLines(lines, head = () => '') {
+  const L = lines.flatMap((l, i) => { const hd = head(l); if (hd == null) return []; const [t, tr] = takeTr(l.slice(hd.length)), p = parseLine(t); return !tr && ['text', 'voice'].includes(p.type) && /\p{L}/u.test(p.text) ? [[i, p.text]] : []; });
+  if (L.length) (await zhOf(L.map(x => x[1]))).forEach((z, k) => { if (z) lines[L[k][0]] += ` [翻译:${z}]`; });
+}
+const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}都${trHow('自己语言的')}；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
 /** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
 const roundNote = rc => `\n\n【这一轮】${rc.group ? '大家加起来' : ''}回复 ${rc.lines[0]}–${rc.lines[1]} 条独立消息，每条单独一行；${rc.voice[1] ? `语音 ${rc.voice[0]}–${rc.voice[1]} 条` : '不发语音'}。`;
 /** 条数不够下限：把长的话按句子拆成几条（括号、引号里的不拆，太短的并回去），拆到够数或拆不动为止；不多调一次 AI。head：每条前面要留着的（群聊的「名字：」），给 null 的那行不拆 */
@@ -135,7 +145,7 @@ function toMin(lines, [min, max], head = () => '') {
     let room = max - lines.length;
     lines = lines.flatMap(l => {
       const hd = head(l);
-      if (room <= 0 || hd == null || /^\s*\[/.test(l.slice(hd.length)) || /[\[【]\s*翻译/.test(l)) return [l];
+      if (room <= 0 || hd == null || /^\s*\[/.test(l.slice(hd.length)) || /[\[【]\s*(翻译|原文)/.test(l)) return [l];
       const body = l.slice(hd.length);
       const ps = []; let buf = '', d = 0;
       for (let i = 0; i < body.length; i++) {
@@ -295,7 +305,7 @@ export async function buildReplyPrompt(chat, msgs, lite) {
   const history = historyText(c ? [...msgs, ...state.calls.filter(x => x.cid === c.id)].sort((a, b) => a.at - b.at) : msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid, lite === 'min');
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
-    story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs), lang: c && speakOf(c.id) ? `\n- 每条文字和语音都直接用「${langName(speakOf(c.id))}」写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。` : '',
+    story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs), lang: c && speakOf(c.id) ? `\n- 每条文字和语音都${trHow(langName(speakOf(c.id)))}（语音是「[语音] 中文意思[原文：…]」）；表情包、图片这些方括号标签照原样写，不用翻。` : '',
   }, sid);
   return { system: specialsGuide(rc), prompt, keep: cacheAt(prompt, history, wb.memory, t) };
 }
@@ -338,6 +348,7 @@ export async function requestReply(chat, opts = {}) {
     saveMsgs(chat.id); emit('read', chat.id);
     const batch = uid('b'), rc = replyCfg(chat);
     keepMem(chat, batch, mem, [c].filter(Boolean));
+    if (c && speakOf(c.id)) await fillLines(lines);
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
@@ -415,7 +426,9 @@ export async function requestGroupReply(chat, opts = {}) {
     if (reacted || fresh) emit('read', chat.id);
     const batch = uid('b'); let shown = 0, nv = 0;
     keepMem(chat, batch, mem, members);
-    for (const raw of toMin(clean.split('\n').map(l => l.trim()).filter(Boolean), rc.lines, l => /^私聊\s*[|｜]/.test(l) ? null : (/^[^:：]{1,16}[:：]\s*/.exec(l) || [null])[0])) {
+    const rows = toMin(clean.split('\n').map(l => l.trim()).filter(Boolean), rc.lines, l => /^私聊\s*[|｜]/.test(l) ? null : (/^[^:：]{1,16}[:：]\s*/.exec(l) || [null])[0]);
+    await fillLines(rows, l => { const m = /^([^:：|｜]{1,16})[:：]\s*/.exec(l), p = m && find(m[1]); return p && speakOf(p.id) ? m[0] : null; });
+    for (const raw of rows) {
       if (ac.signal.aborted) break;
       const dm = /^私聊\s*[|｜]\s*([^:：]+)[:：]\s*(.+)$/.exec(raw);
       if (dm) { const p = find(dm[1]); if (p) await deliverDM(p, dm[2]); continue; }
@@ -580,7 +593,7 @@ export async function deliverFromStory(c, text, groupName = '') {
   if (!g && c.cut) { c.cut = ''; commit('contacts'); }   // TA 又给你发消息了：说明加回来 / 解除拉黑了
   for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {
     const call = /^[\[【]\s*(语音通话|视频通话|电话)\s*[\]】]\s*(.*)$/.exec(line);
-    if (call) { const dm = chatForContact(c.id, true), vm = call[2] && takeTr(call[2]); import('./specials.js').then(S => S.ringIn(dm, c, { 视频通话: 'video', 电话: 'phone' }[call[1]] || 'voice', vm)); continue; }
+    if (call) { const dm = chatForContact(c.id, true), vm = call[2] && takeTr(call[2]); if (vm && !vm[1] && speakOf(c.id)) vm[1] = (await zhOf([vm[0]]))[0]; import('./specials.js').then(S => S.ringIn(dm, c, { 视频通话: 'video', 电话: 'phone' }[call[1]] || 'voice', vm)); continue; }
     if (/^[\[【]\s*撤回\s*[\]】]/.test(line)) {
       const last = [...msgs].reverse().find(m => m.from === 'them' && !m.recalled && (!g || m.who === c.id));
       if (last) { last.recalled = true; if (msgs[msgs.length - 1] === last) chat.lastText = preview(last); emit('reload', chat.id); }
@@ -619,6 +632,7 @@ export async function genMoments({ count, must = [], only = false }, stop) {
   }
   if (!out.length) throw new Error('AI 没有按格式写动态');
   out.forEach(mo => { const [t, tr] = takeTr(mo.text); mo.text = t; if (tr) mo.tr = tr; });
+  await fillZh(out.filter(mo => speakOf(mo.author)));
   state.moments.unshift(...out.slice(0, count)); commit('moments');
   return Math.min(out.length, count);
 }
@@ -632,13 +646,14 @@ export async function genComments(mo, stop) {
   const peopleText = people.map(p => `- ${p.name || nameOf(p)}${personaOf(p) ? '：' + personaOf(p).slice(0, 80).replace(/\n/g, ' ') : ''}`).join('\n');
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop, prompt: compose('comment', { post, people: peopleText, time: time.forPrompt(), lang: langRule(people.map(p => p.id), '评论和回复') }) });
   const find = n => { n = String(n || '').trim(); if (n === myName() || n === '我') return 'me'; const p = state.contacts.find(x => [x.name, x.nick, x.remark].includes(n)); return p ? p.id : null; };
-  let added = 0;
+  let added = 0; const n0 = mo.comments.length;
   String(raw).split('\n').map(l => l.trim()).forEach(l => {
     const parts = l.split(/[|｜]/).map(s => s.trim());
     if (parts[0] === '赞') { const id = find(parts[1]); if (id && id !== 'me' && !mo.likes.includes(id)) { mo.likes.push(id); added++; } }
     else if (parts[0] === '评论' && parts.length >= 3) { const id = find(parts[1]), [text, tr] = takeTr(parts.slice(2).join('|')); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, text, ...(tr ? { tr } : {}), at: Date.now() }); added++; } }
     else if (parts[0] === '回复' && parts.length >= 4) { const id = find(parts[1]), to = find(parts[2]), [text, tr] = takeTr(parts.slice(3).join('|')); if (id && id !== 'me') { mo.comments.push({ id: uid('cm'), who: id, to: to || null, text, ...(tr ? { tr } : {}), at: Date.now() }); added++; } }
   });
+  await fillZh(mo.comments.slice(n0).filter(cm => speakOf(cm.who)));
   commit('moments');
   return added;
 }

@@ -5,11 +5,11 @@ import { state, win, kvGet, kvSet, commit, contact, chatForContact, friends, nic
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
-import { langName, langFor } from '../../core/translate.js';
+import { langName, langFor, fillZh } from '../../core/translate.js';
 import { word } from './looks.js';
 import { log } from '../../core/log.js';
 import * as time from '../../core/time.js';
-import { nameOf, personaOf, worldBlock, takeTr } from '../chat/engine.js';
+import { nameOf, personaOf, worldBlock, takeTr, trHow } from '../chat/engine.js';
 import { loadSets } from './dress.js';
 
 export const F = () => state.forum;
@@ -90,13 +90,15 @@ export function byName(raw, board) {
 
 /* ---------- 语言 ---------- */
 const isZh = l => !l || l === 'zh-CN' || l === 'zh-TW';
-// tr：翻译附在哪（帖子另起一行，楼层同一行末尾）；what：一条里怎么用语言
+// 这个版会不会有不是中文的帖（全球版混着英文；别的版看论坛选的语言）：会的话 AI 漏了中文的用免费机翻补（fillZh）
+const mayForeign = board => board !== 'anon' && (board === 'global' || !isZh(langFor('forum')));
+// tr：外语的怎么写（帖子另起一行，楼层同一行）；what：一条里怎么用语言
 function langRule(board, tr, what) {
   if (board === 'anon') return '';
   const l = langFor('forum');   // 设置 → 语言：论坛选的，没选跟着总的
-  if (board !== 'global') return isZh(l) ? '' : `\n- 用${langName(l)}写；不是中文的，${tr}。`;
+  if (board !== 'global') return isZh(l) ? '' : `\n- 这里的人用${langName(l)}发帖、说话：${tr}。`;
   const mix = isZh(l) ? '大约六成中文、四成英文' : l === 'en' ? '大约三成中文、七成英文' : `大约三成中文、四成英文、三成${langName(l)}`;
-  return `\n- 语言混着来：${mix}，${what}；这个世界里没有的语言（比如古代、架空的世界没有英文）就不用，只用这个世界里有的。不是中文的，${tr}。`;
+  return `\n- 语言混着来：${mix}，${what}；这个世界里没有的语言（比如古代、架空的世界没有英文）就不用，只用这个世界里有的。不是用中文发的，${tr}。`;
 }
 
 /* ---------- 刷帖 ---------- */
@@ -150,7 +152,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
       world: (await worldBlock(st, board === 'anon' ? [] : crowd(), '', '', false, 'forum')).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
-      lang: langRule(board, '另起一行附 [翻译：简体中文意思]', '一条帖只用一种语言'), setup: setup(board) }) });
+      lang: langRule(board, '正文先写中文意思，下面另起一行写 [原文：原文]，两样都要有', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
   const end = () => { inFloors = false; if (cur && cur.text.trim() && (cur.by.k !== 'me' || A().mePost)) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
   for (const l of clean(raw).split('\n').map(x => x.trim())) {
@@ -186,12 +188,14 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     if ((m = /^来自[:：]\s*(.+)$/.exec(l))) { cur.dev = m[1].slice(0, 16); continue; }
     if ((m = /^[[【]\s*图片[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.img = m[1]; continue; }
     if ((m = /^[[【]\s*翻译[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = m[1]; continue; }
+    if ((m = /^[[【]\s*原文[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = cur.text.trim(); cur.text = m[1]; continue; }   // 正文写的是中文，这一行才是发出来的原文
     if ((m = /^数据[:：](.*)$/.exec(l))) { cur.likes = num((/赞\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.cmts = num((/评\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.reposts = num((/转\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); continue; }
     if (inFloors) { const fl = floorOf(l, cur, cur.floors, mine); if (fl) cur.floors.push(fl); continue; }
     cur.text += (cur.text && !cur.text.endsWith('\n') ? '\n' : '') + (cur.text ? l : l.replace(/^正文[:：]\s*/, ''));   // 格式里写着「正文」，AI 常照抄成「正文：」
   }
   end();
   if (!got.length) { log('error', '论坛', 'AI 没有按格式写帖子', raw); throw new Error('AI 没有按格式写帖子'); }
+  if (mayForeign(board)) await fillZh(got.flatMap(x => [x, ...(x.floors || [])]));
   got.forEach(p => { if (!p.likes) p.likes = rnd(300); p.cmts = Math.max(p.cmts || rnd(60), (p.floors || []).length); if (p.floors && !p.floors.length) p.floors = null; });
   if (hot.length) f.hot = hot;
   D.posts.unshift(...got.slice(0, count + 2)); prune();
@@ -246,7 +250,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumThread', { thread: threadText(p), platform: platform(), story: st, time: time.forPrompt(), count: count || (first ? '10～15' : '5～8'),
       world: (await worldBlock(st, anon ? [] : crowd(), '', '', false, 'forum')).world, people: anon ? '（匿名区：名字都写「匿名 几号」，同一个人编号不变，楼主写「楼主」）' : posters('local'),
-      lang: langRule(p.board, '在同一行末尾附 [翻译：简体中文意思]', '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n'),
+      lang: langRule(p.board, trHow(''), '每个人用自己的语言'), focus: [mineNote(p), focus].filter(Boolean).join('\n'),
       atme: atMe(p.board), likes: anon ? '' : likesAsk(p) }) });
   const list = p.floors || [], add = [], mine = new Set(myNames()), likes = [];
   for (const l of clean(raw).split('\n').map(x => x.trim()).filter(Boolean)) {
@@ -255,6 +259,7 @@ export async function thread(p, stop, { focus = '', count } = {}) {
     const f = floorOf(l, p, list.concat(add), mine); if (f) add.push(f);
   }
   if (!add.length) { log('error', '论坛', 'AI 没有按格式写评论', raw); throw new Error('AI 没有按格式写评论'); }
+  if (mayForeign(p.board)) await fillZh(add);
   p.floors = list.concat(add); p.cmts = Math.max(p.cmts, p.floors.length);
   for (const [, no, names] of likes) { const o = no ? p.floors[no - 1] : p; if (o && isMine(p, o)) addLikers(p, o, names); }
   if (p.by.k === 'me') p.likes += rnd(add.length * 5);   // 我的帖子有人来看，也有人点赞（消息 → 赞）
@@ -307,9 +312,10 @@ export async function dmReply(d, stop) {
     prompt: compose('forumDm', { who: c ? `${netName(c)}（真名：${c.name || nameOf(c)}）${personaOf(c) ? '\n' + personaOf(c).slice(0, 800) : ''}` : d.by.k === 'bot' ? `营销号「${w.name}」，主题：${w.sub || ''}` : `${w.name}（一个普通网友）`,
       me: accName(curAcc()), platform: platform(), story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [], '', '', false, 'forum')).world,
       history: d.list.slice(-30).map(m => `${m.me ? accName(curAcc()) : w.name}：${m.text || '[图片]'}`).join('\n'),
-      lang: isZh(l) ? '' : `\n- 用${langName(l)}写，每条末尾附 [翻译：简体中文意思]。` }) });
+      lang: isZh(l) ? '' : `\n- TA 用${langName(l)}发，每条${trHow(langName(l))}。` }) });
   const got = clean(raw).split('\n').map(x => x.trim()).map(x => [w.name + '：', w.name + ':'].some(n => x.startsWith(n)) ? x.slice(w.name.length + 1).trim() : x).filter(x => x && !/^[（(]?不回[）)]?$/.test(x)).slice(0, 6);
-  got.forEach(x => { const [text, tr] = takeTr(x); say(d, text, { tr }); });
+  const L = got.map(x => { const [text, tr] = takeTr(x); return { text, tr }; }); if (!isZh(l)) await fillZh(L);
+  L.forEach(x => say(d, x.text, { tr: x.tr }));
   await save();
   return got.length;
 }

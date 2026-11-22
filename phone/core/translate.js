@@ -35,6 +35,21 @@ export async function translate(text, to = 'zh-CN') {
 
 // 酒馆的翻译接口一出错（谷歌嫌请求太多会回一张错误页），酒馆就弹一个「后端错误」：失败一次就 10 分钟内先不走它，直接走后面两条
 let tavernOff = 0;
+/** 几句话各自的中文：并成一次免费机翻（一次 400 字以内，网址太长谷歌不收），不找 AI。
+ *  翻出来和原样一样的（本来就是中文）、没翻成的给 ''——所以不用认是什么语言 */
+export async function zhOf(texts) {
+  const out = texts.map(() => ''), norm = x => x.replace(/[^\p{L}\p{N}]/gu, ''), put = (i, z) => { if (z && norm(z) !== norm(texts[i])) out[i] = z.trim(); };
+  for (let i = 0, j; i < texts.length; i = j) {
+    for (j = i + 1; j < texts.length && texts.slice(i, j + 1).join('\n').length < 400; j++);
+    const got = (await translate(texts.slice(i, j).join('\n'), 'zh-CN').catch(() => '')).split('\n');
+    if (got.length === j - i) got.forEach((z, k) => put(i + k, z));
+    else for (let k = i; k < j; k++) put(k, await translate(texts[k], 'zh-CN').catch(() => ''));   // 行数对不上（谷歌把行并了）：一句一句问
+  }
+  return out;
+}
+/** 说外语的人写的几条（text、tr）：AI 漏了中文的补上 */
+export const fillZh = async L => { L = L.filter(m => !m.tr && /\p{L}/u.test(m.text || '')); if (L.length) (await zhOf(L.map(m => m.text))).forEach((z, i) => { if (z) L[i].tr = z; }); };
+
 async function viaTavern(text, to) {
   if (!inTavern() || Date.now() < tavernOff) throw new Error('不在酒馆里');
   const c = ctx(), headers = (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' };

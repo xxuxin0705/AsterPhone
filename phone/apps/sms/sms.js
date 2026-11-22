@@ -6,12 +6,12 @@ import { icon, toast, dialog, waiting, aiCount } from '../../core/ui.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
-import { langName, langFor } from '../../core/translate.js';
+import { langName, langFor, fillZh } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { renderBadges } from '../home/home.js';
-import { nameOf, personaOf, worldBlock, takeTr, parseReply } from '../chat/engine.js';
+import { nameOf, personaOf, worldBlock, takeTr, trHow, parseReply } from '../chat/engine.js';
 import { iosPage, swipe, gone, ava, when, far, bigTitle } from '../peek/apps.js';
 
 const jobs = {}, views = new Map();
@@ -22,12 +22,14 @@ const save = () => { commit('sms'); renderBadges(); };
 const put = (t, me, line) => { const [text, tr] = me ? [line, ''] : takeTr(line); t.list.push({ id: uid('s'), me, text, tr, ...time.stamp() }); };
 const toTop = t => { state.sms.splice(state.sms.indexOf(t), 1); state.sms.unshift(t); };
 
-export function receive(from, body) {
+const foreign = c => !/^zh/.test(langFor('chat', c && chatForContact(c.id, false)?.cfg.speak) || 'zh');
+export async function receive(from, body) {
   const lines = String(body).split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) return;
   let t = state.sms.find(x => x.who === from);
   if (!t) state.sms.unshift(t = { id: uid('sm'), who: from, unread: 0, list: [] }); else toTop(t);
   lines.forEach(l => put(t, false, l));
+  if (foreign(person(from))) await fillZh(t.list.slice(-lines.length));   // AI 漏了中文的，免费机翻补上
   if (shell.activeChat !== t.id || !shell.visible) t.unread += lines.length;
   save(); views.get(t.id)?.();
   const m = t.list.at(-1);
@@ -41,9 +43,10 @@ async function reply(t, stop) {
     prompt: compose('smsReply', { who: c ? `${nameOf(c)}${personaOf(c) ? '\n' + personaOf(c).slice(0, 800) : ''}` : `${t.who}（不在通讯录里的号码或机构）`,
       story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [], '', '', false, 'sms')).world,
       history: t.list.slice(-30).map(m => `${m.me ? myName() : t.who}：${m.text}`).join('\n'),
-      lang: zhL ? '' : `\n- 用${langName(l)}写，每条末尾附 [翻译：简体中文意思]。` }) });
+      lang: zhL ? '' : `\n- TA 用${langName(l)}发，每条${trHow(langName(l))}。` }) });
   const got = parseReply(raw, c).lines.filter(x => !/^[（(]?不回[）)]?$/.test(x)).slice(0, 6);
   got.forEach(x => put(t, false, x));
+  if (!zhL) await fillZh(t.list.slice(-got.length || t.list.length));
   if (got.length) { toTop(t); save(); }
   return got.length;
 }
