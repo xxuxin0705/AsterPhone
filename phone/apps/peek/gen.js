@@ -34,7 +34,7 @@ export const FORMS = {
   论坛: '树洞｜{{char}} 在论坛树洞里匿名发的心事（一两句到一小段，不点名）\n（写 2～4 条）',
   音乐: '资料｜粉丝数（只写数字）｜等级（1～10）｜一共听了多少小时（只写数字）\n关注｜关注的歌手（用顿号隔开）\n（这两行各写一行就够）',
   屏幕使用时间: '应用名｜今天用了多少分钟（只写数字）\n（写 6～8 个，从多到少）',
-  相册: `图库｜这张照片拍的是什么（一句话写清画面）｜时间｜地点
+  相册: `图库｜这张照片拍的是什么（一句话写清画面）｜时间｜地点｜从哪来（相机拍的写「相机」，截屏写「截屏」，别的 App 里存下来的写那个 App 的名字）
 隐藏｜画面｜时间｜地点（不想被人看到的，有才写）
 删除｜画面｜时间｜为什么删（最近删掉的，有才写）`,
   AI: `哪个 AI｜这次对话的标题｜这句谁说的（自己 / AI）｜内容
@@ -62,8 +62,8 @@ export async function load(c) {
   return d;
 }
 
-/** 记下 TA 手机里哪些信息看过、左滑删了、标成未读（只存这几项，别的照旧） */
-export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; Object.assign(d, { read: D.read, hide: D.hide, unread: D.unread }); await kvSet('peek:' + D.id, d).catch(() => {}); }
+/** 记下 TA 手机里哪些信息看过、左滑删了、标成未读，相册里删了、点了喜欢的（只存这几项，别的照旧） */
+export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; Object.assign(d, { read: D.read, hide: D.hide, unread: D.unread, fav: D.fav }); await kvSet('peek:' + D.id, d).catch(() => {}); }
 
 // 分了好几行（//）的一格，AI 有时只在最后附一整段翻译：行数对得上就拆成每行各带一个，备忘录、正文才能一行一行换
 const perLine = s => {

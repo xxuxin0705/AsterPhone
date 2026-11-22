@@ -379,3 +379,35 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-find__in::placeholder { color: var(--pk-sub); }
 .pk-find:has(.pk-find__in) { height: auto; min-height: 46px; padding-block: 11px; cursor: text; }
 .pk-float .pk-ask { flex: none; color: var(--tint); } .pk-sms .pk-float .pk-ask.is-busy { width: auto; padding: 0 14px; gap: 4px; font-size: 14px; }
+/* 相册：照 iPhone「照片」。格子是按画面配色的渐变 + 小图标，画过的换成真图 */
+.pk-ph__art { position: relative; display: grid; place-items: center; aspect-ratio: 1; background: linear-gradient(150deg, hsl(var(--h) 45% 72%), hsl(calc(var(--h) + 40) 40% 42%)) center / cover; color: rgb(255 255 255 / .75); }
+.pk-ph__art.is-drawn { background-size: cover; } .pk-ph__art.is-drawn svg { display: none; }
+.pk-ph__top { align-items: flex-start; } .pk-ph__title { display: grid; gap: 2px; padding: 0 6px; } .pk-ph__title b { font-size: 30px; font-weight: 700; } .pk-ph__title small { font-size: 14px; font-weight: 600; color: var(--pk-sub); }
+.pk-ph__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.pk-ph__grid button, .pk-ph__strip button { padding: 0; border: 0; background: none; cursor: pointer; }
+.pk-ph__more { margin: 24px 16px 120px; border-radius: 14px; background: var(--pk-card); overflow: hidden; } .pk-ph__more .pk-row { width: 100%; border: 0; background: none; color: inherit; font: inherit; gap: 12px; }
+.pk-ph__more .pk-row span { margin-left: auto; color: var(--pk-sub); } .pk-ph__more .pk-row svg:first-child { color: var(--tint); }
+.pk-ph__cards { display: grid; gap: 14px; padding: 8px 16px 120px; } .pk-ph__card { position: relative; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: none; color: #fff; text-align: left; cursor: pointer; }
+.pk-ph__card .pk-ph__art { aspect-ratio: 16 / 10; } .pk-ph__card b, .pk-ph__card small { position: absolute; left: 16px; text-shadow: 0 1px 6px rgb(0 0 0 / .4); } .pk-ph__card b { top: 14px; font-size: 22px; } .pk-ph__card small { top: 44px; font-size: 14px; }
+.pk-ph__float { justify-content: center; } .pk-ph__seg { gap: 2px; padding: 4px; } .pk-ph__seg button { height: 36px; padding: 0 18px; border: 0; border-radius: 18px; background: none; color: inherit; font: 600 15px/1 inherit; cursor: pointer; } .pk-ph__seg .is-on { background: color-mix(in srgb, var(--pk-ink) 12%, transparent); }
+.pk-ph__sub .pk-ph__grid { margin: 0 -16px; }
+/* 大图 */
+.pk-ph-full .pk-app__body { background: var(--pk-page); }
+.pk-ph__vtop { justify-content: flex-start; } .pk-ph__pill { position: absolute; left: 50%; translate: -50%; flex-direction: column; gap: 1px; height: 46px; padding: 0 18px; } .pk-ph__pill b { font-size: 16px; } .pk-ph__pill small { font-size: 12px; color: var(--pk-sub); }
+.pk-ph__view { flex: 1; display: flex; flex-direction: column; }
+.pk-ph__pager { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; flex: none; } .pk-ph__pager::-webkit-scrollbar { display: none; }
+.pk-ph__slide { flex: 0 0 100%; scroll-snap-align: center; display: grid; gap: 14px; align-content: start; padding: 10px 0; }
+.pk-ph__slide .is-big { aspect-ratio: 3 / 4; } .pk-ph__slide p { margin: 0 20px; color: var(--pk-sub); font-size: 15px; line-height: 1.5; }
+.pk-ph__info { display: none; margin: 0 16px 16px; padding: 16px; border-radius: 16px; background: var(--pk-card); gap: 4px; flex-direction: column; } .is-info > .pk-ph__info { display: flex; }
+.is-info .pk-ph__slide .is-big { aspect-ratio: 4 / 3; transition: aspect-ratio .3s; }
+.pk-ph__info > b { font-size: 16px; } .pk-ph__info > small, .pk-ph__cam small { color: var(--pk-sub); font-size: 13px; }
+.pk-ph__cam { display: grid; gap: 2px; margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--pk-fill); } .pk-ph__cam b { font-size: 14px; }
+.pk-ph__row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; } .pk-ph__row svg { color: var(--pk-sub); }
+.pk-ph__foot { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 10px; padding: 8px 14px 18px; }
+.pk-ph__strip { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; } .pk-ph__strip::-webkit-scrollbar { display: none; }
+.pk-ph__strip button { flex: none; width: 30px; transition: width .2s; } .pk-ph__strip button.is-on { width: 44px; margin: 0 4px; }
+.pk-ph__bar { justify-content: space-around; height: 50px; border-radius: 25px; } .pk-ph__bar button { display: grid; place-items: center; width: 50px; height: 44px; padding: 0; border: 0; background: none; color: var(--pk-ink); cursor: pointer; }
+.pk-ph__bar button.is-on { color: #ff2d55; } .pk-ph__bar button.is-on svg { fill: currentColor; }
+.pk-ph__pop { position: absolute; right: 14px; bottom: 84px; width: 240px; padding: 14px 16px; border-radius: 18px; background: color-mix(in srgb, var(--pk-card) 92%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgb(0 0 0 / .2); animation: pk-pop .18s ease-out; transform-origin: 90% 100%; }
+.pk-ph__pop[hidden] { display: none; } .pk-ph__pop p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--pk-sub); text-align: center; }
+.pk-ph__pop button { width: 100%; height: 42px; border: 0; border-radius: 21px; background: var(--pk-fill); color: #ff3b30; font: 600 16px/1 inherit; cursor: pointer; }

@@ -1,6 +1,8 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
 import { h, sortZh } from '../../core/util.js';
-import { icon, actionSheet, dialog } from '../../core/ui.js';
+import { icon, actionSheet, dialog, busy, toast } from '../../core/ui.js';
+import { kvGet, kvSet } from '../../core/store.js';
+import { generateImage, resolveConn } from '../../core/api.js';
 import * as time from '../../core/time.js';
 import { saveRead } from './gen.js';
 import { myName } from '../../core/promptstore.js';
@@ -117,7 +119,7 @@ const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setA
 export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
 /** 整页自己画的应用（不要公共的标题栏） */
-export const RAW = ['短信', '消息', '电话', '搜索'];
+export const RAW = ['短信', '消息', '电话', '搜索', '相册'];
 const of = (R, k) => R.filter(r => r[0] === k);
 // 一排分段按钮：点了只换下面那一块
 function tabs(names, show) {
@@ -172,11 +174,76 @@ function messenger(threads, push, D, pop, o) {
 
 // TA 存的备注：电话里「联系人｜真名｜备注｜这是谁」；通话记录、短信里写的是真名，显示成备注（以前存的只有备注那一格，就照旧）
 const nicks = D => new Map(of((D.apps.电话 || {}).rows || [], '联系人').filter(r => r.length > 3 && r[2]).map(r => [r[1], r[2]]));
+const PICS = new Map();   // 相册里画好的图：这次打开期间记着，不用每次再从存储里读
 export const VIEWS = {
-  相册: (R, push) => {
-    const box = h('div.pk-photos'), hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
-    const shot = ([k, what, t, more]) => h('button', { style: { '--h': hue(what) }, onclick: () => push(t || k, [h('div.pk-photo', { style: { '--h': hue(what) } }, what), h('div.pk-list', h('div.pk-row', h('b', k === '删除' ? '为什么删' : '地点'), h('span', more || '没写')))]) }, what);
-    return [tabs(['图库', '隐藏', '最近删除'], k => box.replaceChildren(...of(R, k.slice(-2)).map(shot))), box];
+  // 相册：照 iPhone「照片」。照片是 AI 写的一句画面，格子是按画面配色的渐变 + 小图标；点开大图左右滑换张，底下一条缩略图；
+  // ⓘ 看信息（编号、尺寸这些按画面在手机这边编，不找 AI）；「画出来」点一次用生图画一张，画过的存着，格子里也换成真图；删除进「最近删除」
+  相册: (R, push, D, pop) => {
+    const hid = D.hide ||= [], fav = D.fav ||= [], key = p => '相册:' + p.what, hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
+    const toP = r => ({ k: r[0], what: r[1] || '', t: r[2] || '', place: r[0] === '删除' ? '' : r[3] || '', why: r[0] === '删除' ? r[3] || '' : '', src: r[4] || '' });
+    const byT = (a, b) => ts(a.t) - ts(b.t);
+    const lib = () => of(R, '图库').map(toP).filter(p => !hid.includes(key(p))).sort(byT);
+    const binned = () => [...of(R, '删除').map(toP), ...of(R, '图库').map(toP).filter(p => hid.includes(key(p)))].filter(p => !hid.includes('相册删:' + p.what)).sort(byT);
+    const kind = p => /截屏|截图/.test(p.src) ? 'shot' : p.src && !/相机/.test(p.src) ? 'app' : 'cam';
+    const glyph = p => /自拍|合照|人像/.test(p.what) ? 'user' : { shot: 'grid', app: 'download', cam: 'camera' }[kind(p)];
+    const n = p => [...p.what].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+    const picKey = p => `peekpic:${D.id}:${n(p)}`;
+    const art = (p, cls = '') => { const el = h('div.pk-ph__art' + cls, { style: { '--h': hue(p.what) } }, icon(glyph(p), 22, 1.6));
+      const show = u => { el.style.backgroundImage = `url("${u}")`; el.classList.add('is-drawn'); };
+      if (PICS.has(picKey(p))) show(PICS.get(picKey(p))); else kvGet(picKey(p)).then(u => { if (u) { PICS.set(picKey(p), u); show(u); } }, () => {});
+      el._show = show; return el; };
+    // 大图：左右滑换张（滚动对齐），顶上日期药丸、底下缩略图和一排按钮跟着这张变
+    const md = p => { const t = ts(p.t), d = new Date(t); return t ? `${d.getMonth() + 1}月${d.getDate()}日` : p.t; };
+    const viewer = (L, i0, bin, again) => {
+      let i = i0, info = false;
+      const pill = h('div.pk-glass.pk-ph__pill'), pager = h('div.pk-ph__pager'), strip = h('div.pk-ph__strip'), card = h('div.pk-ph__info');
+      const slides = L.map(p => h('div.pk-ph__slide', art(p, '.is-big'), h('p', p.what)));
+      pager.append(...slides); strip.append(...L.map((p, j) => h('button', { onclick: () => go(j) }, art(p))));
+      const meta = p => { const k = kind(p), x = n(p), mb = k === 'cam' ? (1.6 + x % 30 / 10).toFixed(1) + ' MB' : 300 + x % 600 + ' KB';
+        const t = ts(p.t), d = new Date(t);
+        return [h('b', t ? `${ymd(p)} 星期${'日一二三四五六'[d.getDay()]} ${(/(\d{1,2}:\d{2})/.exec(p.t) || [''])[0]}` : p.t), h('small', 'IMG_' + (1000 + x % 9000)),
+          h('div.pk-ph__cam', h('b', k === 'cam' ? '后置摄像头' : '无相机信息'), h('small', k === 'cam' ? '主摄 — 24 mm ƒ1.78' : '无镜头信息'), h('small', (k === 'cam' ? '12 MP · 3024 × 4032 · ' : k === 'shot' ? '截屏 · 1179 × 2556 · ' : '2 MP · 1080 × 1920 · ') + mb)),
+          p.place ? h('div.pk-ph__row', icon('globe', 16, 2), p.place) : null, k === 'app' ? h('div.pk-ph__row', icon('download', 16, 2), `从「${p.src.replace(/保存|下载|的/g, '').trim()}」保存`) : null,
+          p.why ? h('div.pk-ph__row', icon('trash', 16, 2), p.why) : null]; };
+      const paint = () => { const p = L[i]; if (!p) return;
+        pill.replaceChildren(h('b', md(p)), h('small', (/(\d{1,2}:\d{2})/.exec(p.t) || [''])[0]));
+        [...strip.children].forEach((b, j) => b.classList.toggle('is-on', j === i)); strip.children[i]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+        heart.classList.toggle('is-on', fav.includes(key(p))); card.replaceChildren(...meta(p)); };
+      const go = j => { pager.scrollTo({ left: j * pager.clientWidth, behavior: 'smooth' }); };
+      pager.addEventListener('scroll', () => { const j = Math.round(pager.scrollLeft / pager.clientWidth); if (j !== i) { i = j; paint(); } }, { passive: true });
+      const heart = h('button', { 'aria-label': '喜欢', onclick: () => { const k = key(L[i]), on = !fav.includes(k); fav.splice(0, fav.length, ...fav.filter(y => y !== k)); if (on) fav.push(k); heart.classList.toggle('is-on', on); saveRead(D); } }, icon('heart', 22, 2));
+      const draw = h('button', { 'aria-label': '画出来', onclick: () => busy(draw, async s => {
+        const p = L[i], u = await generateImage(`${p.what}，手机随手拍的照片`, '查手机', resolveConn('image', 'peek'), s);
+        if (!u) return; await kvSet(picKey(p), u); PICS.set(picKey(p), u); slides[i].firstChild._show(u); strip.children[i].firstChild._show(u); toast('画好了');
+      }).catch(e => toast(e.message)) }, icon('sparkle', 22, 2));
+      // 删除：照 iPhone 从垃圾桶那里冒出一小块说明 + 红字「删除照片」，点别处收起
+      const ask = h('div.pk-ph__pop', { hidden: true }, h('p', bin ? '这张照片会被彻底删除，不能恢复。' : '这张照片会移到「最近删除」，30 天后彻底删除。'), h('button', { onclick: () => {
+        ask.hidden = true; const p = L[i]; hid.push(bin ? '相册删:' + p.what : key(p)); saveRead(D);
+        L.splice(i, 1); slides.splice(i, 1)[0].remove(); strip.children[i].remove(); again();
+        if (!L.length) return pop(); i = Math.min(i, L.length - 1); pager.scrollLeft = i * pager.clientWidth; paint(); } }, '删除照片'));
+      const trash = h('button', { 'aria-label': '删除', onclick: e => { e.stopPropagation(); ask.hidden = !ask.hidden; } }, icon('trash', 22, 2));
+      const tip = h('button', { 'aria-label': '信息', onclick: () => { info = !info; wrap.classList.toggle('is-info', info); } }, icon('info', 22, 2));
+      const wrap = h('div.pk-ph__view', { onclick: e => { if (!ask.contains(e.target)) ask.hidden = true; } }, pager, card);
+      push('', () => [h('div.pk-top2.pk-ph__vtop', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), pill), wrap,
+        h('div.pk-ph__foot', strip, h('div.pk-glass.pk-ph__bar', heart, tip, draw, trash), ask)], 'is-raw.pk-ph-full');
+      requestAnimationFrame(() => { pager.scrollLeft = i * pager.clientWidth; paint(); });
+    };
+    // 一页格子（图库 / 隐藏 / 最近删除）：四列，最新的在最下面，一打开就在最底下；大图里删了一张，格子跟着重排（again）
+    const grid = (L, bin, again) => h('div.pk-ph__grid', L.map((p, j) => h('button', { onclick: () => viewer(L, j, bin, again) }, art(p))));
+    const sub = (t, get, bin) => { const sb = h('div.pk-ph__sub'), again = () => { sb.replaceChildren(grid(get(), bin, again)); paintMain(); }; again(); push(t, () => [sb]); };
+    const ymd = p => { const d = new Date(ts(p.t)); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
+    const range = L => L.length && ts(L[0].t) ? [...new Set([L[0], L[L.length - 1]].map(ymd))].join(' 至 ') : '';
+    const box = h('div.pk-ph__main'), title = h('div.pk-ph__title'), seg = h('div.pk-glass.pk-ph__seg');
+    let mode = '全部';
+    const paintMain = () => { const L = lib(); title.replaceChildren(h('b', '图库'), h('small', range(L)));
+      if (mode === '全部') box.replaceChildren(grid(L, false, paintMain), h('div.pk-ph__more', [['隐藏', 'lock', () => of(R, '隐藏').map(toP).sort(byT)], ['最近删除', 'trash', binned, true]].map(([t, ic, get, bin]) =>
+        h('button.pk-row', { onclick: () => sub(t, get, bin) }, icon(ic, 20, 2), h('b', t), h('span', get().length + ' 张'), icon('chevron', 14, 2.6)))));
+      else { const by = groupBy(L.map(p => { const t = ts(p.t), d = new Date(t); return [!t ? '更早' : mode === '年' ? d.getFullYear() + '年' : `${d.getFullYear()}年${d.getMonth() + 1}月`, p]; }), 0);
+        box.replaceChildren(h('div.pk-ph__cards', by.map(([k, ps]) => h('button.pk-ph__card', { onclick: () => { mode = '全部'; seg.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b.textContent === '全部')); paintMain(); } }, art(ps[ps.length - 1][1], '.is-big'), h('b', k), h('small', ps.length + ' 张'))))); } };
+    seg.append(...['年', '月', '全部'].map(m => h('button' + (m === mode ? '.is-on' : ''), { onclick: e => { mode = m; seg.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b === e.currentTarget)); paintMain(); } }, m)));
+    paintMain();
+    requestAnimationFrame(() => { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = b.scrollHeight; });
+    return [h('div.pk-top2.pk-ph__top', title), box, h('div.pk-float.pk-ph__float', seg)];
   },
   AI: (R, push) => {
     const box = list(), names = [...new Set(R.map(r => r[0]))];
