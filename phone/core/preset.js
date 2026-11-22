@@ -1,4 +1,4 @@
-// 预设：拿酒馆里的（或导入的）对话补全预设，挑条目存成方案；全局用一个方案，每个应用也能用别的或不用。
+// 预设：拿酒馆里的（或导入的）对话补全预设，挑条目、改内容存成方案（改的只存在方案里，不动酒馆的预设）；全局用一个方案，每个应用也能用别的或不用。
 // 发请求时（api.js 的 generate）：预设里「聊天记录」那条之前的放在我们的系统提示前面，之后的放在我们的要求前面，我们自己的格式、条数总在最后。
 import { state, commit, kvGet, kvSet, kvDel } from './store.js';
 import { uid } from './util.js';
@@ -55,7 +55,7 @@ export async function withPreset(opts) {
   const plan = P().plans.length && planFor(opts.app || '聊天');
   if (!plan) return opts;
   const list = (await entriesOf(plan.src)).filter(e => e.id === 'chatHistory' || (plan.on[e.id] ?? e.on));
-  const cut = list.findIndex(e => e.id === 'chatHistory'), text = L => L.map(e => mac(e.content).trim()).filter(Boolean).join('\n\n');
+  const cut = list.findIndex(e => e.id === 'chatHistory'), text = L => L.map(e => mac(plan.text?.[e.id] ?? e.content).trim()).filter(Boolean).join('\n\n');
   const pre = text(cut < 0 ? list : list.slice(0, cut)), post = cut < 0 ? '' : text(list.slice(cut + 1));
   return { ...opts, system: [pre, opts.system].filter(Boolean).join('\n\n'), prompt: [post, opts.prompt].filter(Boolean).join('\n\n'), keep: opts.keep && post ? opts.keep + post.length + 2 : opts.keep };
 }

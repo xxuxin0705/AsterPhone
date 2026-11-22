@@ -1,7 +1,8 @@
-// 设置 → 预设：方案 = 一份预设（酒馆里的或导入的）+ 里面每条开不开；全局用哪个方案，每个应用跟全局、用别的或不用
+// 设置 → 预设：方案 = 一份预设（酒馆里的或导入的）+ 里面每条开不开、改成了什么；全局用哪个方案，每个应用跟全局、用别的或不用
 import { h, pickFile, uid } from '../../core/util.js';
 import { commit } from '../../core/store.js';
-import { group, item, switchEl, btn, dialog, actionSheet, toast } from '../../core/ui.js';
+import { group, item, switchEl, btn, dialog, actionSheet, toast, textarea } from '../../core/ui.js';
+import * as nav from '../../core/nav.js';
 import { P, PRESET_APPS, tavernNames, srcName, entriesOf, importFile, removeFile } from '../../core/preset.js';
 
 export function openPresets(sub) {
@@ -35,14 +36,24 @@ export function openPresets(sub) {
     const view = plan => {
       const list = h('div'), src = item({ title: '用哪份预设', value: srcName(plan.src), chevron: true, onClick: async () => {
         const v = await actionSheet('用哪份预设', sources()); if (v == null || v === plan.src) return;
-        plan.src = v; plan.on = {}; commit('presets'); src.querySelector('.as-list-item__value').textContent = srcName(v); fill();
+        plan.src = v; plan.on = {}; plan.text = {}; commit('presets'); src.querySelector('.as-list-item__value').textContent = srcName(v); fill();
       } });
-      // 条目：「聊天记录」那条是分界，手机要发的东西放在那里，不能关
-      const fill = () => entriesOf(plan.src).then(L => list.replaceChildren(L.length ? group('条目', L.map(e => e.id === 'chatHistory'
-        ? item({ title: '聊天记录', value: '手机的内容放这里' }) : item({ title: e.name, right: switchEl(plan.on[e.id] ?? e.on, v => { plan.on[e.id] = v; commit('presets'); }, e.name) }))) : group('', [item({ title: '这份预设读不到了，换一份' })])),
+      // 条目：「聊天记录」那条是分界，手机要发的东西放在那里，不能关。点一条看内容、改内容（只改这个方案里的，不动酒馆的预设）
+      const row = e => e.id === 'chatHistory' ? item({ title: '聊天记录', value: '手机的内容放这里' })
+        : item({ title: e.name, sub: plan.text?.[e.id] != null ? '改过' : null, right: switchEl(plan.on[e.id] ?? e.on, v => { plan.on[e.id] = v; commit('presets'); }, e.name), chevron: true, onClick: ev => edit(e, ev.currentTarget) });
+      const fill = () => entriesOf(plan.src).then(L => list.replaceChildren(L.length ? group('条目', L.map(row)) : group('', [item({ title: '这份预设读不到了，换一份' })])),
         e => toast('读不到这份预设：' + e.message));
+      const edit = (e, el) => sub('preset-entry', e.name, body => {
+        let text = plan.text?.[e.id] ?? e.content;
+        const ta = textarea({ value: text, rows: 16, onInput: v => { text = v; } });
+        body.append(group('', [h('div.as-field', ta)]), plan.text?.[e.id] != null ? h('div.as-lib-actions', btn('恢复原样', 'secondary', () => { ta.value = text = e.content; })) : '',
+          h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
+            plan.text ||= {}; if (text === e.content) delete plan.text[e.id]; else plan.text[e.id] = text;
+            commit('presets'); el.replaceWith(row(e)); nav.pop();
+          })));
+      });
       fill();
-      return h('div', group('', [src]), h('div.as-lib-actions', btn('复制一份', 'secondary', () => add({ ...plan, id: uid('pp_'), name: plan.name + ' 副本', on: { ...plan.on } })),
+      return h('div', group('', [src]), h('div.as-lib-actions', btn('复制一份', 'secondary', () => add({ ...plan, id: uid('pp_'), name: plan.name + ' 副本', on: { ...plan.on }, text: { ...plan.text } })),
         btn('改名', 'secondary', async () => { const n = await dialog({ title: '改名', input: { value: plan.name } }); if (!n || !n.trim()) return; plan.name = n.trim(); commit('presets'); chips.querySelector(`[data-id="${plan.id}"]`).textContent = plan.name; repaint(); }),
         btn('删除', 'secondary', async () => {
           if (!(await dialog({ title: `删除「${plan.name}」？`, confirm: '删除', danger: true }))) return;
