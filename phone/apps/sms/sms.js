@@ -12,7 +12,7 @@ import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { renderBadges } from '../home/home.js';
 import { nameOf, personaOf, worldBlock, takeTr, parseReply } from '../chat/engine.js';
-import { iosPage, swipe, ava, when, far, bigTitle } from '../peek/apps.js';
+import { iosPage, swipe, gone, ava, when, far, bigTitle } from '../peek/apps.js';
 
 const jobs = {}, views = new Map();
 const person = n => state.contacts.find(p => [p.name, p.nick, p.remark].includes(n));
@@ -55,8 +55,7 @@ export function open(opts = {}) {
   // 左滑删除、右滑标成已读 / 未读（照作者录的 iPhone 视频）
   const del = async (t, w) => {
     if (!await dialog({ title: '删除这段对话？', confirm: '删除', danger: true })) return;
-    jobs[t.id]?.abort(); state.sms.splice(state.sms.indexOf(t), 1); save(); sig = key();
-    w.animate([{ height: w.offsetHeight + 'px', opacity: 1 }, { height: 0, opacity: 0 }], { duration: 260, easing: 'ease-in' }).finished.then(() => w.remove()); };
+    jobs[t.id]?.abort(); state.sms.splice(state.sms.indexOf(t), 1); save(); sig = key(); gone(w); };
   const row = t => { const m = t.list.at(-1), r = h('button.pk-msg' + (t.unread ? '.is-new' : ''), { onclick: () => thread(t) }, ava(title(t), face(t)),
       h('div', h('b', h('span', title(t)), h('time', when(at(m))), icon('chevron', 14, 2.6)), h('span', mk(m))));
     return swipe(r, [['trash', '#ff3b30', w => del(t, w)]], [['chatdots', '#007aff', () => { t.unread = t.unread ? 0 : 1; r.classList.toggle('is-new', !!t.unread); save(); sig = key(); }]]); };

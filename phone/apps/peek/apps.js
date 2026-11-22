@@ -1,6 +1,6 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
 import { h, sortZh } from '../../core/util.js';
-import { icon, actionSheet } from '../../core/ui.js';
+import { icon, actionSheet, dialog } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { saveRead } from './gen.js';
 import { myName } from '../../core/promptstore.js';
@@ -82,6 +82,7 @@ export function iosPage(app, id, cls = '') {
 // 照 iPhone 的左滑 / 右滑：这一行跟着手指走、露出后面的圆按钮，过了一半就停在打开的样子；点按钮做事，点这一行或别的地方收回。
 // left：左滑露出的（在右边），right：右滑露出的（在左边），每个 [图标, 颜色, 点了做什么]。贴着左边缘起手的留给「右滑返回」
 let opened = null;
+export const gone = w => w.animate([{ height: w.offsetHeight + 'px', opacity: 1 }, { height: 0, opacity: 0 }], { duration: 260, easing: 'ease-in' }).finished.then(() => w.remove());   // 删掉的那一行收起来
 export function swipe(row, left = [], right = []) {
   const btn = ([ic, bg, fn]) => h('button.pk-swipe__b', { style: { background: bg }, onclick: e => { e.stopPropagation(); shut(); fn(wrap); } }, icon(ic, 22, 2));
   const wrap = h('div.pk-swipe', right.length ? h('div.pk-swipe__l', right.map(btn)) : null, left.length ? h('div.pk-swipe__r', left.map(btn)) : null, row);
@@ -143,9 +144,13 @@ export function bigTitle(head, big) {
 export const far = (a, b) => { const day = t => String(t || '').replace(/\s*\d{1,2}:\d{2}.*$/, ''), min = t => { const m = /(\d{1,2}):(\d{2})/.exec(t || ''); return m ? m[1] * 60 + +m[2] : null; };
   return day(a) !== day(b) || min(a) == null || min(b) == null || Math.abs(min(b) - min(a)) >= 60; };
 function messenger(threads, push, D, pop, o) {
-  const seen = D.read ||= [], isNew = x => !x.msgs[x.msgs.length - 1].me && !seen.includes(o.key + x.title);
+  // 左滑删除、右滑标成已读 / 未读（照作者录的 iPhone 视频）：都只记在这部手机自己的数据里（D.hide / D.unread），你那边真的聊天不动
+  const seen = D.read ||= [], hid = D.hide ||= [], marked = D.unread ||= [], k = x => o.key + x.title;
+  const isNew = x => marked.includes(k(x)) || (!x.msgs[x.msgs.length - 1].me && !seen.includes(k(x)));
+  const setNew = (x, on) => { marked.splice(0, marked.length, ...marked.filter(y => y !== k(x))); if (on) marked.push(k(x)); else if (!seen.includes(k(x))) seen.push(k(x)); saveRead(D); };
+  threads = threads.filter(x => !hid.includes(k(x)));
   let unread = threads.filter(isNew).length;
-  const open = (x, row) => { const L = x.msgs; if (isNew(x)) { seen.push(o.key + x.title); unread--; row.classList.remove('is-new'); saveRead(D); } push(x.title, [
+  const open = (x, row) => { const L = x.msgs; if (isNew(x)) { setNew(x, false); unread--; row.classList.remove('is-new'); } push(x.title, [
     h('div.pk-top2.is-chat', h('button.pk-glass.pk-backpill', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4), unread ? h('em', unread) : null),
       h('div.pk-peer', ava(x.title, x.avatar), h('b.pk-glass', h('span', x.title), icon('chevron', 12, 2.6)))),
     h('small.pk-meta', '信息 · ' + o.kind, h('br'), when(L[0].t, true)),
@@ -159,7 +164,9 @@ function messenger(threads, push, D, pop, o) {
   return [head, big,
     h('div.pk-msgs', threads.map(x => { const last = x.msgs[x.msgs.length - 1], row = h('button.pk-msg' + (isNew(x) ? '.is-new' : ''), { onclick: () => open(x, row) },
       ava(x.title, x.avatar), h('div', h('b', h('span', x.title), h('time', when(last.t)), icon('chevron', 14, 2.6)),
-        h('span', x.draft ? [h('em.is-draft', '草稿'), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); return row; })),
+        h('span', x.draft ? [h('em.is-draft', '草稿'), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text)));
+      return swipe(row, [['trash', '#ff3b30', async w => { if (!await dialog({ title: '删除这段对话？', confirm: '删除', danger: true })) return; hid.push(k(x)); saveRead(D); gone(w); }]],
+        [['chatdots', '#007aff', () => { const on = !isNew(x); setNew(x, on); row.classList.toggle('is-new', on); unread += on ? 1 : -1; }]]); })),
     h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
 }
 

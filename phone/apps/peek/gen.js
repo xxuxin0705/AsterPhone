@@ -62,8 +62,8 @@ export async function load(c) {
   return d;
 }
 
-/** 记下 TA 手机里哪些信息点开看过了（只存这一项，别的照旧） */
-export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; d.read = D.read; await kvSet('peek:' + D.id, d).catch(() => {}); }
+/** 记下 TA 手机里哪些信息看过、左滑删了、标成未读（只存这几项，别的照旧） */
+export async function saveRead(D) { const d = (await kvGet('peek:' + D.id).catch(() => null)) || { apps: {} }; Object.assign(d, { read: D.read, hide: D.hide, unread: D.unread }); await kvSet('peek:' + D.id, d).catch(() => {}); }
 
 // 分了好几行（//）的一格，AI 有时只在最后附一整段翻译：行数对得上就拆成每行各带一个，备忘录、正文才能一行一行换
 const perLine = s => {

@@ -12,7 +12,7 @@ import * as nav from '../../core/nav.js';
 import { renderBadges } from '../home/home.js';
 import { nameOf } from '../chat/engine.js';
 import { callName, fmtDur, voiceDur } from '../chat/msgtypes.js';
-import { VIEWS, iosPage } from '../peek/apps.js';
+import { VIEWS, iosPage, gone } from '../peek/apps.js';
 
 async function all() {
   const dms = state.chats.filter(ch => ch.type !== 'group' && ch.contactId);
@@ -42,8 +42,7 @@ export function open() {
     del: async (r, w) => { const x = r.x;
       if (x.mode === 'phone') state.calls.splice(state.calls.findIndex(y => y.id === x.id), 1);
       else { const ch = chatForContact(x.cid, false), m = ch && (await getMsgs(ch.id)).find(y => y.id === x.id); if (m) { m.offPhone = true; saveMsgs(ch.id); } }
-      L = L.filter(y => y !== x); sig = key(); commit('calls');
-      w.animate([{ height: w.offsetHeight + 'px', opacity: 1 }, { height: 0, opacity: 0 }], { duration: 260, easing: 'ease-in' }).finished.then(() => w.remove()); } };
+      L = L.filter(y => y !== x); sig = key(); commit('calls'); gone(w); } };
   const rows = () => [...L.map(x => Object.assign([nameOf(contact(x.cid)), x.missed && x.from === 'them' ? '未接' : x.from === 'them' ? '呼入' : '呼出', time.stampText(x), x.mode === 'phone' ? '手机' : callName(x)], { x })),
     ...L.filter(x => x.vm).map(x => Object.assign(['留言', nameOf(contact(x.cid)), time.stampText(x), fmtDur(voiceDur(x.vm)), x.vmTr ? `${x.vm}[翻译：${x.vmTr}]` : x.vm], { x })),
     ...friends().map(c => ['联系人', nameOf(c), nameOf(c), ''])];
