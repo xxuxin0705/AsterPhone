@@ -3,12 +3,14 @@ import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
 import { state, commit, contact, saveMsgs, chatForContact, isFriend, befriend } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
+import * as time from '../../core/time.js';
+import { renderBadges } from '../home/home.js';
 import { generateImage, lookOf, resolveConn, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
 import { speakAs, soonAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { shell } from '../../core/shell.js';
 import { log as note } from '../../core/log.js';
-import { money, fmtDur, voiceDur, statusText } from './msgtypes.js';
+import { money, fmtDur, voiceDur, statusText, callName } from './msgtypes.js';
 
 /* ================= 气泡 ================= */
 /** 按消息类型做出气泡。ctx = { chat, c, redraw } */
@@ -236,17 +238,18 @@ export function openStickerManager() {
 }
 
 /* ================= 语音 / 视频通话 ================= */
-/** 正文里写到 TA 打电话过来：响铃，接 / 挂由你决定；没接就记一条「未接来电」 */
-export function ringIn(chat, c, mode) {
-  shell.notify({ chatId: chat.id, title: E.nameOf(c), text: `邀请你${mode === 'video' ? '视频' : '语音'}通话`, avatarUrl: E.avatarOf(c, chat) });
-  openCall(chat, c, mode, true);
+/** 正文里写到 TA 打电话过来：响铃，接 / 挂由你决定；没接就记一条「未接来电」，打来时一起写好的留言（vm = [原文, 翻译]）变成语音留言 */
+export function ringIn(chat, c, mode, vm) {
+  shell.notify({ chatId: chat.id, title: E.nameOf(c), text: mode === 'phone' ? '来电' : `邀请你${callName({ mode })}`, avatarUrl: E.avatarOf(c, chat) });
+  openCall(chat, c, mode, true, vm);
 }
 let rtOff = false;   // 腾讯云这个月的免费时长用完了（它自己会停）：这次打开期间改用别的听写
-export function openCall(chat, c, mode = 'voice', incoming = false) {
+// mode：voice / video 是聊天里打的，记在聊天里；phone 是普通电话，记在 state.calls（电话 App 里看）
+export function openCall(chat, c, mode = 'voice', incoming = false, vm) {
   const host = document.querySelector('#phone');
   const lines = [];
   let sec = 0, on = false, busy = null, ended = false, picked = !incoming;   // busy：TA 正在想说什么（AbortController），这时再点发送 / 让 TA 说 就取消
-  const timer = h('div.as-chat-call__time', incoming ? `邀请你${mode === 'video' ? '视频' : '语音'}通话…` : '正在呼叫…');
+  const timer = h('div.as-chat-call__time', incoming ? (mode === 'phone' ? '来电…' : `邀请你${callName({ mode })}…`) : '正在呼叫…');
   const log = h('div.as-chat-call__log');
   const input = h('input.as-chat-call__input', { placeholder: '说点什么…', enterkeyhint: 'send' });
   const say = h('button.as-chat-call__say', { 'aria-label': '发送', onclick: () => talk() }, icon('send', 18, 2));
@@ -323,7 +326,7 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     clearTimeout(autoT); if (e.isComposing) return;
     autoT = setTimeout(() => { if (ended || !input.value.trim()) return; if (busy) { busy.abort(); stopSpeak(); idle(); } talk(); }, 1200);
   });
-  const tick = setInterval(() => { if (on) { sec++; timer.textContent = `${mode === 'video' ? '视频' : '语音'}通话中 ${fmtDur(sec)}`; } }, 1000);
+  const tick = setInterval(() => { if (on) { sec++; timer.textContent = `${mode === 'phone' ? '' : callName({ mode })}通话中 ${fmtDur(sec)}`; } }, 1000);
   if (incoming) setTimeout(() => { if (!picked && !ended) hang(); }, 45000);   // 45 秒没接：未接来电
   else setTimeout(() => { if (!ended) { on = true; timer.textContent = '已接通'; talk(true); } }, 1400);
   function pick() { picked = true; ring.hidden = true; bar.hidden = btns.hidden = false; on = true; timer.textContent = '已接通'; talk(true); }
@@ -351,7 +354,9 @@ export function openCall(chat, c, mode = 'voice', incoming = false) {
     ended = true; clearInterval(tick); stopSpeak(); if (busy) busy.abort(); if (hearing) hearing.abort(); up(); if (stream) stream.getTracks().forEach(t => t.stop());
     el.classList.remove('is-open'); setTimeout(() => el.remove(), 360);
     const text = lines.map(l => `${l.who === 'me' ? '我' : E.nameOf(c)}：${l.text}${l.zh ? `（${l.zh}）` : ''}`).join('\n');
-    await E.sendSpecial(chat, picked ? { type: 'call', mode, dur: Math.max(sec, 1), text, ...(incoming ? { from: 'them' } : {}) } : { type: 'call', mode, dur: 0, missed: true, from: 'them' });
+    const rec = picked ? { type: 'call', mode, dur: Math.max(sec, 1), text, ...(incoming ? { from: 'them' } : {}) } : { type: 'call', mode, dur: 0, missed: true, from: 'them', ...(vm ? { vm: vm[0], vmTr: vm[1] } : {}) };
+    if (mode !== 'phone') return E.sendSpecial(chat, rec);
+    state.calls.push({ id: uid('pc'), cid: c.id, from: 'me', ...rec, ...time.stamp() }); commit('calls'); renderBadges();
   }
 }
 

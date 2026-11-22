@@ -8,6 +8,7 @@ export const TYPE_LABEL = {
 };
 export const money = n => '¥' + (Math.round(Number(n || 0) * 100) / 100).toFixed(2);
 export const voiceDur = text => Math.max(1, Math.min(60, Math.ceil(String(text || '').length / 3.5)));
+export const callName = m => ({ video: '视频通话', phone: '电话' })[m.mode] || '语音通话';
 export const fmtDur = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /** 列表、通知、锁屏里显示的一行字 */
@@ -19,7 +20,7 @@ export function previewOf(m) {
     case 'transfer': return `[转账] ${money(m.amount)}`;
     case 'packet': return `[红包] ${m.note || '恭喜发财，大吉大利'}`;
     case 'location': return `[位置] ${m.text}`;
-    case 'call': return m.missed ? `[${m.from === 'them' ? '未接来电' : '对方未接'}]` : `[${m.mode === 'video' ? '视频' : '语音'}通话] ${fmtDur(m.dur || 0)}`;
+    case 'call': return m.missed ? `[${m.from === 'them' ? '未接来电' : '对方未接'}]` : `[${callName(m)}] ${fmtDur(m.dur || 0)}`;
     case 'card': return `[名片] ${m.name}`;
     case 'music': return `[一起听] ${m.name}`;
     case 'song': return `[歌曲] ${m.name}`;
@@ -36,7 +37,7 @@ export function forAI(m) {
     case 'transfer': return `[转账 ${money(m.amount)}${m.note ? '，备注：' + m.note : ''}｜${statusText(m)}]`;
     case 'packet': return `[红包 ${money(m.amount)}${m.note ? '，' + m.note : ''}｜${statusText(m)}]`;
     case 'location': return `[位置：${m.text}]`;
-    case 'call': return m.missed ? `[${m.mode === 'video' ? '视频' : '语音'}通话，没接通]` : `[${m.mode === 'video' ? '视频' : '语音'}通话 ${fmtDur(m.dur || 0)}${m.text ? '，聊了：' + m.text.slice(0, 200) : ''}]`;
+    case 'call': return m.missed ? `[${callName(m)}，没接通${m.vm ? '，留言：' + m.vm : ''}]` : `[${callName(m)} ${fmtDur(m.dur || 0)}${m.text ? '，聊了：' + m.text.slice(0, 200) : ''}]`;
     case 'card': return `[名片：${m.name}]`;
     case 'music': return `[邀请一起听《${m.name}》- ${m.artist}]`;
     case 'song': return `[分享了一首歌《${m.name}》- ${m.artist}]`;

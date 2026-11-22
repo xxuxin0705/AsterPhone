@@ -87,7 +87,7 @@ export function defaults() {
     timeTagName: 'astertime',
     me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520, ledger: [], pokeSuffix: '' },
     stickers: [], friendRequests: [], library: { theme: 'aero', skins: [] },
-    contacts: [], chats: [], moments: [], favorites: [], groups: ['家人', '朋友'], sms: [],
+    contacts: [], chats: [], moments: [], favorites: [], groups: ['家人', '朋友'], sms: [], calls: [],
     // 音乐（整部手机一份）：播放队列、放到哪、喜欢、最近、导入的歌单、皮肤、音源地址
     music: { queue: [], idx: 0, mode: 'list', pos: 0, liked: [], recent: [], lists: [], local: [], plays: {}, history: [], storySongs: false, skin: { name: 'record', disc: 'glass', bg: '' }, src: {} },
     musicNotes: [],   // 音乐笔记（歌词 + 感悟 + 乐评），跟着聊天窗口走
@@ -104,7 +104,7 @@ export function subscribe(fn) { listeners.add(fn); return () => listeners.delete
 /* ---------- 每个酒馆聊天窗口一份手机数据 ---------- */
 // 联系人、群、聊天、动态、收藏、新的朋友、分组、我的资料（含钱包）按窗口存在 'win:窗口' 里；其余（设置、接口、提示词、表情包、皮肤…）整部手机共用。
 // 音色和读音跟着角色卡：当前卡的放在 state.voice 里，别的卡的放在 state.voiceCards 里，换卡时对调
-const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me', 'musicNotes', 'diary', 'forum', 'sms'];
+const SCOPED = ['contacts', 'chats', 'moments', 'favorites', 'friendRequests', 'groups', 'me', 'musicNotes', 'diary', 'forum', 'sms', 'calls'];
 export let win = { key: '', card: '', label: '' };
 let entered = false;
 /** 查手机里用 TA 的身份看论坛、音乐时，state 里那一块临时换成给界面看的；真的放在这里，存盘存的一直是真的 */

@@ -287,7 +287,7 @@ export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
   const rc = replyCfg(chat), [min, max] = rc.lines;
   const all = storyNow(), cut = all.slice(-1500), story = lite && all.length > 1500 ? '…' + cut.slice(cut.indexOf('\n') + 1) : all;
-  const history = historyText(msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid, lite === 'min');
+  const history = historyText(c ? [...msgs, ...state.calls.filter(x => x.cid === c.id)].sort((a, b) => a.at - b.at) : msgs, c, cfg.hist ?? 30), t = time.forPrompt(), sid = chatScheme('dm', cfg.prompt), wb = await worldBlock(story + '\n' + history, [c], 'dm', sid, lite === 'min');
   const prompt = compose('dm', {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
     story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs), lang: c && speakOf(c.id) ? `\n- 每条文字和语音都直接用「${langName(speakOf(c.id))}」写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。` : '',
@@ -494,7 +494,7 @@ function bumpStreak(chat) {
 /* ---------- 剧情里 TA 发来的消息（暗号 <asterphone>） ---------- */
 /* ---------- 正文 → 手机（暗号）：两种联动方式都一样 ----------
  * <asterphone from="谁" group="群名" type="…">内容</asterphone>，core/sync.js 读到后交给 fromStory。
- * 没有 type：内容一行一条，写法和手机里一样（[语音] [图片] [转账] [红包] [名片] [拍一拍] [收下] [退还]），另加 [撤回]、[语音通话] / [视频通话]。
+ * 没有 type：内容一行一条，写法和手机里一样（[语音] [图片] [转账] [红包] [名片] [拍一拍] [收下] [退还]），另加 [撤回]、[电话] / [语音通话] / [视频通话]（后面可跟没接时的留言）。
  * type：动态 / 点赞 / 评论（你最新那条动态）/ 加好友 / 拉群。 */
 export async function fromStory({ from, body = '', group = '', type = '' }) {
   if (type === '短信') return (await import('../sms/sms.js')).receive(from, body);
@@ -574,8 +574,8 @@ export async function deliverFromStory(c, text, groupName = '') {
   const chat = g || chatForContact(c.id, true), msgs = await getMsgs(chat.id);
   if (!g && c.cut) { c.cut = ''; commit('contacts'); }   // TA 又给你发消息了：说明加回来 / 解除拉黑了
   for (const line of String(text).split('\n').map(l => l.trim()).filter(Boolean)) {
-    const call = /^[\[【]\s*(语音|视频)通话\s*[\]】]/.exec(line);
-    if (call) { const dm = chatForContact(c.id, true); import('./specials.js').then(S => S.ringIn(dm, c, call[1] === '视频' ? 'video' : 'voice')); continue; }
+    const call = /^[\[【]\s*(语音通话|视频通话|电话)\s*[\]】]\s*(.*)$/.exec(line);
+    if (call) { const dm = chatForContact(c.id, true), vm = call[2] && takeTr(call[2]); import('./specials.js').then(S => S.ringIn(dm, c, { 视频通话: 'video', 电话: 'phone' }[call[1]] || 'voice', vm)); continue; }
     if (/^[\[【]\s*撤回\s*[\]】]/.test(line)) {
       const last = [...msgs].reverse().find(m => m.from === 'them' && !m.recalled && (!g || m.who === c.id));
       if (last) { last.recalled = true; if (msgs[msgs.length - 1] === last) chat.lastText = preview(last); emit('reload', chat.id); }

@@ -1,0 +1,20 @@
+/* 电话：照 iPhone「电话」——一行一通，没接的名字标红；底下两个标签 */
+.as-ph .as-page__body { padding-bottom: 80px; }
+.as-ph-list { display: grid; padding: 0 16px; }
+.as-ph-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.as-ph-row__main { flex: 1; min-width: 0; display: grid; gap: 3px; padding: 4px 0; border: 0; background: none; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.as-ph-row__main b { overflow: hidden; font-weight: 600; font-size: 17px; white-space: nowrap; text-overflow: ellipsis; }
+.as-ph-row.is-miss .as-ph-row__main b { color: var(--as-color-danger); }
+.as-ph-row__main span { display: flex; align-items: center; gap: 6px; color: var(--as-color-text-2); font-size: 14px; }
+.as-ph-row__main em { padding: 1px 5px; border-radius: 4px; background: var(--as-color-text-2); color: var(--as-color-surface-solid); font: 600 11px/1.4 var(--font-ui); }
+.as-ph-row time { color: var(--as-color-text-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.as-ph-dial { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; background: var(--as-color-surface-2); color: var(--as-color-accent); cursor: pointer; }
+.as-ph-row + .as-ph-row { border-top: .5px solid var(--as-color-border); }
+.as-ph-tabs { position: absolute; left: 50%; bottom: 18px; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--as-color-surface); box-shadow: var(--as-shadow); backdrop-filter: blur(var(--as-blur)); translate: -50% 0; }
+.as-ph-tabs button { padding: 9px 22px; border: 0; border-radius: 999px; background: none; color: inherit; font: 500 14px/1 var(--font-ui); cursor: pointer; }
+.as-ph-tabs .is-on { background: var(--as-color-surface-2); color: var(--as-color-accent); }
+.as-ph-vm { display: grid; gap: 10px; padding: 4px 4px 12px; }
+.as-ph-vm small { color: var(--as-color-text-2); font-size: 13px; }
+.as-ph-vm__text { margin: 0; font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
+.as-ph-vm__acts { display: flex; gap: 8px; }
+.as-ph-vm__acts button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--as-color-surface-2); color: var(--as-color-accent); font: 500 14px/1 var(--font-ui); cursor: pointer; }

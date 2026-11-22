@@ -30,6 +30,7 @@ const APP_LOADERS = {
   mirror: () => import('../apps/mirror/mirror.js'),
   peek: () => import('../apps/peek/peek.js'),
   sms: () => import('../apps/sms/sms.js'),
+  phone: () => import('../apps/phone/phone.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
