@@ -82,6 +82,7 @@ export function defaults() {
       peek: { every: 0, count: 6, fill: false, fillMax: 3 },
     },
     prompts: {},                          // 通用提示词的修改（全局 + 暗号）
+    presets: { files: [], plans: [], all: '', apps: {} },   // 带上酒馆预设的方案（core/preset.js）
     timeTagName: 'astertime',
     me: { nick: '', realName: '', sign: '', gender: '', birthday: '', region: '', tags: [], persona: null, avatar: '', link: 'none', stats: ['moments', 'friends', 'messages', 'balance'], balance: 520, ledger: [], pokeSuffix: '' },
     stickers: [], friendRequests: [], library: { theme: 'aero', skins: [] },

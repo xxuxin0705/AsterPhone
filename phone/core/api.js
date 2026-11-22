@@ -1,6 +1,7 @@
 // AI 调用：按「连接」的渠道类型拼请求。
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state, kvGet, kvSet } from './store.js';
+import { withPreset } from './preset.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
 import { apiLog as log, log as note, startCall, orAbort, abortCall } from './log.js';
 import { adapt, plain } from './act.js';
@@ -176,6 +177,7 @@ async function resumable(opts) {
  * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用选好的副 API。
  */
 export async function generate(opts) {
+  opts = await withPreset(opts);   // 设置 → 预设：这个应用选了方案就把预设条目带上
   const { conn, app = '聊天' } = opts;
   if (!conn) throw new Error('还没有设置可用的连接');
   let last = null;

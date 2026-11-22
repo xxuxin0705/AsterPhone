@@ -14,7 +14,7 @@ import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontNam
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName, relang } from '../../core/translate.js';
 
-export const VERSION = '0.8.594';
+export const VERSION = '0.8.595';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -61,6 +61,7 @@ export function open() {
         item({ icon: 'link', color: 'blue', title: '连接', chevron: true, onClick: openConnections }),
         item({ icon: 'grid', color: 'purple', title: '应用管理', chevron: true, onClick: openApps }),
         item({ icon: 'note', color: 'teal', title: '提示词', chevron: true, onClick: openPrompts }),
+        item({ icon: 'style', color: 'pink', title: '预设', chevron: true, onClick: () => import('./presets.js').then(m => m.openPresets(sub)) }),
       ]),
       group('', [
         item({ icon: 'palette', color: 'orange', title: '显示', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),

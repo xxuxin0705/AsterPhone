@@ -19,6 +19,7 @@
 |---|---|---|---|
 | `server-plugin/index.js`（改用 NeteaseCloudMusicApi 这个主意、二维码用 web 方式；QQ 登录用 qq-music-api、凭证存文件、从 cookie 里取 uin） | 作者发的「你自己的音乐源」插件，https://github.com/libertyseeyou/yourownmusicapiforST | MIT | 只参考思路 |
 | `server-plugin/index.js`（早先的网易云接口地址、扫码登录的流程） | 哪些网易云接口不用加密就能调、扫码登录各个状态码的意思 | Anko3o/music-mcp-netease，https://github.com/Anko3o/music-mcp-netease | CC BY-NC-SA 4.0（不能商用；**如果以后照搬它的代码**，整个项目也得用同样的许可、不能商用，所以只学思路） |
+| `core/preset.js`、`apps/settings/presets.js`（设置 → 预设：读酒馆的对话补全预设、照 prompt_order 排顺序、角色专用的先用、条目开关按预设分开存、只认几个安全的宏、「聊天记录」那条当分界） | 小剧场插件读预设、拼请求的做法（`preset-layout.js` 的 extractPresetEntries、`preset-compat.js`、`theater-materials.js` 的 loadPresetNameList / fetchPresetByName） | koichole213-ui/st-theater，https://github.com/koichole213-ui/st-theater | MIT |
 | 电台（哄睡）页面的 2.5D 画风 | 小红书 Toska 的前端（窗台 / 书桌，three.js，AGPL-3.0） | 只参考画风，不用它的代码和图 |
 | `server-plugin/index.js`（B 站：先拿 buvid3 再搜、`search/type` 搜视频、`view` 拿 cid、`playurl` 取地址，要带 Referer） | 弦 Xian（拿 B 站当曲库的安卓播放器） | 作者发的小红书笔记，https://github.com/TIUCSIB/Xian | 仓库没写许可；只参考思路，代码自己写 |
 | `phone/core/music.js`（`qqFull` / `kuwoFull` / `jooxFull`：QQ 公共接口 tang.api.s01s.cn 按编号要整首、酷我接口 oiapi.net 按歌名搜再按序号要、JOOX 接口 apicx.asia 的用法和它页面里写死的 token） | musicsquare（纯网页的音乐播放器） | 作者发的小红书笔记，https://github.com/CharlesPikachu/musicsquare | Apache-2.0；只参考接口用法，代码自己写 |
