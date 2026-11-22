@@ -119,7 +119,12 @@ function voiceLimit(rc, p, n) { return p.type === 'voice' && n > rc.voice[1] ? {
 /* 说外语的 TA：私聊设置里「TA 说的语言」（没选就跟着聊天 App 的、再跟着设置里总的）是外语，AI 就直接用那个语言写，同一行末尾附 [翻译:中文]，
    拿下来放进 m.tr（显示在气泡下面），不用再另翻一遍。群聊、动态、评论按每个人自己私聊里设的语言 */
 export const speakOf = id => { const ch = state.chats.find(x => !isGroup(x) && x.contactId === id), l = langFor('chat', ch && ch.cfg.speak); return l !== 'zh-CN' ? l : ''; };
-export const takeTr = l => { const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
+export const takeTr = l => { l = parenTr(l); const t = /\s*[\[【]\s*翻译\s*[:：]([^\]】]*)[\]】]\s*$/.exec(l); return t ? [l.slice(0, t.index).trim(), t[1].trim()] : [l, '']; };
+// AI 有时不照格式，把翻译写成末尾的「（中文）」：前面是外文（有假名 / 谚文，或者全是字母没有汉字）、括号里是两个字以上的中文（没有假名）才算，换成 [翻译：…]
+export const parenTr = s => typeof s !== 'string' || /[[［【]翻译[:：]/.test(s) ? s : s.split(/(?<!:)\/\//).map(p => {
+  const m = /^([\s\S]+?)\s*[（(]([^（）()]+)[）)]\s*$/.exec(p);
+  const foreign = a => /[\u3040-\u30ff\uac00-\ud7af]/.test(a) || (!/[\u4e00-\u9fff]/.test(a) && /[A-Za-z]{2}/.test(a));
+  return m && foreign(m[1]) && /[\u4e00-\u9fff].*[\u4e00-\u9fff]/.test(m[2]) && !/[\u3040-\u30ff\uac00-\ud7af]/.test(m[2]) ? `${m[1]}[翻译：${m[2]}]` : p; }).join('//');
 const langRule = (ids, what) => { const fo = ids.map(id => [id, speakOf(id)]).filter(x => x[1]); return fo.length ? `\n${fo.map(([id, l]) => `${nameOf(contact(id))}（${langName(l)}）`).join('、')}${what}直接用自己的语言写，在同一行末尾附 [翻译:简体中文意思]，不要先写中文；表情包、图片这些方括号标签照原样写，不用翻。${fo.length < ids.length ? '其他人照常写中文。' : ''}` : ''; };
 /** 提示词最末尾再提一句条数（离结尾越近小模型越听） */
 const roundNote = rc => `\n\n【这一轮】${rc.group ? '大家加起来' : ''}回复 ${rc.lines[0]}–${rc.lines[1]} 条独立消息，每条单独一行；${rc.voice[1] ? `语音 ${rc.voice[0]}–${rc.voice[1]} 条` : '不发语音'}。`;

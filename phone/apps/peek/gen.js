@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -49,7 +49,7 @@ export async function load(c) {
   const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} };
   d.id = c.id; d.name = nameOf(c); d.avatar = c.avatar;
   if (!d.lang) d.lang = guess(d.apps);   // 以前生成的没记是什么语言
-  for (const a of Object.values(d.apps)) a.rows = a.rows.map(r => r.map(perLine));
+  for (const a of Object.values(d.apps)) a.rows = a.rows.map(r => r.map(c => perLine(parenTr(c))));
   d.pairs = (await Promise.all(friends().filter(x => x.id !== c.id).map(async x => [x, await kvGet(pairKey(c.id, x.id)).catch(() => null)]))).filter(x => x[1])
     .map(([x, L]) => ({ title: nameOf(x), avatar: x.avatar, msgs: L.map(m => ({ ...m, me: m.from === c.id, who: nameOf(contact(m.from)) })) }));
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
