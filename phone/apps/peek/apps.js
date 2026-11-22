@@ -58,14 +58,14 @@ function flipAll(root) {
 export function pull(body) {
   let last = null, off = 0;
   const set = () => body.style.setProperty('--pull', (Math.sign(off) * Math.min(140, Math.abs(off) * .4)).toFixed(1) + 'px');
-  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });
+  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); body.classList.add('is-pull'); clearTimeout(body._pt); }, { passive: true });
   body.addEventListener('touchmove', e => {
     const y = e.touches[0].clientY, dy = y - last; last = y;
     const top = body.scrollTop <= 0, end = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
     if (!off && !(dy > 0 && top) && !(dy < 0 && end)) return;
     const was = off; off += dy; if (was && Math.sign(off) !== Math.sign(was)) off = 0; set();
   }, { passive: true });
-  body.addEventListener('touchend', () => { if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
+  body.addEventListener('touchend', () => { body._pt = setTimeout(() => body.classList.remove('is-pull'), 600); if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
 }
 // 你自己手机里照 iPhone 画的页（电话、短信）：和查手机同一套样子；照 393 宽量的整体缩放，日间 / 夜间跟着手机，外语右上一个「译」
 export function iosPage(app, id, cls = '') {

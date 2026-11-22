@@ -67,7 +67,7 @@
 .pk-app__bar button { display: flex; align-items: center; border: 0; background: none; padding: 0 4px 0 0; color: var(--tint); font: inherit; cursor: pointer; }
 .pk-app > h1 { flex: none; margin: 0; padding: 0 20px 8px; font-size: 34px; font-weight: 700; letter-spacing: .3px; }
 .pk-app > h2 { position: absolute; top: 34px; left: 90px; right: 90px; height: 44px; margin: 0; line-height: 44px; text-align: center; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-.pk-app__body { flex: 1; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; padding: 4px 16px 40px; -webkit-overflow-scrolling: touch; }
+.pk-app__body { flex: 1; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: none; padding: 4px 16px 40px; -webkit-overflow-scrolling: touch; }
 .pk-app__home { position: absolute; left: 50%; bottom: 0; width: 180px; height: 26px; margin-left: -90px; border: 0; background: none; padding: 0; cursor: pointer; }
 .pk-app__home::after { content: ''; position: absolute; left: 24px; right: 24px; bottom: 8px; height: 5px; border-radius: 3px; background: var(--pk-ink); }
 .pk-list { border-radius: 12px; background: var(--pk-card); overflow: hidden; }
@@ -363,6 +363,8 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-pane[data-pane="calls"] h1 { margin: 6px 16px 12px; font-size: 36px; font-weight: 700; line-height: 1.1; }
 /* 滚到头了还能再拖一段，松手弹回去（内容不够长也能拖）；顶栏、底下浮着的、字母索引不动。--pull 由 pull() 写 */
 .pk-app:not(.is-raw) .pk-app__body > *, .pk-top2 ~ :not(.pk-float, .pk-index) { translate: 0 var(--pull, 0); }
+/* 安卓自带的「拉到头整页拉伸」关掉（上面那句 none）：和这里的回弹叠在一起会有一帧整块空掉；拖着的时候先把要动的那几块备好，免得挪的时候来不及画 */
+.pk-app__body.is-pull > *, .pk-app__body.is-pull .pk-top2 ~ * { will-change: translate; }
 .pk-app__body.is-back > *, .pk-app__body.is-back .pk-top2 ~ * { transition: translate .5s cubic-bezier(.25, .1, .25, 1); }   /* 慢慢起步再停：起步太快看着像闪了一下 */
 /* 左滑 / 右滑：这一行跟着手指走，后面露出圆按钮；拖着、打开着时这一行变成浅灰的圆角块（照作者录的 iPhone 视频） */
 .pk-swipe { position: relative; }
