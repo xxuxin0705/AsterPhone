@@ -98,6 +98,10 @@ export function open() {
   stage.addEventListener('pointerup', swEnd); stage.addEventListener('pointercancel', swEnd);
   // TA 手机的日间 / 夜间：设置里选，「跟随」就是跟你手机现在的
   const paintMode = () => stage.classList.toggle('is-dark', S().mode === 'night' || (S().mode !== 'day' && p.el.closest('.as-phone').dataset.mode === 'night'));
+  // 「跟随」时自己的手机换了日间 / 夜间（系统切了深色模式也会），TA 的手机马上跟着换
+  const modeWatch = new MutationObserver(() => stage.classList.contains('is-near') && paintMode());
+  requestAnimationFrame(() => { const ph = p.el.closest('.as-phone'); ph && modeWatch.observe(ph, { attributes: true, attributeFilter: ['data-mode'] }); });
+  p.el._onLeave = () => modeWatch.disconnect();
   // TA 的壁纸（每个人一张，没换过就是默认那张）：只改几个变量，锁屏和桌面一起换
   const paintWall = () => { const w = D.wall, st = stage.style; st.setProperty('--wall', w ? `url("${w.img}")` : ''); st.setProperty('--wo', w ? w.fx[0] : ''); st.setProperty('--wb', w ? w.fx[1] : ''); };
   async function wall() {
