@@ -1,9 +1,10 @@
 // 设置 → 预设：方案 = 一份预设（酒馆里的或导入的）+ 里面每条开不开、改成了什么；全局用哪个方案，每个应用跟全局、用别的或不用
 import { h, pickFile, uid } from '../../core/util.js';
 import { commit } from '../../core/store.js';
-import { group, item, switchEl, btn, dialog, actionSheet, toast, textarea } from '../../core/ui.js';
+import { group, item, switchEl, btn, dialog, actionSheet, toast, textarea, field, input } from '../../core/ui.js';
+import { dragRow } from './settings.js';
 import * as nav from '../../core/nav.js';
-import { P, PRESET_APPS, tavernNames, srcName, entriesOf, importFile, removeFile } from '../../core/preset.js';
+import { P, PRESET_APPS, tavernNames, srcName, listOf, importFile, removeFile } from '../../core/preset.js';
 
 export function openPresets(sub) {
   sub('presets', '预设', body => {
@@ -36,31 +37,49 @@ export function openPresets(sub) {
     const view = plan => {
       const list = h('div'), src = item({ title: '用哪份预设', value: srcName(plan.src), chevron: true, onClick: async () => {
         const v = await actionSheet('用哪份预设', sources()); if (v == null || v === plan.src) return;
-        plan.src = v; plan.on = {}; plan.text = {}; commit('presets'); src.querySelector('.as-list-item__value').textContent = srcName(v); fill();
+        plan.src = v; plan.on = {}; plan.text = {}; delete plan.order; commit('presets'); src.querySelector('.as-list-item__value').textContent = srcName(v); fill();
       } });
-      // 条目：「聊天记录」那条是分界，手机要发的东西放在那里，不能关。点一条看内容、改内容（只改这个方案里的，不动酒馆的预设）
-      const row = e => e.id === 'chatHistory' ? item({ title: '聊天记录', value: '手机的内容放这里' })
-        : item({ title: e.name, sub: plan.text?.[e.id] != null ? '改过' : null, right: switchEl(plan.on[e.id] ?? e.on, v => { plan.on[e.id] = v; commit('presets'); }, e.name), chevron: true, onClick: ev => edit(e, ev.currentTarget) });
-      const fill = () => entriesOf(plan.src).then(L => list.replaceChildren(L.length ? group('条目', L.map(row)) : group('', [item({ title: '这份预设读不到了，换一份' })])),
+      // 条目：「聊天记录」那条是分界，手机要发的东西放在那里，不能关。点一条看内容、改内容（只改这个方案里的，不动酒馆的预设）；
+      // 长按拖动排顺序；也能自己加条目
+      const row = e => {
+        const el = e.id === 'chatHistory' ? item({ title: '聊天记录', value: '手机的内容放这里' })
+          : item({ title: e.name, sub: e.mine ? '自己加的' : plan.text?.[e.id] != null ? '改过' : null, right: switchEl(plan.on[e.id] ?? e.on, v => { plan.on[e.id] = v; commit('presets'); }, e.name), chevron: true, onClick: ev => edit(e, ev.currentTarget) });
+        el.dataset.id = e.id; dragRow(el, () => { plan.order = [...el.parentNode.children].map(x => x.dataset.id); commit('presets'); });
+        return el;
+      };
+      const fill = () => listOf(plan).then(L => list.replaceChildren(L.length ? group('条目', L.map(row)) : group('', [item({ title: '这份预设读不到了，换一份' })])),
         e => toast('读不到这份预设：' + e.message));
-      const edit = (e, el) => sub('preset-entry', e.name, body => {
-        let text = plan.text?.[e.id] ?? e.content;
+      const edit = (e, el) => sub('preset-entry', e.mine ? '自己加的条目' : e.name, body => {
+        let name = e.name, text = e.mine ? e.content : plan.text?.[e.id] ?? e.content;
         const ta = textarea({ value: text, rows: 16, onInput: v => { text = v; } });
-        body.append(group('', [h('div.as-field', ta)]), plan.text?.[e.id] != null ? h('div.as-lib-actions', btn('恢复原样', 'secondary', () => { ta.value = text = e.content; })) : '',
+        body.append(e.mine ? group('', [field('名字', input({ value: name, onInput: v => { name = v; } }))]) : '', group('', [h('div.as-field', ta)]),
+          e.mine ? h('div.as-lib-actions', btn('删除', 'secondary', async () => {
+            if (!(await dialog({ title: `删掉「${e.name}」？`, confirm: '删除', danger: true }))) return;
+            plan.extra = plan.extra.filter(x => x.id !== e.id); if (plan.order) plan.order = plan.order.filter(x => x !== e.id);
+            commit('presets'); el.remove(); nav.pop();
+          })) : plan.text?.[e.id] != null ? h('div.as-lib-actions', btn('恢复原样', 'secondary', () => { ta.value = text = e.content; })) : '',
           h('div.as-prompt-bar', btn('取消', 'secondary', () => nav.pop()), btn('保存', 'primary', () => {
-            plan.text ||= {}; if (text === e.content) delete plan.text[e.id]; else plan.text[e.id] = text;
-            commit('presets'); el.replaceWith(row(e)); nav.pop();
+            if (e.mine) Object.assign(plan.extra.find(x => x.id === e.id), { name: name.trim() || '新条目', content: text });
+            else { plan.text ||= {}; if (text === e.content) delete plan.text[e.id]; else plan.text[e.id] = text; }
+            commit('presets'); listOf(plan).then(L => { el.replaceWith(row(L.find(x => x.id === e.id))); nav.pop(); });
           })));
       });
+      const more = btn('新增条目', 'secondary', () => {
+        const e = { id: uid('pe_'), name: '新条目', content: '' };
+        (plan.extra ||= []).push(e); if (plan.order) plan.order.push(e.id); commit('presets');
+        const el = row({ ...e, on: true, mine: true }), g = list.querySelector('.as-list-group__body');
+        if (g) g.append(el); else fill();
+        edit({ ...e, mine: true }, el);
+      });
       fill();
-      return h('div', group('', [src]), h('div.as-lib-actions', btn('复制一份', 'secondary', () => add({ ...plan, id: uid('pp_'), name: plan.name + ' 副本', on: { ...plan.on }, text: { ...plan.text } })),
+      return h('div', group('', [src]), h('div.as-lib-actions', btn('复制一份', 'secondary', () => add({ ...plan, id: uid('pp_'), name: plan.name + ' 副本', on: { ...plan.on }, text: { ...plan.text }, extra: (plan.extra || []).map(x => ({ ...x })), order: plan.order && [...plan.order] })),
         btn('改名', 'secondary', async () => { const n = await dialog({ title: '改名', input: { value: plan.name } }); if (!n || !n.trim()) return; plan.name = n.trim(); commit('presets'); chips.querySelector(`[data-id="${plan.id}"]`).textContent = plan.name; repaint(); }),
         btn('删除', 'secondary', async () => {
           if (!(await dialog({ title: `删除「${plan.name}」？`, confirm: '删除', danger: true }))) return;
           P().plans = P().plans.filter(x => x !== plan); if (P().all === plan.id) P().all = '';
           for (const a in P().apps) if (P().apps[a] === plan.id) delete P().apps[a];
           commit('presets'); chips.querySelector(`[data-id="${plan.id}"]`).remove(); views.get(plan.id).remove(); views.delete(plan.id); planBox.hidden = !P().plans.length; repaint(); show(P().plans[0]?.id);
-        })), list);
+        })), list, h('div.as-lib-actions', more));
     };
     const create = async () => {
       if (!sources().length) return toast('读不到酒馆里的预设，先导入一份预设文件');

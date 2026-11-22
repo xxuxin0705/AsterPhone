@@ -14,7 +14,7 @@ import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontNam
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName, relang } from '../../core/translate.js';
 
-export const VERSION = '0.8.596';
+export const VERSION = '0.8.597';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -307,25 +307,7 @@ function openCat(cat) {
       });
       return h('div', acts, group('', rows), sid ? h('div.as-lib-actions', btn('新建提示词', 'secondary', () => openBlock(cat, sid, newBlock(cat, sid)))) : null);
     };
-    // 长按一行，再上下拖动排顺序
-    function bindDrag(row, sid) {
-      let dragging = false;
-      row.addEventListener('touchmove', e => { if (dragging) e.preventDefault(); }, { passive: false });   // 拖的时候别让页面跟着滚
-      longPress(row, () => {
-        dragging = true; row.classList.add('is-dragging');
-        const move = ev => {
-          const box = row.parentNode, sibs = [...box.children].filter(x => x !== row);
-          const after = sibs.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
-          if (after !== row.nextSibling) box.insertBefore(row, after || null);
-        };
-        // 挪动行会让手指「捕获」失效，所以在整个窗口上听
-        const up = () => {
-          dragging = false; removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
-          moveBlock(cat, sid, row.dataset.id, [...row.parentNode.children].indexOf(row));
-        };
-        addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
-      });
-    }
+    const bindDrag = (row, sid) => dragRow(row, at => moveBlock(cat, sid, row.dataset.id, at));
     if (cat === 'tag') {
       const sample = n => `正文里会写成 <${n}>2026年11月1日 · 东京 · 21:20</${n}>`, hint = h('span.as-field__hint', sample(tagName()));
       body.append(group('', [h('div.as-field', h('span.as-field__label', '时间标签名称'),
@@ -467,6 +449,25 @@ function wallLabel() {
 /** 选文件（可以一次选多个：一张图 + 一个视频 = 一张 Live 图） */
 function pickMany(accept) {
   return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = true; i.onchange = () => res([...i.files]); i.click(); });
+}
+/** 长按一行，再上下拖动排顺序；松手时告诉 done 排到了第几个（提示词、预设的条目都用） */
+export function dragRow(row, done) {
+  let dragging = false;
+  row.addEventListener('touchmove', e => { if (dragging) e.preventDefault(); }, { passive: false });   // 拖的时候别让页面跟着滚
+  longPress(row, () => {
+    dragging = true; row.classList.add('is-dragging');
+    const move = ev => {
+      const box = row.parentNode, sibs = [...box.children].filter(x => x !== row);
+      const after = sibs.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+      if (after !== row.nextSibling) box.insertBefore(row, after || null);
+    };
+    // 挪动行会让手指「捕获」失效，所以在整个窗口上听
+    const up = () => {
+      dragging = false; removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); row.classList.remove('is-dragging');
+      done([...row.parentNode.children].indexOf(row));
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  });
 }
 /** 长按：按住 0.5 秒不动就触发，触发后这次的点击不算 */
 function longPress(el, fn) {

@@ -31,6 +31,11 @@ export async function entriesOf(src) {
   if (src.startsWith('f:')) return (await kvGet('preset:' + src.slice(2))) || [];
   try { return extract(mgr()?.getCompletionPresetByName?.(src.slice(2))); } catch (e) { return []; }
 }
+/** 方案里实际的条目：预设的 + 自己加的，照自己拖过的顺序（没拖过就照预设的） */
+export async function listOf(plan) {
+  const L = [...await entriesOf(plan.src), ...(plan.extra || []).map(x => ({ ...x, on: true, mine: true }))], O = plan.order;
+  return O ? L.map((e, k) => [O.includes(e.id) ? O.indexOf(e.id) : 1e4 + k, e]).sort((a, b) => a[0] - b[0]).map(x => x[1]) : L;
+}
 /** 导入一个预设文件（.json），存在小手机里，两边酒馆都能用 */
 export async function importFile(file) {
   let data; try { data = JSON.parse(await file.text()); } catch (e) { throw new Error('这不是预设文件'); }
@@ -54,7 +59,7 @@ const mac = s => { const c = ctx() || {}; return s.replace(/\{\{\/\/[\s\S]*?\}\}
 export async function withPreset(opts) {
   const plan = P().plans.length && planFor(opts.app || '聊天');
   if (!plan) return opts;
-  const list = (await entriesOf(plan.src)).filter(e => e.id === 'chatHistory' || (plan.on[e.id] ?? e.on));
+  const list = (await listOf(plan)).filter(e => e.id === 'chatHistory' || (plan.on[e.id] ?? e.on));
   const cut = list.findIndex(e => e.id === 'chatHistory'), text = L => L.map(e => mac(plan.text?.[e.id] ?? e.content).trim()).filter(Boolean).join('\n\n');
   const pre = text(cut < 0 ? list : list.slice(0, cut)), post = cut < 0 ? '' : text(list.slice(cut + 1));
   return { ...opts, system: [pre, opts.system].filter(Boolean).join('\n\n'), prompt: [post, opts.prompt].filter(Boolean).join('\n\n'), keep: opts.keep && post ? opts.keep + post.length + 2 : opts.keep };
