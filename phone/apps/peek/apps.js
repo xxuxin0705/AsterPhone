@@ -213,7 +213,7 @@ export const VIEWS = {
   消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关
   电话: (R, push, D, pop) => {
-    const box = h('div.pk-pane'), calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言'), notes = of(R, '留言'), num = h('div.pk-pad__num'), nick = nicks(D), nm = who => nick.get(who) || who;
+    const box = h('div.pk-pane'), nick = nicks(D), me = [myName(), nick.get(myName())], calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言' && !me.includes(r[0])), notes = of(R, '留言').filter(r => !me.includes(r[1])), num = h('div.pk-pad__num'), nm = who => nick.get(who) || who;
     const miss = k => /未接/.test(k), place = (s, who) => !s || /\d\s*[分秒:：]|^\d+$/.test(s) ? (/\d{3}/.test(who) ? '未知' : '手机') : s;   // 以前存的这一格是通话时长，不是归属地
     const callBtn = () => h('i.pk-dial', fill('call', 22));
     const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn());
