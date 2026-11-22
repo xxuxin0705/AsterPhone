@@ -456,10 +456,10 @@ const run = (ac, fn) => new Promise((ok, no) => {
   Promise.resolve().then(() => fn(ac.signal)).then(v => ac.signal.aborted || ok(v), e => ac.signal.aborted || no(e));
 });
 /** 提示条转圈 +「取消」 */
-export function waiting(msg, fn, ac = new AbortController()) {   // ac 可以从外面给：同一个按钮再点一下也能取消
-  const t0 = Date.now(), opt = { label: '取消', fn: () => ac.abort(), wait: true };
-  const tick = setInterval(() => toast(`${msg.replace(/…$/, '')} · ${Math.round((Date.now() - t0) / 1000)} 秒`, opt), 1000);   // 每秒更新「几秒」，让人知道一直在动
-  toast(msg, opt); return run(ac, fn).finally(() => clearInterval(tick));
+export function waiting(msg, fn, ac = new AbortController()) {   // ac 可以从外面给：同一个按钮再点一下也能取消；msg 可以是函数（等的途中换一句，比如进到下一步了）
+  const t0 = Date.now(), opt = { label: '取消', fn: () => ac.abort(), wait: true }, m = () => typeof msg === 'function' ? msg() : msg;
+  const tick = setInterval(() => toast(`${m().replace(/…$/, '')} · ${Math.round((Date.now() - t0) / 1000)} 秒`, opt), 1000);   // 每秒更新「几秒」，让人知道一直在动
+  toast(m(), opt); return run(ac, fn).finally(() => clearInterval(tick));
 }
 /* 找 AI 时收到了多少字（作者定的：所有要等的都要写）。core/api.js 每收到一点报一次；aiCount 给一个自己会更新的小字，
    挂着的等待提示条、转圈的按钮、聊天里的「正在输入」都放一个。只换这几个字，不重画别的 */

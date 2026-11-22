@@ -92,14 +92,15 @@ export async function relangPeek(c, D) {
 // TA 说外语时 AI 是先写中文、再附 [原文：…]（中文写在前面就不会漏）：换回手机里一直用的「原文[翻译：中文]」。
 // 漏了原文的（没有假名谚文、六个汉字以上，就是一句中文）用免费机翻补出原文，不再找 AI；人名、时间这种短的不动
 const ORIG = /\s*[[［【]原文[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;
-async function toOrig(got, l) {
+async function toOrig(got, l, say) {
   const seg = async p => { const m = ORIG.exec(p), z = p.trim(), fig = /^\s*[[［【][图図][:：]\s*([\s\S]*)[\]］】]\s*$/.exec(p);
     if (fig && ORIG.test(fig[1])) { const [a, cn] = (await seg(fig[1])).split(/\[翻译：/); return `[図：${a}][翻译：[图：${cn.slice(0, -1)}]]`; }   // 配图写成「[图：中文[原文：外文]]」
     const q = (/^\s*([>＞》]\s*)/.exec(p) || ['', ''])[1];   // 引用那段，原文那版也要带「>」
     if (m) { const a = m[1].trim(); return `${q && !/^[>＞》]/.test(a) ? q : ''}${a}[翻译：${(p.slice(0, m.index) + p.slice(m.index + m[0].length)).trim()}]`; }
     if (/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) || (p.match(/[\u4e00-\u9fff]/g) || []).length < 6) return p;
-    const a = await translate(z, l).catch(() => ''); return a ? `${a}[翻译：${z}]` : p; };
+    say(++done, todo); const a = await translate(z, l).catch(() => ''); return a ? `${a}[翻译：${z}]` : p; };
   const cells = Object.values(got).flatMap(rows => rows.flatMap(r => r.map((s, i) => [r, i]))).filter(([r, i]) => typeof r[i] === 'string');
+  let done = 0; const todo = cells.flatMap(([r, i]) => r[i].split(/(?<!:)\/\//)).filter(p => !ORIG.test(p) && !/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) && (p.match(/[\u4e00-\u9fff]/g) || []).length >= 6).length;
   for (let k = 0; k < cells.length; k += 3) await Promise.all(cells.slice(k, k + 3).map(async ([r, i]) => { r[i] = (await Promise.all(r[i].split(/(?<!:)\/\//).map(seg))).join('//'); }));
 }
 
@@ -122,7 +123,8 @@ export async function make(c, names, done) {
   if (job) return;
   const ac = new AbortController(); job = { ac, who: c.id };
   try {
-    const got = await waiting(`正在写${nameOf(c)}的手机…`, async stop => {
+    let step = `正在写${nameOf(c)}的手机…`;   // AI 写完后还要用机翻补漏掉的外文：提示条换成「补外文 几 / 几」，不然只剩个圈在转
+    const got = await waiting(() => step, async stop => {
       const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
       const raw = await generate({ conn: resolveConn('text', 'peek'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
@@ -130,7 +132,7 @@ export async function make(c, names, done) {
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
           count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c)}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}：TA 自己写的、发的、搜的、看的都用${langName(speakIn(c))}。这些不用上一条的写法，改成每一格先写中文意思（照 TA 的口吻），紧跟「[原文：${langName(speakIn(c))}的写法]」，例：中文意思[原文：外文]；分了 // 段的每段各写一次。` }) });
       const got = parse(raw);
-      if (!/^zh/.test(speakIn(c))) await toOrig(got, speakIn(c));
+      if (!/^zh/.test(speakIn(c))) await toOrig(got, speakIn(c), (i, n) => { step = `AI 写好了，机翻补外文 ${i} / ${n}…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       return got;
     }, ac);
