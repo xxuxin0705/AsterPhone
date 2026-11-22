@@ -55,6 +55,8 @@ export async function load(c) {
   const mine = chatForContact(c.id, false), groups = state.chats.filter(ch => ch.type === 'group' && (ch.members || []).includes(c.id));
   d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : myName(), group: ch.type === 'group', you: ch.type !== 'group', avatar: ch.type === 'group' ? ch.avatar : myAvatar(),
     msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
+  const sm = state.sms.find(t => [c.name, c.nick, c.remark].includes(t.who));   // 你手机「短信」里和 TA 的，TA 那边也有
+  d.sms = sm && { title: myName(), avatar: myAvatar(), msgs: sm.list.slice(-60).map(m => ({ me: !m.me, t: shortTime(m.at), text: m.tr ? `${m.text}[翻译：${m.tr}]` : m.text })) };
   return d;
 }
 

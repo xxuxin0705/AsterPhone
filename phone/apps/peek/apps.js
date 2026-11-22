@@ -206,9 +206,9 @@ export const VIEWS = {
       h('div.pk-web__bar', h('div', icon('globe', 15, 2), h('span', seen[0] ? host(seen[0].u) : 'google.com')), icon('back', 20, 2.2), icon('chevron', 20, 2.2), h('button', { 'aria-label': '收藏夹', onclick: () => go('收藏夹') }, icon('bookmark', 20, 2)))];
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
-  // 短信里不出现和你的：你的手机没有短信，AI 写了就是替你说话（以前生成的也藏起来）
+  // 短信里和你的那段照你手机「短信」里真有的放，AI 写的和你的不要（以前生成的也藏起来）
   短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').flatMap(r => r.slice(1, 3))), nick = nicks(D);
-    return messenger(groupBy(R.filter(r => r[0] !== myName() && r[0] !== nick.get(myName())), 0).map(([who, L]) => ({ title: nick.get(who) || who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) })), push, D, pop,
+    return messenger([...(D.sms ? [{ ...D.sms, title: nick.get(myName()) || myName() }] : []), ...groupBy(R.filter(r => r[0] !== myName() && r[0] !== nick.get(myName())), 0).map(([who, L]) => ({ title: nick.get(who) || who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) }))], push, D, pop,
       { title: '信息', kind: '短信', key: '', tag: '数据', spam: x => /^[\d\s()+-]{5,}$/.test(x.title) && !known.has(x.title) && !x.msgs.some(m => m.me) }); },
   消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关

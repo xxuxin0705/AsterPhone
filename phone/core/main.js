@@ -29,6 +29,7 @@ const APP_LOADERS = {
   forum: () => import('../apps/forum/forum.js'),
   mirror: () => import('../apps/mirror/mirror.js'),
   peek: () => import('../apps/peek/peek.js'),
+  sms: () => import('../apps/sms/sms.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 
@@ -175,13 +176,13 @@ function inDnd() {
   const f = toMin(n.dndFrom), t = toMin(n.dndTo);
   return f <= t ? cur >= f && cur < t : cur >= f || cur < t;
 }
-function notify({ chatId, title, text, avatarUrl }) {
+function notify({ chatId, title, text, avatarUrl, app = 'chat' }) {
   renderNotices(); renderBadges(); sendUnread();
   if (!shell.visible || shell.activeChat === chatId) return;
   if (inDnd()) return;
   if (state.settings.notify.sound) ding();
   if (isLocked() || !state.settings.notify.banner) return;
-  banner({ avatarEl: avatar(avatarUrl, title, 38), title, text, onClick: () => openApp('chat', { chat: chatId }) });
+  banner({ avatarEl: avatar(avatarUrl, title, 38), title, text, onClick: () => openApp(app, { chat: chatId }) });
 }
 
 /* ---------- 和酒馆页面互通 ---------- */

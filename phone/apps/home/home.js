@@ -20,6 +20,7 @@ export const APPS = [
   { id: 'forum', name: '论坛', icon: 'comment' },
   { id: 'mirror', name: '映像', icon: 'users' },
   { id: 'peek', name: '查手机', icon: 'eye' },
+  { id: 'sms', name: '短信', icon: 'chatdots' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 const COLS = 4, ROWS = 6, DOCK = 4, ICON = 58, PAD = 20;
@@ -409,6 +410,9 @@ export function renderBadges() {
   const total = state.chats.reduce((s, c) => s + (c.muted ? 0 : c.unread || 0), 0), chat = els.get('a-chat');
   chat?.querySelectorAll('.as-badge').forEach(b => b.remove());
   if (chat && state.settings.notify.badge && total) chat.appendChild(badge(total));
+  const sms = els.get('a-sms'), n = state.sms.reduce((s, t) => s + (t.unread || 0), 0);
+  sms?.querySelectorAll('.as-badge').forEach(b => b.remove());
+  if (sms && state.settings.notify.badge && n) sms.appendChild(badge(n));
   // 岁岁砂：有没落下的沙就挂红点
   loadMem().then(d => { const a = els.get('a-memory'), b = state.settings.notify.badge && badge(d.wait.length); if (!a) return; a.querySelectorAll('.as-badge').forEach(x => x.remove()); if (b) a.appendChild(b); })
     .catch(e => log('warn', '岁岁砂', '读不到未落的沙：' + e.message));

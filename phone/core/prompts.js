@@ -56,6 +56,7 @@ export const PROMPT_CATS = [
   { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
     { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
     { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
+  { app: '短信', items: [{ id: 'smsReply', name: '回短信', vars: ['who', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
   { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'people', 'count', 'apps', 'lang'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
@@ -115,7 +116,7 @@ export const DEFAULT_PROMPTS = {
   timeTag: { name: '时间标签', cats: ['tag'], on: true,
     text: '在每次回复的最后另起一行，用 <{{tag}}>YYYY年M月D日 · 地点 · HH:MM</{{tag}}> 写出故事此刻的日期、所在地点和时间（24 小时制）。故事没写明年份或日期时，按剧情合理推定，并且前后保持一致。这一行不属于正文，不要解释它。' },
   msgTag: { name: '正文消息标签', cats: ['tag'], on: true,
-    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[语音通话] 或 [视频通话]（打电话过来）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；把 {{user}} 删了 type="删好友"、拉黑 type="拉黑"、解除拉黑 type="取消拉黑"（内容空着）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）；叫 {{user}} 一起听歌 type="一起听"（内容写 歌名 - 歌手）。' },
+    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[语音通话] 或 [视频通话]（打电话过来）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；把 {{user}} 删了 type="删好友"、拉黑 type="拉黑"、解除拉黑 type="取消拉黑"（内容空着）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）；叫 {{user}} 一起听歌 type="一起听"（内容写 歌名 - 歌手）。\n给 {{user}} 发短信 type="短信"：from 写发件人（认识的人写名字，不认识的写号码），一行一条；不是中文的在行末附 [翻译:简体中文意思]。除了人发的，也可以偶尔来一条正文里没写的验证码、快递、银行、广告或垃圾短信。' },
 
   // ---------- 聊天 App ----------
   reply: { name: '私聊回复', cats: ['dm'], on: true, main: true,
@@ -427,6 +428,19 @@ ${FORUM_STYLE}
 {{history}}
 
 用 TA 的口吻回 {{user}}：像真人在手机上打字，一次 1～4 条，每条单独一行，只写消息本身，不写名字。不认识、不想理的可以不回，那就只写「（不回）」。{{lang}}` },
+  smsReply: { name: '回短信', cats: ['smsReply'], on: true, main: true,
+    text: `你在替一个故事世界里的人回 {{user}} 的短信。
+
+【发短信的】{{who}}
+{{world}}
+【最近的事】
+{{story}}
+
+【现在】{{time}}（每个人现在几岁、什么身份、互相认不认识，都照正文到这一刻，不照原作后来的样子）
+【短信记录】
+{{history}}
+
+照 TA 的身份和口吻回：像真人在手机上发短信，一次 1～3 条，每条单独一行，只写短信本身，不写名字。机构、广告、验证码这类号码不会回人，有自动回复就写自动回复，没有就只写「（不回）」。{{lang}}` },
   proactive: { name: '主动消息', cats: ['proactive'], on: true, main: true,
     text: '（{{user}} 已经有一段时间没说话了。请 {{char}} 主动找 {{user}} 聊点什么，符合人设和当下的时间。）' },
   verify: { name: '好友验证', cats: ['verify'], on: true, main: true,

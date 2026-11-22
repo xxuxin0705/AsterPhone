@@ -497,6 +497,7 @@ function bumpStreak(chat) {
  * 没有 type：内容一行一条，写法和手机里一样（[语音] [图片] [转账] [红包] [名片] [拍一拍] [收下] [退还]），另加 [撤回]、[语音通话] / [视频通话]。
  * type：动态 / 点赞 / 评论（你最新那条动态）/ 加好友 / 拉群。 */
 export async function fromStory({ from, body = '', group = '', type = '' }) {
+  if (type === '短信') return (await import('../sms/sms.js')).receive(from, body);
   const c = storyContact(from); if (!c) return;
   if (type === '动态') return momentFromStory(c.name, body);
   if (type === '加歌') return (await import('../../core/music.js')).storyAddSong(c, body);

@@ -121,7 +121,7 @@ export function open() {
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
     // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
-    const has = n => D.apps[n] || (n === '消息' && D.real.length);
+    const has = n => D.apps[n] || (n === '消息' && D.real.length) || (n === '短信' && D.sms);
     const body = n => () => has(n) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D, pop) : none(n);
     show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), RAW.includes(name) && has(name) ? 'is-raw' : 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
