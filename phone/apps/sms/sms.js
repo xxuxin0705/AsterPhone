@@ -74,10 +74,10 @@ function thread(t) {
   const top = h('div.pk-top2.is-chat', h('button.pk-glass.pk-backpill', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)),
     h('div.pk-peer', ava(title(t), face(t)), h('b.pk-glass', h('span', title(t)), icon('chevron', 12, 2.6))));
   const bub = (m, i) => { const p = t.list[i - 1], n = t.list[i + 1], a = at(m), gap = p && far(at(p), a);
-    return [gap ? h('small.pk-meta.is-gap', when(a, true)) : null, h('div.pk-bub' + (m.me ? '.is-me' : '') + (!n || n.me !== m.me || at(n) !== a ? '.is-tail' : ''), mk(m))]; };
+    return [gap ? h('small.pk-meta.is-gap', when(a, true)) : null, h('div.pk-bub' + (m.me ? '.is-me' : '') + (!n || n.me !== m.me || far(a, at(n)) ? '.is-tail' : ''), mk(m))]; };
   let shown = 0;
-  const add = () => { const L = t.list, last = body.querySelector('.pk-bub:last-of-type');
-    if (last && L[shown] && L[shown].me === L[shown - 1]?.me && at(L[shown]) === at(L[shown - 1])) last.classList.remove('is-tail');
+  const add = () => { const L = t.list, last = [...body.querySelectorAll('.pk-bub')].pop();
+    if (last && L[shown] && L[shown].me === L[shown - 1]?.me && !far(at(L[shown - 1]), at(L[shown]))) last.classList.remove('is-tail');
     float.before(...L.slice(shown).flatMap((m, k) => bub(m, shown + k)).filter(Boolean)); shown = L.length;
     t.unread = 0; save(); body.scrollTop = body.scrollHeight; };
   const input = h('textarea.pk-find__in', { rows: 1, placeholder: '信息 · 短信', oninput: () => paint() });

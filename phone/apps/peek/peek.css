@@ -145,11 +145,12 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .is-raw .pk-app__body { display: flex; flex-direction: column; padding: 0; }
 .is-raw h1 { margin: 6px 16px 12px; font-size: 36px; font-weight: 700; line-height: 1.1; }
 .pk-glass { border: 0; height: 44px; padding: 0 16px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--pk-ink); font-weight: 500; font-size: 18px; line-height: 1; font-family: inherit; cursor: pointer;
-  /* 液态玻璃（照作者存的那份做法）：后面的东西看得清、跟着滚动一直在变，只是提亮、加饱和、边上往里折一点；左上右下各一道边缘光 */
+  /* 液态玻璃（照作者存的那份做法）：后面的东西看得清、跟着滚动一直在变，只是提亮、加饱和；左上右下各一道边缘光。
+     边上往里折那一下（SVG 位移滤镜）试过：作者的安卓上整块按钮和后面的气泡都糊了，不用 */
   background: radial-gradient(at 0 0, rgb(255 255 255 / .3), transparent 55%), color-mix(in srgb, var(--pk-page) 28%, transparent);
-  -webkit-backdrop-filter: blur(2px) saturate(1.8) brightness(1.06); backdrop-filter: blur(2px) saturate(1.8) brightness(1.06); backdrop-filter: url(#pk-lens) blur(2px) saturate(1.8) brightness(1.06);
+  -webkit-backdrop-filter: blur(2px) saturate(1.8) brightness(1.06); backdrop-filter: blur(2px) saturate(1.8) brightness(1.06);
   box-shadow: 0 0 .5px rgb(0 0 0 / .06), 0 6px 24px rgb(0 0 0 / .08), inset 1.5px 1.5px 1px -1px #fff, inset -1.5px -1.5px 1px -1px rgb(255 255 255 / .55), 0 0 0 .5px var(--pk-line); }
-.is-dark .pk-glass { background: radial-gradient(at 0 0, rgb(255 255 255 / .12), transparent 55%), rgb(20 20 24 / .3); backdrop-filter: url(#pk-lens) blur(2px) saturate(1.6) brightness(.8); -webkit-backdrop-filter: blur(2px) saturate(1.6) brightness(.8);
+.is-dark .pk-glass { background: radial-gradient(at 0 0, rgb(255 255 255 / .1), transparent 55%), rgb(44 44 48 / .22); backdrop-filter: blur(2px) saturate(1.6) brightness(.9); -webkit-backdrop-filter: blur(2px) saturate(1.6) brightness(.9);
   box-shadow: 0 0 .5px rgb(0 0 0 / .3), 0 6px 24px rgb(0 0 0 / .3), inset 1.5px 1.5px 1px -1px rgb(255 255 255 / .35), inset -1.5px -1.5px 1px -1px rgb(255 255 255 / .15); }
 .pk-glass.is-round { width: 44px; padding: 0; flex: none; }
 .pk-top2 { position: sticky; top: 0; z-index: 2; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 44px 14px 8px; }
@@ -253,7 +254,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-msg div > span em, .pk-call em { display: inline-block; vertical-align: 2px; margin-right: 4px; padding: 0 4px; border-radius: 4px; font-style: normal; font-size: 12px; font-weight: 600; line-height: 18px; color: #fff; background: #a9a9ae; }
 /* 对话页 */
 .pk-backpill { width: auto; height: 42px; padding: 0 10px 0 6px; gap: 6px; border-radius: 21px; }
-.pk-backpill em { min-width: 26px; height: 22px; padding: 0 7px; box-sizing: border-box; border-radius: 11px; font-style: normal; font-size: 14px; font-weight: 500; line-height: 22px; color: #fff; background: var(--pk-ink); }
+.pk-backpill em { min-width: 26px; height: 22px; padding: 0 7px; box-sizing: border-box; border-radius: 11px; font-style: normal; font-size: 14px; font-weight: 500; line-height: 22px; color: var(--pk-page); background: var(--pk-ink); }
 .pk-top2.is-chat { min-height: 104px; align-items: flex-start; }
 .pk-peer .pk-ava { width: 58px; height: 58px; } .pk-peer b.pk-glass { display: flex; align-items: center; gap: 6px; height: 36px; margin-top: -4px; padding: 0 14px 0 20px; font-size: 17px; font-weight: 700; line-height: 36px; max-width: 180px; }
 .pk-peer b.pk-glass span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pk-peer b.pk-glass svg { flex: none; color: var(--pk-sub); }
