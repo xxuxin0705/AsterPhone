@@ -216,9 +216,10 @@ export const VIEWS = {
   电话: (R, push, D, pop) => {
     const box = h('div.pk-pane'), nick = nicks(D), me = [myName(), nick.get(myName())], calls = [...D.calls, ...R.filter(r => r[0] !== '联系人' && r[0] !== '留言' && !me.includes(r[0]))].sort((a, b) => ts(b[2]) - ts(a[2])), notes = of(R, '留言').filter(r => !me.includes(r[1])), num = h('div.pk-pad__num'), nm = who => nick.get(who) || who;
     const miss = k => /未接/.test(k), place = (s, who) => !s || /\d\s*[分秒:：]|^\d+$/.test(s) ? (/\d{3}/.test(who) ? '未知' : '手机') : s;   // 以前存的这一格是通话时长，不是归属地
-    const callBtn = () => h('i.pk-dial', fill('call', 22));
-    const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn());
-    const note = ([, who, t, len, text]) => h('div.pk-call.is-note', ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn());
+    // D.dial / D.note：你自己的「电话」App 也用这一页，那边按了真打、点留言能听；查手机里没有，就只是样子
+    const callBtn = (who, loc) => h('i.pk-dial', D.dial ? { onclick: e => { e.stopPropagation(); D.dial(who, loc); } } : null, fill('call', 22));
+    const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn(who, loc));
+    const note = r => { const [, who, t, len, text] = r; return h('div.pk-call.is-note', D.note ? { onclick: () => D.note(r) } : null, ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn(who)); };
     const head = (t, go) => h('div.pk-sec', h('b', t), h('button', { onclick: go }, '查看全部'));
     const panes = {
       通话: () => { let f = '全部'; const L = h('div.pk-calls', calls.map(call));
@@ -229,7 +230,7 @@ export const VIEWS = {
         const by = new Map(); of(R, '联系人').map(r => r.length > 3 ? r[2] || r[1] : r[1]).sort(sortZh).forEach(n => { const k = initial(n); (by.get(k) || by.set(k, []).get(k)).push(n); });
         const secs = [...by].sort((a, b) => (a[0] === '#') - (b[0] === '#') || a[0].localeCompare(b[0]));
         const list = h('div.pk-book', h('div.pk-book__me', face2(D.name, D.avatar, '.is-me'), h('div', h('b', D.name), h('span', '我的名片'))),
-          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(who => h('div.pk-book__row', face2(who), h('div', h('b', who))))]));
+          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(who => h('div.pk-book__row', D.dial ? { onclick: () => D.dial(who) } : null, face2(who), h('div', h('b', who))))]));
         const jump = k => { const el = list.querySelector(`[data-k="${k}"]`); el && el.scrollIntoView({ block: 'start' }); };
         return [h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('b', '联系人'), h('button.pk-glass.is-round', { 'aria-label': '新建' }, icon('plus', 22, 2.2))),
           list, h('div.pk-index', [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'].map(k => h('button', { onclick: () => jump(k) }, k)))];
@@ -237,7 +238,7 @@ export const VIEWS = {
       // 按了数字，拨打键右边出来一个删除键；拨打 = 清空
       拨号键盘: () => { const del = h('button.pk-pad__del', { 'aria-label': '删除', hidden: true, onclick: () => { num.textContent = num.textContent.slice(0, -1); del.hidden = !num.textContent; } }, icon('close', 18, 2.6));
         return [num, h('div.pk-pad', [...'123456789*0#'].map((d, i) => h('button', { onclick: () => { num.textContent += d; del.hidden = false; } }, h('b', d), h('small', ABC[i])))),
-          h('div.pk-pad__row', h('i'), h('button.pk-pad__call', { 'aria-label': '拨打', onclick: () => { num.textContent = ''; del.hidden = true; } }, fill('call', 36)), del)]; },
+          h('div.pk-pad__row', h('i'), h('button.pk-pad__call', { 'aria-label': '拨打', onclick: () => { D.dial?.(num.textContent); num.textContent = ''; del.hidden = true; } }, fill('call', 36)), del)]; },
     };
     // 底下的标签：灰色的那块像一滴水滑到新的那格（中途鼓一下），新那格的图标也跟着鼓一下
     const tab = n => { const bs = [...bar.querySelectorAll('button')], i = bs.findIndex(b => b.dataset.n === n), old = bs.find(b => b.classList.contains('is-on'));

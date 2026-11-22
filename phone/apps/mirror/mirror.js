@@ -87,6 +87,7 @@ function rowsOf(i, c, x) {
         return h('label.mz-nick', h('small', l), shown, cn);
       })) }],
     ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
+    ['电话', text('phone', '电话号码')],
     ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
