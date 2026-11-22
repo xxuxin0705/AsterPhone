@@ -105,7 +105,7 @@ export async function make(c, names, done) {
   const ac = new AbortController(); job = { ac, who: c.id };
   try {
     const got = await waiting(`正在写${nameOf(c)}的手机…`, async stop => {
-      const story = storyText() || '（暂无）', now = time.isStory() ? time.story() : null;
+      const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
       const raw = await generate({ conn: resolveConn('text', 'peek'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),

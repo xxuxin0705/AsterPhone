@@ -28,6 +28,7 @@ export function setup(c, open, mode) {
       v => v === 'follow' ? `跟聊天（${(resolveConn('text', 'chat') || {}).name || '没设置'}）` : (state.connections.text.find(x => x.id === v) || {}).name || '没设置'),
       pick(tile('repeat', '#ff9500'), '自动生成', EVERY, () => P.every || 0, n => { P.every = n; P.at = chatMsgs().length; }, every),
       pick(tile('list', '#ff3b30'), '每个应用几条', [3, 4, 5, 6, 8, 10, 12, 15, 20], () => P.count || 6, n => { P.count = n; }, n => n + ' 条'),
+      pick(tile('note', '#8e8e93'), '发多少正文', [10, 20, 30, 50, 80, 120], () => P.floors || 30, n => { P.floors = n; }, n => `最近 ${n} 楼`),
       h('button.pk-row', { role: 'switch', onclick: () => { P.fill = !P.fill; commit('apps'); sw.classList.toggle('is-on', P.fill); times.hidden = !P.fill; } }, tile('undo', '#007aff'), h('b', '断了自动续写'), sw),
       times),
   ];
