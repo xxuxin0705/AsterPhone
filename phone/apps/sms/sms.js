@@ -58,7 +58,7 @@ export function open(opts = {}) {
     jobs[t.id]?.abort(); state.sms.splice(state.sms.indexOf(t), 1); save(); sig = key();
     w.animate([{ height: w.offsetHeight + 'px', opacity: 1 }, { height: 0, opacity: 0 }], { duration: 260, easing: 'ease-in' }).finished.then(() => w.remove()); };
   const row = t => { const m = t.list.at(-1), r = h('button.pk-msg' + (t.unread ? '.is-new' : ''), { onclick: () => thread(t) }, ava(title(t), face(t)),
-      h('div', h('b', h('span', title(t)), h('time', when(at(m))), icon('chevron', 14, 2.6)), h('span', h('em', '短信'), mk(m))));
+      h('div', h('b', h('span', title(t)), h('time', when(at(m))), icon('chevron', 14, 2.6)), h('span', mk(m))));
     return swipe(r, [['trash', '#ff3b30', w => del(t, w)]], [['chatdots', '#007aff', () => { t.unread = t.unread ? 0 : 1; r.classList.toggle('is-new', !!t.unread); save(); sig = key(); }]]); };
   const key = () => state.sms.map(t => t.id + t.list.length + !!t.unread).join();
   let sig = null;

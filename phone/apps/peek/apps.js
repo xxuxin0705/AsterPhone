@@ -54,11 +54,10 @@ function flipAll(root) {
   root.querySelectorAll('.pk-tl').forEach(b => { b.textContent = zh ? '原' : '译'; b.classList.toggle('is-on', zh); });
 }
 // 这一页有能翻译的字，就在顶栏右边放「译」（顶栏右边已经有按钮的，放在它左边）
-// 照 iPhone：内容滑到顶栏下面多少，顶栏的毛玻璃就显出来多少（--fade）；滚到头了还能再拖一段，松手弹回（--pull，只跟手指，不碰滚动本身）
+// 照 iPhone：滚到头了还能再拖一段，松手弹回（--pull，只跟手指，不碰滚动本身）；拖上去的内容一样从顶栏的毛玻璃底下过
 export function pull(body) {
   let last = null, off = 0;
   const set = () => body.style.setProperty('--pull', (Math.sign(off) * Math.min(140, Math.abs(off) * .4)).toFixed(1) + 'px');
-  body.addEventListener('scroll', () => body.style.setProperty('--fade', Math.min(1, body.scrollTop / 40).toFixed(2)), { passive: true });
   body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });
   body.addEventListener('touchmove', e => {
     const y = e.touches[0].clientY, dy = y - last; last = y;
@@ -160,7 +159,7 @@ function messenger(threads, push, D, pop, o) {
   return [head, big,
     h('div.pk-msgs', threads.map(x => { const last = x.msgs[x.msgs.length - 1], row = h('button.pk-msg' + (isNew(x) ? '.is-new' : ''), { onclick: () => open(x, row) },
       ava(x.title, x.avatar), h('div', h('b', h('span', x.title), h('time', when(last.t)), icon('chevron', 14, 2.6)),
-        h('span', o.tag ? h('em', o.tag) : null, x.draft ? [h('em.is-draft', '草稿'), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); return row; })),
+        h('span', x.draft ? [h('em.is-draft', '草稿'), x.draft] : (x.group && !last.me ? last.who + '：' : '') + last.text))); return row; })),
     h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
 }
 
@@ -212,7 +211,7 @@ export const VIEWS = {
     const block = (v, i) => { let m;
       if ((m = /^[[［【][图図][:：]\s*([\s\S]*?)[\]］】]$/.exec(v))) return h('figure.pk-saf__pic', h('div', { style: { '--c': hue('图' + i) } }, icon('image', 30, 1.5)), h('figcaption', m[1]));
       if ((m = /^[>＞》]\s*([\s\S]*)$/.exec(v))) return h('blockquote', ...rich(m[1]));
-      if ((m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v))) return h('p.is-sec', h('strong', m[1]), h('br'), ...rich(m[2]));
+      if ((m = /^[■●•]\s*([^：:]{1,16})[：:]\s*([\s\S]*)$/.exec(v))) return h('p.is-sec', h('strong', ...rich(m[1])), h('br'), ...rich(m[2]));
       return h('p', ...rich(v)); };
     const blocks = v => v.split(/(?<!:)\/\//).map(x => x.trim()).filter(Boolean).map(block);   // 配图的颜色按第几段定：原文、中文切换时不变色
     // 原文和要显示的那版：AI 有时每段后面各附一个翻译，有时整篇末尾附一个（里面也用 // 分段）
@@ -261,7 +260,7 @@ export const VIEWS = {
   // 短信里和你的那段照你手机「短信」里真有的放，AI 写的和你的不要（以前生成的也藏起来）
   短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').flatMap(r => r.slice(1, 3))), nick = nicks(D);
     return messenger([...(D.sms ? [{ ...D.sms, title: nick.get(myName()) || myName() }] : []), ...groupBy(R.filter(r => r[0] !== myName() && r[0] !== nick.get(myName())), 0).map(([who, L]) => ({ title: nick.get(who) || who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) }))], push, D, pop,
-      { title: '信息', kind: '短信', key: '', tag: '数据', spam: x => /^[\d\s()+-]{5,}$/.test(x.title) && !known.has(x.title) && !x.msgs.some(m => m.me) }); },
+      { title: '信息', kind: '短信', key: '', spam: x => /^[\d\s()+-]{5,}$/.test(x.title) && !known.has(x.title) && !x.msgs.some(m => m.me) }); },
   消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关
   电话: (R, push, D, pop) => {
