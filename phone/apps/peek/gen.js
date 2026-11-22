@@ -135,9 +135,9 @@ export async function make(c, names, done) {
 }
 
 /** 勾选要生成哪些应用（默认全勾） */
-export function pickApps(c, d, start) {
+export function pickApps(c, start) {
   const on = new Set((S().last || Object.keys(FORMS)).filter(n => FORMS[n]));
-  const rows = Object.keys(FORMS).map(n => { const b = h('button.pk-tick.is-on', { onclick: () => { on.has(n) ? on.delete(n) : on.add(n); mark(); } }, h('i'), h('span', n), h('small', d.apps[n] ? '有了，会换成新的' : '')); b._n = n; return b; });
+  const rows = Object.keys(FORMS).map(n => { const b = h('button.pk-tick.is-on', { onclick: () => { on.has(n) ? on.delete(n) : on.add(n); mark(); } }, h('i'), h('span', n)); b._n = n; return b; });
   const all = h('button.pk-sheet__all', { onclick: () => { const full = on.size === rows.length; rows.forEach(b => full ? on.delete(b._n) : on.add(b._n)); mark(); } });
   const go = h('button.as-btn.as-btn--primary', { onclick: () => { s.close(); S().last = [...on]; commit('apps'); start([...on]); } });
   const mark = () => { rows.forEach(b => b.classList.toggle('is-on', on.has(b._n))); all.textContent = on.size === rows.length ? '全不选' : '全选'; go.disabled = !on.size; go.textContent = on.size ? `生成 ${on.size} 个（用一次 API）` : '生成'; };

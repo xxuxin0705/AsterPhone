@@ -36,7 +36,7 @@ export function open() {
   const art = h('div.pk-art', h('img', { src: `${BASE}desk-${mode}.webp`, alt: '', draggable: false }), THINGS.map(t => thing(t, move)), h('div.pk-dim'), phone);
   const [t, d] = clock();
   const lock = h('div.pk-lock', { dataset: { noSwipe: '' } }, h('b', t), h('span', d), h('em', '上滑解锁'));
-  const pill = h('div.pk-pill', { role: 'button', onclick: () => leave() }), genB = h('div.pk-pill', { role: 'button', onclick: () => running() ? running().ac.abort() : c ? pickApps(c, D, start) : choose() });
+  const pill = h('div.pk-pill', { role: 'button', onclick: () => leave() }), genB = h('div.pk-pill', { role: 'button', onclick: () => running() ? running().ac.abort() : c ? pickApps(c, start) : choose() });
   const home = h('div.pk-home', h('div.pk-top', pill, genB),
     h('div.pk-grid', APPS.map((n, i) => app(n, i, openApp))), h('div.pk-dock', DOCK.map((n, i) => app(n, 12 + i, openApp))));
   const stage = h('div.pk-stage', art, lock, home);
