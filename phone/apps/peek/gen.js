@@ -10,7 +10,7 @@ import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
 import { nameOf, personaOf } from '../chat/engine.js';
-import { previewOf } from '../chat/msgtypes.js';
+import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
 export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
@@ -56,6 +56,9 @@ export async function load(c) {
   d.real = (await Promise.all([mine, ...groups].filter(Boolean).map(async ch => ({ title: ch.type === 'group' ? ch.name : myName(), group: ch.type === 'group', you: ch.type !== 'group', avatar: ch.type === 'group' ? ch.avatar : myAvatar(),
     msgs: (await getMsgs(ch.id)).filter(m => m.from !== 'sys' && !m.recalled).slice(-60).map(m => m.from === 'me' ? said(m, myName(), false) : said(m, nameOf(contact(m.who) || c), !m.who || m.who === c.id)) })))).filter(x => x.msgs.length);
   const sm = state.sms.find(t => [c.name, c.nick, c.remark].includes(t.who));   // 你手机「短信」里和 TA 的，TA 那边也有
+  // 你和 TA 真打过的电话（电话 App 里的普通电话 + 聊天里的语音、视频）：TA 手机里方向反过来，时间写成和 AI 写的一样的样子好一起排
+  const at = x => { const s = time.isStory() && x.st, D = s ? time.dayToDate(s.d) : new Date(x.at), mm = s ? s.m : D.getHours() * 60 + D.getMinutes(); return `${D.getFullYear()}/${D.getMonth() + 1}/${D.getDate()} ${String(mm / 60 | 0).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`; };
+  d.calls = [...state.calls.filter(x => x.cid === c.id), ...(mine ? (await getMsgs(mine.id)).filter(m => m.type === 'call') : [])].map(x => [myName(), x.from === 'them' ? '呼出' : '呼入', at(x), x.mode === 'phone' ? '手机' : callName(x)]);
   d.sms = sm && { title: myName(), avatar: myAvatar(), msgs: sm.list.slice(-60).map(m => ({ me: !m.me, t: shortTime(m.at), text: m.tr ? `${m.text}[翻译：${m.tr}]` : m.text })) };
   return d;
 }

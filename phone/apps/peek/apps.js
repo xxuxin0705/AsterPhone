@@ -24,8 +24,9 @@ const PY = '阿八嚓哒妸发旮哈讥咔垃妈拏噢妑七呥仨他屲夕丫�
 const initial = s => { const c = String(s).trim()[0] || '#'; if (/[a-z]/i.test(c)) return c.toUpperCase(); if (!/[\u4e00-\u9fff]/.test(c)) return '#';
   let k = '#'; for (let i = 0; i < PY.length && c.localeCompare(PY[i], 'zh-CN-u-co-pinyin') >= 0; i++) k = PYK[i]; return k; };
 // 时间照 iPhone 写：列表里今天写几点，昨天、这一周写星期几，再早写年/月/日；对话里写日子 + 几点（AI 有时写成完整日期）
+const DT = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}):(\d{2}))?/, ts = t => { const m = DT.exec(t || ''); return m ? +new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : 0; };
 const when = (t, full) => {
-  const m = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}):(\d{2}))?/.exec(t || ''); if (!m) return t || '';
+  const m = DT.exec(t || ''); if (!m) return t || '';
   const d = new Date(+m[1], m[2] - 1, +m[3]), now = time.isStory() ? time.story().date : new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - d) / 864e5);
   const hm = m[4] ? `${m[4].padStart(2, '0')}:${m[5]}` : '', wk = '日一二三四五六'[d.getDay()];
   if (full) return [days === 0 ? '今天' : days === 1 ? '昨天' : days > 1 && days < 7 ? '星期' + wk : `${+m[2]}月${+m[3]}日 周${wk}`, hm].filter(Boolean).join(' ');   // 对话里的时间：日子 + 几点
@@ -213,7 +214,7 @@ export const VIEWS = {
   消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关
   电话: (R, push, D, pop) => {
-    const box = h('div.pk-pane'), nick = nicks(D), me = [myName(), nick.get(myName())], calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言' && !me.includes(r[0])), notes = of(R, '留言').filter(r => !me.includes(r[1])), num = h('div.pk-pad__num'), nm = who => nick.get(who) || who;
+    const box = h('div.pk-pane'), nick = nicks(D), me = [myName(), nick.get(myName())], calls = [...D.calls, ...R.filter(r => r[0] !== '联系人' && r[0] !== '留言' && !me.includes(r[0]))].sort((a, b) => ts(b[2]) - ts(a[2])), notes = of(R, '留言').filter(r => !me.includes(r[1])), num = h('div.pk-pad__num'), nm = who => nick.get(who) || who;
     const miss = k => /未接/.test(k), place = (s, who) => !s || /\d\s*[分秒:：]|^\d+$/.test(s) ? (/\d{3}/.test(who) ? '未知' : '手机') : s;   // 以前存的这一格是通话时长，不是归属地
     const callBtn = () => h('i.pk-dial', fill('call', 22));
     const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn());
