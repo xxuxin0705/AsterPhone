@@ -111,6 +111,8 @@ function messenger(threads, push, D, pop, o) {
     h('div.pk-float', h('div.pk-glass.pk-find', icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), h('button.pk-glass.is-round', { 'aria-label': '写信息' }, icon('edit', 22, 2)))];
 }
 
+// TA 存的备注：电话里「联系人｜真名｜备注｜这是谁」；通话记录、短信里写的是真名，显示成备注（以前存的只有备注那一格，就照旧）
+const nicks = D => new Map(of((D.apps.电话 || {}).rows || [], '联系人').filter(r => r.length > 3 && r[2]).map(r => [r[1], r[2]]));
 export const VIEWS = {
   相册: (R, push) => {
     const box = h('div.pk-photos'), hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
@@ -203,25 +205,25 @@ export const VIEWS = {
       h('div.pk-web__bar', h('div', icon('globe', 15, 2), h('span', seen[0] ? host(seen[0].u) : 'google.com')), icon('back', 20, 2.2), icon('chevron', 20, 2.2), h('button', { 'aria-label': '收藏夹', onclick: () => go('收藏夹') }, icon('bookmark', 20, 2)))];
   },
   // 信息、电话照 iPhone 自带的排：整页自己画（顶上的玻璃按钮、底下浮着的搜索条 / 标签栏），不用公共的标题栏
-  短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').map(r => r[1]));
-    return messenger(groupBy(R, 0).map(([who, L]) => ({ title: who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) })), push, D, pop,
+  短信: (R, push, D, pop) => { const known = new Set(of((D.apps.电话 || {}).rows || [], '联系人').flatMap(r => r.slice(1, 3))), nick = nicks(D);
+    return messenger(groupBy(R, 0).map(([who, L]) => ({ title: nick.get(who) || who, msgs: L.map(r => ({ me: /自己/.test(r[2]), t: r[1], text: r[3] })) })), push, D, pop,
       { title: '信息', kind: '短信', key: '', tag: '数据', spam: x => /^[\d\s()+-]{5,}$/.test(x.title) && !known.has(x.title) && !x.msgs.some(m => m.me) }); },
   消息: (R, push, D, pop) => messenger(chats(R, D), push, D, pop, { title: '消息', kind: 'iMessage', key: '消息:' }),
   // 照 iPhone 的「电话」：底下浮着三个标签 + 搜索；点搜索换成「通话 / 语音留言」那一页，底下换成键盘 · 搜索条 · 关
   电话: (R, push, D, pop) => {
-    const box = h('div.pk-pane'), calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言'), notes = of(R, '留言'), num = h('div.pk-pad__num');
+    const box = h('div.pk-pane'), calls = R.filter(r => r[0] !== '联系人' && r[0] !== '留言'), notes = of(R, '留言'), num = h('div.pk-pad__num'), nick = nicks(D), nm = who => nick.get(who) || who;
     const miss = k => /未接/.test(k), place = (s, who) => !s || /\d\s*[分秒:：]|^\d+$/.test(s) ? (/\d{3}/.test(who) ? '未知' : '手机') : s;   // 以前存的这一格是通话时长，不是归属地
     const callBtn = () => h('i.pk-dial', fill('call', 22));
-    const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(who), h('div', h('b', who), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn());
-    const note = ([, who, t, len, text]) => h('div.pk-call.is-note', ava(who), h('div', h('b', who), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn());
+    const call = ([who, kind = '', t, loc]) => h('div.pk-call' + (miss(kind) ? '.is-miss' : ''), ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), place(loc, who))), h('time', when(t)), callBtn());
+    const note = ([, who, t, len, text]) => h('div.pk-call.is-note', ava(nm(who)), h('div', h('b', nm(who)), h('span', h('em', '主号'), len || '00:00'), h('p', `“${text || ''}”`)), h('time', when(t)), callBtn());
     const head = (t, go) => h('div.pk-sec', h('b', t), h('button', { onclick: go }, '查看全部'));
     const panes = {
       通话: () => { const top = h('div.pk-top2', h('button.pk-glass', '编辑'), h('b', '通话'), h('button.pk-glass.is-round', { 'aria-label': '筛选' }, ink('lines', 20, 2.2))), big = h('h1', '通话'); bigTitle(top, big); return [top, big, h('div.pk-calls', calls.map(call))]; },
       通讯录: () => {
-        const by = new Map(); of(R, '联系人').sort((a, b) => sortZh(a[1], b[1])).forEach(r => { const k = initial(r[1]); (by.get(k) || by.set(k, []).get(k)).push(r); });
+        const by = new Map(); of(R, '联系人').map(r => r.length > 3 ? r[2] || r[1] : r[1]).sort(sortZh).forEach(n => { const k = initial(n); (by.get(k) || by.set(k, []).get(k)).push(n); });
         const secs = [...by].sort((a, b) => (a[0] === '#') - (b[0] === '#') || a[0].localeCompare(b[0]));
         const list = h('div.pk-book', h('div.pk-book__me', face2(D.name, D.avatar, '.is-me'), h('div', h('b', D.name), h('span', '我的名片'))),
-          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(([, who]) => h('div.pk-book__row', face2(who), h('div', h('b', who))))]));
+          secs.map(([k, L]) => [h('div.pk-book__k', { dataset: { k } }, k), L.map(who => h('div.pk-book__row', face2(who), h('div', h('b', who))))]));
         const jump = k => { const el = list.querySelector(`[data-k="${k}"]`); el && el.scrollIntoView({ block: 'start' }); };
         return [h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('b', '联系人'), h('button.pk-glass.is-round', { 'aria-label': '新建' }, icon('plus', 22, 2.2))),
           list, h('div.pk-index', [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'].map(k => h('button', { onclick: () => jump(k) }, k)))];
