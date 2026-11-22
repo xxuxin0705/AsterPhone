@@ -37,7 +37,7 @@ export function receive(from, body) {
 async function reply(t, stop) {
   const c = person(t.who), st = storyText(Math.min(4, C().count)) || '（暂无）';
   const l = langFor('chat', c && chatForContact(c.id, false)?.cfg.speak), zhL = !l || /^zh/.test(l);
-  const raw = await generate({ conn: resolveConn('text', 'sms'), system: '', app: '短信', stop,
+  const raw = await generate({ conn: resolveConn('text', state.apps.sms.conn.text === 'follow' ? 'chat' : 'sms'), system: '', app: '短信', stop,
     prompt: compose('smsReply', { who: c ? `${nameOf(c)}${personaOf(c) ? '\n' + personaOf(c).slice(0, 800) : ''}` : `${t.who}（不在通讯录里的号码或机构）`,
       story: st, time: time.forPrompt(), world: (await worldBlock(st, c ? [c] : [], '', '', false, 'sms')).world,
       history: t.list.slice(-30).map(m => `${m.me ? myName() : t.who}：${m.text}`).join('\n'),

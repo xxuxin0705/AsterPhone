@@ -77,6 +77,7 @@ export function defaults() {
       // 幕间（跑团）：用哪个接口、打开 App 放不放片头、语音默认怎么合成（tap 点了才合成 / next 提前合成下两句 / all 全部合成；每局开局时还能改）、大成功大失败用哪一档（局本身存在 kv 的 int:窗口 里）
       interlude: { conn: { text: 'follow' }, splash: true, voice: 'tap', crit: 'book', fill: false, fillMax: 3 },
       // 论坛：用哪套样子（自带的 weibo / douban / twitter，或者 looks 里自己的编号）、自己的样子文件、外语怎么显示（both 原文下面跟中文 / tap 点了才显示）、一次刷几条、点开帖子自动出评论
+      sms: { conn: { text: 'follow' } },   // 跟随的是聊天的连接（作者定的）
       forum: { conn: { text: 'follow', image: 'follow' }, skin: 'weibo', looks: [], tr: 'both', count: 6 },
       // 查手机：每隔几楼自动生成（0 = 只手动）、算到第几楼了、每个应用几条、断了自动续写、上次勾了哪些应用
       peek: { every: 0, count: 6, fill: false, fillMax: 3 },
