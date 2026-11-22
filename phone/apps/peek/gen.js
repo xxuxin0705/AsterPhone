@@ -20,7 +20,7 @@ export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).cat
 /** 能生成的应用：名字 → 给 AI 看的一行怎么写 */
 export const FORMS = {
   备忘录: '便签｜标题｜日期｜正文\n心声｜此刻的几个情绪（两三个词，用顿号隔开）｜{{char}} 心里没说出口的话（一小段，第一人称，只写给自己看的）\n涂鸦｜标题｜用字符随手画的小涂鸦（每行用 // 隔开，最多 8 行，每行不超过 14 个字）｜涂鸦解析（画的是什么、为什么画）\n（便签照常写；心声、涂鸦各写一条）',
-  搜索: '搜索｜搜的话｜时间｜搜完点开的那页的标题（照抄下面看过那页的标题）\n看过｜类型（文章或视频）｜网页标题｜网址（编一个像样的，不写 https://）｜时间｜看完心里怎么想（一两句）｜正文｜视频的时长和播放量（文章空着）\n收藏｜类型｜网页标题｜网址｜收藏的时候｜｜正文｜视频的时长和播放量\n无痕｜类型｜网页标题｜网址｜时间｜看完心里怎么想｜正文｜视频的时长和播放量\n（搜索 4～6 条；看过的就是这些搜索点开的那几页，再加一两页从别处点进来的。收藏一定要写 3～5 条：大多是正常的（攻略、店、想买的、教程），混一两条有私心的。无痕是见不得人、心虚的，有才写。\n时间要扎堆：几分钟里连着查几条，再隔几个小时；要有一条深夜查的、一条很琐碎的日常（天气、路线、换算之类）。\n正文要像真的网页、详略有别：文章先一段开头，再分几段，可以用「■小标题：内容」「> 引用的一句话」「[图：这张图是什么]」，要紧的词用 **两边星号**（小标题里不用），段和段之间用 // 隔开，别每段都一个样子；视频的正文是简介，两三句。正文不是中文时，每一段末尾各附 [翻译：这一段的中文]，配图、引用那段也一样，不要整篇最后才附一个。）',
+  搜索: '搜索｜搜的话｜时间｜搜完点开的那页的标题（照抄下面看过那页的标题）\n看过｜类型（文章或视频）｜网页标题｜网址（编一个像样的，不写 https://）｜时间｜看完心里怎么想（一两句）｜正文｜视频的时长和播放量（文章空着）\n收藏｜类型｜网页标题｜网址｜收藏的时候｜｜正文｜视频的时长和播放量\n无痕｜类型｜网页标题｜网址｜时间｜看完心里怎么想｜正文｜视频的时长和播放量\n（搜索 4～6 条；看过的就是这些搜索点开的那几页，再加一两页从别处点进来的。收藏一定要写 3～5 条：大多是正常的（攻略、店、想买的、教程），混一两条有私心的。无痕是见不得人、心虚的，有才写。\n时间要扎堆：几分钟里连着查几条，再隔几个小时；要有一条深夜查的、一条很琐碎的日常（天气、路线、换算之类）。\n正文要像真的网页、详略有别：文章先一段开头，再分几段，可以用「■小标题：内容」「> 引用的一句话」「[图：这张图是什么]」，要紧的词用 **两边星号**（小标题里不用），段和段之间用 // 隔开，别每段都一个样子；视频的正文是简介，两三句。正文不是中文时，翻译照最上面的规矩，每一段都要写，配图、引用那段也一样。）',
   短信: '对方（名字或号码）｜时间｜对方 / 自己（这条谁发的）｜内容\n（同一个人的几条挨着写，按先后。短信多是验证码、快递、银行和消费提醒、运营商通知、广告、垃圾短信，也可以有熟人，要有发短信的理由（没网、急事、工作通知、长辈不用聊天软件）；日常聊天在聊天软件里，不写进短信；不要写和 {{user}} 的短信）',
   电话: '对方｜呼入 / 呼出 / 未接（三选一）｜时间｜归属地（省 市，存了名字的熟人可以空着；用聊天软件打的写「语音通话」或「视频通话」）\n留言｜对方｜时间｜留言多长（分:秒）｜留言里说的话（语音留言 0～3 条，没有就不写）\n联系人｜真名｜{{char}} 手机里存的备注｜这是谁（几个字）\n（通话记录里熟人（朋友、同事、家人）多一些，不要写和 {{user}} 的通话和留言；通话记录之外，再写 6～10 行联系人；通话记录、留言、短信里的「对方」都写真名，手机上会显示成备注。备注照 {{char}} 现在跟这个人的关系和熟悉程度存：熟人就是平时怎么叫就怎么存（名字、昵称、爱称），不熟的存全名或「姓 + 身份」；不要写成背地里给人起的外号，也不要停在刚认识时的印象）',
   购物车: '商品｜价格（只写数字）｜数量｜店铺｜为什么想买（{{char}} 心里的一句话）',
@@ -89,6 +89,20 @@ export async function relangPeek(c, D) {
   return !!ok;
 }
 
+// TA 说外语时 AI 是先写中文、再附 [原文：…]（中文写在前面就不会漏）：换回手机里一直用的「原文[翻译：中文]」。
+// 漏了原文的（没有假名谚文、六个汉字以上，就是一句中文）用免费机翻补出原文，不再找 AI；人名、时间这种短的不动
+const ORIG = /\s*[[［【]原文[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;
+async function toOrig(got, l) {
+  const seg = async p => { const m = ORIG.exec(p), z = p.trim(), fig = /^\s*[[［【][图図][:：]\s*([\s\S]*)[\]］】]\s*$/.exec(p);
+    if (fig && ORIG.test(fig[1])) { const [a, cn] = (await seg(fig[1])).split(/\[翻译：/); return `[図：${a}][翻译：[图：${cn.slice(0, -1)}]]`; }   // 配图写成「[图：中文[原文：外文]]」
+    const q = (/^\s*([>＞》]\s*)/.exec(p) || ['', ''])[1];   // 引用那段，原文那版也要带「>」
+    if (m) { const a = m[1].trim(); return `${q && !/^[>＞》]/.test(a) ? q : ''}${a}[翻译：${(p.slice(0, m.index) + p.slice(m.index + m[0].length)).trim()}]`; }
+    if (/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) || (p.match(/[\u4e00-\u9fff]/g) || []).length < 6) return p;
+    const a = await translate(z, l).catch(() => ''); return a ? `${a}[翻译：${z}]` : p; };
+  const cells = Object.values(got).flatMap(rows => rows.flatMap(r => r.map((s, i) => [r, i]))).filter(([r, i]) => typeof r[i] === 'string');
+  for (let k = 0; k < cells.length; k += 8) await Promise.all(cells.slice(k, k + 8).map(async ([r, i]) => { r[i] = (await Promise.all(r[i].split(/(?<!:)\/\//).map(seg))).join('//'); }));
+}
+
 // 正在生成的那一次（放在模块里：退出再进来还是「取消」，不会又发一个）
 let job = null;
 export const running = () => job;
@@ -114,8 +128,9 @@ export async function make(c, names, done) {
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
-          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c)}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}：TA 自己写的、发的、搜的、看的都用${langName(speakIn(c))}，照上一条附翻译。` }) });
+          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c)}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}：TA 自己写的、发的、搜的、看的都用${langName(speakIn(c))}。这些不用上一条的写法，改成每一格先写中文意思（照 TA 的口吻），紧跟「[原文：${langName(speakIn(c))}的写法]」，例：中文意思[原文：外文]；分了 // 段的每段各写一次。` }) });
       const got = parse(raw);
+      if (!/^zh/.test(speakIn(c))) await toOrig(got, speakIn(c));
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       return got;
     }, ac);
