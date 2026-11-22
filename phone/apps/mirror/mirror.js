@@ -60,7 +60,7 @@ function shard(s, i, onTap) {
 /* 每一类有哪几项：value 是卡片上显示的，edit 是按下去后上面出来的（改了就存，只换这张卡片上的字）。
    x：{ pic 重摆碎片的图, roster 重画头像排, reopen 重开这一类, pre 进预览 } */
 const NICK_APPS = [['chat', '聊天'], ['forum', '论坛'], ['music', '音乐']], APPN = { chat: '聊天', forum: '论坛' };
-const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间']];
+const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间'], ['peek', '查手机']];
 let bookApp = '';
 const draftOf = c => { const M = JSON.parse(JSON.stringify(c.mirror || {})); M.shards ||= {}; return M; };
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
