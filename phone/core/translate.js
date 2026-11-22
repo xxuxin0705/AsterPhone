@@ -15,13 +15,15 @@ export const langName = code => (LANGS.find(l => l[0] === code) || [code, code])
 /** 说什么语言：某个人自己选的（own）> 这个 App 选的 > 设置里总的 */
 export const langFor = (app, own) => own || state.settings.lang.apps[app] || state.settings.lang.all;
 const cache = new Map();
+// Tauri Tavern 的翻译接口一出错就弹「后端错误」挡在屏幕上：那边先走直连的两条，它放最后
+const TAURI = (() => { try { return !!(top.__TAURI__ || top.__TAURI_INTERNALS__); } catch (e) { return false; } })();
 
 export async function translate(text, to = 'zh-CN') {
   text = String(text || '').trim();
   if (!text) return '';
   const key = to + '|' + text;
   if (cache.has(key)) return cache.get(key);
-  const tries = [viaTavern, viaGoogle, viaMyMemory];
+  const tries = TAURI ? [viaGoogle, viaMyMemory, viaTavern] : [viaTavern, viaGoogle, viaMyMemory];
   let lastErr = null;
   for (const fn of tries) {
     try { const out = await fn(text, to); if (out && out.trim()) { cache.set(key, out.trim()); return out.trim(); } }

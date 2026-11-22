@@ -92,15 +92,18 @@ export async function relangPeek(c, D) {
 // TA 说外语时 AI 是先写中文、再附 [原文：…]（中文写在前面就不会漏）：换回手机里一直用的「原文[翻译：中文]」。
 // 漏了原文的（没有假名谚文、六个汉字以上，就是一句中文）用免费机翻补出原文，不再找 AI；人名、时间这种短的不动
 const ORIG = /\s*[[［【]原文[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;
+// 是不是一句漏了原文的中文：没有标记、没有假名谚文、六个汉字以上，还得有中文才用的字（了吗呢这们…）——
+// 不然像「術式反動過負荷」这种全是汉字的日文标题也会被当成中文，拿去机翻
+const zhOnly = p => !/[[［【](翻译|原文)[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) && (p.match(/[\u4e00-\u9fff]/g) || []).length >= 6 && /[了吗呢吧么们这那个说没还很是]/.test(p);
 async function toOrig(got, l, say) {
   const seg = async p => { const m = ORIG.exec(p), z = p.trim(), fig = /^\s*[[［【][图図][:：]\s*([\s\S]*)[\]］】]\s*$/.exec(p);
     if (fig && ORIG.test(fig[1])) { const [a, cn] = (await seg(fig[1])).split(/\[翻译：/); return `[図：${a}][翻译：[图：${cn.slice(0, -1)}]]`; }   // 配图写成「[图：中文[原文：外文]]」
     const q = (/^\s*([>＞》]\s*)/.exec(p) || ['', ''])[1];   // 引用那段，原文那版也要带「>」
     if (m) { const a = m[1].trim(); return `${q && !/^[>＞》]/.test(a) ? q : ''}${a}[翻译：${(p.slice(0, m.index) + p.slice(m.index + m[0].length)).trim()}]`; }
-    if (/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) || (p.match(/[\u4e00-\u9fff]/g) || []).length < 6) return p;
+    if (!zhOnly(p)) return p;
     say(++done, todo); const a = await translate(z, l).catch(() => ''); return a ? `${a}[翻译：${z}]` : p; };
   const cells = Object.values(got).flatMap(rows => rows.flatMap(r => r.map((s, i) => [r, i]))).filter(([r, i]) => typeof r[i] === 'string');
-  let done = 0; const todo = cells.flatMap(([r, i]) => r[i].split(/(?<!:)\/\//)).filter(p => !ORIG.test(p) && !/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) && (p.match(/[\u4e00-\u9fff]/g) || []).length >= 6).length;
+  let done = 0; const todo = cells.flatMap(([r, i]) => r[i].split(/(?<!:)\/\//)).filter(p => !ORIG.test(p) && zhOnly(p)).length;
   for (let k = 0; k < cells.length; k += 3) await Promise.all(cells.slice(k, k + 3).map(async ([r, i]) => { r[i] = (await Promise.all(r[i].split(/(?<!:)\/\//).map(seg))).join('//'); }));
 }
 
