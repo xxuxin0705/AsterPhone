@@ -31,11 +31,13 @@ export async function translate(text, to = 'zh-CN') {
   throw new Error('翻译失败，详情见日志');
 }
 
+// 酒馆的翻译接口一出错（谷歌嫌请求太多会回一张错误页），酒馆就弹一个「后端错误」：失败一次就 10 分钟内先不走它，直接走后面两条
+let tavernOff = 0;
 async function viaTavern(text, to) {
-  if (!inTavern()) throw new Error('不在酒馆里');
+  if (!inTavern() || Date.now() < tavernOff) throw new Error('不在酒馆里');
   const c = ctx(), headers = (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' };
   const res = await window.parent.fetch('/api/translate/google', { method: 'POST', headers, body: JSON.stringify({ text, lang: to }) });
-  if (!res.ok) throw new Error('酒馆翻译接口 ' + res.status);
+  if (!res.ok) { tavernOff = Date.now() + 6e5; throw new Error('酒馆翻译接口 ' + res.status); }
   return await res.text();
 }
 async function viaGoogle(text, to) {

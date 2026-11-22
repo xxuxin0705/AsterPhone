@@ -83,7 +83,7 @@ export async function relangPeek(c, D) {
   const all = [...Object.values(D.apps).flatMap(a => a.rows.flat()), ...D.pairs.flatMap(x => x.msgs.map(m => m.text))];
   const mt = ((D.mt ||= {})[l] ||= {}), todo = [...new Set(all.flatMap(t => [...String(t || '').matchAll(TRG)].map(m => m[1])))].filter(z => z.trim() && !mt[z]);
   if (!todo.length) return false;
-  const ok = await waiting(`换成${langName(l)}…`, async sig => { for (let i = 0; i < todo.length && !sig.aborted; i += 6) await Promise.all(todo.slice(i, i + 6).map(async z => { mt[z] = await translate(z, l); })); return true; });
+  const ok = await waiting(`换成${langName(l)}…`, async sig => { for (let i = 0; i < todo.length && !sig.aborted; i += 3) await Promise.all(todo.slice(i, i + 3).map(async z => { mt[z] = await translate(z, l); })); return true; });
   const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }; d.mt = D.mt; await kvSet('peek:' + c.id, d);   // 取消了也把翻好的那些记下
   if (ok) toast(`换成${langName(l)}了`);
   return !!ok;
@@ -100,7 +100,7 @@ async function toOrig(got, l) {
     if (/[[［【]翻译[:：]|[\u3040-\u30ff\uac00-\ud7af]/.test(p) || (p.match(/[\u4e00-\u9fff]/g) || []).length < 6) return p;
     const a = await translate(z, l).catch(() => ''); return a ? `${a}[翻译：${z}]` : p; };
   const cells = Object.values(got).flatMap(rows => rows.flatMap(r => r.map((s, i) => [r, i]))).filter(([r, i]) => typeof r[i] === 'string');
-  for (let k = 0; k < cells.length; k += 8) await Promise.all(cells.slice(k, k + 8).map(async ([r, i]) => { r[i] = (await Promise.all(r[i].split(/(?<!:)\/\//).map(seg))).join('//'); }));
+  for (let k = 0; k < cells.length; k += 3) await Promise.all(cells.slice(k, k + 3).map(async ([r, i]) => { r[i] = (await Promise.all(r[i].split(/(?<!:)\/\//).map(seg))).join('//'); }));
 }
 
 // 正在生成的那一次（放在模块里：退出再进来还是「取消」，不会又发一个）
