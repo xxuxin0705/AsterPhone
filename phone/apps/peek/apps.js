@@ -67,6 +67,11 @@ export function pull(body) {
   }, { passive: true });
   body.addEventListener('touchend', () => { if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
 }
+// 玻璃边上往里折的那一下（.pk-glass 的 backdrop-filter 用）：两张渐变图当位移图，左右一张、上下一张，中间平、越靠边折得越多。
+// 只有 Chrome 系认 backdrop-filter 里的 url()；别的浏览器那句整句作废，退回只有模糊、提亮
+const lens = (x) => `<feImage result="${x}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" preserveAspectRatio="none"><linearGradient id="g" x2="${x === 'mx' ? 1 : 0}" y2="${x === 'mx' ? 0 : 1}"><stop offset="0" stop-color="${x === 'mx' ? '#ff8000' : '#80ff00'}"/><stop offset=".2" stop-color="#808000"/><stop offset=".8" stop-color="#808000"/><stop offset="1" stop-color="${x === 'mx' ? '#008000' : '#800000'}"/></linearGradient><rect width="64" height="64" fill="url(#g)"/></svg>`)}"/>`;
+if (!document.getElementById('pk-lens')) document.body.insertAdjacentHTML('beforeend', `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="pk-lens" x="0" y="0" width="1" height="1" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">${lens('mx')}${lens('my')}
+  <feDisplacementMap in="SourceGraphic" in2="mx" scale=".12" xChannelSelector="R" yChannelSelector="G" result="d"/><feDisplacementMap in="d" in2="my" scale=".12" xChannelSelector="R" yChannelSelector="G"/></filter></svg>`);
 // 你自己手机里照 iPhone 画的页（电话、短信）：和查手机同一套样子；照 393 宽量的整体缩放，日间 / 夜间跟着手机，外语右上一个「译」
 export function iosPage(app, id, cls = '') {
   const body = h('div.pk-app__body'), L = h('div.pk-app.is-raw' + cls, body), el = h('section.as-page.as-ios', { dataset: { asApp: app, asPage: id } }, L);
