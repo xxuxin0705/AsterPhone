@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf, parenTr, takeTr, memoAdd } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -51,14 +51,14 @@ const trCols = (n, r) => ((TRC[n] || []).find(L => L[0] === r[0]) || (TRC[n] || 
 // 你和 TA 真在共用的备忘录（你的备忘录 App 里的）：给 AI 看，TA 想接一句就写一行同标题的「共用」，生成完真添进去（make 里）
 const BY = /^([^：:]{1,12})[：:]\s*/, shared = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
 const ourNotes = c => { const L = shared(c), me = myName(); if (!L.length) return '';
-  return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜照抄标题｜日期｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）\n`
-    + L.map(r => `《${r[1]}》\n${r[4].split('//').map(x => { const [o, z] = takeTr(x), by = BY.exec(o); return z ? (by ? by[0] : '') + z : o; }).join('\n')}`).join('\n'); };
+  return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜那张前面的编号｜日期｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）\n`
+    + L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').map(x => { const [o, z] = takeTr(x), by = BY.exec(o); return z ? (by ? by[0] : '') + z : o; }).join('\n')}`).join('\n'); };
 /** AI 写的「和你共用」：不留在 TA 这份里，真添进你的备忘录（两边看到的是同一张）；替你写的行、已经有的行不要。返回挪了几行 */
 async function toOurs(c, rows) {
   const me = myName(), ta = [c.name, nameOf(c)], keep = []; let n = 0;
   for (const r of rows) {
     if (r[0] !== '共用' || (r[3] || '').trim() !== me) { keep.push(r); continue; }
-    const tt = takeTr(r[1]), old = shared(c).find(x => tt.includes(x[1]) || takeTr(x[1]).some(y => y && tt.includes(y))), t = old ? old[1] : r[1];
+    const old = noteOf(c, r[1]), t = old ? old[1] : r[1];
     for (const line of (r[4] || '').split(/(?<!:)\/\//)) {
       let [o, z] = takeTr(line.trim()); const by = BY.exec(z || o), who = by && by[1].trim();
       if (!o || who === me) continue;
@@ -156,10 +156,11 @@ export async function make(c, names, done) {
   try {
     let step = `正在写${nameOf(c)}的手机…`;   // AI 写完后还要用机翻补漏掉的外文：提示条换成「补外文 几 / 几」，不然只剩个圈在转
     const got = await waiting(() => step, async stop => {
-      const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
+      const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;
+      const ch = chatForContact(c.id, false), history = ch ? historyText(await getMsgs(ch.id), c, 30) : '（还没有聊过）';   // 手机上和你刚聊的：TA 手机里的东西要跟得上   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
       const raw = await generate({ conn: connOf(), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
-          world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
+          world: await worldText(story + '\n' + history, [c], 'peek').catch(() => ''), story, history, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
           count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}${n === '备忘录' ? ourNotes(c) : ''}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
       const got = parse(raw);

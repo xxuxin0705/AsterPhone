@@ -53,12 +53,14 @@ const named = (r, x) => [myName(), r[3]].some(n => n && x.startsWith(n + '：'))
 const TR = /\s*\[翻译：([^\]]*)\]/;
 const pre = (x, r) => { const n = r[0] === '共用' && [myName(), r[3]].find(n => n && x.startsWith(n + '：')), a = n ? n.length + 1 : 0; return x.slice(0, a + /^([○√]\s*)?(划掉[:：]\s*)?/.exec(x.slice(a))[0].length); };
 const cn = (x, r) => { const m = TR.exec(x); return m ? pre(x, r) + m[1] : x; };
+// 改的时候看到的：共用的不带「谁：」（谁写的看颜色），存的时候没动过的照原样、新写的算你的
+const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = [myName(), r[3]].find(n => n && y.startsWith(n + '：')))) y = y.slice(n.length + 1); return y; };   // 以前存的翻译那半有时也带着名字
 // 写一条：标题一行，正文一格（一行就是一行）；返回就存好，两格都空着的不留
 function edit(r) {
   const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave;
-  const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [cn(x, r), x])]);
+  const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [vis(x, r), x])]);
   const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), ta = h('textarea.pk-nt__ta', { placeholder: '写点什么', 'aria-label': '正文', rows: 6 });
-  ta.value = r[4].split('//').map(x => cn(x, r)).join('\n');
+  ta.value = r[4].split('//').map(x => vis(x, r)).join('\n');
   const tr = liveTr(ta);
   const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
   // 清单键：光标在的那一行前面加一个 ○，已经有就拿掉
@@ -68,7 +70,7 @@ function edit(r) {
     const L = ta.value.split('\n').map(x => x.trim()).filter(Boolean), old = r[1] + '|' + r[4];
     const out = async x => { if (was.has(x)) return was.get(x); if (!myLang()) return x; const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
     const title = t.value.trim();   // 标题框空着就是没有标题（列表里拿第一行当标题，和 iPhone 一样）
-    r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => out(r[0] === '共用' && !named(r, x) ? myName() + '：' + x : x)))).join('//');
+    r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => (was.has(x) ? was.get(x) : out(r[0] === '共用' ? myName() + '：' + x : x))))).join('//');
     if (r[0] !== '共用') r[0] = kind(r[4]);
     if (!r[1] && !r[4] && !r[8]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
     save(); fresh(); };

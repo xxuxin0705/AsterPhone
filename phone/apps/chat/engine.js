@@ -12,6 +12,7 @@ import { shell } from '../../core/shell.js';
 import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
 import { translate, langName, langFor, zhOf, fillZh, myLang, myOut } from '../../core/translate.js';
+import { colorFor } from '../../core/ui.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -201,6 +202,28 @@ export function personaOf(c) {
   return '';
 }
 export function avatarOf(c, chat) { return (chat && chat.cfg.theirAvatar) || (c && c.avatar) || ''; }
+// 印象色：共用的备忘录里谁写的就涂谁的颜色。映像里挑过就用挑的；没挑过从头像里取最显眼的颜色（取一次记着，换了头像再取），没头像按名字分；你自己默认黄色
+const inkKey = c => { const u = avatarOf(c); return u && u.length + u.slice(-48); };
+export const inkOf = c => (c === state.me ? state.me.ink || '#ffd60a' : c.ink || (c.inkAuto?.[0] === inkKey(c) && c.inkAuto[1]) || colorFor(nameOf(c)));
+const hsv = hex => { const n = parseInt(String(hex).slice(1, 7), 16), r = n >> 16, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+  return [!d ? 0 : (mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60, mx ? d / mx : 0, mx]; };
+/** 头像里最显眼的颜色：缩成 24×24，太灰、太暗的点不算，按色相分 12 堆，最重的那堆取平均；返回换没换 */
+export async function autoInk(c) {
+  const k = inkKey(c); if (!k || c.ink || c.inkAuto?.[0] === k) return false;
+  const im = new Image(); im.crossOrigin = 'anonymous'; im.src = avatarOf(c); await im.decode();
+  const x = Object.assign(document.createElement('canvas'), { width: 24, height: 24 }).getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, 24, 24);
+  const d = x.getImageData(0, 0, 24, 24).data, B = Array.from({ length: 12 }, () => [0, 0, 0, 0]);
+  for (let i = 0; i < d.length; i += 4) { const [hh, sa, v] = hsv('#' + [d[i], d[i + 1], d[i + 2]].map(y => y.toString(16).padStart(2, '0')).join(''));
+    if (sa < .25 || v < 60 || d[i + 3] < 200) continue; const w = sa * v, q = B[Math.floor(hh / 30) % 12]; q[0] += d[i] * w; q[1] += d[i + 1] * w; q[2] += d[i + 2] * w; q[3] += w; }
+  const top = B.reduce((a, b) => (b[3] > a[3] ? b : a));
+  c.inkAuto = [k, top[3] ? '#' + top.slice(0, 3).map(y => Math.round(y / top[3]).toString(16).padStart(2, '0')).join('') : colorFor(nameOf(c))]; commit('contacts'); return true;
+}
+/** 你和 TA 的两个颜色：太像（色相差不到 40 度，或者都是灰的）就把 TA 的转到对面去，一眼分得清 */
+export function twoInks(c) {
+  const a = inkOf(state.me), b = inkOf(c), [h1, s1] = hsv(a), [h2, s2, v2] = hsv(b), gap = Math.abs(h1 - h2) % 360;
+  const near = s1 < .2 === s2 < .2 && (s1 < .2 || Math.min(gap, 360 - gap) < 40);
+  return [a, near ? `hsl(${(h2 + 180) % 360} ${s2 < .2 ? 60 : Math.round(s2 * 80)}% ${Math.round(Math.min(.6, v2 / 255) * 100)}%)` : b];
+}
 export function myAvatarIn(chat) { return (chat && chat.cfg.myAvatar) || myAvatar(); }
 
 /** 一条消息在列表、通知里显示成什么 */
@@ -267,7 +290,7 @@ export function pending(msgs) {
 }
 
 /* ---------- 让 TA 回复 ---------- */
-function historyText(msgs, c, n = 24) {
+export function historyText(msgs, c, n = 24) {
   const who = m => m.from === 'me' ? myName() : m.from === 'them' ? nameOf(c) : '';
   return msgs.filter(m => !m.recalled).slice(-n).map(m => {
     if (m.from === 'sys') return `（${m.text}）`;
@@ -299,14 +322,18 @@ const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, me
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
 const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
+// TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
+export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
+  return /^\d+$/.test(k) && L[k - 1] || L.find(r => takeTr(r[1]).some(y => y && tt.includes(y))); };
 export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
-  let [o, z] = takeTr(x.trim()); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
-  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim() || takeTr(r[1]).includes(t.trim()));   // 标题翻成外语的，写中文那半也认
+  const self = new RegExp(`^\\s*(${[c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).map(escRe).join('|')})\\s*[:：]\\s*`);   // AI 自己在前面又写了一遍名字：去掉，不然成了「名字：名字：」
+  let [o, z] = takeTr(x.trim()).map(y => y && y.replace(self, '')); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
+  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = noteOf(c, t);
   if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id, 1]);
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map(r => `《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 标题｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。标题用上面已有的就是添进那一张，写新标题就是新开一张。没什么要记的就不写这一行。` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;

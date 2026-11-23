@@ -4,13 +4,13 @@
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
 import { state, commit, contact, chatForContact, nickIn, setNick } from '../../core/store.js';
-import { page, navBtn, input, textarea, segmented, btn, busy, waiting, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo, sheet, switchEl } from '../../core/ui.js';
+import { page, navBtn, input, textarea, segmented, btn, busy, waiting, toast, pickImage, dateField, nudger, actionSheet, dialog, fxRow, withInfo, sheet, switchEl, colorWheel } from '../../core/ui.js';
 import { worldNames } from '../../core/bridge.js';
 import { wbOf, tavernBooks, storyText, ownEntryOn } from '../../core/context.js';
 import { bookPanel as wbPanel } from '../../core/bookpanel.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor, nickShow, relang } from '../../core/translate.js';
-import { nameOf } from '../chat/engine.js';
+import { nameOf, inkOf } from '../chat/engine.js';
 import { myName, myAvatar, myPersona } from '../../core/promptstore.js';
 import { pickDeco, decoName } from '../../core/deco.js';
 
@@ -77,6 +77,9 @@ function rowsOf(i, c, x) {
   const lang = () => langFor('chat', ch().speak), follows = k => !(c.zhNick || []).includes(k) && !/^zh/.test(lang());
   const who = () => ({ src: faceOf(c), name: me ? myName() : nameOf(c) });
   const face = ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }];
+  // 印象色：共用的备忘录里这个人写的那几行涂这个颜色（apps/chat/engine.js 的 inkOf）
+  const ink = ['印象色', { info: '共用的备忘录里，谁写的那几行就涂谁的颜色。', value: () => (c.ink ? '自己挑的' : me ? '黄色' : '从头像取'),
+    edit: set => h('div.mz-col', colorWheel(inkOf(c), v => { c.ink = v; save(); set(); }), h('div.mz-chips', h('button', { onclick: () => { delete c.ink; save(); set(); toast(me ? '用回黄色' : '用回头像的颜色'); } }, me ? '用回黄色' : '用回头像的颜色'))) }];
   // 头像框：这里定的是默认，哪个 App 里单独换过就那个 App 用它自己的（core/deco.js 的 frameOf）
   const frame = ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
     go: async () => { const v = await pickDeco('frames', c.frame, who()); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }];
@@ -85,7 +88,7 @@ function rowsOf(i, c, x) {
   const voice = ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(id)) }];
   // 你自己：和聊天「我」里编辑资料是同一份；人设没改过就跟着酒馆里的用户人设
   if (me) {
-    if (i === 0) return [[face[0], { ...face[1], value: () => (c.avatar ? '换一张' : '跟随酒馆') }], ['真名', { ...text('realName', '真名'), value: myName }], ['网名', { ...text('nick', '网名'), value: () => c.nick || '没起' }], gender, birth,
+    if (i === 0) return [[face[0], { ...face[1], value: () => (c.avatar ? '换一张' : '跟随酒馆') }], ink, ['真名', { ...text('realName', '真名'), value: myName }], ['网名', { ...text('nick', '网名'), value: () => c.nick || '没起' }], gender, birth,
       ['人设', { value: () => (c.persona == null ? '跟随酒馆' : c.persona ? c.persona.slice(0, 12) + '…' : '没写'), edit: set => {
         const ta = textarea({ value: myPersona(), rows: 8, placeholder: '人设', onInput: v => { c.persona = v; save(); set(); } });
         return h('div.mz-col', ta, h('div.mz-chips', h('button', { onclick: () => { c.persona = null; ta.value = myPersona(); save(); set(); } }, '跟随酒馆'))); } }]];
@@ -95,7 +98,7 @@ function rowsOf(i, c, x) {
       go: async () => { const v = await pickDeco('bubbles', c.bubble, who()); if (v == null) return; if (v === 'none') delete c.bubble; else c.bubble = v; save(); x.reopen(); } }]];
   }
   if (i === 0) return [
-    face, frame,
+    face, ink, frame,
     ['真名', text('name', '真名')],
     // 网名：聊天、论坛、音乐各一个，打开就是 TA 现在在那里叫什么。跟着外语的那几个下面多一格中文（按人设的那版），改了中文外语跟着机翻
     ['网名', { value: () => [...new Set(NICK_APPS.map(([k]) => nickIn(c, k)).filter(Boolean))].join('、') || '没起', edit: set => h('div.mz-col',

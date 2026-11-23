@@ -57,7 +57,7 @@ export const PROMPT_CATS = [
     { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
     { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
   { app: '短信', items: [{ id: 'smsReply', name: '回短信', vars: ['who', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
-  { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'time', 'people', 'count', 'apps', 'lang'] }] },
+  { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'history', 'time', 'people', 'count', 'apps', 'lang'] }] },
   { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
@@ -845,13 +845,16 @@ ${TURN}有人受伤写 hurt（战斗里的伤手机已经算过，别再写）�
 【最近发生的事】
 {{story}}
 
+【{{char}} 和 {{user}} 最近在手机上聊的】
+{{history}}
+
 【{{char}} 认识的人】
 {{people}}
 
 现在的时间：{{time}}
 
 要求：
-- 内容要对得上人设、最近发生的事和现在的时间，日期都在现在之前不远（日历可以有往后的安排）。
+- 内容要对得上人设、最近发生的事（正文和手机上刚聊的）和现在的时间，紧跟着眼下的事走，日期都在现在之前不远（日历可以有往后的安排）。
 - 有琐碎日常，也有只有 {{char}} 自己知道的心思；和 {{user}} 有关的可以有，但别每条都是。
 - 提到人时优先用上面认识的人；{{char}} 会给人起备注就用备注。
 - 每个应用写 {{count}} 条左右（应用自己另写了要几条的照它的），长短不一，别写成一个模子。
