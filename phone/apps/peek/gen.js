@@ -172,7 +172,7 @@ export async function make(c, names, done) {
       const got = parse(raw);
       if (!/^zh/.test(speakIn(c))) await toOrig(got, n => { step = `AI 写好了，有 ${n} 处没写全，机翻核对…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
-      sawInks(c, pics);
+      sawInks(c, pics, images);
       return got;
     }, ac);
     if (!got) return;

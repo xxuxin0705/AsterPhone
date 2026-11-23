@@ -204,7 +204,7 @@ async function gen(opts) {
   try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; }
   if (last.message === '已中止') throw last;   // 自己点了中止：不换副 API
   // 带了图被拒（模型不认图）：去掉图只发字再问一次，日志里说一声
-  if (opts.images?.length && /^4(00|04|13|15|22)\b/.test(last.message)) { log('warn', app, `「${conn.model || conn.name}」好像看不了图片（${last.message.slice(0, 80)}），这次只发了文字`); return gen({ ...opts, images: [] }); }
+  if (opts.images?.length && /^4(00|04|13|15|22)\b/.test(last.message)) { log('warn', app, `「${conn.model || conn.name}」好像看不了图片（${last.message.slice(0, 80)}），这次只发了文字`); opts.images.length = 0; try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; } }   // 预设已经套过了，不再走一遍 gen（不然预设条目叠两份）
   // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
   const bk = backupOf('text');
   if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
@@ -244,7 +244,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         catch (e) { if (!isKeyErr(e.message) || n >= keys.length - 1) throw e; log('warn', app, `密钥 ${(ki + n) % keys.length + 1} 被拒（${e.message.slice(0, 3)}），换下一把`); }
       }
     };
-    if (images.length && /^tavern/.test(conn.type)) log('warn', app, '走酒馆的连接带不了图片，这次只发了文字');
+    if (images.length && /^tavern/.test(conn.type)) { log('warn', app, '走酒馆的连接带不了图片，这次只发了文字'); images.length = 0; }   // 清空：叫的那边就知道图没发出去
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
       else { const pf = conn.pf && tavernProfiles().list.find(x => x.id === conn.pf); out = await orAbort(pf ? generateWithProfile(pf, { system, prompt }) : generateTavern({ system, prompt }), signal); }
