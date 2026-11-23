@@ -1,4 +1,4 @@
-// 映像：每个人一朵 5 片的玻璃花，5 片各管一类（资料、声音与语言、生图、立绘、世界书）。
+// 映像：每个人一朵 5 片的玻璃花，5 片各管一类（资料、声音与语言、生图、立绘、世界书）。你自己（state.me）也在，第 5 片换成装扮（头像框、气泡）。
 // 碎片里清清楚楚映着这个人的图，光从花心来：靠花心亮、往外暗。
 // 点一片：它亮起白边，整朵花挪到左边，右边一栏列出这一类的几项；点一项它按下去，上面出来能改的。
 // 换图（右上角，或某一片的「图片」）都先进预览：拖动挪、两指捏放大缩小，点确定才换上。
@@ -10,6 +10,7 @@ import { wbOf, tavernBooks, loadBook } from '../../core/context.js';
 import * as PT from '../../core/portrait.js';
 import { LANGS, langName, langFor, nickShow, relang } from '../../core/translate.js';
 import { nameOf } from '../chat/engine.js';
+import { myName, myAvatar, myPersona } from '../../core/promptstore.js';
 import { pickDeco, decoName } from '../../core/deco.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -63,18 +64,36 @@ const NICK_APPS = [['chat', '聊天'], ['forum', '论坛'], ['music', '音乐']]
 const BOOK_APPS = [['', '所有应用'], ['chat', '聊天'], ['forum', '论坛'], ['diary', '日记'], ['radio', '电台'], ['interlude', '幕间'], ['peek', '查手机']];
 let bookApp = '';
 const draftOf = c => { const M = JSON.parse(JSON.stringify(c.mirror || {})); M.shards ||= {}; return M; };
+const isMe = c => c === state.me, idOf = c => (isMe(c) ? 'me' : c.id), faceOf = c => (isMe(c) ? myAvatar() : c.avatar);
+const shardName = (i, c) => (i === 4 && isMe(c) ? '装扮' : SH[i].n);
 const thumb = src => h('img.mz-thumb', { src, alt: '' });
 const pickPic = async size => { const f = await pickFile('image/*'); return f && fileToDataURL(f, size); };
 function rowsOf(i, c, x) {
-  const ch = () => chatForContact(c.id, true).cfg, save = k => { commit('contacts'); if (k) x[k](); };
+  const me = isMe(c), id = idOf(c), ch = () => chatForContact(c.id, true).cfg, save = k => { commit(me ? 'me' : 'contacts'); if (k) x[k](); };
   const text = (k, ph) => ({ value: () => c[k] || '', edit: set => input({ value: c[k] || '', placeholder: ph, onInput: v => { c[k] = v; save(); set(); } }) });
   const choose = (opts, cur, on) => h('div.mz-chips', opts.map(([v, l]) => { const b = h('button' + (cur === v ? '.is-on' : ''), { onclick: async () => {
     if (await on(v) === false) return; b.parentNode.querySelectorAll('button').forEach(y => y.classList.toggle('is-on', y === b)); } }, l); return b; }));
   const lang = () => langFor('chat', ch().speak), follows = k => !(c.zhNick || []).includes(k) && !/^zh/.test(lang());
+  const who = () => ({ src: faceOf(c), name: me ? myName() : nameOf(c) });
+  const face = ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }];
+  // 头像框：这里定的是默认，哪个 App 里单独换过就那个 App 用它自己的（core/deco.js 的 frameOf）
+  const frame = ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
+    go: async () => { const v = await pickDeco('frames', c.frame, who()); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }];
+  const gender = ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }];
+  const birth = ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }];
+  const voice = ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(id)) }];
+  // 你自己：和聊天「我」里编辑资料是同一份；人设没改过就跟着酒馆里的用户人设
+  if (me) {
+    if (i === 0) return [[face[0], { ...face[1], value: () => (c.avatar ? '换一张' : '跟随酒馆') }], ['真名', { ...text('realName', '真名'), value: myName }], ['网名', { ...text('nick', '网名'), value: () => c.nick || '没起' }], gender, birth,
+      ['人设', { value: () => (c.persona == null ? '跟随酒馆' : c.persona ? c.persona.slice(0, 12) + '…' : '没写'), edit: set => {
+        const ta = textarea({ value: myPersona(), rows: 8, placeholder: '人设', onInput: v => { c.persona = v; save(); set(); } });
+        return h('div.mz-col', ta, h('div.mz-chips', h('button', { onclick: () => { c.persona = null; ta.value = myPersona(); save(); set(); } }, '跟随酒馆'))); } }]];
+    if (i === 1) return [voice];
+    if (i === 4) return [frame, ['气泡', { value: () => decoName('bubbles', c.bubble) || '不用',
+      go: async () => { const v = await pickDeco('bubbles', c.bubble, who()); if (v == null) return; if (v === 'none') delete c.bubble; else c.bubble = v; save(); x.reopen(); } }]];
+  }
   if (i === 0) return [
-    ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }],
-    ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
-      go: async () => { const v = await pickDeco('frames', c.frame, { src: c.avatar, name: nameOf(c) }); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }],
+    face, frame,
     ['真名', text('name', '真名')],
     // 网名：聊天、论坛、音乐各一个，打开就是 TA 现在在那里叫什么。跟着外语的那几个下面多一格中文（按人设的那版），改了中文外语跟着机翻
     ['网名', { value: () => [...new Set(NICK_APPS.map(([k]) => nickIn(c, k)).filter(Boolean))].join('、') || '没起', edit: set => h('div.mz-col',
@@ -86,9 +105,9 @@ function rowsOf(i, c, x) {
           waiting('翻译…', async sig => { const t = await nickShow(c, k, lang(), sig); if (t) { shown.value = t; set(); toast(`${l}网名：${t}`); } }).catch(err => toast(`${l}网名${err.message}`)); });
         return h('label.mz-nick', h('small', l), shown, cn);
       })) }],
-    ['性别', { value: () => c.gender || '不写', edit: set => segmented([['', '不写'], ['男', '男'], ['女', '女'], ['其他', '其他']], c.gender || '', v => { c.gender = v; save(); set(); }) }],
+    gender,
     ['电话', text('phone', '电话号码')],
-    ['生日', { value: () => c.birthday || '没填', edit: set => dateField(c.birthday || '', v => { c.birthday = v; save(); set(); }, true) }],
+    birth,
     ['人设', { value: () => (c.persona ? c.persona.slice(0, 12) + '…' : c.charKey ? '用角色卡的' : '没写'), edit: set => textarea({ value: c.persona || '', rows: 8, placeholder: c.charKey ? '留空就用角色卡里的人设' : '人设', onInput: v => { c.persona = v; save(); set(); } }) }],
   ];
   if (i === 1) return [
@@ -103,7 +122,7 @@ function rowsOf(i, c, x) {
         b.classList.toggle('is-on', on); save(); set();
         toast(t ? `${l}网名：${t}` : on ? `${l}网名跟着语言` : `${l}网名用中文`);
       }).catch(err => toast(`${l}网名${err.message}`)); } }, l))) }],
-    ['声音', { value: () => '渠道、音色、读音', go: () => import('../settings/voices.js').then(m => m.openPerson(c.id)) }],
+    voice,
   ];
   // 生图：画到 TA 的时候（聊天发的照片、日记配图）前面加上外貌；定妆图拿来锁脸（能照图画的渠道才认），锁脸强度、种子每个人各一个
   const pre = () => (state.settings.lookPresets ||= []);
@@ -115,11 +134,11 @@ function rowsOf(i, c, x) {
         h('button', { onclick: async () => { const n = (await dialog({ title: '存为预设', input: { placeholder: '名字' } }) || '').trim(); if (!n || !c.look) return; pre().push({ n, t: c.look }); commit('settings'); paint(); } }, '+ 存为预设'));
       paint(); return h('div.mz-col', ta, chips); } }],
     ['定妆图', { value: () => (c.lookRef ? '有' : '不用'), edit: set => {
-      const vers = PT.versions(c.id).filter(v => v.base);
+      const vers = PT.versions(id).filter(v => v.base);
       return h('div.mz-col', c.lookRef ? thumb(c.lookRef) : '',
         vers.length ? h('div.mz-strip', vers.map(v => h('button' + (v.base === c.lookRef ? '.is-on' : ''), { onclick: () => { c.lookRef = v.base; save(); set(); x.reopen(); } }, thumb(v.base)))) : '',
         choose([['pick', '自己传'], ['avatar', '用头像'], ['', '不用']], '', async v => {
-          if (v === 'avatar') { if (!c.avatar) { toast('还没有头像'); return false; } c.lookRef = c.avatar; }
+          if (v === 'avatar') { if (!faceOf(c)) { toast('还没有头像'); return false; } c.lookRef = faceOf(c); }
           else if (v === 'pick') { const p = await pickPic(1024); if (!p) return false; c.lookRef = p; } else delete c.lookRef;
           save(); set(); x.reopen(); })); } }],
     ['锁脸强度', { info: '越高越像定妆图，太高姿势和场景会被带跑。只有 NAI 认。', value: () => Math.round((c.lookK ?? 1) * 100) + '%', edit: set => fxRow('', c.lookK ?? 1, 1, { min: .1, max: 1, step: .05, fmt: v => Math.round(v * 100) + '%' }, v => { if (v === 1) delete c.lookK; else c.lookK = v; save(); set(); }) }],
@@ -131,9 +150,9 @@ function rowsOf(i, c, x) {
   ];
   // 立绘：照相馆里做的；主图（碎片里映着的那张）可以用头像、立绘或者另传一张
   if (i === 3) return [
-    ['立绘', { value: () => (PT.loaded(c.id) ? `${PT.versions(c.id).length} 张` : '还没有'), edit: () => h('div.mz-col',
-      PT.versions(c.id).length ? h('div.mz-strip', PT.versions(c.id).map((v, k) => h('button' + (k === PT.using(c.id) ? '.is-on' : ''), { onclick: e => PT.useVersion(c.id, k).then(() => e.currentTarget.parentNode.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === k))) }, thumb(v.base)))) : '',
-      btn('去照相馆', 'secondary', () => import('../street/studio.js').then(m => m.person(c.id)))) }],
+    ['立绘', { value: () => (PT.loaded(id) ? `${PT.versions(id).length} 张` : '还没有'), edit: () => h('div.mz-col',
+      PT.versions(id).length ? h('div.mz-strip', PT.versions(id).map((v, k) => h('button' + (k === PT.using(id) ? '.is-on' : ''), { onclick: e => PT.useVersion(id, k).then(() => e.currentTarget.parentNode.querySelectorAll('button').forEach((b, j) => b.classList.toggle('is-on', j === k))) }, thumb(v.base)))) : '',
+      btn('去照相馆', 'secondary', () => import('../street/studio.js').then(m => m.person(id)))) }],
   ];
   return [];
 }
@@ -193,7 +212,7 @@ function editEntry(book, e, o, onSave) {
 
 export function open() {
   const people = () => state.contacts.filter(c => !c.noMirror);   // 聊天里的人都在；映像里删掉的不列
-  let cur = people()[0], focus = -1, draft = null;   // draft：预览中的图 { M, sel 选中哪片（-1 是整张）, swap 等着跟哪片互换 }
+  let cur = people()[0] || state.me, focus = -1, draft = null;   // draft：预览中的图 { M, sel 选中哪片（-1 是整张）, swap 等着跟哪片互换 }
   const p = page({ app: 'mirror', id: 'mirror-home', title: '', back: true, cls: 'as-mz' });
   const stage = h('div.mz-stage'), tilt = h('div.mz-tilt'), side = h('aside.mz-side'), dock = h('div.mz-dock'), roster = h('div.mz-roster');
   const real = h('small'), head = h('div.mz-head', h('b', '映像'), real);
@@ -220,7 +239,7 @@ export function open() {
   const posOf = i => { const M = draft?.M || cur?.mirror || {}, o = (M.shards || {})[i] || {}, a = M.pos || {}, sh = parts[i];
     if (o.src) { const S = sh.size * 1.15 * kOf(o); return [o.src, sh.c[0] + (o.x || 0) - S / 2, sh.c[1] + (o.y || 0) - S / 2, S, S]; }
     const k = kOf(a) * kOf(o), W = 393 * k, H = 852 * k;
-    return [M.main || cur?.avatar || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
+    return [M.main || (cur && faceOf(cur)) || '', (393 - W) / 2 + (a.x || 0) + (o.x || 0) + JIT[i][0], (852 - H) / 2 + (a.y || 0) + (o.y || 0) + JIT[i][1], W, H]; };
   const fxOf = i => ((draft?.M || cur?.mirror || {}).shards || {})[i] || {};
   const pics = () => parts.forEach((sh, i) => { sh.place(...posOf(i)); const o = fxOf(i); sh.look(o.op ?? 1, o.br ?? 1); });
   // 换上新图前先解码好，碎片里不会空一下
@@ -269,13 +288,13 @@ export function open() {
   function preSide() {
     const step = (dx, dy, dk) => { const t = target(); if (dk) { t.k = Math.max(.3, Math.min(6, kOf(t) * dk)); delete t.fx; } else { t.x = (t.x || 0) + dx * 2; t.y = (t.y || 0) + dy * 2; } pics(); };
     const reset = () => { const t = target(); delete t.x; delete t.y; delete t.k; delete t.fx; delete t.fy; pics(); };
-    const end = ok => { const back = draft.back; if (ok) { cur.mirror = draft.M; commit('contacts'); } draft = null; p.el.classList.remove('is-pre'); dock.replaceChildren(); pics(); mark(); if (back >= 0) at(back); };
+    const end = ok => { const back = draft.back; if (ok) { cur.mirror = draft.M; commit(isMe(cur) ? 'me' : 'contacts'); } draft = null; p.el.classList.remove('is-pre'); dock.replaceChildren(); pics(); mark(); if (back >= 0) at(back); };
     const sel = draft.sel, mine = sel >= 0 && draft.M.shards[sel]?.src;
     const pool = sel >= 0 && draft.pool ? h('div.mz-pool', draft.pool.map(u => h('button' + (draft.M.shards[sel]?.src === u ? '.is-on' : ''), { onclick: () => { const t = draft.M.shards[sel] || {}; draft.M.shards[sel] = { src: u, op: t.op, br: t.br }; fresh(); preSide(); } }, h('img', { src: u, alt: '' })))) : '';
     const fx = sel >= 0 ? h('div.mz-dock__fx', ...[['透明度', 'op', .1, 1], ['亮度', 'br', .3, 1.6]].map(([l, k, min, max]) => fxRow(l, draft.M.shards[sel]?.[k] ?? 1, 1, { min, max, step: .05, fmt: v => Math.round(v * 100) + '%' },
         v => { const t = target(); if (v === 1) delete t[k]; else t[k] = v; parts[sel].look(t.op ?? 1, t.br ?? 1); }))) : '';
     dock.classList.toggle('is-top', sel === 2 || sel === 3);   // 选的是下面两片：调整栏挪到上面，别挡住它
-    dock.replaceChildren(h('div.mz-dock__row', h('h3', sel >= 0 ? [h('em', sel + 1), SH[sel].n] : '整张'), nudger(step, reset),
+    dock.replaceChildren(h('div.mz-dock__row', h('h3', sel >= 0 ? [h('em', sel + 1), shardName(sel, cur)] : '整张'), nudger(step, reset),
         h('div.mz-zoom', ...[['放大', 1.04], ['缩小', 1 / 1.04]].map(([l, k]) => h('button', { type: 'button', onclick: () => step(0, 0, k) }, l)))),
       pool, fx, h('div.mz-dock__row', h('div.mz-chips', h('button', { onclick: reset }, '重置'), mine ? h('button', { onclick: () => { delete draft.M.shards[sel]; pics(); preSide(); } }, '用回整张') : '', mine ? h('button' + (draft.swap === sel ? '.is-on' : ''), { onclick: () => { draft.swap = draft.swap === sel ? -1 : sel; preSide(); } }, draft.swap === sel ? '点另一片' : '互换') : ''),
         h('div.mz-bar', h('button', { onclick: () => end(false) }, '取消'), h('button.is-main', { onclick: () => end(true) }, '确定'))));
@@ -288,7 +307,7 @@ export function open() {
     if (v === 'one') { const s = await pickPic(1280); if (!s) return; D.main = s; delete D.pos; D.shards = {}; }
     else if (v === 'many') { const fs = await pickFile('image/*', true); if (!fs.length) return; if (fs.length > 5) toast('只用前 5 张');
       pool = []; for (const [k, f] of fs.slice(0, 5).entries()) { const src = await fileToDataURL(f, 1080); D.shards[k] = { src }; pool.push(src); } }
-    else if (v === 'pt') { const t = PT.loaded(cur.id); if (!t) return toast('还没有立绘，先去照相馆'); D.main = t.base; }
+    else if (v === 'pt') { const t = PT.loaded(idOf(cur)); if (!t) return toast('还没有立绘，先去照相馆'); D.main = t.base; }
     else if (v === 'avatar') D.main = '';
     pre(D, -1, pool);
   }
@@ -296,13 +315,13 @@ export function open() {
   function show(c) {
     if (draft) { draft = null; p.el.classList.remove('is-pre'); }
     cur = c; at(-1);
-    fresh(); show2();
-    roster.querySelectorAll('button[data-id]').forEach(b => b.classList.toggle('is-on', b.dataset.id === c.id));
+    fresh(); show2(); tags[4].lastChild.textContent = shardName(4, c);
+    roster.querySelectorAll('button[data-id]').forEach(b => b.classList.toggle('is-on', b.dataset.id === idOf(c)));
     roster.querySelector('.is-on')?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
   }
   // 头像排：一次露 4 个，多了左右滑；超过 4 个最后有个「更多」，点开是全部名单
-  const paintRoster = () => roster.replaceChildren(h('button.mz-add', { 'aria-label': '添加人物', onclick: addMenu }, '+'), ...people().map(c => h('button' + (c === cur ? '.is-on' : ''), { dataset: { id: c.id }, 'aria-label': nameOf(c), onclick: () => show(c) },
-    c.avatar ? h('img', { src: c.avatar, alt: '' }) : h('span', nameOf(c).slice(0, 1)))),
+  const paintRoster = () => roster.replaceChildren(h('button.mz-add', { 'aria-label': '添加人物', onclick: addMenu }, '+'), ...[state.me, ...people()].map(c => h('button' + (c === cur ? '.is-on' : ''), { dataset: { id: idOf(c) }, 'aria-label': isMe(c) ? '我' : nameOf(c), onclick: () => show(c) },
+    faceOf(c) ? h('img', { src: faceOf(c), alt: '' }) : h('span', isMe(c) ? '我' : nameOf(c).slice(0, 1)))),
     people().length > 4 ? h('button.mz-more', { 'aria-label': '全部', onclick: async () => { const id = await actionSheet('换人', people().map(c => ({ value: c.id, label: nameOf(c), active: c === cur }))); const c = id && people().find(x => x.id === id); if (c) show(c); } }, '···') : '');
   // 点一片：它浮上来，整朵花挪到左边，右边一栏是这一类的几项
   function at(i) {
@@ -316,7 +335,7 @@ export function open() {
     requestAnimationFrame(() => focus === i && fill(i));   // 先让碎片动起来，下一帧再填右边：一起做第一帧会卡一下
   }
   function fill(i) {
-    if (i === 4) { const redo = () => side.lastChild.replaceWith(bookPanel(cur, redo)); side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), picOf(i), bookPanel(cur, redo)); return; }
+    if (i === 4 && !isMe(cur)) { const redo = () => side.lastChild.replaceWith(bookPanel(cur, redo)); side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), picOf(i), bookPanel(cur, redo)); return; }
     const rows = rowsOf(i, cur, { pic: pics, roster: paintRoster, reopen: () => { const k = [...side.querySelectorAll('.mz-card')].findIndex(b => b.classList.contains('is-open')); fill(i); side.querySelectorAll('.mz-card__head')[k]?.click(); } });
     // 点哪一格就在这一格里改；go 是点了直接跳走的（比如声音）
     const cards = rows.map(([label, r]) => {
@@ -329,11 +348,11 @@ export function open() {
       return card;
     });
     const pic = picOf(i);
-    side.replaceChildren(h('h3', h('em', i + 1), SH[i].n), pic, h('div.mz-cards', cards), i === 0 ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
+    side.replaceChildren(h('h3', h('em', i + 1), shardName(i, cur)), pic, h('div.mz-cards', cards), i === 0 && !isMe(cur) ? h('div.mz-chips.mz-drop', h('button', { onclick: delPerson }, '删除')) : '');
   }
   const picOf = i => h('div.mz-pic', h('small', '图片'), h('div.mz-chips', h('button', { onclick: () => pre(draftOf(cur), i) }, '调整位置'),
     h('button', { onclick: async () => { const v = await pickPic(1080); if (!v) return; const D = draftOf(cur); D.shards[i] = { src: v }; pre(D, i); } }, '换张图片')));
-  const show2 = () => { real.textContent = cur ? cur.name || nameOf(cur) : ''; };
+  const show2 = () => { real.textContent = isMe(cur) ? myName() : cur.name || nameOf(cur); };
   // 添加：新建一个只在映像里的人（加不加进聊天以后在联系人里选）；或者把在映像里删掉过的联系人找回来
   async function addMenu() {
     const gone = state.contacts.filter(c => c.noMirror);
@@ -349,14 +368,14 @@ export function open() {
     const c = cur, inChat = c.friend !== false;
     if (!(await dialog({ title: `从映像里删掉「${nameOf(c)}」？`, text: inChat ? '聊天里还在。' : '这个人的资料会一起删掉。', confirm: '删除', danger: true }))) return;
     if (inChat) c.noMirror = true; else state.contacts.splice(state.contacts.indexOf(c), 1);
-    commit('contacts'); cur = people()[0]; paintRoster(); if (cur) show(cur); else { at(-1); show2(); pics(); }
+    commit('contacts'); cur = people()[0] || state.me; paintRoster(); show(cur);
   }
   p.el.prepend(stage);   // 花铺满整页（连顶上那条也算），不放在正文里，免得被裁掉一截
   p.body.append(side, dock);
   // 第一次打开：5 片从四周飞进来拼成花，只放这一次
   try { if (!localStorage.getItem('as-mz-intro')) { stage.classList.add('is-intro'); localStorage.setItem('as-mz-intro', '1'); setTimeout(() => stage.classList.remove('is-intro'), 1800); } } catch {}
-  PT.preload(people().map(c => c.id));
-  paintRoster(); if (cur) show(cur); else pics();
-  p.el._onShow = () => { if (focus === 3) { const k = focus; focus = -1; at(k); } if (!people().includes(cur)) { cur = people()[0]; paintRoster(); if (cur) show(cur); } };
+  PT.preload(['me', ...people().map(c => c.id)]);
+  paintRoster(); show(cur);
+  p.el._onShow = () => { if (focus === 3) { const k = focus; focus = -1; at(k); } if (!isMe(cur) && !people().includes(cur)) { cur = people()[0] || state.me; paintRoster(); show(cur); } };
   return p.el;
 }

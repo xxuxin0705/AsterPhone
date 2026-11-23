@@ -44,7 +44,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         if (drawing.has(m.id)) { drawing.get(m.id).abort(); return; }
         const ac = new AbortController(); drawing.set(m.id, ac); gen.replaceChildren(h('i.as-spin'), ' 取消');
-        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? null : contact(m.who || (ctx.c && ctx.c.id)), m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); ctx.redraw(true); }
+        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? state.me : contact(m.who || (ctx.c && ctx.c.id)), m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); ctx.redraw(true); }
         catch (err) { toast(ac.signal.aborted ? '已取消' : err.message); idle(); }
         drawing.delete(m.id);
       } });
