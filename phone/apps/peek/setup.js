@@ -1,9 +1,9 @@
 // TA 手机里的「设置」：查手机怎么生成（整部手机一份，不分人），和 TA 的屏幕使用时间。
 import { h } from '../../core/util.js';
 import { state, commit } from '../../core/store.js';
-import { pickWheels, icon, avatar } from '../../core/ui.js';
+import { pickWheels, icon, avatar, sheet, busy, toast } from '../../core/ui.js';
 import { nameOf } from '../chat/engine.js';
-import { resolveConn } from '../../core/api.js';
+import { resolveConn, listModels } from '../../core/api.js';
 import { chatMsgs } from '../../core/memory.js';
 import { S } from './gen.js';
 
@@ -15,8 +15,29 @@ function pick(t, title, list, get, set, show = String) {
   return h('button.pk-row', { onclick: async () => { const r = await pickWheels(title, [[list.map(x => [x, show(x)]), get()]]); if (!r) return; set(r[0]); commit('apps'); v.textContent = show(get()); } }, t, h('b', title), v, icon('chevron', 16, 2.2));
 }
 
+const pulled = new Map();   // 这次拉到过的模型（按接口记）：再点开不用重新拉
+// 挑模型：先列这个接口里留着的那几个，「拉取」换成网上现有的全部；点一个就用它
+function pickModel(conn, cur, set) {
+  const box = h('div.as-settings-models'), fill = () => box.replaceChildren(...[...new Set(pulled.get(conn.id) || [conn.model, cur, ...(conn.models || [])].filter(Boolean))]
+    .map(m => h('button.as-actions__item' + (m === cur ? '.is-active' : ''), { onclick: () => { set(m); s.close(); } }, h('span', m), m === cur && icon('check', 18, 2))));
+  const pull = h('button.as-btn.as-btn--text', { onclick: async () => {
+    let L;
+    try { L = await busy(pull, stop => listModels(conn, stop), '正在拉取模型…'); } catch (e) { toast('拉取失败：' + e.message); return; }
+    if (!L) return;
+    if (!L.length) { toast('没有拉到模型'); return; }
+    pulled.set(conn.id, L); fill(); toast(`拉到 ${L.length} 个模型`);
+  } }, '拉取');
+  fill();
+  const s = sheet({ title: `${conn.name}的模型`, content: [pull, box] });
+}
+
 export function setup(c, open, mode) {
   const P = S();
+  // 另选了接口才能再挑模型：跟聊天的整个跟着走，走酒馆的模型在酒馆里定
+  const own = () => state.connections.text.find(x => x.id === (P.conn || {}).text && !/^tavern/.test(x.type));
+  const mv = h('span'), paintModel = () => { const x = own(); model.hidden = !x; if (x) mv.textContent = P.conn.model || x.model || '没设置'; };
+  const model = h('button.pk-row', { onclick: () => { const x = own(); pickModel(x, P.conn.model || x.model, m => { P.conn.model = m; commit('apps'); paintModel(); }); } }, tile('sparkle', '#5856d6'), h('b', '模型'), mv, icon('chevron', 16, 2.2));
+  paintModel();
   const times = pick(tile('sort', '#8e8e93'), '最多续几次', [1, 2, 3, 4, 5, 6, 8, 10], () => P.fillMax || 3, n => { P.fillMax = n; }, n => n + ' 次'); times.hidden = !P.fill;
   const sw = h('i.pk-sw' + (P.fill ? '.is-on' : '')), dsw = h('i.pk-sw' + (P.desk !== false ? '.is-on' : ''));
   return [
@@ -24,8 +45,9 @@ export function setup(c, open, mode) {
     h('div.pk-list.pk-gap', pick(tile('eye', '#007aff'), '显示与亮度', ['follow', 'day', 'night'], () => P.mode || 'follow', v => { P.mode = v; mode(); }, v => ({ follow: '跟随', day: '日间', night: '夜间' })[v]),
       h('button.pk-row', { role: 'switch', onclick: () => { P.desk = P.desk === false; commit('apps'); dsw.classList.toggle('is-on', P.desk); } }, tile('image', '#ff9500'), h('b', '开场的桌面'), dsw),
       h('button.pk-row', { onclick: () => open('屏幕使用时间') }, tile('hourglass', '#5856d6'), h('b', '屏幕使用时间'), icon('chevron', 16, 2.2))),
-    h('div.pk-list.pk-gap', pick(tile('link', '#34c759'), '生成用的 API', ['follow', ...state.connections.text.map(x => x.id)], () => (P.conn ||= { text: 'follow' }).text, v => { P.conn.text = v; },
+    h('div.pk-list.pk-gap', pick(tile('link', '#34c759'), '生成用的 API', ['follow', ...state.connections.text.map(x => x.id)], () => (P.conn ||= { text: 'follow' }).text, v => { if (v !== P.conn.text) delete P.conn.model; P.conn.text = v; paintModel(); },
       v => v === 'follow' ? `跟聊天（${(resolveConn('text', 'chat') || {}).name || '没设置'}）` : (state.connections.text.find(x => x.id === v) || {}).name || '没设置'),
+      model,
       pick(tile('repeat', '#ff9500'), '自动生成', EVERY, () => P.every || 0, n => { P.every = n; P.at = chatMsgs().length; }, every),
       pick(tile('list', '#ff3b30'), '每个应用几条', [3, 4, 5, 6, 8, 10, 12, 15, 20], () => P.count || 6, n => { P.count = n; }, n => n + ' 条'),
       pick(tile('note', '#8e8e93'), '发多少正文', [10, 20, 30, 50, 80, 120], () => P.floors || 30, n => { P.floors = n; }, n => `最近 ${n} 楼`),

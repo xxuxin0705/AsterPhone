@@ -108,6 +108,8 @@ export const tagOf = c => c.tag || (CHANNELS.embed.find(x => x.v === c.type) || 
 export const auxKey = tag => 'aux:' + tag;
 export const connOfTag = tag => (state.connections.embed || []).find(c => c.id === state.connections.defaults[auxKey(tag)] && tagOf(c) === tag) || null;
 export function connLabel(c) { return c ? c.name : '未设置'; }
+/** 同一个接口换个模型用（某个 App 自己另选了模型）：别的都还是原来那条，轮到第几把密钥也记回原来那条 */
+export const withModel = (c, m) => !c || !m || m === c.model ? c : Object.create(c, { model: { value: m }, keyIdx: { get: () => c.keyIdx, set: v => { c.keyIdx = v; } } });
 
 const trim = s => String(s || '').replace(/\/+$/, '');
 // OpenAI 兼容的地址只填了域名（https://xxx.com/）：接口都在 /v1 下面，自动补上

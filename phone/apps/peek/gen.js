@@ -4,7 +4,7 @@ import { h, shortTime } from '../../core/util.js';
 import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { langFor, langName, translate, zhOf } from '../../core/translate.js';
-import { generate, resolveConn } from '../../core/api.js';
+import { generate, resolveConn, withModel } from '../../core/api.js';
 import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js';
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
@@ -14,6 +14,8 @@ import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
 export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
+/** 查手机找 AI 用哪个接口、哪个模型：没另选就整个跟聊天；另选的接口被删了也回到跟聊天 */
+export const connOf = () => { const P = S().conn || {}, c = resolveConn('text', 'chat', P.text); return c && c.id === P.text ? withModel(c, P.model) : c; };
 /** 换 TA 手机的壁纸（w = cropImage 给的 { img, src, box, fx }，空的就是恢复默认） */
 export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }; if (w) d.wall = w; else delete d.wall; await kvSet('peek:' + c.id, d); }
 
@@ -133,7 +135,7 @@ export async function make(c, names, done) {
     let step = `正在写${nameOf(c)}的手机…`;   // AI 写完后还要用机翻补漏掉的外文：提示条换成「补外文 几 / 几」，不然只剩个圈在转
     const got = await waiting(() => step, async stop => {
       const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
-      const raw = await generate({ conn: resolveConn('text', 'peek'), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
+      const raw = await generate({ conn: connOf(), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
