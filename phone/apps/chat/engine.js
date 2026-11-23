@@ -202,14 +202,14 @@ export function personaOf(c) {
   return '';
 }
 export function avatarOf(c, chat) { return (chat && chat.cfg.theirAvatar) || (c && c.avatar) || ''; }
-// 印象色：共用的备忘录里谁写的就涂谁的颜色。映像里挑过就用挑的；没挑过从头像里取最显眼的颜色（取一次记着，换了头像再取），没头像按名字分；你自己默认黄色
+// 印象色：共用的备忘录里谁写的就涂谁的颜色。映像里挑过就用挑的；没挑过用 TA 回共用备忘录时自己定的（inkAI）；还没定就先从头像里取最显眼的颜色（取一次记着，换了头像再取），没头像按名字分；你自己默认黄色
 const inkKey = c => { const u = avatarOf(c); return u && u.length + u.slice(-48); };
-export const inkOf = c => (c === state.me ? state.me.ink || '#ffd60a' : c.ink || (c.inkAuto?.[0] === inkKey(c) && c.inkAuto[1]) || colorFor(nameOf(c)));
+export const inkOf = c => (c === state.me ? state.me.ink || '#ffd60a' : c.ink || c.inkAI || (c.inkAuto?.[0] === inkKey(c) && c.inkAuto[1]) || colorFor(nameOf(c)));
 const hsv = hex => { const n = parseInt(String(hex).slice(1, 7), 16), r = n >> 16, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
   return [!d ? 0 : (mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60, mx ? d / mx : 0, mx]; };
 /** 头像里最显眼的颜色：缩成 24×24，太灰、太暗的点不算，按色相分 12 堆，最重的那堆取平均；返回换没换 */
 export async function autoInk(c) {
-  const k = inkKey(c); if (!k || c.ink || c.inkAuto?.[0] === k) return false;
+  const k = inkKey(c); if (!k || c.ink || c.inkAI || c.inkAuto?.[0] === k) return false;
   const im = new Image(); im.crossOrigin = 'anonymous'; im.src = avatarOf(c); await im.decode();
   const x = Object.assign(document.createElement('canvas'), { width: 24, height: 24 }).getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, 24, 24);
   const d = x.getImageData(0, 0, 24, 24).data, B = Array.from({ length: 12 }, () => [0, 0, 0, 0]);
@@ -320,6 +320,8 @@ const takeMem = raw => { let mem = ''; const text = String(raw || '').replace(/<
 const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, mem, people).catch(e => log('warn', '岁岁砂', '记不下这段聊天：' + e.message));
 // 你和 TA 共用的备忘录（apps/memo，一行 = [共用, 标题, 日期, TA 的名字, 正文, TA 的 id]）：私聊时 TA 看得到；
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
+// 印象色：TA 第一次在共用的备忘录里回你时顺便定的（不另外找 AI），定了就一直用；映像里能改（改了的优先）
+const INK = /^[ \t]*[\[【]\s*印象色\s*[\]】][ \t]*(#[0-9a-fA-F]{6})[ \t]*$/m;
 const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
@@ -333,7 +335,7 @@ export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要�
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
@@ -381,7 +383,7 @@ export async function requestReply(chat, opts = {}) {
     if (pics.length) { pics.forEach(r => { r[9] = 1; }); commit('notes'); }
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
-    const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; });
+    const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; });
     const { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
     if (fresh && !reacted && c) reactTo(msgs, c.id, toneEmoji(msgs[msgs.length - 1].text || '', lines.join(' ')));
     if (!lines.length) throw new Error('AI 没有返回能用的消息');

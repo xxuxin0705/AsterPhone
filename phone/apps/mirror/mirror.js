@@ -78,8 +78,8 @@ function rowsOf(i, c, x) {
   const who = () => ({ src: faceOf(c), name: me ? myName() : nameOf(c) });
   const face = ['头像', { value: () => (c.avatar ? '换一张' : '没有'), edit: set => btn('换头像', 'secondary', async () => { const v = await pickImage('头像', { has: !!c.avatar }); if (v == null) return; c.avatar = v; save('pic'); x.roster(); set(); }) }];
   // 印象色：共用的备忘录里这个人写的那几行涂这个颜色（apps/chat/engine.js 的 inkOf）
-  const ink = ['印象色', { info: '共用的备忘录里，谁写的那几行就涂谁的颜色。', value: () => (c.ink ? '自己挑的' : me ? '黄色' : '从头像取'),
-    edit: set => h('div.mz-col', colorWheel(inkOf(c), v => { c.ink = v; save(); set(); }), h('div.mz-chips', h('button', { onclick: () => { delete c.ink; save(); set(); toast(me ? '用回黄色' : '用回头像的颜色'); } }, me ? '用回黄色' : '用回头像的颜色'))) }];
+  const ink = ['印象色', { info: me ? '共用的备忘录里，你写的那几行涂这个颜色。' : '共用的备忘录里，TA 写的那几行涂这个颜色。TA 第一次在共用备忘录里回你时会自己定一个，没定之前先从头像里取。', value: () => (c.ink ? '自己挑的' : me ? '黄色' : c.inkAI ? 'TA 自己定的' : '从头像取'),
+    edit: set => h('div.mz-col', colorWheel(inkOf(c), v => { c.ink = v; save(); set(); }), h('div.mz-chips', h('button', { onclick: () => { delete c.ink; save(); set(); toast(me ? '用回黄色' : '用回默认的'); } }, me ? '用回黄色' : '用回默认的'))) }];
   // 头像框：这里定的是默认，哪个 App 里单独换过就那个 App 用它自己的（core/deco.js 的 frameOf）
   const frame = ['头像框', { value: () => (decoName('frames', c.frame) || '不戴') + (Object.keys(c.appFrame || {}).length ? ' · ' + Object.keys(c.appFrame).map(k => APPN[k]).join('、') + '单独选过' : ''),
     go: async () => { const v = await pickDeco('frames', c.frame, who()); if (v == null) return; if (v === 'none') delete c.frame; else c.frame = v; save(); x.reopen(); } }];

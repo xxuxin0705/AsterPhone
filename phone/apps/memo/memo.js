@@ -4,7 +4,7 @@ import { h } from '../../core/util.js';
 import { state, commit, contact, friends, kvDel } from '../../core/store.js';
 import { icon, dialog, actionSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
-import { liveTr, myOut, myLang } from '../../core/translate.js';
+import { liveTr, myOut, myLang, langName } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
@@ -61,21 +61,28 @@ function edit(r) {
   const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [vis(x, r), x])]);
   const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), ta = h('textarea.pk-nt__ta', { placeholder: '写点什么', 'aria-label': '正文', rows: 6 });
   ta.value = r[4].split('//').map(x => vis(x, r)).join('\n');
-  const tr = liveTr(ta);
+  // 这一条要不要翻成我说的语言（映像里「我说的语言」不是中文才有这个勾）：第十一格 0 是不翻，没勾过的照翻；改了勾，存的时候我写的行（连标题）跟着翻过去或换回中文
+  let want = r[10] !== 0;
+  const tr = liveTr(ta, () => (want ? myLang() : ''));
+  const trb = myLang() && h('button.pk-glass.pk-nt__tr' + (want ? '.is-on' : ''), { onclick: () => { want = !want; trb.classList.toggle('is-on', want); tr.run(); } }, `译成${langName(myLang())}`);
   const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
   // 清单键：光标在的那一行前面加一个 ○，已经有就拿掉
   const todo = () => { const i = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1, m = /^[○√] ?/.exec(ta.value.slice(i)); ta.setRangeText(m ? '' : '○ ', i, i + (m ? m[0].length : 0), 'end'); grow(); ta.focus(); };
   ta.addEventListener('input', grow);
   el._onLeave = async () => { off();
     const L = ta.value.split('\n').map(x => x.trim()).filter(Boolean), old = r[1] + '|' + r[4];
-    const out = async x => { if (was.has(x)) return was.get(x); if (!myLang()) return x; const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
+    const go = want && myLang(), mine = o => r[0] !== '共用' || o.startsWith(myName() + '：');
+    const tr1 = async x => { const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
+    // 没动过的行原样留着（TA 写的永远不动）；我写的、翻没翻和勾的对不上的，换过去；新写的照勾的来
+    const out = async (x, add, own) => { const o = was.get(x); if (o != null && (!myLang() || !own && !mine(o) || TR.test(o) === !!go)) return o;
+      const zh = o != null ? cn(o, r) : add + x; return go ? tr1(zh) : zh; };
     const title = t.value.trim();   // 标题框空着就是没有标题（列表里拿第一行当标题，和 iPhone 一样）
-    r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => (was.has(x) ? was.get(x) : out(r[0] === '共用' ? myName() + '：' + x : x))))).join('//');
+    r[10] = want ? 1 : 0; r[1] = title && await out(title, '', true); r[4] = (await Promise.all(L.map(x => out(x, r[0] === '共用' ? myName() + '：' : '')))).join('//');
     if (r[0] !== '共用') r[0] = kind(r[4]);
     if (!r[1] && !r[4] && !r[8]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
     save(); fresh(); };
   body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, ta, tr.box,
-    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: () => D.draw(r, ta.value.split('\n').filter(x => x.trim())) }, ink('pen', 22, 1.9))));
+    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), trb || '', h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: () => D.draw(r, ta.value.split('\n').filter(x => x.trim())) }, ink('pen', 22, 1.9))));
   nav.push(el); requestAnimationFrame(grow); (r[1] ? ta : t).focus({ preventScroll: true });
 }
 export function open() {
