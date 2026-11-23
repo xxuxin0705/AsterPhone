@@ -470,11 +470,13 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-draw__pad { position: relative; flex: none; margin: 8px 0; outline: 1px dashed var(--pk-line); outline-offset: -1px; touch-action: none; }
 .pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pk-nt__ink { flex: none; display: block; width: 100%; margin: 8px 0; }
-.pk-nt__fig { margin: 0; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
+.pk-nt__fig { position: relative; margin: 0; } .pk-nt__ink.is-play { position: absolute; margin: 0; pointer-events: none; }
+.pk-nt__replay { position: absolute; right: 10px; bottom: 14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--pk-ink) 12%, transparent); color: var(--pk-sub); pointer-events: none; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
 .pk-nt__fig > small { display: none; margin: 0 20px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); } .is-who > .pk-nt__fig > small { display: inline-block; }
 .pk-nt__key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -6px 20px 12px; font-size: 13px; color: var(--pk-sub); }
 .pk-nt__key span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--c); }
 .is-dark :is(.pk-draw__pad canvas, .pk-nt__ink) { filter: invert(1) hue-rotate(180deg); }
+.is-dark .pk-nt__ink.is-svg { width: calc(100% - 16px); margin-inline: 8px; filter: none; background: #f4efe6; border-radius: 14px; }   /* TA 画的是彩色的：夜里不反色（反了橘猫变棕猫），垫一张浅色的纸 */
 .pk-nt__row:has(> .pk-nt__thumb) { padding-right: 76px; }
 .pk-nt__row > .pk-nt__thumb { position: absolute; right: 16px; top: 50%; width: 48px; height: 48px; margin-top: -24px; box-sizing: border-box; border-radius: 8px; border: .5px solid var(--pk-line); background: #fff; object-fit: cover; object-position: top; }
 .pk-draw__float { justify-content: center; }
@@ -486,7 +488,12 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-draw__tool.is-fine i { margin: 0 3px; clip-path: polygon(50% 0, 62% 14%, 100% 34%, 100% 100%, 0 100%, 0 34%, 38% 14%); }
 .pk-draw__tool.is-mark i { background: linear-gradient(var(--ink) 0 15%, #c7c7cc 15% 30%, transparent 30%), var(--body); clip-path: polygon(15% 0, 85% 0, 100% 34%, 100% 100%, 0 100%, 0 34%); }
 .pk-draw__tool.is-erase i { border-radius: 9px 9px 0 0; background: linear-gradient(#ffb3c1 0 22%, transparent 22%), var(--body); clip-path: none; }
+.pk-draw__tool.is-lasso i { background: repeating-linear-gradient(135deg, #0a84ff 0 2px, #fff 2px 4.5px) 0 0 / 100% 32% no-repeat, var(--body); }
 .pk-draw__dot { align-self: center; flex: none; width: 32px; height: 32px; margin-left: 4px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: radial-gradient(var(--ink) 0 50%, var(--pk-card) 52% 64%, transparent 66%), conic-gradient(#ff3b30, #ffcc00, #34c759, #5ac8fa, #007aff, #af52de, #ff3b30); }
+.pk-draw__sel { position: absolute; z-index: 2; display: flex; transform: translate(-50%, -100%); border-radius: 10px; overflow: hidden; background: var(--pk-card); box-shadow: 0 4px 18px rgba(0,0,0,.22); }
+.pk-draw__sel[hidden] { display: none; } .pk-draw__sel.is-low { transform: translateX(-50%); }
+.pk-draw__sel button { padding: 9px 16px; border: 0; background: none; color: var(--pk-ink); font: inherit; font-size: 15px; cursor: pointer; }
+.pk-draw__sel button + button { border-left: .5px solid var(--pk-line); color: #ff3b30; }
 /* 写备忘录时「译成某语」的勾 */
 .pk-nt__tr { gap: 8px; font-size: 16px; } .pk-nt__tr::before { content: ''; box-sizing: border-box; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--pk-line); }
 .pk-nt__tr.is-on::before { border: 0; background: var(--tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 13px no-repeat; }

@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith, fixInk, inkText, newInks, inkImages, sawInks } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith, fixInk, inkText, newInks, inkImages, sawInks, oneLineSvg, drawTip } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -51,7 +51,7 @@ const trCols = (n, r) => ((TRC[n] || []).find(L => L[0] === r[0]) || (TRC[n] || 
 // 你和 TA 真在共用的备忘录（你的备忘录 App 里的）：给 AI 看，TA 想接一句就写一行同标题的「共用」，生成完真添进去（make 里）
 const BY = /^([^：:]{1,12})[：:]\s*/, shared = c => state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id)).map(fixInk);
 const ourNotes = c => { const L = shared(c), me = myName(); if (!L.length) return '';
-  return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜那张前面的编号｜0｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）\n`
+  return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜那张前面的编号｜0｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）${drawTip(me)}\n`
     + L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').map(x => { const [o, z] = takeTr(inkText(x)), by = BY.exec(o); return z ? (by ? by[0] : '') + z : o; }).join('\n')}`).join('\n'); };
 /** AI 写的「和你共用」：不留在 TA 这份里，真添进你的备忘录（两边看到的是同一张）；替你写的行、已经有的行不要。返回挪了几行 */
 async function toOurs(c, rows) {
@@ -141,7 +141,7 @@ async function toOrig(got, say) {
   const lone = [];
   for (const [n, rows] of Object.entries(got)) for (const r of rows) { const tc = trCols(n, r);
     r.forEach((v, i) => { if (typeof v !== 'string' || !v) return; const S = r[i] = perOrig(v).split(/(?<!:)\/\//).map(seg);
-      if (tc.includes(i)) S.forEach((p, k) => { if (/\p{L}/u.test(p) && !/[[［【]翻译[:：]/.test(p)) lone.push([S, k]); }); }); }
+      if (tc.includes(i)) S.forEach((p, k) => { if (/\p{L}/u.test(p) && !/[[［【]翻译[:：]|<svg/i.test(p)) lone.push([S, k]); }); }); }   // TA 画的画（svg）不拿去机翻
   if (lone.length) { say(lone.length); (await zhOf(lone.map(([S, k]) => S[k]))).forEach((z, i) => { if (z) lone[i][0][lone[i][1]] += `[翻译：${z}]`; }); }
   for (const rows of Object.values(got)) for (const r of rows) r.forEach((v, i) => { if (Array.isArray(v)) r[i] = v.join('//'); });
 }
@@ -176,7 +176,7 @@ export async function make(c, names, done) {
           world: await worldText(story + '\n' + history, [c], 'peek').catch(() => ''), story, history, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
           count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}${n === '备忘录' ? had(prev) + ourNotes(c) : ''}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
-      const got = parse(raw);
+      const got = parse(oneLineSvg(raw));
       if (!/^zh/.test(speakIn(c))) await toOrig(got, n => { step = `AI 写好了，有 ${n} 处没写全，机翻核对…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       sawInks(c, pics, images);

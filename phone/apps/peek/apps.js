@@ -1,7 +1,7 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
 import { h, sortZh, onLongPress } from '../../core/util.js';
 import { icon, actionSheet, dialog, busy, toast } from '../../core/ui.js';
-import { kvGet, kvSet, contact } from '../../core/store.js';
+import { kvGet, kvSet, contact, state, commit } from '../../core/store.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import * as time from '../../core/time.js';
 import { saveRead } from './gen.js';
@@ -128,6 +128,23 @@ export const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChi
 export const inks = new Map();
 const pic = (key, cls) => { const im = h('img.' + cls, { alt: '', src: inks.get(key) }); if (!inks.has(key)) kvGet(key).then(s => { if (s) { inks.set(key, s); im.src = s; } }, () => {}); return im; };
 export const inkImg = key => { const im = pic(key, 'pk-nt__ink'); im.dataset.key = key; return im; };
+// TA 画的画（AI 写的 svg，编号带 svg）：第一次滑到眼前时一笔一笔画出来，以后点这张画再看一遍。动画是在图上面盖一张一样的 svg，画完拿掉
+const play = async img => { if (img._busy) return; img._busy = 1; const url = String(inks.get(img.dataset.key) || await kvGet(img.dataset.key).catch(() => '') || ''), done = () => { img.style.visibility = ''; img._busy = 0; };
+  if (!url.startsWith('data:image/svg')) return done();
+  await img.decode().catch(() => {});
+  const box = h('div'); box.innerHTML = decodeURIComponent(url.slice(url.indexOf(',') + 1)); const svg = box.firstElementChild;
+  svg.classList.add('pk-nt__ink', 'is-svg', 'is-play'); Object.assign(svg.style, { left: img.offsetLeft + 'px', top: img.offsetTop + 'px', width: img.offsetWidth + 'px', height: img.offsetHeight + 'px' });
+  img.after(svg); img.style.visibility = 'hidden';
+  const L = [...svg.querySelectorAll('path, circle, ellipse, rect, line, polyline, polygon')], per = Math.min(500, 4500 / L.length); let t = 0;
+  // 有描边的：顺着线描出来，描到七成再把颜色填上；只有颜色的：淡入
+  await Promise.all(L.map(e => { const cs = getComputedStyle(e), len = cs.stroke !== 'none' ? e.getTotalLength() : 0, d = per * (len ? .6 + Math.min(1, len / 800) : .5);
+    const a = e.animate(len ? [{ strokeDasharray: len, strokeDashoffset: len, fillOpacity: 0 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: 0, offset: .7 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: cs.fillOpacity }]
+      : [{ opacity: 0 }, { opacity: cs.opacity }], { duration: d, delay: t, fill: 'backwards', easing: 'ease-in-out' }); t += d * .8; return a.finished; })).catch(() => {});
+  svg.remove(); done(); };
+const firstLook = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return; firstLook.unobserve(e.target);
+  state.settings.inkPlayed = [...(state.settings.inkPlayed || []), e.target.dataset.key].slice(-300); commit('settings'); play(e.target); }), { threshold: .5 });
+const taInk = key => { const im = Object.assign(inkImg(key), { onclick: e => play(e.currentTarget) }); im.classList.add('is-svg');
+  if (!(state.settings.inkPlayed || []).includes(key)) { im.style.visibility = 'hidden'; firstLook.observe(im); } return im; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
 export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
@@ -301,7 +318,7 @@ export const VIEWS = {
       if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = both(x, BY); if (!who.includes(by)) who.push(by); }
       if ((m = TICK.exec(x))) { done = /[√✓✔☑xX]/.test(m[1]); x = both(x, TICK); }
       const k = INKLINE.exec(x)?.[1];   // 画：和字一样占一行，点了接着画（你自己的）
-      if (k) return h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), Object.assign(inkImg(k), D.draw ? { onclick: e => D.draw(n.r, null, k, e.currentTarget) } : {}));
+      if (k) return h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), k.startsWith('memo-draw:svg') ? [taInk(k), h('i.pk-nt__replay', icon('play', 12, 2.4))] : Object.assign(inkImg(k), D.draw ? { onclick: e => D.draw(n.r, null, k, e.currentTarget) } : {}));
       const cut = CUT.test(x); x = both(x, CUT);
       const p = h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
         h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v)));

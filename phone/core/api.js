@@ -204,7 +204,7 @@ async function gen(opts) {
   try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; }
   if (last.message === '已中止') throw last;   // 自己点了中止：不换副 API
   // 带了图被拒（模型不认图）：去掉图只发字再问一次，日志里说一声
-  if (opts.images?.length && /^4(00|04|13|15|22)\b/.test(last.message)) { log('warn', app, `「${conn.model || conn.name}」好像看不了图片（${last.message.slice(0, 80)}），这次只发了文字`); opts.images.length = 0; try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; } }   // 预设已经套过了，不再走一遍 gen（不然预设条目叠两份）
+  if (opts.images?.length && /^4(00|04|13|15|22)\b/.test(last.message)) { log('warn', app, `「${conn.model || conn.name}」好像看不了图片（${last.message.slice(0, 80)}），这次只发了文字`); opts.prompt = (opts.prompt || '') + asText(opts.images); try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; } }   // 预设已经套过了，不再走一遍 gen（不然预设条目叠两份）
   // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
   const bk = backupOf('text');
   if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
@@ -214,7 +214,9 @@ async function gen(opts) {
   throw last;
 }
 // 不限字数（作者定的）：思考也算在上限里，回到一半被截断就白花了。OpenAI 格式、Gemini 不传上限，Claude 必须填就给 64000（官方建议的大小），走酒馆的照酒馆预设
-// images：[{ text, url }] 一起给 AI 看的图（url 是 data 地址），text 是说这张图是什么的一句；走酒馆的连接带不了，只发字
+// 图发不出去（走酒馆的连接、模型不认图）：带了字符格子（alt）的改成字发过去；images 清空，asText 记着是用字看的
+const asText = imgs => { const t = imgs.map(i => (i.alt ? `\n\n${i.text}\n${i.alt}` : '')).join(''); imgs.length = 0; imgs.asText = !!t; return t; };
+// images：[{ text, url, alt }] 一起给 AI 看的图（url 是 data 地址），text 是说这张图是什么的一句；走酒馆的连接带不了，只发字
 async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart, resume = 0, images = [] }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
@@ -244,7 +246,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         catch (e) { if (!isKeyErr(e.message) || n >= keys.length - 1) throw e; log('warn', app, `密钥 ${(ki + n) % keys.length + 1} 被拒（${e.message.slice(0, 3)}），换下一把`); }
       }
     };
-    if (images.length && /^tavern/.test(conn.type)) { log('warn', app, '走酒馆的连接带不了图片，这次只发了文字'); images.length = 0; }   // 清空：叫的那边就知道图没发出去
+    if (images.length && /^tavern/.test(conn.type)) { log('warn', app, '走酒馆的连接带不了图片，这次只发了文字'); prompt += asText(images); }   // 清空：叫的那边就知道图没发出去
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
       else { const pf = conn.pf && tavernProfiles().list.find(x => x.id === conn.pf); out = await orAbort(pf ? generateWithProfile(pf, { system, prompt }) : generateTavern({ system, prompt }), signal); }

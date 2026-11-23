@@ -25,6 +25,7 @@
 | `phone/core/music.js`（`qqFull` / `kuwoFull` / `jooxFull`：QQ 公共接口 tang.api.s01s.cn 按编号要整首、酷我接口 oiapi.net 按歌名搜再按序号要、JOOX 接口 apicx.asia 的用法和它页面里写死的 token） | musicsquare（纯网页的音乐播放器） | 作者发的小红书笔记，https://github.com/CharlesPikachu/musicsquare | Apache-2.0；只参考接口用法，代码自己写 |
 | 播放页「碎语 / 群唱」 | 全屏动态歌词的几种样子 | Folia（辞曲新境），AGPL-3.0 | 只参考样子，代码自己写，没用它的代码和图 |
 | 音乐「一起听」 | 头像挨着、外侧耳机线的排法；头像上方白底气泡的样子 | 作者发的网易云「一起听」截图、一张带气泡的截图（来源未知） | 只参考样子，没用它们的图 |
+| 共用备忘录：TA 用 svg 画画（`apps/chat/engine.js` 的 `drawTip` / `cleanSvg`）、模型看不了图时把你的画压成 # . 格子发过去（`apps/memo/draw.js` 的 `inkGrid`） | 「让非多模态 AI 也能玩你画我猜」：AI 用线条数据画、前端画出来；人画的压成 SVG + ASCII 格子给文字模型看 | 小红书 小空气狗「和AI玩你画我猜的完整教程」https://xhslink.cn/o/3ztRxl2KdXc | 只参考思路，代码自己写（没接 MCP） |
 
 ## 三、字体和图片
 

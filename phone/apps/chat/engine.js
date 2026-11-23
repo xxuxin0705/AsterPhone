@@ -1,7 +1,7 @@
 // 聊天的「发动机」：发消息、让 TA 回复、重新生成、收到剧情里的消息。
 // 页面只管显示，真正改数据的都在这里；改完会通知页面刷新。
 import { uid, sleep } from '../../core/util.js';
-import { state, commit, contact, chatOf, chatForContact, getMsgs, saveMsgs, isFriend, friends, befriend, nickOf } from '../../core/store.js';
+import { state, commit, kvSet, contact, chatOf, chatForContact, getMsgs, saveMsgs, isFriend, friends, befriend, nickOf } from '../../core/store.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { characters, stripTags } from '../../core/bridge.js';
 import { C as ctxCfg, storyText, worldText } from '../../core/context.js';
@@ -345,28 +345,53 @@ export function fixInk(r) {
 export const newInks = c => sharedNotes(c).flatMap(r => r[4].split('//').map(x => [r, x, INKLINE.exec(x)?.[1]]).filter(([q, , k]) => k && !seen(q).includes(`+${c.id}>${k}`)));
 export async function inkImages(L) {
   if (!L.length) return [];
-  const { inkPic } = await import('../memo/draw.js');
+  const { inkPic, inkGrid } = await import('../memo/draw.js');
   return (await Promise.all(L.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里画的，看看画的什么，想回应就照画里真画了什么来说）`,
-    url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) })))).filter(i => i.url);
+    url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')), alt: await inkGrid(k).catch(() => '') })))).filter(i => i.url);
 }
 // images：发给 generate 的那份，图没发出去（走酒馆的连接、模型不认图）时 generate 会把它清空，那就不算看过
-export function sawInks(c, L, images) { if (!L.length || !images.length) return; L.forEach(([r, , k]) => { r[9] = [...seen(r), `+${c.id}>${k}`].join(','); }); commit('notes'); }
+export function sawInks(c, L, images) { if (!L.length || !(images.length || images.asText)) return; L.forEach(([r, , k]) => { r[9] = [...seen(r), `+${c.id}>${k}`].join(','); }); commit('notes'); }
 export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画）');   // 给 AI 看的字里，画写成一句话
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
   return /^\d+$/.test(k) && L[k - 1] || L.find(r => takeTr(r[1]).some(y => y && tt.includes(y))); };
+// TA 画给你的画：AI 在那句话后面写一张 svg。下面是教它怎么画得好看（共用备忘录的私聊、查手机都带这一段）
+export const drawTip = me => `\n想画给 ${me} 看的时候（回 ${me} 的画，或者自己想画点什么；不用每次都画），在那句话后面接着写一张 <svg viewBox="0 0 400 300">…</svg>，整张写在同一行，一句最多一张。画好看的办法：先想好画什么、摆在哪，主体占画面六七成，放在中间稍偏下，四周留白；轮廓用 path 的弧线（C、Q）画得圆润，别用一截截直线拼；颜色三到五种，一个主色、一个深一点的描边色、一点点缀色，不画底色；从大到小一层层画，先大块的身体，再头和手脚，最后眼睛、高光、腮红、小装饰；描边一样粗（stroke-width 3 左右，stroke-linecap 和 stroke-linejoin 都写 round）；不写字，不用渐变、滤镜和图片，二三十个形状就够。`;
+// AI 写的 svg 只留画图用的形状和颜色（脚本、链接、外面的图、滤镜都丢掉），再罩一层轻轻的抖动，线条像手指画的；svg 写成好几行的先并成一行（备忘录一句只认一行）
+const SVGTAG = /^(g|path|circle|ellipse|rect|line|polyline|polygon)$/, SVGATT = /^(d|cx|cy|r|rx|ry|x|y|x1|y1|x2|y2|width|height|points|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|opacity|fill-opacity|stroke-opacity|fill-rule|transform)$/;
+export const oneLineSvg = t => String(t).replace(/<svg[\s\S]*?<\/svg>/gi, m => m.replace(/\s*\n\s*/g, ' '));
+function cleanSvg(src) {
+  const root = new DOMParser().parseFromString(src, 'image/svg+xml').documentElement, NS = 'http://www.w3.org/2000/svg';
+  if (root.nodeName !== 'svg') return '';
+  const vb = (root.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number), [, , w, hh] = vb.length === 4 && vb.every(isFinite) && vb[2] > 0 && vb[3] > 0 ? vb : [0, 0, 400, 300];
+  const out = document.createElementNS(NS, 'svg'), g = document.createElementNS(NS, 'g'); let n = 0;
+  out.setAttribute('viewBox', vb.length === 4 && vb.every(isFinite) ? vb.join(' ') : '0 0 400 300'); out.setAttribute('width', w); out.setAttribute('height', hh);
+  out.innerHTML = '<filter id="wob"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="3"/></filter>';
+  const ok = (k, v) => SVGATT.test(k) && !/url|javascript|[<>&]/i.test(v);
+  const copy = (from, to) => { for (const k of from.children) { if (!SVGTAG.test(k.nodeName) || ++n > 400) continue; const e = document.createElementNS(NS, k.nodeName);
+    for (const a of k.attributes) if (ok(a.name, a.value)) e.setAttribute(a.name, a.value);
+    for (const d of (k.getAttribute('style') || '').split(';')) { const [a, v] = d.split(':').map(y => y && y.trim()); if (a && v && ok(a, v)) e.setAttribute(a, v); }
+    to.append(e); copy(k, e); } };
+  copy(root, g); g.setAttribute('filter', 'url(#wob)'); out.append(g);
+  return n ? new XMLSerializer().serializeToString(out) : '';
+}
 export async function memoAdd(c, t, x, batch) {   // batch：私聊里那一批回复（重新生成那条回复时，它添的这句跟着去掉）   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
   const self = new RegExp(`^\\s*(${[c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).map(escRe).join('|')})\\s*[:：]\\s*`);   // AI 自己在前面又写了一遍名字：去掉，不然成了「名字：名字：」
-  let [o, z] = takeTr(x.trim()).map(y => y && y.replace(self, '')); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
-  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = noteOf(c, t);
-  const n = r || Object.assign(['共用', t.trim(), now, nameOf(c), '', c.id], { 11: c.id });
-  n[4] += (n[4] ? '//' : '') + line; n[2] = now; n[6] = 1; if (batch) (n[12] ||= []).push([batch, line]);   // 第十三格：哪一句是私聊里哪一批回复添的
+  const svg = cleanSvg((/<svg[\s\S]*?<\/svg>/i.exec(x) || [''])[0] || '<x/>');   // TA 画的画：抽出来，在这句话下面单独成一行（一句最多一张）
+  let [o, z] = takeTr(x.replace(/<svg[\s\S]*?<\/svg>/gi, ' ').trim()).map(y => y && y.trim().replace(self, '')); if (o && !z && speakOf(c.id)) z = (await zhOf([o]))[0];
+  const k = svg && 'memo-draw:svg' + uid('d'), drew = svg && await kvSet(k, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)).then(() => true, e => log('warn', '备忘录', `${nameOf(c)} 画的画没存上：${e.message}`));
+  if (!o && !drew) return;
+  const now = time.stampText(time.stamp()), r = noteOf(c, t), n = r || Object.assign(['共用', t.trim(), now, nameOf(c), '', c.id], { 11: c.id });
+  const add = line => { n[4] += (n[4] ? '//' : '') + line; if (batch) (n[12] ||= []).push([batch, line]); };   // 第十三格：哪一句是私聊里哪一批回复添的
+  if (o) add(`${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`);
+  if (drew) { add(`${nameOf(c)}：✎${k}`); n[9] = [...seen(n), `+${c.id}>${k}`].join(','); }   // TA 自己画的不用再拿给 TA 看
+  n[2] = now; n[6] = 1;
   if (!r) state.notes.push(n);
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => { const also = r[3].split('、').filter(n => n !== nameOf(c)); return `${i + 1}.《${r[1]}》${also.length ? `（还和 ${also.join('、')} 一起记）` : ''}\n${r[4].split('//').map(inkText).join('\n')}`; }).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => { const also = r[3].split('、').filter(n => n !== nameOf(c)); return `${i + 1}.《${r[1]}》${also.length ? `（还和 ${also.join('、')} 一起记）` : ''}\n${r[4].split('//').map(inkText).join('\n')}`; }).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${drawTip(myName())}${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
@@ -413,7 +438,8 @@ export async function requestReply(chat, opts = {}) {
     sawInks(c, pics, images);
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
-    const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; });
+    const memos = [], [said0, mem] = takeMem(oneLineSvg(raw)), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; })
+      .replace(/<svg[\s\S]*?<\/svg>/gi, m => { if (memos.length) memos.at(-1)[1] += m; return ''; });   // 画单独写在了下一行：算进上面那句备忘录，别发到聊天里
     const { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
     if (fresh && !reacted && c) reactTo(msgs, c.id, toneEmoji(msgs[msgs.length - 1].text || '', lines.join(' ')));
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
@@ -423,7 +449,7 @@ export async function requestReply(chat, opts = {}) {
     keepMem(chat, batch, mem, [c].filter(Boolean));
     if (c && speakOf(c.id)) await fillLines(lines);
     if (c) for (const [t, x] of memos) await memoAdd(c, t, x, batch);
-    if (pics.length && images.length) inkSent.set(chat.id, [batch, pics.map(([r, , k]) => [r, `+${c.id}>${k}`])]);   // 重新生成这批回复时，这次给看的画算没看过
+    if (pics.length && (images.length || images.asText)) inkSent.set(chat.id, [batch, pics.map(([r, , k]) => [r, `+${c.id}>${k}`])]);   // 重新生成这批回复时，这次给看的画算没看过
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
