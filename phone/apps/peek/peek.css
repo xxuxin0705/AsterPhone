@@ -463,3 +463,19 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-ph__pop { position: absolute; right: 14px; bottom: 84px; width: 240px; padding: 14px 16px; border-radius: 18px; background: color-mix(in srgb, var(--pk-card) 92%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgb(0 0 0 / .2); animation: pk-pop .18s ease-out; transform-origin: 90% 100%; }
 .pk-ph__pop[hidden] { display: none; } .pk-ph__pop p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--pk-sub); text-align: center; }
 .pk-ph__pop button { width: 100%; height: 42px; border: 0; border-radius: 21px; background: var(--pk-fill); color: #ff3b30; font: 600 16px/1 inherit; cursor: pointer; }
+/* 备忘录里画画（apps/memo/draw.js）：画布接在字下面；夜间和 iPhone 一样把黑笔反成白的 */
+.pk-draw__pad { position: relative; flex: none; aspect-ratio: 393 / 520; margin-top: 16px; border-top: .5px solid var(--pk-line); touch-action: none; }
+.pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pk-nt__ink { flex: none; display: block; width: 100%; margin-top: 16px; }
+.is-dark :is(.pk-draw__pad canvas, .pk-nt__ink) { filter: invert(1) hue-rotate(180deg); }
+.pk-nt__row:has(> .pk-nt__thumb) { padding-right: 76px; }
+.pk-nt__row > .pk-nt__thumb { position: absolute; right: 16px; top: 50%; width: 48px; height: 48px; margin-top: -24px; box-sizing: border-box; border-radius: 8px; border: .5px solid var(--pk-line); background: #fff; object-fit: cover; object-position: top; }
+.pk-draw .pk-float { justify-content: center; }
+.pk-draw__bar { height: 76px; padding: 0 26px; gap: 22px; align-items: flex-end; overflow: hidden; cursor: default; }
+.pk-draw__tool { border: 0; background: none; padding: 0; width: 24px; height: 66px; cursor: pointer; transform: translateY(20px); transition: transform .2s; }
+.pk-draw__tool.is-on { transform: translateY(4px); }
+.pk-draw__tool i { --body: linear-gradient(90deg, #fff 40%, #d8d8de); display: block; height: 100%; background: linear-gradient(var(--ink) 0 15%, #c7c7cc 15% 30%, transparent 30%), var(--body); clip-path: polygon(50% 0, 100% 34%, 100% 100%, 0 100%, 0 34%); }
+.pk-draw__tool.is-fine i { margin: 0 3px; clip-path: polygon(50% 0, 62% 14%, 100% 34%, 100% 100%, 0 100%, 0 34%, 38% 14%); }
+.pk-draw__tool.is-mark i { background: linear-gradient(var(--ink) 0 15%, #c7c7cc 15% 30%, transparent 30%), var(--body); clip-path: polygon(15% 0, 85% 0, 100% 34%, 100% 100%, 0 100%, 0 34%); }
+.pk-draw__tool.is-erase i { border-radius: 9px 9px 0 0; background: linear-gradient(#ffb3c1 0 22%, transparent 22%), var(--body); clip-path: none; }
+.pk-draw__dot { align-self: center; flex: none; width: 32px; height: 32px; margin-left: 4px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: radial-gradient(var(--ink) 0 50%, var(--pk-card) 52% 64%, transparent 66%), conic-gradient(#ff3b30, #ffcc00, #34c759, #5ac8fa, #007aff, #af52de, #ff3b30); }

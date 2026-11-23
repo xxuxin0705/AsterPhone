@@ -1,7 +1,7 @@
 // 备忘录：你自己的。样子和查手机里 TA 的「备忘录」是同一套（peek/apps.js 的 VIEWS.备忘录），这里多了能写、能勾、能删、能选和谁共用。
 // 一条存成一行（和 AI 写的 TA 的备忘录同一个样子）：[便签 / 清单 / 共用, 标题, 年/月/日 时:分, 文件夹（共用的是那个人的名字）, 正文（// 分行）, 共用的人的 id]
 import { h } from '../../core/util.js';
-import { state, commit, contact, friends } from '../../core/store.js';
+import { state, commit, contact, friends, kvDel } from '../../core/store.js';
 import { icon, dialog, actionSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
 import { liveTr, myOut, myLang } from '../../core/translate.js';
@@ -9,7 +9,8 @@ import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { nameOf } from '../chat/engine.js';
-import { VIEWS, iosPage, gone } from '../peek/apps.js';
+import { VIEWS, iosPage, gone, ink } from '../peek/apps.js';
+import { draw } from './draw.js';
 
 const N = () => state.notes, save = () => { commit('notes'); shell.refreshBadges(); }, flat = x => [x].flat(3).filter(Boolean);
 // 开着的每一页和它怎么画：改了东西，被盖在下面的那几页趁看不见先换好，露出来就是新的
@@ -28,10 +29,11 @@ const D = {
   keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
-  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); save(); w && gone(w); fresh(layers.slice(0, -1)); },
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
-    rs.forEach(r => N().splice(N().indexOf(r), 1)); save(); fresh(); },
+    rs.forEach(r => { N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); }); save(); fresh(); },
+  draw: (r, L = r[4].split('//').filter(Boolean)) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); save(); fresh(); }),
   // 挪到哪个文件夹：「新建文件夹」起个名字就挪进去；共用的不在文件夹里，不挪
   move: async rs => { const fs = [...new Set(N().filter(r => r[0] !== '共用' && r[3]).map(r => r[3]))];
     let v = await actionSheet('选择文件夹', [{ value: '+', label: '新建文件夹' }, { value: '·', label: '备忘录' }, ...fs.map(f => ({ value: f, label: f }))]); if (!v) return false;
@@ -68,10 +70,10 @@ function edit(r) {
     const title = t.value.trim();   // 标题框空着就是没有标题（列表里拿第一行当标题，和 iPhone 一样）
     r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => out(r[0] === '共用' && !named(r, x) ? myName() + '：' + x : x)))).join('//');
     if (r[0] !== '共用') r[0] = kind(r[4]);
-    if (!r[1] && !r[4]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
+    if (!r[1] && !r[4] && !r[8]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
     save(); fresh(); };
   body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, ta, tr.box,
-    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), h('i')));
+    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: () => D.draw(r, ta.value.split('\n').filter(x => x.trim())) }, ink('pen', 22, 1.9))));
   nav.push(el); requestAnimationFrame(grow); (r[1] ? ta : t).focus({ preventScroll: true });
 }
 export function open() {

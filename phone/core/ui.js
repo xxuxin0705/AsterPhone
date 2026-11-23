@@ -1,7 +1,7 @@
 // 公共积木：页面、顶栏、列表组、开关、分段选择、滑块、抽屉、弹窗、轻提示……
 // 类名都按设计规范的门牌号来（as-xxx），皮肤靠这些名字改样子。
 import { h, $, pickFile, onLongPress } from './util.js';
-import { state } from './store.js';
+import { state, commit } from './store.js';
 import * as time from './time.js';
 
 let root = null;
@@ -118,38 +118,41 @@ export function nudger(onMove, onReset) {
     onpointerup: stop, onpointerleave: stop, onpointercancel: stop }, h('span', { style: { rotate: rot + 'deg' } }, icon('chevron', 18, 2.2)));
   return h('div.as-nudge', arrow('往上', 0, -1, -90), arrow('往左', -1, 0, 180), h('button.as-nudge__mid', { type: 'button', onclick: onReset }, '原位'), arrow('往右', 1, 0, 0), arrow('往下', 0, 1, 90));
 }
-/** 圆形色轮：手指按到哪就是哪个颜色（越往外越鲜艳），下面一条调亮暗。onChange 收到 #rrggbb。所有选颜色的地方都用它 */
+/** 选颜色（照 iPhone 的「光谱」）：一块横着是色相、上白下黑的光谱，手指按到哪就是哪个颜色；下面「鲜艳」调灰一点还是艳一点。onChange 收到 #rrggbb。所有选颜色的地方都用它 */
 /** alpha：多一根「透明度」（气泡用），出来的是 #rrggbbaa */
+const DEF_COLORS = ['#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de'];
 export function colorWheel(hex, onChange, alpha) {
-  const toHsv = x => { const n = parseInt(x.slice(1, 7), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
-    const hh = !d ? 0 : mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(hh * 60 + 360) % 360, mx ? d / mx : 0, mx]; };
-  const toHex = (hh, s, v) => { const f = k => { const m = (k + hh / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(m, 4 - m, 1)))); }; return '#' + [f(5), f(3), f(1)].map(x => x.toString(16).padStart(2, '0')).join(''); };
-  let [hu, sa, va] = toHsv(hex), al = hex.length > 7 ? parseInt(hex.slice(7), 16) / 255 : 1;
-  const out2 = () => toHex(hu, sa, va) + (alpha ? Math.round(al * 255).toString(16).padStart(2, '0') : '');
-  const R = 90, cvs = h('canvas.as-wheel__disc', { width: R * 4, height: R * 4 }), knob = h('span.as-wheel__knob'), ctx = cvs.getContext('2d'), img = ctx.createImageData(R * 4, R * 4);
-  for (let y = 0; y < R * 4; y++) for (let x = 0; x < R * 4; x++) {
-    const dx = x - R * 2, dy = y - R * 2, r = Math.hypot(dx, dy) / (R * 2); if (r > 1) continue;
-    const c = toHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, r, 1), i = (y * R * 4 + x) * 4, n = parseInt(c.slice(1), 16);
-    img.data[i] = n >> 16 & 255; img.data[i + 1] = n >> 8 & 255; img.data[i + 2] = n & 255; img.data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const place = () => { const a = hu * Math.PI / 180; knob.style.left = 50 + Math.cos(a) * sa * 50 + '%'; knob.style.top = 50 + Math.sin(a) * sa * 50 + '%'; knob.style.background = toHex(hu, sa, va); cvs.style.filter = `brightness(${.25 + va * .75})`; };
-  const pick = e => { const r = cvs.getBoundingClientRect(), dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
-    hu = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360; sa = Math.min(1, Math.hypot(dx, dy) / (r.width / 2)); place(); onChange(out2()); };
+  const nx = document.createElement('canvas').getContext('2d'), norm = c => { nx.fillStyle = '#000'; nx.fillStyle = c; return nx.fillStyle; };   // 什么写法的颜色都让浏览器换成 #rrggbb
+  const toHsl = x => { const n = parseInt(x.slice(1), 16), [r, g, b] = [n >> 16, n >> 8 & 255, n & 255].map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+    const hh = !d ? 0 : mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [hh * 60, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l]; };
+  let cur = norm(hex.slice(0, 7)), [hu, sa, li] = toHsl(cur), al = hex.length > 7 ? parseInt(hex.slice(7), 16) / 255 : 1;
+  if (!sa) sa = 1;   // 白、黑、灰：光谱照常是彩色的，不然整块都是灰的
+  const emit = () => onChange(cur + (alpha ? Math.round(al * 255).toString(16).padStart(2, '0') : ''));
+  const W = 360, cvs = h('canvas.as-wheel__disc', { width: W, height: W / 2 }), ctx = cvs.getContext('2d'), knob = h('span.as-wheel__knob');
+  const paint = () => { const g = ctx.createLinearGradient(0, 0, W, 0), v = ctx.createLinearGradient(0, 0, 0, W / 2);
+    for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${i * 60},${sa * 100}%,50%)`);
+    [[0, '#fff'], [.5, 'rgba(255,255,255,0)'], [.5, 'rgba(0,0,0,0)'], [1, '#000']].forEach(([t, c]) => v.addColorStop(t, c));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, W / 2); ctx.fillStyle = v; ctx.fillRect(0, 0, W, W / 2); };
+  const place = () => { knob.style.left = hu / 3.6 + '%'; knob.style.top = (1 - li) * 100 + '%'; knob.style.background = cur; };
+  const set = () => { cur = norm(`hsl(${hu},${sa * 100}%,${li * 100}%)`); place(); emit(); };
+  // 用过的颜色记几个（最近的在前），下次打开排在常用色那一排
+  const used = () => state.settings.colors || DEF_COLORS, keep = () => { state.settings.colors = [cur, ...used().filter(c => c !== cur)].slice(0, 8); commit('settings'); };
+  const pick = e => { const r = cvs.getBoundingClientRect(), k = v => Math.min(1, Math.max(0, v)); hu = k((e.clientX - r.left) / r.width) * 360; li = 1 - k((e.clientY - r.top) / r.height); set(); };
   const wrap = h('div.as-wheel__wrap', { 'data-no-swipe': '' }, cvs, knob);
   wrap.addEventListener('pointerdown', e => { e.preventDefault(); wrap.setPointerCapture(e.pointerId); pick(e); });
   wrap.addEventListener('pointermove', e => { if (wrap.hasPointerCapture(e.pointerId)) pick(e); });
-  const out = h('output', Math.round(va * 100) + '%'), sl = slider({ min: 0, max: 1, step: .01, value: va, onInput: v => { va = v; out.textContent = Math.round(v * 100) + '%'; place(); onChange(out2()); } });
-  place();
-  // 常用色一排小圆点：纯白、纯黑在盘上很难点准（白要正好圆心，黑要亮度拉到 0），点一下直接选中，盘和亮度跟着跳过去
-  // 最前面是吸管（在手机上哪儿都能吸）
-  const to = c => { [hu, sa, va] = toHsv(c); sl.value = va; out.textContent = Math.round(va * 100) + '%'; place(); onChange(out2()); };
-  const swatches = h('div.as-wheel__swatches', h('button.as-wheel__swatch.as-wheel__drop', { type: 'button', 'aria-label': '吸管', onclick: () => dropper(to) }, icon('drop', 12, 2)),
-    ...['#ffffff', '#000000', '#8e8e93', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'].map(c =>
-    h('button.as-wheel__swatch', { type: 'button', 'aria-label': c, style: { background: c }, onclick: () => to(c) })));
+  wrap.addEventListener('pointerup', keep);
+  const out = h('output', Math.round(sa * 100) + '%'), sl = slider({ min: 0, max: 1, step: .01, value: sa, onInput: v => { sa = v; out.textContent = Math.round(v * 100) + '%'; paint(); set(); } });
+  sl.addEventListener('change', keep);
+  paint(); place();
+  // 一排小圆点：吸管（手机上哪儿都能吸）、主题色、白、黑（光谱上很难点准），后面是用过的
+  const to = (c, save) => { cur = norm(c); [hu, sa, li] = toHsl(cur); if (!sa) sa = 1; sl.value = sa; out.textContent = Math.round(sa * 100) + '%'; paint(); place(); emit(); save && keep(); };
+  const dot = (c, label = c, cls = '') => h('button.as-wheel__swatch' + cls, { type: 'button', 'aria-label': label, style: { background: c }, onclick: () => to(c) });
+  const swatches = h('div.as-wheel__swatches', h('button.as-wheel__swatch.as-wheel__drop', { type: 'button', 'aria-label': '吸管', onclick: () => dropper(c => to(c, true)) }, icon('drop', 12, 2)),
+    dot(norm(getComputedStyle(root || document.body).getPropertyValue('--as-color-accent').trim() || '#3a7aa3'), '主题色', '.is-theme'), dot('#ffffff'), dot('#000000'), ...used().map(c => dot(c)));
   const aOut = h('output', Math.round((1 - al) * 100) + '%');
-  return h('div.as-wheel', swatches, wrap, h('div.as-settings-slider-row', h('span', '亮度'), sl, out),
-    alpha ? h('div.as-settings-slider-row', h('span', '透明度'), slider({ min: 0, max: 1, step: .01, value: 1 - al, onInput: v => { al = 1 - v; aOut.textContent = Math.round(v * 100) + '%'; onChange(out2()); } }), aOut) : null);
+  return h('div.as-wheel', wrap, h('div.as-settings-slider-row', h('span', '鲜艳'), sl, out),
+    alpha ? h('div.as-settings-slider-row', h('span', '透明度'), slider({ min: 0, max: 1, step: .01, value: 1 - al, onInput: v => { al = 1 - v; aOut.textContent = Math.round(v * 100) + '%'; emit(); } }), aOut) : null, swatches);
 }
 /** 吸管：开着的抽屉先藏起来，手指按住挪，手指上方的圈套住哪儿、圈就变成那儿的颜色，松手选中（#rrggbb 给 onPick），抽屉回来 */
 export function dropper(onPick, { doc = document, hide } = {}) {

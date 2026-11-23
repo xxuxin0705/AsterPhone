@@ -121,7 +121,10 @@ export function trBtn(layer, root) {
   const last = slot.lastElementChild;
   if ((slot.children.length > 2 && last.matches('button')) || last.matches('.pk-nt__pill, .pk-nt__r')) last.before(btn); else slot.append(btn);
 }
-const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
+export const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
+// 备忘录里画的图单独存在 kv 里（apps/memo/draw.js）；读过的记着，重画这一页时直接用，不空一下
+export const inks = new Map();
+const pic = (key, cls) => { const im = h('img.' + cls, { alt: '', src: inks.get(key) }); if (!inks.has(key)) kvGet(key).then(s => { if (s) { inks.set(key, s); im.src = s; } }, () => {}); return im; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
 export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
@@ -297,7 +300,8 @@ export const VIEWS = {
         h('time.pk-nt__date', (m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d) + (n.k === '共用' ? ' — 共享' : '')), n.t ? h('h1', n.t) : null,
         n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', moods(n.moods).map(x => h('span', x)))] : null,
         n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
-        h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
+        n.r?.[8] ? Object.assign(pic(n.r[8], 'pk-nt__ink'), { onclick: D.draw && (() => D.draw(n.r)) }) : null,
+        h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), D.draw ? h('button.is-ink', { 'aria-label': '画画', onclick: () => D.draw(n.r) }, ink('pen', 22, 1.9)) : ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
     const nope = () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`);
     const pin = (r, w) => { r[7] = r[7] ? 0 : 1; keep(); w.closest('.pk-nt__cards')?._paint(); };
@@ -314,7 +318,7 @@ export const VIEWS = {
     const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { const c = e.currentTarget.closest('.pk-nt__cards'); if (c?._pick) return c._pick(n, e.currentTarget);
       if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || (lines(n)[0] || '新建备忘录').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[n.t ? 0 : 1] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
-      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')),
+      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录'), n.r?.[8] && pic(n.r[8], 'pk-nt__thumb')),
       [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', '#ff3b30', w => (D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)), '删除']],
       n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => pin(n.r, w), n.r[7] ? '取消置顶' : '置顶']] : []), { _q: (n.t + n.body + n.f).toLowerCase(), _n: n });
     let fold = false;   // 「置顶」那一段收起来没有（点段标题收起 / 展开）
