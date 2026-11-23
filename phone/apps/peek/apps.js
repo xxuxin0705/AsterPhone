@@ -289,7 +289,7 @@ export const VIEWS = {
     const now = time.isStory() ? time.story().date : new Date(), TICK = /^([√✓✔☑○◯□☐]|\[[ xX]\])\s*/, CUT = /^划掉[:：]\s*/, BY = /^([^：:]{1,12})[：:]\s*/, HUE = ['#ffd60a', '#ff6482', '#64d2ff', '#bf5af2'];
     const day = t => { const m = DT.exec(t || '') || /()(\d{1,2})[-/.月](\d{1,2})/.exec(t || ''); return m ? new Date(+m[1] || now.getFullYear(), m[2] - 1, +m[3]) : null; };
     const calc = () => { const heart = R.find(r => r[0] === '心声');
-      const all = [...(heart ? [{ r: heart, k: '心声', t: '只给自己看', d: '', f: '', moods: heart[1] || '', body: heart[2] || '' }] : []),
+      const all = [...(heart ? [{ r: heart, k: '心声', t: '私密', d: '', f: '', moods: heart[1] || '', body: heart[2] || '' }] : []),
         ...R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r0 => { const k = ['便签', '清单', '草稿', '共用', '已删'].includes(r0[0]) ? r0[0] : '', r = k ? r0.slice(1) : r0;
           return r.length < 4 ? { r: r0, k: k === '已删' ? k : '便签', t: r[0], d: r[1], f: '', body: r[2] || '' } : { r: r0, k: k || '便签', t: r[0], d: r[1], f: k === '草稿' || k === '共用' ? '' : r[2] || '', to: r[2], body: r[3] || '' }; }).sort((a, b) => (day(b.d) || 0) - (day(a.d) || 0))];
       return { notes: all.filter(n => n.k !== '已删'), bin: all.filter(n => n.k === '已删') }; };
@@ -373,11 +373,15 @@ export const VIEWS = {
         const done = h('button.pk-glass.is-round', { 'aria-label': '完成', onclick: () => pickMode(false) }, icon('check', 22, 2.4));
         const mv = h('button.pk-glass', { hidden: !D.move, onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-red', { onclick: () => drop(chosen()).then(ok => { if (ok !== false) { pickMode(false); paint(); } }) });
         const chosen = () => (picked.size ? [...picked] : sel(calc()).filter(n => n.r).map(n => n.r));
+        // 选的时候左上角的返回换成「全选」，全选上了就变「取消全选」
+        const every = () => { const L = sel(calc()).filter(n => n.r); return L.length && L.every(n => picked.has(n.r)); };
+        const allBtn = h('button.pk-glass', { onclick: () => { if (every()) picked.clear(); else sel(calc()).forEach(n => n.r && picked.add(n.r));
+          cards.querySelectorAll('.pk-swipe').forEach(w => w.lastChild.classList.toggle('is-sel', picked.has(w._n.r))); count(); } }, '全选'), bk = back();
         const bar = h('div.pk-float.pk-nt__pick', mv, h('i'), dl);
-        const count = () => { const k = picked.size; tb.textContent = big.textContent = k ? `已选定 ${k} 项` : name; mv.textContent = k ? '移动' : '移动全部'; dl.textContent = k ? '删除' : '全部删除'; };
+        const count = () => { const k = picked.size; allBtn.textContent = every() ? '取消全选' : '全选'; tb.textContent = big.textContent = k ? `已选定 ${k} 项` : name; mv.textContent = k ? '移动' : '移动全部'; dl.textContent = k ? '删除' : '全部删除'; };
         const pickMode = on => { picked.clear(); cards.classList.toggle('is-pick', on); cards._pick = on && ((n, el) => { picked.has(n.r) ? picked.delete(n.r) : picked.add(n.r); el.classList.toggle('is-sel', picked.has(n.r)); count(); });
-          head.lastChild.replaceWith(on ? done : more); float.hidden = on; bar.hidden = !on; count(); cards.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); };
-        const head = h('div.pk-top2', back(), tb, more); bigTitle(head, big);
+          head.lastChild.replaceWith(on ? done : more); head.firstChild.replaceWith(on ? allBtn : bk); float.hidden = on; bar.hidden = !on; count(); cards.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); };
+        const head = h('div.pk-top2', bk, tb, more); bigTitle(head, big);
         const paint = cards._paint = () => { const L = sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]), up = L.some(n => n.r?.[7]);   // 有置顶的：心声并进置顶那一组，不单独一张卡片
           cards.replaceChildren(...groupBy(L.map(n => [n.k === '心声' && up ? '置顶' : sec(n), n]), 0).flatMap(([t, G]) => {
           const card = h('div.pk-nt__card', { hidden: t === '置顶' && fold }, G.map(([, n]) => { const w = row(n, all); onLongPress(w.lastChild, () => !cards._pick && menu(n, w)); if (picked.has(n.r)) w.lastChild.classList.add('is-sel'); return w; }));
