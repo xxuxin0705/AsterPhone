@@ -14,8 +14,8 @@ import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
 export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
-/** 查手机找 AI 用哪个接口、哪个模型：没另选就整个跟聊天；另选的接口被删了也回到跟聊天 */
-export const connOf = () => { const P = S().conn || {}, c = resolveConn('text', 'chat', P.text); return c && c.id === P.text ? withModel(c, P.model) : c; };
+/** 查手机找 AI 用哪个接口、哪个模型：没另选接口就跟聊天；模型能在用着的接口里另挑一个（按接口各记各的，换了接口不会串） */
+export const connOf = () => { const P = S().conn || {}, c = resolveConn('text', 'chat', P.text); return withModel(c, c && (P.models || {})[c.id]); };
 /** 换 TA 手机的壁纸（w = cropImage 给的 { img, src, box, fx }，空的就是恢复默认） */
 export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }; if (w) d.wall = w; else delete d.wall; await kvSet('peek:' + c.id, d); }
 

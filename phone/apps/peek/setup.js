@@ -5,7 +5,7 @@ import { pickWheels, icon, avatar, sheet, busy, toast } from '../../core/ui.js';
 import { nameOf } from '../chat/engine.js';
 import { resolveConn, listModels } from '../../core/api.js';
 import { chatMsgs } from '../../core/memory.js';
-import { S } from './gen.js';
+import { S, connOf } from './gen.js';
 
 const EVERY = [0, 3, 5, 8, 10, 15, 20, 30, 50], every = n => n ? `每 ${n} 楼` : '手动';
 const tile = (ic, bg) => h('i.pk-tile', { style: { background: bg } }, icon(ic, 17, 2));
@@ -17,9 +17,9 @@ function pick(t, title, list, get, set, show = String) {
 
 const pulled = new Map();   // 这次拉到过的模型（按接口记）：再点开不用重新拉
 // 挑模型：先列这个接口里留着的那几个，「拉取」换成网上现有的全部；点一个就用它
-function pickModel(conn, cur, set) {
-  const box = h('div.as-settings-models'), fill = () => box.replaceChildren(...[...new Set(pulled.get(conn.id) || [conn.model, cur, ...(conn.models || [])].filter(Boolean))]
-    .map(m => h('button.as-actions__item' + (m === cur ? '.is-active' : ''), { onclick: () => { set(m); s.close(); } }, h('span', m), m === cur && icon('check', 18, 2))));
+function pickModel(conn, set) {
+  const box = h('div.as-settings-models'), fill = () => box.replaceChildren(...[...new Set(pulled.get(conn.id) || [conn.model, ...(conn.models || [])].filter(Boolean))]
+    .map(m => h('button.as-actions__item' + (m === conn.model ? '.is-active' : ''), { onclick: () => { set(m); s.close(); } }, h('span', m), m === conn.model && icon('check', 18, 2))));
   const pull = h('button.as-btn.as-btn--text', { onclick: async () => {
     let L;
     try { L = await busy(pull, stop => listModels(conn, stop), '正在拉取模型…'); } catch (e) { toast('拉取失败：' + e.message); return; }
@@ -33,10 +33,10 @@ function pickModel(conn, cur, set) {
 
 export function setup(c, open, mode) {
   const P = S();
-  // 另选了接口才能再挑模型：跟聊天的整个跟着走，走酒馆的模型在酒馆里定
-  const own = () => state.connections.text.find(x => x.id === (P.conn || {}).text && !/^tavern/.test(x.type));
-  const mv = h('span'), paintModel = () => { const x = own(); model.hidden = !x; if (x) mv.textContent = P.conn.model || x.model || '没设置'; };
-  const model = h('button.pk-row', { onclick: () => { const x = own(); pickModel(x, P.conn.model || x.model, m => { P.conn.model = m; commit('apps'); paintModel(); }); } }, tile('sparkle', '#5856d6'), h('b', '模型'), mv, icon('chevron', 16, 2.2));
+  // 模型：跟着上面用着的那个接口（跟聊天时就是聊天的），能在它里面另挑一个；走酒馆的在酒馆里换
+  const mv = h('span'), paintModel = () => { const x = connOf(); mv.textContent = x && x.model || (x && /^tavern/.test(x.type) ? '跟酒馆' : '没设置'); };
+  const model = h('button.pk-row', { onclick: () => { const x = connOf(); if (!x) { toast('还没有配接口'); return; } if (/^tavern/.test(x.type)) { toast('酒馆的模型在酒馆里换'); return; }
+    pickModel(x, m => { (P.conn.models ||= {})[x.id] = m; commit('apps'); paintModel(); }); } }, tile('sparkle', '#5856d6'), h('b', '模型'), mv, icon('chevron', 16, 2.2));
   paintModel();
   const times = pick(tile('sort', '#8e8e93'), '最多续几次', [1, 2, 3, 4, 5, 6, 8, 10], () => P.fillMax || 3, n => { P.fillMax = n; }, n => n + ' 次'); times.hidden = !P.fill;
   const sw = h('i.pk-sw' + (P.fill ? '.is-on' : '')), dsw = h('i.pk-sw' + (P.desk !== false ? '.is-on' : ''));
@@ -45,7 +45,7 @@ export function setup(c, open, mode) {
     h('div.pk-list.pk-gap', pick(tile('eye', '#007aff'), '显示与亮度', ['follow', 'day', 'night'], () => P.mode || 'follow', v => { P.mode = v; mode(); }, v => ({ follow: '跟随', day: '日间', night: '夜间' })[v]),
       h('button.pk-row', { role: 'switch', onclick: () => { P.desk = P.desk === false; commit('apps'); dsw.classList.toggle('is-on', P.desk); } }, tile('image', '#ff9500'), h('b', '开场的桌面'), dsw),
       h('button.pk-row', { onclick: () => open('屏幕使用时间') }, tile('hourglass', '#5856d6'), h('b', '屏幕使用时间'), icon('chevron', 16, 2.2))),
-    h('div.pk-list.pk-gap', pick(tile('link', '#34c759'), '生成用的 API', ['follow', ...state.connections.text.map(x => x.id)], () => (P.conn ||= { text: 'follow' }).text, v => { if (v !== P.conn.text) delete P.conn.model; P.conn.text = v; paintModel(); },
+    h('div.pk-list.pk-gap', pick(tile('link', '#34c759'), '生成用的 API', ['follow', ...state.connections.text.map(x => x.id)], () => (P.conn ||= { text: 'follow' }).text, v => { P.conn.text = v; paintModel(); },
       v => v === 'follow' ? `跟聊天（${(resolveConn('text', 'chat') || {}).name || '没设置'}）` : (state.connections.text.find(x => x.id === v) || {}).name || '没设置'),
       model,
       pick(tile('repeat', '#ff9500'), '自动生成', EVERY, () => P.every || 0, n => { P.every = n; P.at = chatMsgs().length; }, every),
