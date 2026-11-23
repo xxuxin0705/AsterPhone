@@ -133,7 +133,7 @@ const play = async img => { if (img._busy) return; img._busy = 1; const url = St
   if (!url.startsWith('data:image/svg')) return done();
   await img.decode().catch(() => {});
   const box = h('div'); box.innerHTML = decodeURIComponent(url.slice(url.indexOf(',') + 1)); const svg = box.firstElementChild;
-  svg.classList.add('pk-nt__ink', 'is-svg', 'is-play'); Object.assign(svg.style, { left: img.offsetLeft + 'px', top: img.offsetTop + 'px', width: img.offsetWidth + 'px', height: img.offsetHeight + 'px' });
+  svg.classList.add('pk-nt__ink', 'is-play'); Object.assign(svg.style, { left: img.offsetLeft + 'px', top: img.offsetTop + 'px', width: img.offsetWidth + 'px', height: img.offsetHeight + 'px' });
   img.after(svg); img.style.visibility = 'hidden';
   const L = [...svg.querySelectorAll('path, circle, ellipse, rect, line, polyline, polygon')], per = Math.min(500, 4500 / L.length); let t = 0;
   // 有描边的：顺着线描出来，描到七成再把颜色填上；只有颜色的：淡入
@@ -143,7 +143,7 @@ const play = async img => { if (img._busy) return; img._busy = 1; const url = St
   svg.remove(); done(); };
 const firstLook = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return; firstLook.unobserve(e.target);
   state.settings.inkPlayed = [...(state.settings.inkPlayed || []), e.target.dataset.key].slice(-300); commit('settings'); play(e.target); }), { threshold: .5 });
-const taInk = key => { const im = Object.assign(inkImg(key), { onclick: e => play(e.currentTarget) }); im.classList.add('is-svg');
+const taInk = key => { const im = Object.assign(inkImg(key), { onclick: e => play(e.currentTarget) });
   if (!(state.settings.inkPlayed || []).includes(key)) { im.style.visibility = 'hidden'; firstLook.observe(im); } return im; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
 export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
@@ -316,7 +316,7 @@ export const VIEWS = {
     const both = (x, re) => x.replace(re, '').replace(new RegExp('([[［【]翻译[:：]\\s*)' + re.source.slice(1)), '$1');
     const para = (x, n, who, i) => { let by = '', done = null, m;
       if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = both(x, BY); if (!who.includes(by)) who.push(by); }
-      if ((m = TICK.exec(x))) { done = /[√✓✔☑xX]/.test(m[1]); x = both(x, TICK); }
+      if ((m = TICK.exec(x) || TICK.exec(TR.exec(x)?.[1] || ''))) { done = /[√✓✔☑xX]/.test(m[1]); x = both(x, TICK); }   // 勾只写在了中文那半里的也认
       const k = INKLINE.exec(x)?.[1];   // 画：和字一样占一行，点了接着画（你自己的）
       if (k) return h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), k.startsWith('memo-draw:svg') ? [taInk(k), h('i.pk-nt__replay', icon('play', 12, 2.4))] : Object.assign(inkImg(k), D.draw ? { onclick: e => D.draw(n.r, null, k, e.currentTarget) } : {}));
       const cut = CUT.test(x); x = both(x, CUT);
@@ -368,10 +368,10 @@ export const VIEWS = {
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
     const folder = (name, sel, all, focus) => { let find;
       push(name, () => { const tb = h('b', name), big = h('h1', name), cards = h('div.pk-nt__cards');   // 置顶 / 取消置顶后只重排这一页的卡片
-        // 「⋯」→ 选择备忘录：每条前面一个圈，点了勾上；顶上写选了几条，底下换成移动 / 删除（一条没选时是全部）
-        const picked = new Set(), more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => actionSheet('', [{ value: 'pick', label: '选择备忘录' }]).then(v => v && pickMode(true)) }, ink('more', 22, 2.8));
+        // 点「⋯」就是选择备忘录：每条前面一个圈，点了勾上；顶上写选了几条，底下换成移动 / 删除（一条没选时是全部）
+        const picked = new Set(), more = h('button.pk-glass.is-round', { 'aria-label': '选择备忘录', onclick: () => pickMode(true) }, ink('more', 22, 2.8));
         const done = h('button.pk-glass.is-round', { 'aria-label': '完成', onclick: () => pickMode(false) }, icon('check', 22, 2.4));
-        const mv = h('button.pk-glass', { hidden: !D.move, onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-red', { onclick: () => drop(chosen()).then(ok => { if (ok !== false) { pickMode(false); paint(); } }) });
+        const mv = h('button.pk-glass', { hidden: !D.move, onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-del', { onclick: () => drop(chosen()).then(ok => { if (ok !== false) { pickMode(false); paint(); } }) });
         const chosen = () => (picked.size ? [...picked] : sel(calc()).filter(n => n.r).map(n => n.r));
         // 选的时候左上角的返回换成「全选」，全选上了就变「取消全选」
         const every = () => { const L = sel(calc()).filter(n => n.r); return L.length && L.every(n => picked.has(n.r)); };

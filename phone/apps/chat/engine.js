@@ -357,7 +357,7 @@ export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画�
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
   return /^\d+$/.test(k) && L[k - 1] || L.find(r => takeTr(r[1]).some(y => y && tt.includes(y))); };
 // TA 画给你的画：AI 在那句话后面写一张 svg。下面是教它怎么画得好看（共用备忘录的私聊、查手机都带这一段）
-export const drawTip = me => `\n想画给 ${me} 看的时候（回 ${me} 的画，或者自己想画点什么；不用每次都画），在那句话后面接着写一张 <svg viewBox="0 0 400 300">…</svg>，整张写在同一行，一句最多一张。画好看的办法：先想好画什么、摆在哪，主体占画面六七成，放在中间稍偏下，四周留白；轮廓用 path 的弧线（C、Q）画得圆润，别用一截截直线拼；颜色三到五种，一个主色、一个深一点的描边色、一点点缀色，不画底色；从大到小一层层画，先大块的身体，再头和手脚，最后眼睛、高光、腮红、小装饰；描边一样粗（stroke-width 3 左右，stroke-linecap 和 stroke-linejoin 都写 round）；不写字，不用渐变、滤镜和图片，二三十个形状就够。`;
+export const drawTip = me => `\n想画给 ${me} 看的时候（回 ${me} 的画，或者自己想画点什么；不用每次都画），在那句话后面接着写一张 <svg viewBox="0 0 400 300">…</svg>，整张写在同一行，一句最多一张。要画得像在手机备忘录里用手指随手画的，和 ${me} 的画是一套：黑色钢笔勾线（fill="none" stroke="#000" stroke-width="3"，stroke-linecap 和 stroke-linejoin 都写 round）；想上颜色，就像荧光笔那样涂一块（只写 fill 颜色、不描边，手机会自动调淡）；眼睛、小点用黑色实心的小圆。画好看的办法：先想好画什么、摆在哪，主体占画面六七成，四周留白；线条用 path 的弧线（C、Q）一笔画顺，别用一截截直线拼；先画大轮廓，再画五官和小装饰；颜色两三种就够；不写字，不用渐变、滤镜和图片，二三十笔就够。`;
 // AI 写的 svg 只留画图用的形状和颜色（脚本、链接、外面的图、滤镜都丢掉），再罩一层轻轻的抖动，线条像手指画的；svg 写成好几行的先并成一行（备忘录一句只认一行）
 const SVGTAG = /^(g|path|circle|ellipse|rect|line|polyline|polygon)$/, SVGATT = /^(d|cx|cy|r|rx|ry|x|y|x1|y1|x2|y2|width|height|points|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|opacity|fill-opacity|stroke-opacity|fill-rule|transform)$/;
 export const oneLineSvg = t => String(t).replace(/<svg[\s\S]*?<\/svg>/gi, m => m.replace(/\s*\n\s*/g, ' '));
@@ -372,7 +372,12 @@ function cleanSvg(src) {
   const copy = (from, to) => { for (const k of from.children) { if (!SVGTAG.test(k.nodeName) || ++n > 400) continue; const e = document.createElementNS(NS, k.nodeName);
     for (const a of k.attributes) if (ok(a.name, a.value)) e.setAttribute(a.name, a.value);
     for (const d of (k.getAttribute('style') || '').split(';')) { const [a, v] = d.split(':').map(y => y && y.trim()); if (a && v && ok(a, v)) e.setAttribute(a, v); }
-    to.append(e); copy(k, e); } };
+    pen(e); to.append(e); copy(k, e); } };
+  // 和你画的是一套：描边都换成黑色钢笔那么粗；深色的填色（眼睛、小点）是实心黑，别的颜色当荧光笔，调淡
+  const lum = c => { const m = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(c || ''); if (!m) return /^black$/i.test(c) ? 0 : 1; const x = m[1].length === 3 ? [...m[1]].map(y => y + y) : m[1].match(/../g); return x.reduce((a, y, i) => a + parseInt(y, 16) / 255 * [.3, .59, .11][i], 0); };
+  const pen = e => { const st = e.getAttribute('stroke'), fi = e.getAttribute('fill');
+    if (st && st !== 'none') { e.setAttribute('stroke', '#000'); e.setAttribute('stroke-width', 3); e.setAttribute('stroke-linecap', 'round'); e.setAttribute('stroke-linejoin', 'round'); e.removeAttribute('stroke-opacity'); }
+    if (fi && fi !== 'none') { if (lum(fi) < .3) { e.setAttribute('fill', '#000'); e.removeAttribute('fill-opacity'); } else e.setAttribute('fill-opacity', .35); } };
   copy(root, g); g.setAttribute('filter', 'url(#wob)'); out.append(g);
   return n ? new XMLSerializer().serializeToString(out) : '';
 }
