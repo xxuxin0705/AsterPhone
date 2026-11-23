@@ -34,7 +34,7 @@ button { font: inherit; color: inherit; }
   --as-color-text: #1f3646; --as-color-text-2: color-mix(in srgb, var(--as-color-text) 60%, transparent); --as-color-border: color-mix(in srgb, var(--as-color-text) 9%, transparent);
   --as-color-accent: #3a7aa3; --as-color-accent-2: color-mix(in srgb, var(--as-color-accent) 80%, #fff); --as-color-on-accent: #ffffff;
   --as-color-danger: #e5484d; --as-color-success: #22a06b; --as-color-aurora: transparent;
-  --as-color-mask: rgba(14,60,96,.28); --as-shadow: 0 10px 30px rgba(14,80,130,.12), 0 1px 2px rgba(14,80,130,.06);
+  --as-color-mask: rgba(14,60,96,.18); --as-shadow: 0 10px 30px rgba(14,80,130,.12), 0 1px 2px rgba(14,80,130,.06);
   --as-blur: 22px;
   --as-bubble-me: var(--as-color-accent); --as-bubble-me-ink: var(--as-color-on-accent);
   --as-bubble-them: rgba(255,255,255,.78); --as-bubble-them-ink: var(--as-color-text);
@@ -197,7 +197,7 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 
 /* ---------- 抽屉 / 选项 ---------- */
 .as-sheet-mask, .as-dialog-mask { position: absolute; inset: 0; z-index: 80; background: var(--as-color-mask); opacity: 0; transition: opacity 180ms; }
-.as-sheet-mask { z-index: 81; }
+.as-sheet-mask { z-index: 81; transition: opacity 260ms linear; }   /* 和抽屉滑上来一样长、匀速：白底页面上暗得太快像闪了一下 */
 /* 遮罩、抽屉一直留在合成层上：安卓有的浏览器在淡入 / 滑上来的动画刚结束时重画一次底下的页面，会白一帧 */
 .as-sheet-mask, .as-sheet { will-change: opacity, transform; }    /* 和抽屉同一层，按先后叠：抽屉上再开抽屉时，点外面盖住的是下面那个，能关掉 */
 .as-dialog-mask { z-index: 85; }   /* 确认框要盖在抽屉（81）上面 */
