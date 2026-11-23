@@ -90,4 +90,5 @@
 .no-names .as-home-app__name { visibility: hidden; }
 .as-home-app__name { color: var(--desk-label, inherit); font: 500 12px/1 var(--font-ui); letter-spacing: .04em; text-shadow: 0 1px 6px var(--card); white-space: nowrap; }
 .as-home-app .as-badge { position: absolute; top: -5px; right: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,.6); }
+.as-home-app .as-badge.is-dot { top: -2px; right: 5px; width: 12px; min-width: 0; height: 12px; padding: 0; }
 

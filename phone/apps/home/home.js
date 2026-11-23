@@ -420,7 +420,7 @@ export function renderBadges() {
   if (ph && state.settings.notify.badge && miss) ph.appendChild(badge(miss));
   const mo = els.get('a-memo'), nn = state.notes.filter(r => r[6]).length;
   mo?.querySelectorAll('.as-badge').forEach(b => b.remove());
-  if (mo && state.settings.notify.badge && nn) mo.appendChild(badge(nn));
+  if (mo && state.settings.notify.badge && nn) mo.appendChild(h('span.as-badge.is-dot'));   // 只是「TA 添了东西」，不数几条
   // 岁岁砂：有没落下的沙就挂红点
   loadMem().then(d => { const a = els.get('a-memory'), b = state.settings.notify.badge && badge(d.wait.length); if (!a) return; a.querySelectorAll('.as-badge').forEach(x => x.remove()); if (b) a.appendChild(b); })
     .catch(e => log('warn', '岁岁砂', '读不到未落的沙：' + e.message));
