@@ -24,7 +24,8 @@ const D = {
   write: x => { if (Array.isArray(x)) return edit(x); const r = ['便签', '', time.stampText(time.stamp()), x || '', '']; N().push(r); edit(r); },
   // 新建文件夹：起个名字，接着在里面写第一条（一条都没有的文件夹不留）
   folder: async () => { const n = await dialog({ title: '新建文件夹', input: { placeholder: '名称' }, confirm: '好' }); if (n && n.trim()) D.write(n.trim()); },
-  seen: r => { r.length = 6; save(); },
+  seen: r => { r[6] = 0; save(); },
+  keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
   del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); save(); gone(w); fresh(layers.slice(0, -1)); },
@@ -32,7 +33,7 @@ const D = {
   share: async r => { const who = await actionSheet('和谁共用', [{ value: 'off', label: '不共用', active: r[0] !== '共用' }, ...friends().map(c => ({ value: c.id, label: nameOf(c), active: r[5] === c.id }))]); if (!who) return;
     const me = myName() + '：', L = r[4].split('//').filter(Boolean), c = contact(who);
     if (c) { r[4] = L.map(x => named(r, x) ? x : me + x).join('//'); r[0] = '共用'; r[3] = nameOf(c); r[5] = c.id; }
-    else if (r[0] === '共用') { r[4] = L.map(x => x.replace(/^[^：:]{1,12}[：:]\s*/, '')).join('//'); r[0] = kind(r[4]); r[3] = ''; r.length = 5; }
+    else if (r[0] === '共用') { r[4] = L.map(x => x.replace(/^[^：:]{1,12}[：:]\s*/, '')).join('//'); r[0] = kind(r[4]); r[3] = ''; r[5] = ''; r[6] = 0; }
     save(); fresh(); },
 };
 const kind = body => /(^|\/\/)\s*[○√]/.test(body) ? '清单' : '便签';

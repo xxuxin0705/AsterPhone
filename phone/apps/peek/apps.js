@@ -119,7 +119,7 @@ export function trBtn(layer, root) {
   if (!slot || layer.querySelector('.pk-tl') || !layer.querySelector('.pk-trs, .pk-trx')) return;
   const btn = h('button.pk-glass.is-round.pk-tl' + (zh ? '.is-on' : ''), { 'aria-label': '翻译', onclick: () => flipAll(root) }, zh ? '原' : '译');
   const last = slot.lastElementChild;
-  if ((slot.children.length > 2 && last.matches('button')) || last.matches('.pk-nt__pill')) last.before(btn); else slot.append(btn);
+  if ((slot.children.length > 2 && last.matches('button')) || last.matches('.pk-nt__pill, .pk-nt__r')) last.before(btn); else slot.append(btn);
 }
 const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
@@ -271,13 +271,13 @@ export const VIEWS = {
           return r.length < 4 ? { r: r0, k: k === '已删' ? k : '便签', t: r[0], d: r[1], f: '', body: r[2] || '' } : { r: r0, k: k || '便签', t: r[0], d: r[1], f: k === '草稿' || k === '共用' ? '' : r[2] || '', to: r[2], body: r[3] || '' }; }).sort((a, b) => (day(b.d) || 0) - (day(a.d) || 0))];
       return { notes: all.filter(n => n.k !== '已删'), bin: all.filter(n => n.k === '已删') }; };
     const lines = n => n.body.split('//').map(x => x.trim()).filter(Boolean), fo = n => untr(n.f)[0].trim();
-    const sec = n => { const d = day(n.d); if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
+    const sec = n => { const d = day(n.d); if (n.r?.[7]) return '置顶'; if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
       return ago < 7 ? '过去 7 天' : ago < 30 ? '过去 30 天' : d.getFullYear() === now.getFullYear() ? d.toLocaleDateString('zh-CN', { month: 'long' }) : d.getFullYear() + ' 年'; };
     const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4));
     // TA 手机里的清单也能勾：改的是查手机存的那份（重新生成才换掉）
+    const keep = () => (D.keep ? D.keep() : kvGet('peek:' + D.id).then(d => { d.apps.备忘录 = D.apps.备忘录; return kvSet('peek:' + D.id, d); }).catch(e => toast('没存上：' + e.message)));
     const tick = (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
-      L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); dot.classList.toggle('is-done', on);
-      kvGet('peek:' + D.id).then(d => { d.apps.备忘录 = D.apps.备忘录; return kvSet('peek:' + D.id, d); }).catch(e => toast('没存上：' + e.message)); };
+      L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); dot.classList.toggle('is-done', on); keep(); };
     // TA 的手机上点这些（写、分享、更多、清单…）：不让动，只说一句（你自己的备忘录照常用）
     const no = el => (D.del ? el : Object.assign(el, { onclick: () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`) }));
     const write = x => no(h('button.pk-glass.is-round', { 'aria-label': '写备忘录', onclick: D.write && (() => D.write(x)) }, icon('edit', 22, 2)));
@@ -301,11 +301,13 @@ export const VIEWS = {
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
     const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || (lines(n)[0] || '新建备忘录').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[n.t ? 0 : 1] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
-      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', w => D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)]]), { _q: (n.t + n.body + n.f).toLowerCase() });
+      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', w => D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)]], n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => { n.r[7] = n.r[7] ? 0 : 1; keep(); w.closest('.pk-nt__cards')?._paint(); }]] : []), { _q: (n.t + n.body + n.f).toLowerCase() });
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
     const folder = (name, sel, all, focus) => { let find;
-      push(name, () => { const head = h('div.pk-top2', back(), h('b', name), h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8))), big = h('h1', name); bigTitle(head, big);
-        const cards = h('div.pk-nt__cards', groupBy(sel(calc()).map(n => [sec(n), n]), 0).map(([t, G]) => [h('h3', t), h('div.pk-nt__card', G.map(([, n]) => row(n, all)))]));
+      push(name, () => { const head = h('div.pk-top2', back(), h('b', name), no(h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8)))), big = h('h1', name); bigTitle(head, big);
+        const cards = h('div.pk-nt__cards');   // 置顶 / 取消置顶后只重排这一页的卡片
+        const paint = cards._paint = () => cards.replaceChildren(...groupBy(sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]).map(n => [sec(n), n]), 0).flatMap(([t, G]) => [h('h3', t), h('div.pk-nt__card', G.map(([, n]) => row(n, all)))]));
+        paint();
         find = h('input', { type: 'search', placeholder: '搜索', 'aria-label': '搜索', oninput: e => { const q = e.target.value.trim().toLowerCase();
           cards.querySelectorAll('.pk-swipe').forEach(w => { w.hidden = !!q && !w._q.includes(q); });
           cards.querySelectorAll('.pk-nt__card').forEach(c => { c.hidden = c.previousElementSibling.hidden = ![...c.children].some(w => !w.hidden); }); } });
@@ -313,7 +315,7 @@ export const VIEWS = {
       if (focus) find.focus({ preventScroll: true });
     };
     const S = calc(), ALL = x => x.notes, SH = x => x.notes.filter(n => n.k === '共用');
-    const head = h('div.pk-top2', h('i'), h('b', '文件夹'), h('div.pk-nt__r', h('button.pk-glass.is-round', { 'aria-label': '新建文件夹', onclick: D.folder }, ink('folder', 22, 1.9)), h('button.pk-glass', '编辑'))), big = h('h1', '文件夹'); bigTitle(head, big);
+    const head = h('div.pk-top2', h('i'), h('b', '文件夹'), h('div.pk-nt__r', no(h('button.pk-glass.is-round', { 'aria-label': '新建文件夹', onclick: D.folder }, ink('folder', 22, 1.9))), no(h('button.pk-glass', '编辑')))), big = h('h1', '文件夹'); bigTitle(head, big);
     const frow = (name, sel, all, ic = ink('folder', 24, 1.7)) => h('button.pk-row', { onclick: () => folder(name, sel, all) }, ic, h('b', name), h('span', '' + sel(S).length), icon('chevron', 16, 2.2));
     return [head, big, SH(S).length ? h('div.pk-nt__card', frow('共享', SH, false, icon('users', 24, 1.7))) : null, h('h3.pk-nt__f', 'iCloud', icon('chevron', 15, 2.8)),
       h('div.pk-nt__card', frow('全部备忘录', ALL, true), [...new Set(['', ...S.notes.map(fo)])].map(f => frow(f ? S.notes.find(n => fo(n) === f).f : '备忘录', x => x.notes.filter(n => fo(n) === f))),

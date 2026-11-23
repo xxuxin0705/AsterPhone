@@ -237,11 +237,10 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 /* 信息：照作者发的 iPhone 截图量的。内容从顶栏、底下的搜索条下面滑过去；底下那块是渐渐变白 */
 .is-raw .pk-top2::before, .is-raw .pk-float::before { content: ''; position: absolute; z-index: -1; pointer-events: none; }
 .is-raw .pk-top2::before { inset: 0; background: linear-gradient(var(--pk-page) 70%, color-mix(in srgb, var(--pk-page) 85%, transparent) 88%, transparent); }
-/* 顶上是一直在的毛玻璃，越往下越淡：底下没东西时看不出来，内容滑进去就慢慢糊掉（照作者录的 iPhone 视频）。
-   左右伸出页面外再被裁掉：安卓上毛玻璃的边会发黑，让发黑的那条落在屏幕外 */
+/* 顶上垫一层页面底色，越往下越淡：内容滑进去只是慢慢变淡，不糊（糊了字边会往外洇，像墨滴在纸上，作者不要）。
+   左右伸出页面外再被裁掉 */
 .is-raw .pk-top2.is-chat::before { display: none; }   /* 对话页顶上不垫：只有头像、名字、返回那几块玻璃（作者定的） */
-.is-raw .pk-top2:not(.pk-web__top)::before { inset: 0 -24px -20px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 35%, transparent), transparent);
-  -webkit-backdrop-filter: blur(6px) saturate(1.3); backdrop-filter: blur(6px) saturate(1.3); -webkit-mask: linear-gradient(#000 55%, transparent); mask: linear-gradient(#000 55%, transparent); }
+.is-raw .pk-top2:not(.pk-web__top)::before { inset: 0 -24px -20px; background: linear-gradient(var(--pk-page) 45%, color-mix(in srgb, var(--pk-page) 70%, transparent) 70%, transparent); }
 .is-raw .pk-float::before { inset: -24px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 75%, transparent) 40%, var(--pk-page) 75%); }
 /* 对话页底下更透：只是淡淡发白，滑过去的气泡还看得见（照作者录的 iPhone 视频） */
 .is-raw .pk-top2.is-chat ~ .pk-float::before { inset: -12px 0 -16px; background: linear-gradient(transparent, color-mix(in srgb, var(--pk-page) 45%, transparent) 60%, color-mix(in srgb, var(--pk-page) 70%, transparent)); }
