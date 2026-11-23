@@ -361,9 +361,10 @@ export const VIEWS = {
         const pickMode = on => { picked.clear(); cards.classList.toggle('is-pick', on); cards._pick = on && ((n, el) => { picked.has(n.r) ? picked.delete(n.r) : picked.add(n.r); el.classList.toggle('is-sel', picked.has(n.r)); count(); });
           head.lastChild.replaceWith(on ? done : more); float.hidden = on; bar.hidden = !on; count(); cards.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); };
         const head = h('div.pk-top2', back(), tb, more); bigTitle(head, big);
-        const paint = cards._paint = () => cards.replaceChildren(...groupBy(sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]).map(n => [sec(n), n]), 0).flatMap(([t, G]) => {
+        const paint = cards._paint = () => { const L = sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]), up = L.some(n => n.r?.[7]);   // 有置顶的：心声并进置顶那一组，不单独一张卡片
+          cards.replaceChildren(...groupBy(L.map(n => [n.k === '心声' && up ? '置顶' : sec(n), n]), 0).flatMap(([t, G]) => {
           const card = h('div.pk-nt__card', { hidden: t === '置顶' && fold }, G.map(([, n]) => { const w = row(n, all); onLongPress(w.lastChild, () => !cards._pick && menu(n, w)); if (picked.has(n.r)) w.lastChild.classList.add('is-sel'); return w; }));
-          return [t === '置顶' ? h('h3.pk-nt__fold' + (fold ? '.is-shut' : ''), { onclick: e => { fold = !fold; card.hidden = fold; e.currentTarget.classList.toggle('is-shut', fold); } }, t, icon('chevron', 15, 2.8)) : h('h3', t), card]; }));
+          return [t === '置顶' ? h('h3.pk-nt__fold' + (fold ? '.is-shut' : ''), { onclick: e => { fold = !fold; card.hidden = fold; e.currentTarget.classList.toggle('is-shut', fold); } }, t, icon('chevron', 15, 2.8)) : h('h3', t), card]; })); };
         paint();
         find = h('input', { type: 'search', placeholder: '搜索', 'aria-label': '搜索', oninput: e => { const q = e.target.value.trim().toLowerCase();
           cards.querySelectorAll('.pk-swipe').forEach(w => { w.hidden = !!q && !w._q.includes(q); });
