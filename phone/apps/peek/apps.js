@@ -119,7 +119,7 @@ export function trBtn(layer, root) {
   if (!slot || layer.querySelector('.pk-tl') || !layer.querySelector('.pk-trs, .pk-trx')) return;
   const btn = h('button.pk-glass.is-round.pk-tl' + (zh ? '.is-on' : ''), { 'aria-label': '翻译', onclick: () => flipAll(root) }, zh ? '原' : '译');
   const last = slot.lastElementChild;
-  if (slot.children.length > 2 && last.matches('button')) last.before(btn); else slot.append(btn);
+  if ((slot.children.length > 2 && last.matches('button')) || last.matches('.pk-nt__pill')) last.before(btn); else slot.append(btn);
 }
 const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
 // 没头像的人：苹果那种蓝灰底的小人（纯样式画的）；有头像就放头像
@@ -274,15 +274,21 @@ export const VIEWS = {
     const sec = n => { const d = day(n.d); if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
       return ago < 7 ? '过去 7 天' : ago < 30 ? '过去 30 天' : d.getFullYear() === now.getFullYear() ? d.toLocaleDateString('zh-CN', { month: 'long' }) : d.getFullYear() + ' 年'; };
     const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4));
+    // TA 手机里的清单也能勾：改的是查手机存的那份（重新生成才换掉）
+    const tick = (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
+      L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); dot.classList.toggle('is-done', on);
+      kvGet('peek:' + D.id).then(d => { d.apps.备忘录 = D.apps.备忘录; return kvSet('peek:' + D.id, d); }).catch(e => toast('没存上：' + e.message)); };
     // TA 的手机上点这些（写、分享、更多、清单…）：不让动，只说一句（你自己的备忘录照常用）
     const no = el => (D.del ? el : Object.assign(el, { onclick: () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`) }));
     const write = x => no(h('button.pk-glass.is-round', { 'aria-label': '写备忘录', onclick: D.write && (() => D.write(x)) }, icon('edit', 22, 2)));
     // 一行：共用的先认是谁写的（每个人一个颜色），再认打没打勾、是不是划掉的；网址标成链接
+    // 前面的「谁：」、勾、「划掉：」中文翻译那半也带着一份：一起去掉，不然点「译」后圈后面又冒出一个 √
+    const both = (x, re) => x.replace(re, '').replace(new RegExp('([[［【]翻译[:：]\\s*)' + re.source.slice(1)), '$1');
     const para = (x, n, who, i) => { let by = '', done = null, m;
-      if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = x.slice(m[0].length); if (!who.includes(by)) who.push(by); }
-      if ((m = TICK.exec(x))) { done = /[√✓✔☑xX]/.test(m[1]); x = x.slice(m[0].length); }
-      const cut = CUT.test(x); x = x.replace(CUT, '');
-      return h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { style: { '--c': HUE[who.indexOf(by) % 4] } } : null, done != null && h('i' + (done ? '.is-done' : ''), D.tick && { role: 'button', onclick: e => D.tick(n.r, i, e.currentTarget) }), by && h('small', by),
+      if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = both(x, BY); if (!who.includes(by)) who.push(by); }
+      if ((m = TICK.exec(x))) { done = /[√✓✔☑xX]/.test(m[1]); x = both(x, TICK); }
+      const cut = CUT.test(x); x = both(x, CUT);
+      return h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { style: { '--c': HUE[who.indexOf(by) % 4] } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
         h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v))); };
     const open = n0 => push(n0.t, () => { const S = calc(), n = [...S.notes, ...S.bin].find(x => x.r === n0.r) || n0, m = DT.exec(n.d || ''), who = [];
       const body = h('div.pk-nt__lines' + (n.k === '共用' ? '.is-who' : ''), lines(n).map((x, i) => para(x, n, who, i)));
