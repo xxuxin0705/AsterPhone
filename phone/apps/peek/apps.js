@@ -41,6 +41,10 @@ export const when = (t, full) => {
 const face2 = (name, url, me = '') => h('i.pk-face2' + me, url ? { style: { backgroundImage: `url("${url}")` } } : null, url ? '' : String(name || '?').trim().slice(0, 1));
 // 不是中文的：AI 在后面附了「[翻译：…]」，显示时去掉，原文和中文都记在那几个字上
 const TR = /\s*[[［【]翻译[:：]\s*((?:[^[\]［］【】]|[[［【][^\]］】]*[\]］】])*)[\]］】]/;   // 翻译里可以再套一层括号（[图：…]）
+// 心声的几个情绪：AI 有时整串只在最后附一个翻译（「a、b、c[翻译：甲、乙、丙]」），个数对得上就拆成一个词一个翻译；括号里的顿号不拆
+const SEP = /[、,，](?![^[\]［］【】]*[\]］】])/;
+const moods = s => { const [a, z] = untr(s), A = a.split(SEP), Z = z.split(SEP);
+  return (z && (s.match(/翻译[:：]/g) || []).length === 1 && A.length > 1 && A.length === Z.length ? A.map((x, i) => `${x.trim()}[翻译：${Z[i].trim()}]`) : s.split(SEP)).map(x => x.trim()).filter(Boolean); };
 const untr = s => { const m = TR.exec(s || ''); return m ? [s.slice(0, m.index) + s.slice(m.index + m[0].length), m[1]] : [s || '', '']; };
 let view = (a, zh) => [a, zh];   // 显示哪一版：peek.js 按 TA 现在说的语言换（setView）
 export const setView = f => { view = f; };
@@ -63,14 +67,14 @@ function flipAll(root) {
 export function pull(body) {
   let last = null, off = 0;
   const set = () => body.style.setProperty('--pull', (Math.sign(off) * Math.min(140, Math.abs(off) * .4)).toFixed(1) + 'px');
-  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); body.classList.add('is-pull'); clearTimeout(body._pt); }, { passive: true });
+  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });
   body.addEventListener('touchmove', e => {
     const y = e.touches[0].clientY, dy = y - last; last = y;
     const top = body.scrollTop <= 0, end = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
     if (!off && !(dy > 0 && top) && !(dy < 0 && end)) return;
     const was = off; off += dy; if (was && Math.sign(off) !== Math.sign(was)) off = 0; set();
   }, { passive: true });
-  body.addEventListener('touchend', () => { body._pt = setTimeout(() => body.classList.remove('is-pull'), 600); if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
+  body.addEventListener('touchend', () => { if (!off) return; off = 0; body.classList.add('is-back'); set(); }, { passive: true });
 }
 // 你自己手机里照 iPhone 画的页（电话、短信）：和查手机同一套样子；照 393 宽量的整体缩放，日间 / 夜间跟着手机，外语右上一个「译」
 export function iosPage(app, id, cls = '') {
@@ -283,7 +287,7 @@ export const VIEWS = {
       return [h('div.pk-top2', back(), h('div.pk-glass.pk-nt__pill', n.k === '共用' && h('button', { 'aria-label': '谁写的', onclick: () => body.classList.toggle('is-who') }, icon('users', 22, 1.9)),
           D.share ? h('button.is-ink', { 'aria-label': '和谁共用', onclick: () => D.share(n.r) }, ink('share', 22, 1.9)) : ink('share', 22, 1.9), ink('more', 22, 2.8))),
         h('time.pk-nt__date', m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d), h('h1', n.t),
-        n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', n.moods.split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => h('span', x)))] : null,
+        n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', moods(n.moods).map(x => h('span', x)))] : null,
         n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
         h('div.pk-float', h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9)), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）

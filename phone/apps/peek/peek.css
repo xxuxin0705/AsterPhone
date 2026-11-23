@@ -396,7 +396,6 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 /* 滚到头了还能再拖一段，松手弹回去（内容不够长也能拖）；顶栏、底下浮着的、字母索引不动。--pull 由 pull() 写 */
 .pk-app:not(.is-raw) .pk-app__body > *, .pk-top2 ~ :not(.pk-float, .pk-index) { translate: 0 var(--pull, 0); }
 /* 安卓自带的「拉到头整页拉伸」关掉（上面那句 none）：和这里的回弹叠在一起会有一帧整块空掉；拖着的时候先把要动的那几块备好，免得挪的时候来不及画 */
-.pk-app__body.is-pull > *, .pk-app__body.is-pull .pk-top2 ~ * { will-change: translate; }
 .pk-app__body.is-back > *, .pk-app__body.is-back .pk-top2 ~ * { transition: translate .5s cubic-bezier(.25, .1, .25, 1); }   /* 慢慢起步再停：起步太快看着像闪了一下 */
 /* 左滑 / 右滑：这一行跟着手指走，后面露出圆按钮；拖着、打开着时这一行变成浅灰的圆角块（照作者录的 iPhone 视频） */
 .pk-swipe { position: relative; }
