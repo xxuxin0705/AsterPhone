@@ -86,15 +86,13 @@ export async function loadBook(name, force) {
   cache.set(name, { at: Date.now(), entries });
   return entries;
 }
-/** 条目发不发：自己勾过就按勾的；没勾过就和酒馆一样——常驻的一直发，其余的在扫描文字里出现关键词才发 */
-export function entryOn(book, e, scan) {
-  const own = (C().entries[book] || {})[e.uid];
-  if (own != null) return own;
-  if (e.disable) return false;
-  if (e.constant) return true;
-  const low = scan.toLowerCase();
-  return e.keys.some(k => k && low.includes(String(k).toLowerCase()));
-}
+const hit = (e, scan) => e.constant || e.keys.some(k => k && scan.toLowerCase().includes(String(k).toLowerCase()));
+/** 条目勾没勾：自己勾过就按勾的，没勾过就照酒馆（酒馆里关着的不勾） */
+export const entryTicked = (book, e) => (C().entries[book] || {})[e.uid] ?? !e.disable;
+/** 条目发不发：勾着的，常驻的一直发，其余的在扫描文字里出现关键词才发（和酒馆一样） */
+export const entryOn = (book, e, scan) => entryTicked(book, e) && hit(e, scan);
+/** 手机里改过的条目内容（只改手机里的，酒馆的书不动） */
+export const entryText = (book, e) => (C().texts || {})[book]?.[e.uid] ?? e.content;
 /** 要发的世界书条目，拼成一段文字。scan = 用来找关键词的文字（正文 + 手机聊天） */
 /** 每个人自己的世界书：wb.all 是所有应用用的一套，wb.apps[app] 是某个 App 单独用的一套（有就只用它）。
  *  一套 = { tavern 带上酒馆开着的书, books: { 书名: { off 整本不用, e: { uid: { off 这条用不用, text 改过的内容 } } } } }
@@ -112,8 +110,7 @@ export const wbSet = (c, app) => { const W = c && wbOf(c); return W && ((app && 
 /** 这个人的这本书里，这条用不用：自己拨过就照拨的，没拨过就照酒馆（关着的不用）；用的话常驻的一直发，其余的看关键词 */
 export function ownEntryOn(b, e, scan) {
   const o = b.e && b.e[e.uid];
-  if (o ? o.off : e.disable) return false;
-  return e.constant || e.keys.some(k => k && scan.toLowerCase().includes(String(k).toLowerCase()));
+  return !(o ? o.off : e.disable) && hit(e, scan);
 }
 /** people：这次写到的人，TA 在映像里有自己的一套就照 TA 的（整本关了的不发，改过的条目发改过的）；app：在哪个 App 里 */
 export async function worldText(scan = '', people = [], app = '') {
@@ -128,7 +125,7 @@ export async function worldText(scan = '', people = [], app = '') {
     const own = mine(n), b = own.find(x => !x.off);
     if (own.length && !b) continue;
     list.filter(e => (b ? ownEntryOn(b, e, scan) : entryOn(n, e, scan))).sort((a, x) => (a.order || 0) - (x.order || 0))
-      .forEach(e => parts.push(String((b && b.e && b.e[e.uid] && b.e[e.uid].text) ?? e.content).trim()));
+      .forEach(e => parts.push(String(b ? b.e?.[e.uid]?.text ?? e.content : entryText(n, e)).trim()));
   }
   return parts.filter(Boolean).join('\n\n');
 }

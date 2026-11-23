@@ -137,9 +137,6 @@
 .as-ss-axis .arc { position: absolute; left: 86px; width: 24px; border: 1px solid var(--blue); border-left: 0; border-radius: 0 40px 40px 0; pointer-events: none; }
 .as-ss-axis .none { display: grid; justify-items: start; gap: 12px; padding: 18px 22px 0 116px; color: var(--soft); font-size: 13px; letter-spacing: 1px; }
 @media (prefers-reduced-motion: reduce) { .as-ss *, .as-ss *::before { transition: none !important; animation: none !important; } }
-.as-mem-entry:first-child { border-top: 0; }
-.as-mem-entry summary small { margin-left: 0; }
-.as-mem-entry summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 12px; }
 /* 时间那页的四块：时间轴 / 分类 / 日子 / 没完的事 */
 .as-ss-modes { position: relative; z-index: 1; display: flex; gap: 6px; padding: 0 0 8px 108px; }
 .as-ss-modes button { flex: none; border: 1px solid var(--line); background: var(--paper); color: var(--soft); font: 400 12px/1 var(--han); letter-spacing: 1px; padding: 7px 9px; border-radius: 13px; cursor: pointer; transition: color .3s, background .3s; }

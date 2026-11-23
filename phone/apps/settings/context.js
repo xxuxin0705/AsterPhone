@@ -1,10 +1,11 @@
 // 设置 → 上下文与世界书：手机里的 AI 能看到哪些正文、哪些标签、人设、世界书，最后能预览。
 import { h } from '../../core/util.js';
 import { commit } from '../../core/store.js';
-import { group, item, toggleItem, segmented, input, empty, icon, dialog } from '../../core/ui.js';
+import { group, toggleItem, input, icon, dialog } from '../../core/ui.js';
 import { worldNames, currentCharacter, characters } from '../../core/bridge.js';
 import { myPersona } from '../../core/promptstore.js';
-import { C, rawStory, detectTags, tagsInside, tagsOutside, storyText, tavernBooks, bookOn, loadBook, entryOn, worldText } from '../../core/context.js';
+import { C, rawStory, detectTags, tagsInside, tagsOutside, storyText, tavernBooks, bookOn, entryOn, entryTicked, entryText, worldText } from '../../core/context.js';
+import { bookPanel } from '../../core/bookpanel.js';
 
 const label = t => t === '!--' ? '<!-- -->' : t;
 const save = () => commit('settings');
@@ -18,7 +19,7 @@ export function openContext({ sub, sliderRow, withInfo }) {
         toggleItem({ title: '角色人设' }, s.charPersona, v => { s.charPersona = v; save(); fresh(); }),
         toggleItem({ title: '你的人设' }, s.userPersona, v => { s.userPersona = v; save(); fresh(); }),
       ]),
-      bookGroup(s, sub, fresh),
+      bookGroup(s, fresh),
       tagGroup(s, withInfo, sliderRow, fresh),
       preview);
   });
@@ -70,49 +71,16 @@ export function tagRows(s, scan, save, changed, names = ['给手机看', '不给
   return [...rows, paint];
 }
 
-function bookGroup(s, sub, fresh) {
-  const on = tavernBooks(), names = [...new Set([...on, ...worldNames()])], painters = [];
-  const rows = names.map(n => {
-    const cnt = h('span.as-muted', '');
-    const mark = h('button.as-ctx-book', { 'aria-label': '整本开关', onclick: e => { e.stopPropagation(); s.books[n] = bookOn(n) ? 'off' : 'on'; save(); paint(); fresh(); } }, icon('check', 14, 3));
-    const paint = () => {
-      mark.classList.toggle('is-on', bookOn(n));
-      if (bookOn(n)) loadBook(n).then(list => { const scan = storyText(); cnt.textContent = `${list.filter(e => entryOn(n, e, scan)).length}/${list.length}`; }).catch(() => { cnt.textContent = '读不到'; });
-      else cnt.textContent = '不用';
-    };
-    paint(); painters.push(paint);
-    const row = item({ title: n, sub: on.includes(n) ? '酒馆里开着' : '', right: cnt, chevron: true, onClick: () => openBook(n, sub) });
-    row.prepend(mark);
-    return row;
-  });
+// 世界书：所有的书都列出来（酒馆开着的排前面），用的是公共的面板（core/bookpanel.js）；改了下面的预览跟着换
+function bookGroup(s, fresh) {
+  const on = tavernBooks(), names = [...new Set([...on, ...worldNames()])], scan = storyText(), changed = () => { save(); fresh(); };
+  const panel = names.length ? bookPanel({ books: names, tag: n => on.includes(n) && '酒馆开着', bookOn, setBook: (n, v) => { s.books[n] = v ? 'on' : 'off'; changed(); },
+    on: entryTicked, set: (n, e, v) => { (s.entries[n] ||= {})[e.uid] = v; changed(); }, sends: (n, e) => entryOn(n, e, scan),
+    text: entryText, edit: (n, e, v) => { const t = (s.texts ||= {})[n] ||= {}; if (v == null) delete t[e.uid]; else t[e.uid] = v; changed(); } }) : null;
   return group('世界书', [
-    toggleItem({ title: '跟随酒馆已开启的世界书' }, s.followTavern, v => { s.followTavern = v; save(); painters.forEach(f => f()); fresh(); }),
-    ...(rows.length ? rows : [h('div.as-field', h('span.as-muted', '没有读到世界书（要在酒馆里打开手机）'))]),
+    toggleItem({ title: '跟随酒馆已开启的世界书' }, s.followTavern, v => { s.followTavern = v; changed(); panel && panel._paint(); }),
+    panel ? h('div.as-field', panel) : h('div.as-field', h('span.as-muted', '没有读到世界书（要在酒馆里打开手机）')),
   ]);
-}
-function openBook(name, sub) {
-  sub('book', name, async (body, re) => {
-    const s = C(), own = s.entries[name] || (s.entries[name] = {});
-    const list = await loadBook(name).catch(() => null);
-    if (!list) { body.append(empty('读不到这本世界书')); return; }
-    const scan = storyText();
-    const setAll = v => { list.forEach(e => { if (v == null) delete own[e.uid]; else own[e.uid] = v; }); save(); re(); };
-    body.append(
-      group('', [h('div.as-field', segmented([['', '跟随酒馆'], ['on', '整本开启'], ['off', '整本不要']], s.books[name] || '', v => { if (v) s.books[name] = v; else delete s.books[name]; save(); }))]),
-      h('div.as-lib-actions', h('button.as-btn.as-btn--secondary', { onclick: () => setAll(true) }, '全部条目打开'), h('button.as-btn.as-btn--secondary', { onclick: () => setAll(false) }, '全部条目关掉'), h('button.as-btn.as-btn--secondary', { onclick: () => setAll(null) }, '恢复跟随')),
-      (() => {
-        const head = () => `条目（${list.filter(e => entryOn(name, e, scan)).length}/${list.length} 会用）`;
-        const g = group(head(), list.map(e => {
-          const lab = h('span.as-field__label'), v = own[e.uid] == null ? '' : own[e.uid] ? 'on' : 'off';
-          const paint = () => { lab.textContent = `${e.title}${e.constant ? ' · 常驻' : ''}${e.disable ? ' · 酒馆里关着' : ''}${own[e.uid] == null ? (entryOn(name, e, scan) ? ' · 现在会用' : ' · 现在不用') : ''}`; };
-          paint();
-          return h('div.as-field', lab, segmented([['', '跟随'], ['on', '开'], ['off', '关']], v, nv => {
-            if (nv) own[e.uid] = nv === 'on'; else delete own[e.uid]; save(); paint(); g.querySelector('.as-list-group__header').textContent = head();
-          }));
-        }));
-        return g;
-      })());
-  });
 }
 
 /** 预览：照发给 AI 的顺序一段段排下来，每段写多少字，点开在固定大小的框里滚着看（聊天记录、岁岁砂想起的事、时间要进了聊天才有）。

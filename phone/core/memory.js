@@ -382,7 +382,7 @@ export async function readFile(f) {
   }
   if (/\.json$/i.test(f.name)) {
     let j = null; try { j = JSON.parse(raw); } catch { /* 当纯文字 */ }
-    if (j && j.entries) return { entries: Object.values(j.entries).map(e => ({ title: e.comment || (e.key || []).join('、') || '条目', content: e.content || '' })).filter(e => e.content.trim()) };
+    if (j && j.entries) return { entries: Object.values(j.entries).map(e => ({ title: e.comment || (e.key || []).join('、') || '条目', content: e.content || '', keys: e.key || [], constant: !!e.constant })).filter(e => e.content.trim()) };
     if (Array.isArray(j) && j.some(m => m && 'mes' in m)) return { msgs: j };
   }
   return { text: raw };
