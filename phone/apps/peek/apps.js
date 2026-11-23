@@ -274,7 +274,9 @@ export const VIEWS = {
     const sec = n => { const d = day(n.d); if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
       return ago < 7 ? '过去 7 天' : ago < 30 ? '过去 30 天' : d.getFullYear() === now.getFullYear() ? d.toLocaleDateString('zh-CN', { month: 'long' }) : d.getFullYear() + ' 年'; };
     const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4));
-    const write = x => h('button.pk-glass.is-round', { 'aria-label': '写备忘录', onclick: D.write && (() => D.write(x)) }, icon('edit', 22, 2));
+    // TA 的手机上点这些（写、分享、更多、清单…）：不让动，只说一句（你自己的备忘录照常用）
+    const no = el => (D.del ? el : Object.assign(el, { onclick: () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`) }));
+    const write = x => no(h('button.pk-glass.is-round', { 'aria-label': '写备忘录', onclick: D.write && (() => D.write(x)) }, icon('edit', 22, 2)));
     // 一行：共用的先认是谁写的（每个人一个颜色），再认打没打勾、是不是划掉的；网址标成链接
     const para = (x, n, who, i) => { let by = '', done = null, m;
       if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = x.slice(m[0].length); if (!who.includes(by)) who.push(by); }
@@ -285,14 +287,14 @@ export const VIEWS = {
     const open = n0 => push(n0.t, () => { const S = calc(), n = [...S.notes, ...S.bin].find(x => x.r === n0.r) || n0, m = DT.exec(n.d || ''), who = [];
       const body = h('div.pk-nt__lines' + (n.k === '共用' ? '.is-who' : ''), lines(n).map((x, i) => para(x, n, who, i)));
       return [h('div.pk-top2', back(), h('div.pk-glass.pk-nt__pill', n.k === '共用' && h('button', { 'aria-label': '谁写的', onclick: () => body.classList.toggle('is-who') }, icon('users', 22, 1.9)),
-          D.share ? h('button.is-ink', { 'aria-label': '和谁共用', onclick: () => D.share(n.r) }, ink('share', 22, 1.9)) : ink('share', 22, 1.9), ink('more', 22, 2.8))),
-        h('time.pk-nt__date', m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d), h('h1', n.t),
+          D.share ? h('button.is-ink', { 'aria-label': '和谁共用', onclick: () => D.share(n.r) }, ink('share', 22, 1.9)) : no(ink('share', 22, 1.9)), no(ink('more', 22, 2.8)))),
+        h('time.pk-nt__date', (m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d) + (n.k === '共用' ? ' — 共享' : '')), n.t ? h('h1', n.t) : null,
         n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', moods(n.moods).map(x => h('span', x)))] : null,
         n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
-        h('div.pk-float', h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9)), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
+        h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
-    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || '新建备忘录'),
-      h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[0] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
+    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || (lines(n)[0] || '新建备忘录').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')),
+      h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[n.t ? 0 : 1] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
       n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', w => D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)]]), { _q: (n.t + n.body + n.f).toLowerCase() });
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
     const folder = (name, sel, all, focus) => { let find;

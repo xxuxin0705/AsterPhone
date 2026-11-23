@@ -56,7 +56,7 @@ function edit(r) {
   el._onLeave = async () => { off();
     const L = ta.value.split('\n').map(x => x.trim()).filter(Boolean), old = r[1] + '|' + r[4];
     const out = async x => { if (was.has(x)) return was.get(x); if (!myLang()) return x; const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
-    const title = t.value.trim() || (L.shift() || '').replace(/^[○√]\s*/, '');
+    const title = t.value.trim();   // 标题框空着就是没有标题（列表里拿第一行当标题，和 iPhone 一样）
     r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => out(r[0] === '共用' && !named(r, x) ? myName() + '：' + x : x)))).join('//');
     if (r[0] !== '共用') r[0] = kind(r[4]);
     if (!r[1] && !r[4]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
