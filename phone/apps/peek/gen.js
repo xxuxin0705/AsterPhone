@@ -70,6 +70,12 @@ async function toOurs(c, rows) {
   rows.splice(0, rows.length, ...keep);
   return n;
 }
+// 备忘录不整份换掉：上次的都留着（不想要的你在 TA 手机里删），AI 只写这段时间新记的、改了的（同一种、同一个标题的算改过的那条，换掉旧的）；心声只留最新的
+const noteKey = r => (r[0] === '心声' ? r[0] : r[0] + '|' + (takeTr(String(r[1] || '')).filter(Boolean).pop() || ''));
+const keepOld = (old, add) => { const fresh = new Set(add.map(noteKey)); return [...add, ...old.filter(r => !fresh.has(noteKey(r)))]; };
+const had = L => { L = L.filter(r => r[0] !== '心声').slice(0, 40); if (!L.length) return '';
+  return `\n（手机里已经有下面这些，都还在，不用再写。这次只写从那以后新记的（隔了几个小时就一两条，隔了几天三五条），长短照上面说的拉开；改了哪条就用原来的种类和标题，写改完的全文；心声照常写一条现在的）\n`
+    + L.map(r => `${r[0]}《${takeTr(String(r[1] || ''))[0]}》${String((r[0] === '已删' ? r[3] : r[4]) || '').split('//')[0].slice(0, 30)}`).join('\n') + '\n'; };
 const pairKey = (a, b) => 'peek:pair:' + [a, b].sort().join('|');
 const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 'text' ? m.text : previewOf(m) });
 /** c 的手机里有什么：AI 写的各应用（apps）、和别的联系人的聊天（pairs：两个人共用一份，谁的手机里看都一样）、你手机里真有的聊天（real：和你的私聊、TA 在的群） */
@@ -161,6 +167,7 @@ export async function make(c, names, done) {
   try {
     let step = `正在写${nameOf(c)}的手机…`;   // AI 写完后还要用机翻补漏掉的外文：提示条换成「补外文 几 / 几」，不然只剩个圈在转
     const got = await waiting(() => step, async stop => {
+      const prev = ((await kvGet('peek:' + c.id).catch(() => null))?.apps?.备忘录?.rows) || [];   // 上次的备忘录都还在：这次只加新的
       const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;
       const ch = chatForContact(c.id, false), history = ch ? historyText(await getMsgs(ch.id), c, 30) : '（还没有聊过）';   // 手机上和你刚聊的：TA 手机里的东西要跟得上   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
       const pics = names.includes('备忘录') ? newInks(c) : [], images = await inkImages(pics);   // 共用的备忘录里新画的，TA 这次也一起看（和私聊里一样，看过就不再带）
@@ -168,7 +175,7 @@ export async function make(c, names, done) {
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story + '\n' + history, [c], 'peek').catch(() => ''), story, history, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
-          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}${n === '备忘录' ? ourNotes(c) : ''}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
+          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}${n === '备忘录' ? had(prev) + ourNotes(c) : ''}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
       const got = parse(raw);
       if (!/^zh/.test(speakIn(c))) await toOrig(got, n => { step = `AI 写好了，有 ${n} 处没写全，机翻核对…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
@@ -184,7 +191,7 @@ export async function make(c, names, done) {
       got.消息 = got.消息.filter(r => { const x = who(r[0]); if (x) (by.get(x) || by.set(x, []).get(x)).push({ from: /自己/.test(r[2]) || r[2] === c.name ? c.id : x.id, t: r[1], text: r[3] }); return !x; });
       await Promise.all([...by].map(([x, L]) => kvSet(pairKey(c.id, x.id), L)));
     }
-    ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: got[n] }; });
+    ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: n === '备忘录' ? keepOld(d.apps[n]?.rows || [], got[n]) : got[n] }; });
     const l = /^zh/.test(speakIn(c)) ? guess(d.apps) : speakIn(c); if (d.lang !== l) { d.lang = l; delete d.mt; }   // 原文是什么语言；变了旧的机翻作废
     await kvSet('peek:' + c.id, d);
     const miss = names.filter(n => !ok.includes(n) && !(n === '备忘录' && moved));

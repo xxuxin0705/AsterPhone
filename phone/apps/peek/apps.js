@@ -272,7 +272,7 @@ export const VIEWS = {
     const now = time.isStory() ? time.story().date : new Date(), TICK = /^([√✓✔☑○◯□☐]|\[[ xX]\])\s*/, CUT = /^划掉[:：]\s*/, BY = /^([^：:]{1,12})[：:]\s*/, HUE = ['#ffd60a', '#ff6482', '#64d2ff', '#bf5af2'];
     const day = t => { const m = DT.exec(t || '') || /()(\d{1,2})[-/.月](\d{1,2})/.exec(t || ''); return m ? new Date(+m[1] || now.getFullYear(), m[2] - 1, +m[3]) : null; };
     const calc = () => { const heart = R.find(r => r[0] === '心声');
-      const all = [...(heart ? [{ k: '心声', t: '只给自己看', d: '', f: '', moods: heart[1] || '', body: heart[2] || '' }] : []),
+      const all = [...(heart ? [{ r: heart, k: '心声', t: '只给自己看', d: '', f: '', moods: heart[1] || '', body: heart[2] || '' }] : []),
         ...R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r0 => { const k = ['便签', '清单', '草稿', '共用', '已删'].includes(r0[0]) ? r0[0] : '', r = k ? r0.slice(1) : r0;
           return r.length < 4 ? { r: r0, k: k === '已删' ? k : '便签', t: r[0], d: r[1], f: '', body: r[2] || '' } : { r: r0, k: k || '便签', t: r[0], d: r[1], f: k === '草稿' || k === '共用' ? '' : r[2] || '', to: r[2], body: r[3] || '' }; }).sort((a, b) => (day(b.d) || 0) - (day(a.d) || 0))];
       return { notes: all.filter(n => n.k !== '已删'), bin: all.filter(n => n.k === '已删') }; };
@@ -303,8 +303,11 @@ export const VIEWS = {
       const k = INKLINE.exec(x)?.[1];   // 画：和字一样占一行，点了接着画（你自己的）
       if (k) return h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), Object.assign(inkImg(k), D.draw ? { onclick: e => D.draw(n.r, null, k, e.currentTarget) } : {}));
       const cut = CUT.test(x); x = both(x, CUT);
-      return h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
-        h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v))); };
+      const p = h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
+        h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v)));
+      // 共用的：长按别人写的那一句，删掉，或者删掉让 TA 重新回（你自己的备忘录）
+      if (D.unsay && by && by !== myName()) onLongPress(p, () => actionSheet('', [{ value: 'again', label: `让 ${by} 重新回` }, { value: 'del', label: '删除这句', danger: true }]).then(v => v && D.unsay(n.r, i, v === 'again')));
+      return p; };
     const open = n0 => push(n0.t, () => { const S = calc(), n = [...S.notes, ...S.bin].find(x => x.r === n0.r) || n0, m = DT.exec(n.d || ''), who = [];
       const body = h('div.pk-nt__lines', lines(n).map((x, i) => para(x, n, who, i)));   // 名字默认不写，点顶上的小人才出来
       // 共用的：一排小圆点写着谁是什么颜色（好几个人一起记时光看颜色分不清）
@@ -319,6 +322,12 @@ export const VIEWS = {
         h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), D.draw ? h('button.is-ink', { 'aria-label': '画画', onclick: () => D.draw(n.r, body) }, ink('pen', 22, 1.9)) : ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
     const nope = () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`);
+    // TA 手机里翻到不想要的能删（删的是查手机存的那份，重新生成时只加新的、不会再写回来）；和你共用的那几张在你自己的备忘录里删
+    const drop = D.drop || (async rs => { const src = D.apps?.备忘录?.rows || [], mine = rs.filter(r => src.includes(r));
+      if (!mine.length) { toast('共用的去你自己的备忘录里删'); return false; }
+      if (!await dialog({ title: mine.length > 1 ? `删除 ${mine.length} 条备忘录？` : '删除这条备忘录？', confirm: '删除', danger: true })) return false;
+      mine.forEach(r => { src.splice(src.indexOf(r), 1); R.splice(R.indexOf(r), 1); }); keep(); });
+    const del = D.del || ((r, w) => drop([r]).then(ok => { if (ok !== false && w) gone(w); }));
     const pin = (r, w) => { r[7] = r[7] ? 0 : 1; keep(); w.closest('.pk-nt__cards')?._paint(); };
     // 长按一条：后面变暗，这一条放大给你看，底下一组菜单（照 iPhone）；TA 的手机上只有置顶、复制能用
     const menu = (n, w) => { const L = w.closest('.pk-app'), close = () => ov.remove();
@@ -326,7 +335,7 @@ export const VIEWS = {
       const line = (ic, label, fn) => h('button.pk-ctx__li', { onclick: () => { close(); fn(); } }, icon(ic, 18, 2), label);
       const ov = h('div.pk-ctx', { onclick: e => { if (e.target === ov) close(); } },
         h('div.pk-ctx__card', n.t ? h('b', n.t) : null, lines(n).slice(0, 14).map(x => h('p', bare(n, x)))),
-        h('div.pk-ctx__menu', h('div.pk-ctx__acts', act('share', '共享', D.share ? () => D.share(n.r) : nope), act('folder', '移动', D.move ? () => D.move([n.r]) : nope), act('trash', '删除', D.del ? () => D.del(n.r, w) : nope, true)),
+        h('div.pk-ctx__menu', h('div.pk-ctx__acts', act('share', '共享', D.share ? () => D.share(n.r) : nope), act('folder', '移动', D.move ? () => D.move([n.r]) : nope), act('trash', '删除', () => del(n.r, w), true)),
           n.k !== '已删' && n.r ? line('pin', n.r[7] ? '取消置顶备忘录' : '置顶备忘录', () => pin(n.r, w)) : null,
           line('note', '复制备忘录', () => navigator.clipboard.writeText([n.t, ...lines(n).map(x => bare(n, x))].filter(Boolean).join('\n')).then(() => toast('已复制'), () => toast('复制不了')))));
       L.append(ov); trs(ov); };
@@ -336,16 +345,16 @@ export const VIEWS = {
       if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || bare(n, lines(n)[0] || '新建备忘录')),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : bare(n, lines(n)[n.t ? 0 : 1] || '无更多文本')),
       n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录'), n.r && drawn(n.r)[0] && pic(drawn(n.r)[0], 'pk-nt__thumb')),
-      [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', '#ff3b30', w => (D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)), '删除']],
+      [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', '#ff3b30', w => del(n.r, w), '删除']],
       n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => pin(n.r, w), n.r[7] ? '取消置顶' : '置顶']] : []), { _q: (n.t + n.body + n.f).toLowerCase(), _n: n });
     let fold = false;   // 「置顶」那一段收起来没有（点段标题收起 / 展开）
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
     const folder = (name, sel, all, focus) => { let find;
       push(name, () => { const tb = h('b', name), big = h('h1', name), cards = h('div.pk-nt__cards');   // 置顶 / 取消置顶后只重排这一页的卡片
         // 「⋯」→ 选择备忘录：每条前面一个圈，点了勾上；顶上写选了几条，底下换成移动 / 删除（一条没选时是全部）
-        const picked = new Set(), more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => (D.move ? actionSheet('', [{ value: 'pick', label: '选择备忘录' }]).then(v => v && pickMode(true)) : nope()) }, ink('more', 22, 2.8));
+        const picked = new Set(), more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => actionSheet('', [{ value: 'pick', label: '选择备忘录' }]).then(v => v && pickMode(true)) }, ink('more', 22, 2.8));
         const done = h('button.pk-glass.is-round', { 'aria-label': '完成', onclick: () => pickMode(false) }, icon('check', 22, 2.4));
-        const mv = h('button.pk-glass', { onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-red', { onclick: () => D.drop(chosen()).then(ok => ok !== false && pickMode(false)) });
+        const mv = h('button.pk-glass', { hidden: !D.move, onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-red', { onclick: () => drop(chosen()).then(ok => { if (ok !== false) { pickMode(false); paint(); } }) });
         const chosen = () => (picked.size ? [...picked] : sel(calc()).filter(n => n.r).map(n => n.r));
         const bar = h('div.pk-float.pk-nt__pick', mv, h('i'), dl);
         const count = () => { const k = picked.size; tb.textContent = big.textContent = k ? `已选定 ${k} 项` : name; mv.textContent = k ? '移动' : '移动全部'; dl.textContent = k ? '删除' : '全部删除'; };

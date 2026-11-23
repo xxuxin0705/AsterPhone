@@ -2,7 +2,7 @@
 // 一条存成一行（和 AI 写的 TA 的备忘录同一个样子）：[便签 / 清单 / 共用, 标题, 年/月/日 时:分, 文件夹（共用的是那个人的名字）, 正文（// 分行）, 共用的人的 id]
 import { h } from '../../core/util.js';
 import { state, commit, contact, friends, kvDel } from '../../core/store.js';
-import { icon, dialog, actionSheet, pickSheet } from '../../core/ui.js';
+import { icon, dialog, actionSheet, pickSheet, toast } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
 import { translate, myOut, myLang, langName } from '../../core/translate.js';
 import * as time from '../../core/time.js';
@@ -30,6 +30,11 @@ const D = {
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
   del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  // 共用的：删掉别人写的第 i 句；again 是删掉让 TA 重新回——这句前面你画的画也算 TA 没看过，下次私聊或查手机 TA 对这段重新回
+  unsay: (r, i, again) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), by = (/^([^：:]{1,12})[：:]/.exec(L[i] || '') || [])[1], gone1 = L.splice(i, 1)[0];
+    if (again) { const c = sharedWith(r).map(contact).find(x => x && nameOf(x) === by), ks = L.slice(0, i).map(x => /✎(memo-draw:\S+)$/.exec(x)?.[1]).filter(Boolean);
+      if (c) r[9] = String(r[9] || '').split(',').filter(x => x && !ks.some(k => x === `+${c.id}>${k}`)).join(','); }
+    r[4] = L.join('//'); r[12] = (r[12] || []).filter(x => x[1] !== gone1); save(); fresh(); if (again) toast(`下次和 ${by} 私聊或查手机时，TA 会重新回`); },
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
     rs.forEach(r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); }); save(); fresh(); },

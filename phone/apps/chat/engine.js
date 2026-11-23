@@ -356,11 +356,13 @@ export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画�
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
   return /^\d+$/.test(k) && L[k - 1] || L.find(r => takeTr(r[1]).some(y => y && tt.includes(y))); };
-export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
+export async function memoAdd(c, t, x, batch) {   // batch：私聊里那一批回复（重新生成那条回复时，它添的这句跟着去掉）   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
   const self = new RegExp(`^\\s*(${[c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).map(escRe).join('|')})\\s*[:：]\\s*`);   // AI 自己在前面又写了一遍名字：去掉，不然成了「名字：名字：」
   let [o, z] = takeTr(x.trim()).map(y => y && y.replace(self, '')); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
   const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = noteOf(c, t);
-  if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else { const n = ['共用', t.trim(), now, nameOf(c), line, c.id, 1]; n[11] = c.id; state.notes.push(n); }
+  const n = r || Object.assign(['共用', t.trim(), now, nameOf(c), '', c.id], { 11: c.id });
+  n[4] += (n[4] ? '//' : '') + line; n[2] = now; n[6] = 1; if (batch) (n[12] ||= []).push([batch, line]);   // 第十三格：哪一句是私聊里哪一批回复添的
+  if (!r) state.notes.push(n);
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
@@ -420,7 +422,8 @@ export async function requestReply(chat, opts = {}) {
     const batch = uid('b'), rc = replyCfg(chat);
     keepMem(chat, batch, mem, [c].filter(Boolean));
     if (c && speakOf(c.id)) await fillLines(lines);
-    if (c) for (const [t, x] of memos) await memoAdd(c, t, x);
+    if (c) for (const [t, x] of memos) await memoAdd(c, t, x, batch);
+    if (pics.length && images.length) inkSent.set(chat.id, [batch, pics.map(([r, , k]) => [r, `+${c.id}>${k}`])]);   // 重新生成这批回复时，这次给看的画算没看过
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
@@ -561,12 +564,22 @@ export async function callReply(chat, lines, mode, stop, onUnit = () => {}) {
   read(await generate({ conn: resolveConn('text', 'chat', chat.cfg.conn), system: '', prompt: p2, temperature: chat.cfg.temperature ?? undefined, app: '通话', stop, onPart: t => read(t, false) }), true);
   return units;
 }
+// 重新生成一批回复：它往共用备忘录里添的句子去掉，这次给 TA 看过的画算没看过（新回复会重新看）
+const inkSent = new Map();
+function unsayBatch(chat, batch) {
+  let hit = 0;
+  for (const r of state.notes) { const drop = (r[12] || []).filter(x => x[0] === batch).map(x => x[1]); if (!drop.length) continue;
+    const L = r[4].split('//'); drop.forEach(l => { const i = L.lastIndexOf(l); if (i >= 0) L.splice(i, 1); }); r[4] = L.join('//'); r[12] = r[12].filter(x => x[0] !== batch); hit++; }
+  for (let i = state.notes.length; i--;) if (state.notes[i][0] === '共用' && !state.notes[i][4]) state.notes.splice(i, 1);   // 这批回复新建的那张，句子去掉就空了：整张不要
+  const s = inkSent.get(chat.id); if (s && s[0] === batch) { s[1].forEach(([r, m]) => { r[9] = String(r[9] || '').split(',').filter(x => x && x !== m).join(','); }); inkSent.delete(chat.id); hit++; }
+  if (hit) commit('notes');
+}
 /** 重新生成：删掉这条和同一批里它后面的 TA 消息，再要一次 */
 export async function regenerate(chat, msgId) {
   const msgs = await getMsgs(chat.id);
   const i = msgs.findIndex(m => m.id === msgId); if (i < 0) return;
   const batch = msgs[i].batch;
-  if (batch) dropChat(chat.id, batch).catch(e => log('warn', '岁岁砂', '收不回这批记下的：' + e.message));
+  if (batch) { dropChat(chat.id, batch).catch(e => log('warn', '岁岁砂', '收不回这批记下的：' + e.message)); unsayBatch(chat, batch); }
   for (let j = msgs.length - 1; j >= i; j--) if (msgs[j].from === 'them' && (!batch || msgs[j].batch === batch || j === i)) msgs.splice(j, 1);
   const last = msgs[msgs.length - 1]; if (last) touch(chat, last); else chat.lastText = '';
   saveMsgs(chat.id); commit('chats'); emit('reload', chat.id);
