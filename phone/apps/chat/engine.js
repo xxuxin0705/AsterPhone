@@ -300,13 +300,14 @@ const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, me
 // 你和 TA 共用的备忘录（apps/memo，一行 = [共用, 标题, 日期, TA 的名字, 正文, TA 的 id]）：私聊时 TA 看得到；
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
 const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
-function memoAdd(c, t, x) {
-  const [o, z] = takeTr(x.trim()), line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim());
+async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
+  let [o, z] = takeTr(x.trim()); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
+  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim());
   if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id]);
   commit('notes');
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map(r => `《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 标题｜要记的那句话。标题用上面已有的就是添进那一张，写新标题就是新开一张。没什么要记的就不写这一行。` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map(r => `《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 标题｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。标题用上面已有的就是添进那一张，写新标题就是新开一张。没什么要记的就不写这一行。` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
@@ -350,7 +351,7 @@ export async function requestReply(chat, opts = {}) {
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
-    const [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { if (c) memoAdd(c, t, x); return ''; });
+    const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; });
     const { lines: got, inner } = parseReply(said, c), lines = toMin(got, replyCfg(chat).lines);
     if (fresh && !reacted && c) reactTo(msgs, c.id, toneEmoji(msgs[msgs.length - 1].text || '', lines.join(' ')));
     if (!lines.length) throw new Error('AI 没有返回能用的消息');
@@ -359,6 +360,7 @@ export async function requestReply(chat, opts = {}) {
     const batch = uid('b'), rc = replyCfg(chat);
     keepMem(chat, batch, mem, [c].filter(Boolean));
     if (c && speakOf(c.id)) await fillLines(lines);
+    if (c) for (const [t, x] of memos) await memoAdd(c, t, x);
     let shown = 0, first = true, nv = 0;
     for (const line of lines) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
