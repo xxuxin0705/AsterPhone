@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith, fixInk, inkText } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith, fixInk, inkText, newInks, inkImages, sawInks } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -163,7 +163,8 @@ export async function make(c, names, done) {
     const got = await waiting(() => step, async stop => {
       const story = storyText(S().floors || 30) || '（暂无）', now = time.isStory() ? time.story() : null;
       const ch = chatForContact(c.id, false), history = ch ? historyText(await getMsgs(ch.id), c, 30) : '（还没有聊过）';   // 手机上和你刚聊的：TA 手机里的东西要跟得上   // 正文只发最近几楼（TA 的设置里选）：发得越多越慢，也越容易被接口的审核拦下
-      const raw = await generate({ conn: connOf(), system: '', app: '查手机', stop, resume: S().fill ? S().fillMax || 3 : 0,
+      const pics = names.includes('备忘录') ? newInks(c) : [], images = await inkImages(pics);   // 共用的备忘录里新画的，TA 这次也一起看（和私聊里一样，看过就不再带）
+      const raw = await generate({ conn: connOf(), system: '', app: '查手机', stop, images, resume: S().fill ? S().fillMax || 3 : 0,
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story + '\n' + history, [c], 'peek').catch(() => ''), story, history, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
@@ -171,6 +172,7 @@ export async function make(c, names, done) {
       const got = parse(raw);
       if (!/^zh/.test(speakIn(c))) await toOrig(got, n => { step = `AI 写好了，有 ${n} 处没写全，机翻核对…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
+      sawInks(c, pics);
       return got;
     }, ac);
     if (!got) return;

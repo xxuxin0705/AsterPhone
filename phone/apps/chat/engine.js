@@ -341,6 +341,15 @@ export function fixInk(r) {
   r[9] = r[9] ? (r[9] === 1 ? sharedWith(r) : String(r[9]).split(',').filter(x => x && !x.includes('>'))).map(id => id + '>' + key).join(',') : '';
   r[8] = ''; return r;
 }
+/** 共用的备忘录里 TA 还没看过的画：[[备忘录, 那一行, 编号]…]；inkImages 拿去给 AI 看，sawInks 在 AI 回完之后记下看过了（私聊、查手机都用） */
+export const newInks = c => sharedNotes(c).flatMap(r => r[4].split('//').map(x => [r, x, INKLINE.exec(x)?.[1]]).filter(([q, , k]) => k && !seen(q).includes(c.id + '>' + k)));
+export async function inkImages(L) {
+  if (!L.length) return [];
+  const { inkPic } = await import('../memo/draw.js');
+  return (await Promise.all(L.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里画的，看看画的什么，想回应就照画里真画了什么来说）`,
+    url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) })))).filter(i => i.url);
+}
+export function sawInks(c, L) { if (!L.length) return; L.forEach(([r, , k]) => { r[9] = [...seen(r), c.id + '>' + k].join(','); }); commit('notes'); }
 export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画）');   // 给 AI 看的字里，画写成一句话
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
@@ -396,10 +405,9 @@ export async function requestReply(chat, opts = {}) {
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
     // 共用的备忘录里新画的（第十格里还没记 TA 看过）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
-    const pics = c ? sharedNotes(c).flatMap(r => r[4].split('//').map(x => [r, x, INKLINE.exec(x)?.[1]]).filter(([q, , k]) => k && !seen(q).includes(c.id + '>' + k))) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
-    const images = await Promise.all(pics.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里画的，看看画的什么，想回应就自然地说）`, url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) }))).then(L => L.filter(i => i.url));
+    const pics = c ? newInks(c) : [], images = await inkImages(pics);
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal, images });
-    if (pics.length) { pics.forEach(([r, , k]) => { r[9] = [...seen(r), c.id + '>' + k].join(','); }); commit('notes'); }
+    sawInks(c, pics);
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
     const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; });
