@@ -287,7 +287,7 @@ export const VIEWS = {
         n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
         h('div.pk-float', h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9)), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
-    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row', { onclick: () => open(n) }, h('b', n.t || '新建备忘录'),
+    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || '新建备忘录'),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[0] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
       n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', w => D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)]]), { _q: (n.t + n.body + n.f).toLowerCase() });
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）

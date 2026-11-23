@@ -344,6 +344,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-nt__row > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; } .pk-nt__row b { font-size: 17px; font-weight: 600; line-height: 22px; }
 .pk-nt__row span, .pk-nt__row small { font-size: 15px; line-height: 20px; color: var(--pk-sub); } .pk-nt__row time { margin-right: 8px; } .pk-nt__row svg { vertical-align: -2px; margin-right: 4px; }
 .pk-nt__card .pk-swipe > .pk-nt__row { background: var(--pk-card); }
+.pk-nt__row.is-new::after { content: ''; position: absolute; left: 10px; top: 19px; width: 9px; height: 9px; border-radius: 50%; background: #ff3b30; }
 .pk-swipe:not([hidden]) + .pk-swipe .pk-nt__row::before { content: ''; position: absolute; top: 0; left: 28px; right: 0; border-top: .5px solid var(--pk-line); }
 .pk-nt .pk-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 0; color: var(--pk-ink); font: inherit; -webkit-appearance: none; appearance: none; } .pk-nt .pk-find input::placeholder { color: var(--pk-ink); }
 .pk-nt .pk-find input::-webkit-search-cancel-button { display: none; }

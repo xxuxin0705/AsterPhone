@@ -6,10 +6,11 @@ import { icon, dialog, actionSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
+import { shell } from '../../core/shell.js';
 import { nameOf } from '../chat/engine.js';
 import { VIEWS, iosPage, gone } from '../peek/apps.js';
 
-const N = () => state.notes, save = () => commit('notes'), flat = x => [x].flat(3).filter(Boolean);
+const N = () => state.notes, save = () => { commit('notes'); shell.refreshBadges(); }, flat = x => [x].flat(3).filter(Boolean);
 // 开着的每一页和它怎么画：改了东西，被盖在下面的那几页趁看不见先换好，露出来就是新的
 const layers = [], fresh = (L = layers) => L.forEach(l => l.body.replaceChildren(...flat(l.fill())));
 function push(t, fill, cls = '') {
@@ -22,6 +23,7 @@ const D = {
   write: x => { if (Array.isArray(x)) return edit(x); const r = ['便签', '', time.stampText(time.stamp()), x || '', '']; N().push(r); edit(r); },
   // 新建文件夹：起个名字，接着在里面写第一条（一条都没有的文件夹不留）
   folder: async () => { const n = await dialog({ title: '新建文件夹', input: { placeholder: '名称' }, confirm: '好' }); if (n && n.trim()) D.write(n.trim()); },
+  seen: r => { r.length = 6; save(); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
   del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); save(); gone(w); fresh(layers.slice(0, -1)); },

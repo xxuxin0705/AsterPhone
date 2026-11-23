@@ -300,11 +300,12 @@ const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, me
 // 你和 TA 共用的备忘录（apps/memo，一行 = [共用, 标题, 日期, TA 的名字, 正文, TA 的 id]）：私聊时 TA 看得到；
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
 const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
-async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
+// 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
+export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
   let [o, z] = takeTr(x.trim()); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
   const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim());
-  if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id]);
-  commit('notes');
+  if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id, 1]);
+  commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
   return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map(r => `《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 标题｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。标题用上面已有的就是添进那一张，写新标题就是新开一张。没什么要记的就不写这一行。` : ''; };

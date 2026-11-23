@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf, parenTr } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr, takeTr, memoAdd } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -23,7 +23,7 @@ export async function setWall(c, w) { const d = (await kvGet('peek:' + c.id).cat
 // 每行第一格前面的「＃」= 这一格是行名（照抄），「※」= 这一格是 TA 写的、说的、看的字：TA 说外语时要写成「中文[原文：外文]」。
 // 这两个记号只给手机看（哪几格该有翻译，不用猜），发给 AI 前去掉（form）
 export const FORMS = {
-  备忘录: '＃便签｜※标题｜日期（年/月/日）｜※放在哪个文件夹｜※正文\n＃清单｜※标题｜日期｜※文件夹｜※一样一样列，每样前面写 √（办了）或 ○（还没办），用 // 隔开\n＃草稿｜※标题｜日期｜写给谁（名字）｜※想发给这个人、打了字最后没发出去的话\n＃共用｜※标题｜日期｜和谁共用（名字，也可以是 {{user}}）｜※两个人一起记的，每行开头写「名字：」是谁写的，用 // 隔开\n＃已删｜※标题｜哪天删的（年/月/日，三十天以内）｜※正文\n＃心声｜※此刻的几个情绪（两三个词，用顿号隔开）｜※{{char}} 心里没说出口的话（一小段，第一人称，只写给自己看的）\n（备忘录是 {{char}} 随手记给自己的，不是写文章。这几种混着来：便签最多，每条的样子都不一样，有的只有一行，有的是怕忘的数字、地址、型号，有的是写到一半没写完的话，有的是抄下来的一句，也有长一点的碎碎念；清单一两条，有的勾了有的没勾；草稿最多一条，照 TA 和那个人真实的关系写，不一定是好话；共用最多一条，是 TA 和某个人真会一起记的东西；已删一两条，是 TA 自己删掉、还留在「最近删除」里的，想想 TA 为什么要删；心声写一条。改了主意的那一行，在前面写「划掉：」，下一行写改成的。TA 平时爱用表情、颜文字的，备忘录里也照用，只是里面别带「//」和「｜」。不要每条都是两三段完整的话，不要每条都有头有尾有总结。标题就是 TA 顺手打的第一行。文件夹是 TA 自己分的、自己起的名字，两三个就够，懒得分的那条就空着）',
+  备忘录: '＃便签｜※标题｜日期（年/月/日）｜※放在哪个文件夹｜※正文\n＃清单｜※标题｜日期｜※文件夹｜※一样一样列，每样前面写 √（办了）或 ○（还没办），用 // 隔开\n＃草稿｜※标题｜日期｜写给谁（名字）｜※想发给这个人、打了字最后没发出去的话\n＃共用｜※标题｜日期｜和谁共用（名字，也可以是 {{user}}）｜※两个人一起记的，每行开头写「名字：」是谁写的，用 // 隔开；和 {{user}} 共用的只写 {{char}} 自己记的那几行，不替 {{user}} 写\n＃已删｜※标题｜哪天删的（年/月/日，三十天以内）｜※正文\n＃心声｜※此刻的几个情绪（两三个词，用顿号隔开）｜※{{char}} 心里没说出口的话（一小段，第一人称，只写给自己看的）\n（备忘录是 {{char}} 随手记给自己的，不是写文章。这几种混着来：便签最多，每条的样子都不一样，有的只有一行，有的是怕忘的数字、地址、型号，有的是写到一半没写完的话，有的是抄下来的一句，也有长一点的碎碎念；清单一两条，有的勾了有的没勾；草稿最多一条，照 TA 和那个人真实的关系写，不一定是好话；共用最多一条，是 TA 和某个人真会一起记的东西；已删一两条，是 TA 自己删掉、还留在「最近删除」里的，想想 TA 为什么要删；心声写一条。改了主意的那一行，在前面写「划掉：」，下一行写改成的。TA 平时爱用表情、颜文字的，备忘录里也照用，只是里面别带「//」和「｜」。不要每条都是两三段完整的话，不要每条都有头有尾有总结。标题就是 TA 顺手打的第一行。文件夹是 TA 自己分的、自己起的名字，两三个就够，懒得分的那条就空着）',
   搜索: '＃搜索｜※搜的话｜时间｜※搜完点开的那页的标题（照抄下面看过那页的标题）\n＃看过｜类型（文章或视频）｜※网页标题｜网址（编一个像样的，不写 https://）｜时间｜※看完心里怎么想（一两句）｜※正文｜视频的时长和播放量（文章空着）\n＃收藏｜类型｜※网页标题｜网址｜收藏的时候｜｜※正文｜视频的时长和播放量\n＃无痕｜类型｜※网页标题｜网址｜时间｜※看完心里怎么想｜※正文｜视频的时长和播放量\n（搜索 4～6 条；看过的就是这些搜索点开的那几页，再加一两页从别处点进来的。收藏一定要写 3～5 条：大多是正常的（攻略、店、想买的、教程），混一两条有私心的。无痕是见不得人、心虚的，有才写。\n时间要扎堆：几分钟里连着查几条，再隔几个小时；要有一条深夜查的、一条很琐碎的日常（天气、路线、换算之类）。\n正文要像真的网页、详略有别：文章先一段开头，再分几段，可以用「■小标题：内容」「> 引用的一句话」「[图：这张图是什么]」，要紧的词用 **两边星号**（小标题里不用），段和段之间用 // 隔开，别每段都一个样子；视频的正文是简介，两三句。正文分了段的，标了的写法每一段各写一次，配图、引用那段也一样。）',
   短信: '对方（名字或号码）｜时间｜对方 / 自己（这条谁发的）｜※内容\n（同一个人的几条挨着写，按先后。短信多是验证码、快递、银行和消费提醒、运营商通知、广告、垃圾短信，也可以有熟人，要有发短信的理由（没网、急事、工作通知、长辈不用聊天软件）；日常聊天在聊天软件里，不写进短信；不要写和 {{user}} 的短信）',
   电话: '对方｜呼入 / 呼出 / 未接（三选一）｜时间｜归属地（省 市，存了名字的熟人可以空着；用聊天软件打的写「语音通话」或「视频通话」）\n＃留言｜对方｜时间｜留言多长（分:秒）｜※留言里说的话（语音留言 0～3 条，没有就不写）\n＃联系人｜真名｜{{char}} 手机里存的备注｜这是谁（几个字）\n（通话记录里熟人（朋友、同事、家人）多一些，不要写和 {{user}} 的通话和留言；通话记录之外，再写 6～10 行联系人；通话记录、留言、短信里的「对方」都写真名，手机上会显示成备注。备注照 {{char}} 现在跟这个人的关系和熟悉程度存：熟人就是平时怎么叫就怎么存（名字、昵称、爱称），不熟的存全名或「姓 + 身份」；不要写成背地里给人起的外号，也不要停在刚认识时的印象）',
@@ -48,6 +48,28 @@ export const FORMS = {
 const form = (n, c, l) => FORMS[n].replace(/＃/g, '').replace(/※([^｜\n]*)/g, (_, x) => /^zh/.test(l) ? x : `${x}〔写成：中文意思[原文：${langName(l)}原文]〕`).replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName());
 const TRC = Object.fromEntries(Object.entries(FORMS).map(([n, t]) => [n, t.split('\n').filter(L => L.includes('｜') && L[0] !== '（').map(L => { const C = L.split('｜'); return [C[0][0] === '＃' ? C[0].slice(1) : '', C.flatMap((x, i) => x[0] === '※' ? [i] : [])]; })]));
 const trCols = (n, r) => ((TRC[n] || []).find(L => L[0] === r[0]) || (TRC[n] || []).find(L => !L[0]) || ['', []])[1];
+// 你和 TA 真在共用的备忘录（你的备忘录 App 里的）：给 AI 看，TA 想接一句就写一行同标题的「共用」，生成完真添进去（make 里）
+const BY = /^([^：:]{1,12})[：:]\s*/, shared = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
+const ourNotes = c => { const L = shared(c), me = myName(); if (!L.length) return '';
+  return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜照抄标题｜日期｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）\n`
+    + L.map(r => `《${r[1]}》\n${r[4].split('//').map(x => { const [o, z] = takeTr(x), by = BY.exec(o); return z ? (by ? by[0] : '') + z : o; }).join('\n')}`).join('\n'); };
+/** AI 写的「和你共用」：不留在 TA 这份里，真添进你的备忘录（两边看到的是同一张）；替你写的行、已经有的行不要。返回挪了几行 */
+async function toOurs(c, rows) {
+  const me = myName(), ta = [c.name, nameOf(c)], keep = []; let n = 0;
+  for (const r of rows) {
+    if (r[0] !== '共用' || (r[3] || '').trim() !== me) { keep.push(r); continue; }
+    const tt = takeTr(r[1]), old = shared(c).find(x => tt.includes(x[1])), t = old ? old[1] : r[1];
+    for (const line of (r[4] || '').split(/(?<!:)\/\//)) {
+      let [o, z] = takeTr(line.trim()); const by = BY.exec(z || o), who = by && by[1].trim();
+      if (!o || who === me) continue;
+      if (ta.includes(who)) { o = o.replace(BY, ''); z = z.replace(BY, ''); }
+      if (shared(c).find(x => x[1] === t)?.[4].includes(o)) continue;
+      await memoAdd(c, t, z ? `${o}[翻译：${z}]` : o); n++;
+    }
+  }
+  rows.splice(0, rows.length, ...keep);
+  return n;
+}
 const pairKey = (a, b) => 'peek:pair:' + [a, b].sort().join('|');
 const said = (m, who, me) => ({ who, me, t: shortTime(m.at), text: m.type === 'text' ? m.text : previewOf(m) });
 /** c 的手机里有什么：AI 写的各应用（apps）、和别的联系人的聊天（pairs：两个人共用一份，谁的手机里看都一样）、你手机里真有的聊天（real：和你的私聊、TA 在的群） */
@@ -139,13 +161,14 @@ export async function make(c, names, done) {
         prompt: compose('peek', { char: c.name || nameOf(c), user: myName(), persona: personaOf(c) || '（没有写）', user_persona: myPersona() || '（没有写）',
           world: await worldText(story, [c], 'peek').catch(() => ''), story, people: [myName(), ...friends().filter(x => x.id !== c.id).map(x => x.name || nameOf(x))].map(n => '- ' + n).join('\n'),
           time: now ? `${now.date.toLocaleDateString('zh-CN')} ${now.hh}:${String(now.mm).padStart(2, '0')}` : new Date().toLocaleString('zh-CN'),
-          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
+          count: S().count || 6, apps: names.map(n => `【${n}】\n${form(n, c, speakIn(c))}${n === '备忘录' ? ourNotes(c) : ''}`).join('\n'), lang: /^zh/.test(speakIn(c)) ? '' : `\n- ${c.name || nameOf(c)} 平时用${langName(speakIn(c))}。上面格式里标了〔写成：…〕的格子不用上一条的写法：先写中文意思（照 TA 的人设和语气），后面紧跟 [原文：${langName(speakIn(c))}原文]，两样都要有，一格都不能漏；分了 // 段的每段各写一次。没标的格子照常写。` }) });
       const got = parse(raw);
       if (!/^zh/.test(speakIn(c))) await toOrig(got, n => { step = `AI 写好了，有 ${n} 处没写全，机翻核对…`; });
       if (!Object.values(got).some(r => r.length)) throw new Error('AI 回的不是手机内容：' + String(raw).slice(0, 60));
       return got;
     }, ac);
     if (!got) return;
+    const moved = got.备忘录 ? await toOurs(c, got.备忘录) : 0;
     const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }, ok = names.filter(n => got[n] && got[n].length);
     // 和手机里别的联系人的私聊另存一份两个人共用的，剩下的（群、不认识的人、备注、草稿）留在 TA 自己这份里
     if (got.消息) {
@@ -156,7 +179,7 @@ export async function make(c, names, done) {
     ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: got[n] }; });
     const l = /^zh/.test(speakIn(c)) ? guess(d.apps) : speakIn(c); if (d.lang !== l) { d.lang = l; delete d.mt; }   // 原文是什么语言；变了旧的机翻作废
     await kvSet('peek:' + c.id, d);
-    const miss = names.filter(n => !ok.includes(n));
+    const miss = names.filter(n => !ok.includes(n) && !(n === '备忘录' && moved));
     if (miss.length) log('warn', '查手机', `这几个应用 AI 没写：${miss.join('、')}`);
     toast(miss.length ? `写好 ${ok.length} 个，${miss.join('、')}没写出来` : `写好了，${ok.length} 个应用`);
     done({ ...await load(c), who: c.id });
