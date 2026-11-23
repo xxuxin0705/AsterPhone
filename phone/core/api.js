@@ -29,7 +29,9 @@ export async function xf(url, o = {}) {
 }
 
 async function viaTavern(base, models, o, auth) {
-  const body = { ...(models ? {} : JSON.parse(o.body)), chat_completion_source: 'custom', custom_url: base, custom_include_headers: `Authorization: ${JSON.stringify(auth)}` };
+  // 推理深度那几个参数酒馆不认，自己不转：塞进「额外请求体」（custom_include_body，JSON 也算 YAML）它才原样带过去
+  const b = models ? {} : JSON.parse(o.body), extra = Object.fromEntries(['reasoning_effort', 'enable_thinking', 'thinking'].filter(k => k in b).map(k => [k, b[k]]));
+  const body = { ...b, chat_completion_source: 'custom', custom_url: base, custom_include_headers: `Authorization: ${JSON.stringify(auth)}`, ...(Object.keys(extra).length && { custom_include_body: JSON.stringify(extra) }) };
   const r = await fetch(`/api/backends/chat-completions/${models ? 'status' : 'generate'}`, { method: 'POST', signal: o.signal, headers: { ...(ctx()?.getRequestHeaders?.() || {}), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   // 失败时酒馆也回 200，只是带着 error（流式的回复不读，读了就不流了）
   const j = /json/i.test(r.headers.get('content-type') || '') ? await r.clone().json().catch(() => null) : null;
@@ -126,6 +128,18 @@ async function readErr(res) {
 /** 这个接口的所有密钥（第一把 + 后来加的） */
 export const keysOf = c => [c.key, ...(c.keys || [])].map(k => String(k || '').trim()).filter(Boolean);
 const THINK = { low: 1024, medium: 4096, high: 12000 };
+// 推理深度：'off' 是「默认」（以前存的就是它）——什么都不发，模型照自己的习惯想不想；'none' 是「关」——明着叫它别想。
+// OpenAI 格式的「关」：Gemini 认 reasoning_effort（Pro 关不掉，最少是 low；Flash 能到 minimal，2.5 Flash 能 none）；
+// 别家把几种常见的「别想」写法一起发（硅基流动、通义认 enable_thinking，智谱、火山方舟、DeepSeek 认 thinking），接口不认会报 400
+const gemOff = m => (/2\.5.*flash/i.test(m) ? 'none' : /flash/i.test(m) ? 'minimal' : 'low');
+const quiet = m => (/gemini/i.test(m) ? { reasoning_effort: gemOff(m) } : { enable_thinking: false, thinking: { type: 'disabled' } });
+// Gemini 官方接口：3 代以后按档位（thinkingLevel，Pro 只有 low / high），2.5 按字数（Flash 能 0，Pro 最少 128）
+const gemThink = (m, lv) => {
+  if (!lv || lv === 'off') return null;
+  if (/gemini-(?:[3-9]|\d\d)/i.test(m)) return { thinkingLevel: lv === 'none' ? (/flash/i.test(m) ? 'minimal' : 'low') : /pro/i.test(m) && lv === 'medium' ? 'low' : lv };
+  return { thinkingBudget: lv === 'none' ? (/pro/i.test(m) ? 128 : 0) : THINK[lv] };
+};
+const noQuiet = (lv, m) => (lv === 'none' && /^400\b/.test(m) ? m + '（这个接口不认「关掉思考」，推理深度改回「默认」试试）' : m);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** 能不能换一把密钥 / 再试一次：密钥不对、被限流 → 换密钥；网络或服务器出错 → 重试 */
 const isKeyErr = m => /^(401|403|429)\b/.test(m);
@@ -231,11 +245,16 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
       out = await orAbort(generateWithProfile(pf, { system, prompt }), signal);
     } else if (OAI(conn.type)) {
       out = await withKey(async key => {
-        const body = { model: conn.model, temperature: temp, stream, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
-        if (think) { body.reasoning_effort = P.thinking; delete body.temperature; }
-        const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(await readErr(res));
-        return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part, halt);
+        // 接口不肯流式（400 / 422 还提到 stream）就一次性要；流式回来一个字没有（又没说为什么），一次性再问一遍——有的中转只认一次性的
+        const send = async st => {
+          const body = { model: conn.model, temperature: temp, stream: st, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
+          if (P.thinking === 'none') Object.assign(body, quiet(conn.model)); else if (think) { body.reasoning_effort = P.thinking; delete body.temperature; }
+          const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
+          if (!res.ok) { const m = await readErr(res); if (st && /^(400|422)\b/.test(m) && /stream/i.test(m)) { log('warn', app, '接口不肯流式，改成一次性要'); return send(false); } throw new Error(noQuiet(P.thinking, m)); }
+          return readOut(res, j => j.choices?.[0]?.delta?.content, j => j.choices?.[0]?.message?.content, part, halt);
+        };
+        try { return await send(stream); }
+        catch (e) { if (!stream || e.message !== 'AI 回了空的' || signal.aborted) throw e; log('warn', app, '流式回来是空的，改成一次性再问一遍'); return send(false); }
       });
     } else if (conn.type === 'claude') {
       out = await withKey(async key => {
@@ -253,11 +272,11 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
     } else if (conn.type === 'gemini') {
       out = await withKey(async key => {
         const gc = { temperature: temp };
-        if (think) gc.thinkingConfig = { thinkingBudget: think };
+        const tc = gemThink(conn.model, P.thinking); if (tc) gc.thinkingConfig = tc;
         const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
         const res = await xf(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
-        if (!res.ok) throw new Error(await readErr(res));
+        if (!res.ok) throw new Error(noQuiet(P.thinking, await readErr(res)));
         const parts = j => (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
         return readOut(res, parts, parts, part, halt);
       });

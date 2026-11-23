@@ -926,7 +926,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         row('模型', h('div', h('div.as-pbd__line', modelIn, pull), modelBox)));
     }, true));
     if (kind === 'text') {
-      const T = [['off', '关'], ['low', '低'], ['medium', '中'], ['high', '高']];
+      const T = [['off', '默认'], ['none', '关'], ['low', '低'], ['medium', '中'], ['high', '高']];
       groups.push(fold('生成参数', 'gear', () => `${(+d.params.temperature).toFixed(2)} · 推理${(T.find(x => x[0] === d.params.thinking) || T[0])[1]}${d.stream === false ? ' · 不流式' : ''}`, (b, re) => {
         const out = h('output.as-pbd__val', (+d.params.temperature).toFixed(2));
         const sl = slider({ min: 0, max: 2, step: .05, value: d.params.temperature, onInput: v => { d.params.temperature = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } });
@@ -934,7 +934,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         const chips = () => { chipBox.innerHTML = ''; [0, .3, .7, 1, 1.3].forEach(v => chipBox.appendChild(h('button' + (Math.abs(d.params.temperature - v) < .001 ? '.is-on' : ''), { onclick: () => { d.params.temperature = v; sl.value = v; out.textContent = v.toFixed(2); chips(); touch(); re(); } }, v.toFixed(1)))); };
         chips();
         b.append(row('温度', h('div.as-pbd__line', sl, out), '越低越稳，越高越放飞。单个聊天里还能另外设。'), chipBox,
-          row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '开了会先想一想再回，更聪明但更慢、更贵。模型不支持的话会报错，关掉就好。'),
+          row('推理深度', segmented(T, d.params.thinking, v => { d.params.thinking = v; touch(); re(); }), '默认：照模型自己的习惯。关：叫它别想，快很多；接口不认会报错，改回默认就好。低 / 中 / 高：想得越多越聪明，也越慢。'),
           h('div.as-pbd__row.is-inline', h('span.as-pbd__label', '流式输出'), switchEl(d.stream !== false, v => { d.stream = v; touch(); re(); }, '流式输出')));
       }, true));
       if (d.type === 'claude') groups.push(fold('高级', 'list', () => d.adv.cache ? '缓存开' : '缓存关', (b, re) => {
