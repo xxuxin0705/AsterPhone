@@ -13,8 +13,9 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName, relang } from '../../core/translate.js';
+import { tavernRegex, regexed } from '../../core/regex.js';
 
-export const VERSION = '0.8.643';
+export const VERSION = '0.8.644';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -62,6 +63,7 @@ export function open() {
         item({ icon: 'grid', color: 'purple', title: '应用管理', chevron: true, onClick: openApps }),
         item({ icon: 'note', color: 'teal', title: '提示词', chevron: true, onClick: openPrompts }),
         item({ icon: 'style', color: 'pink', title: '预设', chevron: true, onClick: () => import('./presets.js').then(m => m.openPresets(sub)) }),
+        item({ icon: 'edit', color: 'orange', title: '正则', value: (S().regex || []).length ? `用了 ${S().regex.length} 条` : '', chevron: true, onClick: openRegex }),
       ]),
       group('', [
         item({ icon: 'palette', color: 'orange', title: '显示', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
@@ -649,6 +651,17 @@ function openLang() {
 
 /* ================= 通知 ================= */
 const TONE_LABEL = { ding: '叮', dong: '咚', pop: '啵', twin: '叮咚' };
+// 正则：酒馆里管「AI 输出」的那几条，勾上的在手机里也用（core/regex.js）；底下打一句话马上看换完的样子
+function openRegex() {
+  sub('regex', withInfo('正则', '用的是酒馆「扩展 → 正则」里的。勾上的，手机里 AI 写的字和翻译一收到就照着换，存下来的就是换过的；之后关掉，已经换过的不会变回去。'), body => {
+    const L = tavernRegex(), on = () => (S().regex ||= []);
+    const out = h('div.as-regex-out'), ta = textarea({ placeholder: '试用', rows: 3, onInput: v => { out.textContent = regexed(v); } });
+    body.append(L.length ? group('', L.map(s => toggleItem({ title: s.scriptName || s.findRegex, sub: s.from }, on().includes(s.id), v => {
+      S().regex = v ? [...on(), s.id] : on().filter(x => x !== s.id); commit('settings'); out.textContent = regexed(ta.value); })))
+      : empty(inTavern() ? '酒馆里还没有管「AI 输出」的正则' : '不在酒馆里，读不到正则'),
+      group('试用', [h('div.as-field', ta, out)]));
+  });
+}
 function openNotify() {
   sub('notify', '通知', (body, re) => {
     const n = S().notify;

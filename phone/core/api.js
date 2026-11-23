@@ -5,6 +5,7 @@ import { withPreset } from './preset.js';
 import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
 import { apiLog as log, log as note, startCall, orAbort, abortCall } from './log.js';
 import { adapt, plain } from './act.js';
+import { regexed } from './regex.js';
 
 /** 直连被跨域拦住时，改走酒馆自带的 CORS 代理 /proxy/（酒馆 config.yaml 里 enableCorsProxy: true）。
  *  其他插件能连上、手机连不上，多半就是差在这一步。代理没开 / Tauri 酒馆没有代理时照常报错 */
@@ -194,7 +195,8 @@ async function resumable(opts) {
  * 生成文字。返回字符串。
  * 会自动：多把密钥轮着用（某把被拒就换下一把）、失败按设置重试、聊天线断了改用选好的副 API。
  */
-export async function generate(opts) {
+export async function generate(opts) { return regexed(await gen(opts)); }   // 设置 → 正则 里勾了的，回复一拿到就换
+async function gen(opts) {
   opts = await withPreset(opts);   // 设置 → 预设：这个应用选了方案就把预设条目带上
   const { conn, app = '聊天' } = opts;
   if (!conn) throw new Error('还没有设置可用的连接');

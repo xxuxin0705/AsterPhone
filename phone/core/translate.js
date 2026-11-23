@@ -7,6 +7,7 @@ import { log } from './log.js';
 import { state, commit, nickIn, setNick, chatForContact } from './store.js';
 import { waiting, toast } from './ui.js';
 import { h } from './util.js';
+import { regexed } from './regex.js';
 
 export const LANGS = [
   ['zh-CN', '中文'], ['en', '英语'], ['ja', '日语'], ['ko', '韩语'], ['fr', '法语'], ['de', '德语'],
@@ -44,11 +45,11 @@ export async function translate(text, to = 'zh-CN') {
   text = String(text || '').trim();
   if (!text) return '';
   const key = to + '|' + text;
-  if (cache.has(key)) return cache.get(key);
+  if (cache.has(key)) return regexed(cache.get(key));   // 设置 → 正则 里勾了的，机翻出来的也照着换
   const tries = TAURI ? [viaGoogle, viaMyMemory, viaTavern] : [viaTavern, viaGoogle, viaMyMemory];
   let lastErr = null;
   for (const fn of tries) {
-    try { const out = await fn(text, to); if (out && out.trim()) { cache.set(key, out.trim()); return out.trim(); } }
+    try { const out = await fn(text, to); if (out && out.trim()) { cache.set(key, out.trim()); return regexed(out.trim()); } }
     catch (e) { lastErr = e; }
   }
   log('warn', '翻译', '翻译失败：' + (lastErr ? lastErr.message : '没有返回'), { to });

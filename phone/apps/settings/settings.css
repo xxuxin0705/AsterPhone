@@ -120,3 +120,4 @@
 .as-ctx-part summary::-webkit-details-marker { display: none; }
 .as-ctx-part summary small { color: var(--as-color-text-3, #9aa0ab); font-size: 12px; }
 .as-ctx-part[open] summary span { color: var(--as-color-accent); }
+.as-regex-out { margin-top: 8px; min-height: 22px; white-space: pre-wrap; word-break: break-word; color: var(--as-color-text-2); }
