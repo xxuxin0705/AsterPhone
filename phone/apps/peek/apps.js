@@ -5,7 +5,7 @@ import { kvGet, kvSet, contact } from '../../core/store.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import * as time from '../../core/time.js';
 import { saveRead } from './gen.js';
-import { nameOf, twoInks, autoInk } from '../chat/engine.js';
+import { nameOf, inksFor, autoInk, sharedWith } from '../chat/engine.js';
 import { myName } from '../../core/promptstore.js';
 
 const yuan = v => (parseFloat(String(v).replace(/[^\d.+-]/g, '')) || 0).toFixed(2);
@@ -68,8 +68,9 @@ function flipAll(root) {
 export function pull(body) {
   let last = null, off = 0;
   const set = () => body.style.setProperty('--pull', (Math.sign(off) * Math.min(140, Math.abs(off) * .4)).toFixed(1) + 'px');
-  body.addEventListener('touchstart', e => { last = e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });
+  body.addEventListener('touchstart', e => { last = e.target.closest('[data-no-swipe]') ? null : e.touches[0].clientY; off = 0; body.classList.remove('is-back'); }, { passive: true });   // 在画布这类地方按下的不拖（画画时整页跟着抖）
   body.addEventListener('touchmove', e => {
+    if (last == null) return;
     const y = e.touches[0].clientY, dy = y - last; last = y;
     const top = body.scrollTop <= 0, end = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
     if (!off && !(dy > 0 && top) && !(dy < 0 && end)) return;
@@ -286,8 +287,12 @@ export const VIEWS = {
     const no = el => (D.del ? el : Object.assign(el, { onclick: () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`) }));
     const write = x => no(h('button.pk-glass.is-round', { 'aria-label': '写备忘录', onclick: D.write && (() => D.write(x)) }, icon('edit', 22, 2)));
     // 共用的：你涂你的颜色（默认黄），TA 涂 TA 的印象色（映像里挑，没挑过从头像取；两个太像就把 TA 的换开），别的人按顺序分
-    const inkBy = (n, by, who) => { const c = contact(n.r?.[5]) || contact(D.id), [a, b] = c ? twoInks(c) : [];
-      return by === myName() ? a || HUE[0] : c && [c.name, c.nick, c.remark, nameOf(c)].includes(by) ? b : HUE[(who.indexOf(by) + 1) % 4]; };
+    const folks = n => { const L = sharedWith(n.r || []).map(contact).filter(Boolean); return L.length ? L : [contact(D.id)].filter(Boolean); };
+    const inkBy = (n, by, who) => { const cs = folks(n), ks = inksFor(cs), k = cs.findIndex(c => [c.name, c.nick, c.remark, nameOf(c)].includes(by));
+      return by === myName() ? ks[0] : k >= 0 ? ks[k + 1] : HUE[(who.indexOf(by) + 1) % 4]; };
+    // 谁建的：第十二格记着；以前的没记，看第一行是谁写的
+    const maker = n => { const k = n.r?.[11], c = k && k !== 'me' && contact(k), first = BY.exec(n.body.split('//')[0] || '');
+      const who = k === 'me' ? myName() : c ? nameOf(c) : first ? first[1] : ''; return D.del && who === myName() ? '我' : who; };
     // 一行：共用的先认是谁写的（每个人一个颜色），再认打没打勾、是不是划掉的；网址标成链接
     // 前面的「谁：」、勾、「划掉：」中文翻译那半也带着一份：一起去掉，不然点「译」后圈后面又冒出一个 √
     const both = (x, re) => x.replace(re, '').replace(new RegExp('([[［【]翻译[:：]\\s*)' + re.source.slice(1)), '$1');
@@ -298,13 +303,13 @@ export const VIEWS = {
       return h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
         h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v))); };
     const open = n0 => push(n0.t, () => { const S = calc(), n = [...S.notes, ...S.bin].find(x => x.r === n0.r) || n0, m = DT.exec(n.d || ''), who = [];
-      const body = h('div.pk-nt__lines', lines(n).map((x, i) => para(x, n, who, i))), c = n.k === '共用' && (contact(n.r?.[5]) || contact(D.id));   // 名字默认不写，点顶上的小人才出来
-      if (c) autoInk(c).then(ch => ch && body.querySelectorAll('p[data-by]').forEach(p => p.style.setProperty('--c', inkBy(n, p.dataset.by, who))), () => {});   // 头像第一次取色：取好只换颜色
+      const body = h('div.pk-nt__lines', lines(n).map((x, i) => para(x, n, who, i)));   // 名字默认不写，点顶上的小人才出来
+      if (n.k === '共用') folks(n).forEach(c => autoInk(c).then(ch => ch && body.querySelectorAll('p[data-by]').forEach(p => p.style.setProperty('--c', inkBy(n, p.dataset.by, who))), () => {}));   // 头像第一次取色：取好只换颜色
       return [h('div.pk-top2', back(), h('div.pk-glass.pk-nt__pill', n.k === '共用' && h('button', { 'aria-label': '谁写的', onclick: () => body.classList.toggle('is-who') }, icon('users', 22, 1.9)),
           D.share ? h('button.is-ink', { 'aria-label': '和谁共用', onclick: () => D.share(n.r) }, ink('share', 22, 1.9)) : no(ink('share', 22, 1.9)), no(ink('more', 22, 2.8)))),
         h('time.pk-nt__date', (m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d) + (n.k === '共用' ? ' — 共享' : '')), n.t ? h('h1', n.t) : null,
         n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', moods(n.moods).map(x => h('span', x)))] : null,
-        n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
+        n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', (m => { const to = (n.to || '别人').split('、').filter(x => x !== m); return (m ? `${m}创建 · ` : '') + (to.length ? `与 ${to.join('、')} 共用` : '共用'); })(maker(n))) : null, body,
         n.r?.[8] ? Object.assign(pic(n.r[8], 'pk-nt__ink'), { onclick: D.draw && (() => D.draw(n.r)) }) : null,
         h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), D.draw ? h('button.is-ink', { 'aria-label': '画画', onclick: () => D.draw(n.r) }, ink('pen', 22, 1.9)) : ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
@@ -316,7 +321,7 @@ export const VIEWS = {
       const line = (ic, label, fn) => h('button.pk-ctx__li', { onclick: () => { close(); fn(); } }, icon(ic, 18, 2), label);
       const ov = h('div.pk-ctx', { onclick: e => { if (e.target === ov) close(); } },
         h('div.pk-ctx__card', n.t ? h('b', n.t) : null, lines(n).slice(0, 14).map(x => h('p', x.replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')))),
-        h('div.pk-ctx__menu', h('div.pk-ctx__acts', act('share', '共享', D.share ? () => D.share(n.r) : nope), act('folder', '移动', D.move ? () => D.move([n.r]) : nope), act('trash', '删除', D.del ? () => D.del(n.r) : nope, true)),
+        h('div.pk-ctx__menu', h('div.pk-ctx__acts', act('share', '共享', D.share ? () => D.share(n.r) : nope), act('folder', '移动', D.move ? () => D.move([n.r]) : nope), act('trash', '删除', D.del ? () => D.del(n.r, w) : nope, true)),
           n.k !== '已删' && n.r ? line('pin', n.r[7] ? '取消置顶备忘录' : '置顶备忘录', () => pin(n.r, w)) : null,
           line('note', '复制备忘录', () => navigator.clipboard.writeText([n.t, ...lines(n)].filter(Boolean).join('\n')).then(() => toast('已复制'), () => toast('复制不了')))));
       L.append(ov); trs(ov); };

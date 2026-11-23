@@ -9,7 +9,7 @@ import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js'
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
 import { log } from '../../core/log.js';
-import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText } from '../chat/engine.js';
+import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
 
@@ -49,7 +49,7 @@ const form = (n, c, l) => FORMS[n].replace(/＃/g, '').replace(/※([^｜\n]*)/g
 const TRC = Object.fromEntries(Object.entries(FORMS).map(([n, t]) => [n, t.split('\n').filter(L => L.includes('｜') && L[0] !== '（').map(L => { const C = L.split('｜'); return [C[0][0] === '＃' ? C[0].slice(1) : '', C.flatMap((x, i) => x[0] === '※' ? [i] : [])]; })]));
 const trCols = (n, r) => ((TRC[n] || []).find(L => L[0] === r[0]) || (TRC[n] || []).find(L => !L[0]) || ['', []])[1];
 // 你和 TA 真在共用的备忘录（你的备忘录 App 里的）：给 AI 看，TA 想接一句就写一行同标题的「共用」，生成完真添进去（make 里）
-const BY = /^([^：:]{1,12})[：:]\s*/, shared = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
+const BY = /^([^：:]{1,12})[：:]\s*/, shared = c => state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id));
 const ourNotes = c => { const L = shared(c), me = myName(); if (!L.length) return '';
   return `\n（${c.name || nameOf(c)} 和 ${me} 已经在共用下面这几张，${me} 写的 TA 都看过了。TA 想回一句、接着记，就写一行：共用｜那张前面的编号｜日期｜${me}｜TA 新添的那一两行。已有的不用再抄，没想添的就不写）\n`
     + L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').map(x => { const [o, z] = takeTr(x), by = BY.exec(o); return z ? (by ? by[0] : '') + z : o; }).join('\n')}`).join('\n'); };

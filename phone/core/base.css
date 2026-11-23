@@ -393,3 +393,5 @@ canvas.as-layer { position: absolute; inset: 0; width: 100%; height: 100%; displ
 .as-wb__more pre { max-height: 220px; overflow: auto; overscroll-behavior: contain; margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--as-color-surface-2); font: 13px/1.55 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
 .as-wb__more textarea { max-height: 260px; font-size: 13px; line-height: 1.55; }
 .as-wb__back { justify-self: end; padding: 2px 0; border: 0; background: none; color: var(--as-color-accent); font-size: 13px; cursor: pointer; }
+
+.as-actions.is-many .as-actions__item:not(.is-active) > svg { visibility: hidden; }   /* 多选的：没勾的不出勾 */

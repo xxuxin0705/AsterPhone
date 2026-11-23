@@ -355,6 +355,16 @@ export function actionSheet(title, options) {
   });
 }
 
+/** 能多选的底部菜单：点一项勾上 / 取消，「完成」交回勾着的那些（value 的数组）；没点完成就关掉是 null */
+export function pickSheet(title, options) {
+  return new Promise(res => {
+    let done = false; const on = new Set(options.filter(o => o.active).map(o => o.value));
+    const s = sheet({ title, content: h('div.as-actions.is-many', options.map(o => { const b = h('button.as-actions__item' + (on.has(o.value) ? '.is-active' : ''), {
+      onclick: () => { on.has(o.value) ? on.delete(o.value) : on.add(o.value); b.classList.toggle('is-active', on.has(o.value)); } }, h('span', o.label), icon('check', 18, 2)); return b; }),
+    h('button.as-actions__cancel', { onclick: () => { done = true; s.close(); res([...on]); } }, '完成')), onClose: () => { if (!done) res(null); } });
+  });
+}
+
 /** 设图片（头像、背景、封面）：从相册选（选完拖一拖、捏一捏框出要的那块）/ 填图片链接 / 恢复默认。
  *  ratio = 宽 ÷ 高（'screen' 就是手机屏幕的比例），size = 存下来的长边像素，png = 留透明。返回图片（dataURL 或链接）；'' 是恢复默认；null 是没改 */
 export async function pickImage(title, { ratio = 1, size = 320, has = false, png = false } = {}) {

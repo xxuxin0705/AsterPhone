@@ -2,13 +2,13 @@
 // 一条存成一行（和 AI 写的 TA 的备忘录同一个样子）：[便签 / 清单 / 共用, 标题, 年/月/日 时:分, 文件夹（共用的是那个人的名字）, 正文（// 分行）, 共用的人的 id]
 import { h } from '../../core/util.js';
 import { state, commit, contact, friends, kvDel } from '../../core/store.js';
-import { icon, dialog, actionSheet } from '../../core/ui.js';
+import { icon, dialog, actionSheet, pickSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
 import { liveTr, myOut, myLang, langName } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
-import { nameOf } from '../chat/engine.js';
+import { nameOf, sharedWith } from '../chat/engine.js';
 import { VIEWS, iosPage, gone, ink } from '../peek/apps.js';
 import { draw } from './draw.js';
 
@@ -33,28 +33,29 @@ const D = {
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
     rs.forEach(r => { N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); }); save(); fresh(); },
-  draw: (r, L = r[4].split('//').filter(Boolean).map(x => x.slice(pre(x, r).length))) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); r[9] = 0; save(); fresh(); }),   // 第十格：TA 看过这张画没有（画改了就再给 TA 看）
+  draw: (r, L = r[4].split('//').filter(Boolean).map(x => x.slice(pre(x, r).length))) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); r[9] = ''; save(); fresh(); }),   // 第十格：哪几个人看过这张画（画改了就再给大家看）
   // 挪到哪个文件夹：「新建文件夹」起个名字就挪进去；共用的不在文件夹里，不挪
   move: async rs => { const fs = [...new Set(N().filter(r => r[0] !== '共用' && r[3]).map(r => r[3]))];
     let v = await actionSheet('选择文件夹', [{ value: '+', label: '新建文件夹' }, { value: '·', label: '备忘录' }, ...fs.map(f => ({ value: f, label: f }))]); if (!v) return false;
     if (v === '+') { v = (await dialog({ title: '新建文件夹', input: { placeholder: '名称' }, confirm: '好' }) || '').trim(); if (!v) return false; }
     rs.filter(r => r[0] !== '共用').forEach(r => { r[3] = v === '·' ? '' : v; }); save(); fresh(); },
-  // 和谁共用：选了人，这条就成了你俩一起记的（每行前面标着谁写的）；不共用就变回自己的
-  share: async r => { const who = await actionSheet('和谁共用', [{ value: 'off', label: '不共用', active: r[0] !== '共用' }, ...friends().map(c => ({ value: c.id, label: nameOf(c), active: r[5] === c.id }))]); if (!who) return;
-    const me = myName() + '：', L = r[4].split('//').filter(Boolean), c = contact(who);
-    if (c) { r[4] = L.map(x => named(r, x) ? x : me + x).join('//'); r[0] = '共用'; r[3] = nameOf(c); r[5] = c.id; }
+  // 和谁共用：能选好几个人，选了这条就成了一起记的（每行前面记着谁写的，看的时候按人上色）；一个都不选就变回自己的
+  share: async r => { const S = await pickSheet('和谁共用', friends().map(c => ({ value: c.id, label: nameOf(c), active: sharedWith(r).includes(c.id) }))); if (!S) return;
+    const me = myName() + '：', L = r[4].split('//').filter(Boolean), cs = S.map(contact).filter(Boolean);
+    if (cs.length) { if (r[0] !== '共用') { r[4] = L.map(x => named(r, x) ? x : me + x).join('//'); r[11] ||= 'me'; } r[0] = '共用'; r[3] = cs.map(nameOf).join('、'); r[5] = cs.map(c => c.id).join(','); }
     else if (r[0] === '共用') { r[4] = L.map(x => x.replace(/^[^：:]{1,12}[：:]\s*/, '')).join('//'); r[0] = kind(r[4]); r[3] = ''; r[5] = ''; r[6] = 0; }
     save(); fresh(); },
 };
 const kind = body => /(^|\/\/)\s*[○√]/.test(body) ? '清单' : '便签';
-const named = (r, x) => [myName(), r[3]].some(n => n && x.startsWith(n + '：'));
+const folk = r => [myName(), ...String(r[3] || '').split('、')].filter(Boolean);   // 共用的几个人的名字（第四格几个人用「、」隔开）
+const named = (r, x) => folk(r).some(n => x.startsWith(n + '：'));
 // 外语的行存成「外文[翻译：中文]」（「译」能换）：改的时候摆中文，没动过的行原样留着，改了、新写的按映像里我说的语言重翻
 // 一行前面不翻的那截：共用的「谁：」、清单的 ○ √、「划掉：」（只认我们自己加的，外文里本来有的冒号不算）
 const TR = /\s*\[翻译：([^\]]*)\]/;
-const pre = (x, r) => { const n = r[0] === '共用' && [myName(), r[3]].find(n => n && x.startsWith(n + '：')), a = n ? n.length + 1 : 0; return x.slice(0, a + /^([○√]\s*)?(划掉[:：]\s*)?/.exec(x.slice(a))[0].length); };
+const pre = (x, r) => { const n = r[0] === '共用' && folk(r).find(n => x.startsWith(n + '：')), a = n ? n.length + 1 : 0; return x.slice(0, a + /^([○√]\s*)?(划掉[:：]\s*)?/.exec(x.slice(a))[0].length); };
 const cn = (x, r) => { const m = TR.exec(x); return m ? pre(x, r) + m[1] : x; };
 // 改的时候看到的：共用的不带「谁：」（谁写的看颜色），存的时候没动过的照原样、新写的算你的
-const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = [myName(), r[3]].find(n => n && y.startsWith(n + '：')))) y = y.slice(n.length + 1); return y; };   // 以前存的翻译那半有时也带着名字
+const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = folk(r).find(n => y.startsWith(n + '：')))) y = y.slice(n.length + 1); return y; };   // 以前存的翻译那半有时也带着名字
 // 写一条：标题一行，正文一格（一行就是一行）；返回就存好，两格都空着的不留
 function edit(r) {
   const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave;

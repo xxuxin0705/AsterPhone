@@ -218,11 +218,16 @@ export async function autoInk(c) {
   const top = B.reduce((a, b) => (b[3] > a[3] ? b : a));
   c.inkAuto = [k, top[3] ? '#' + top.slice(0, 3).map(y => Math.round(y / top[3]).toString(16).padStart(2, '0')).join('') : colorFor(nameOf(c))]; commit('contacts'); return true;
 }
-/** 你和 TA 的两个颜色：太像（色相差不到 40 度，或者都是灰的）就把 TA 的转到对面去，一眼分得清 */
-export function twoInks(c) {
-  const a = inkOf(state.me), b = inkOf(c), [h1, s1] = hsv(a), [h2, s2, v2] = hsv(b), gap = Math.abs(h1 - h2) % 360;
-  const near = s1 < .2 === s2 < .2 && (s1 < .2 || Math.min(gap, 360 - gap) < 40);
-  return [a, near ? `hsl(${(h2 + 180) % 360} ${s2 < .2 ? 60 : Math.round(s2 * 80)}% ${Math.round(Math.min(.6, v2 / 255) * 100)}%)` : b];
+/** 共用的几个人各自的颜色：[你, 第一个人, 第二个人…]。和前面谁太像（色相差不到 40 度，或者都是灰的）就把这个人的转开一截，一眼分得清 */
+let nx = null;
+const toHex = c => { nx ||= document.createElement('canvas').getContext('2d'); nx.fillStyle = '#000'; nx.fillStyle = c; return nx.fillStyle; };
+const near = (a, b) => { const [h1, s1] = hsv(a), [h2, s2] = hsv(b), gap = Math.abs(h1 - h2) % 360; return s1 < .2 === s2 < .2 && (s1 < .2 || Math.min(gap, 360 - gap) < 40); };
+export function inksFor(cs) {
+  const out = [inkOf(state.me)];
+  for (const c of cs) { const k0 = inkOf(c), [h, sa, v] = hsv(k0); let k = k0;
+    for (let t = 1; t < 6 && out.some(o => near(o, k)); t++) k = toHex(`hsl(${(h + 180 + (t - 1) * 60) % 360} ${sa < .2 ? 60 : Math.round(sa * 80)}% ${Math.round(Math.min(.6, v / 255) * 100)}%)`);
+    out.push(k); }
+  return out;
 }
 export function myAvatarIn(chat) { return (chat && chat.cfg.myAvatar) || myAvatar(); }
 
@@ -322,7 +327,10 @@ const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, me
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
 // 印象色：TA 第一次在共用的备忘录里回你时顺便定的（不另外找 AI），定了就一直用；映像里能改（改了的优先）
 const INK = /^[ \t]*[\[【]\s*印象色\s*[\]】][ \t]*(#[0-9a-fA-F]{6})[ \t]*$/m;
-const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && r[5] === c.id);
+const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id));
+// 共用的备忘录：第六格是和谁共用（几个人用逗号隔开的 id），第十二格是谁建的（me 或 TA 的 id），第十格是哪几个人看过那张画
+export const sharedWith = r => String(r[5] || '').split(',').filter(Boolean);
+const sawInk = r => (r[9] === 1 ? sharedWith(r) : String(r[9] || '').split(',').filter(Boolean));
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
@@ -331,11 +339,11 @@ export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要�
   const self = new RegExp(`^\\s*(${[c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).map(escRe).join('|')})\\s*[:：]\\s*`);   // AI 自己在前面又写了一遍名字：去掉，不然成了「名字：名字：」
   let [o, z] = takeTr(x.trim()).map(y => y && y.replace(self, '')); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
   const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = noteOf(c, t);
-  if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id, 1]);
+  if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else { const n = ['共用', t.trim(), now, nameOf(c), line, c.id, 1]; n[11] = c.id; state.notes.push(n); }
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => `${i + 1}.《${r[1]}》\n${r[4].split('//').join('\n')}`).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => { const also = r[3].split('、').filter(n => n !== nameOf(c)); return `${i + 1}.《${r[1]}》${also.length ? `（还和 ${also.join('、')} 一起记）` : ''}\n${r[4].split('//').join('\n')}`; }).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
@@ -376,11 +384,11 @@ export async function requestReply(chat, opts = {}) {
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
-    // 共用的备忘录里你新画的（第十格还没标看过）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
-    const pics = c ? sharedNotes(c).filter(r => r[8] && !r[9]) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
+    // 共用的备忘录里你新画的（第十格里还没有 TA）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
+    const pics = c ? sharedNotes(c).filter(r => r[8] && !sawInk(r).includes(c.id)) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
     const images = await Promise.all(pics.map(async r => ({ text: `（${myName()} 在你们共用的备忘录《${takeTr(r[1] || r[4].split('//')[0])[0]}》里画的，看看画的什么，想回应就自然地说）`, url: await inkPic(r[8]).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) }))).then(L => L.filter(i => i.url));
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal, images });
-    if (pics.length) { pics.forEach(r => { r[9] = 1; }); commit('notes'); }
+    if (pics.length) { pics.forEach(r => { r[9] = [...sawInk(r), c.id].join(','); }); commit('notes'); }
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
     const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; });

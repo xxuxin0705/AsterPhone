@@ -6,7 +6,7 @@ import { kvGet, kvSet, contact, friends, win, state } from '../../core/store.js'
 import { myName } from '../../core/promptstore.js';
 import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
-import { nameOf } from '../chat/engine.js';
+import { nameOf, sharedWith } from '../chat/engine.js';
 import { FORMS, load, make, pickApps, running, setWall, S, speakIn, relangPeek } from './gen.js';
 import { VIEWS, RAW, trs, trBtn, setView, pull } from './apps.js';
 import { setup } from './setup.js';
@@ -123,7 +123,7 @@ export function open() {
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
     // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
     // 你和 TA 共用的备忘录（你自己的备忘录 App 里选了和 TA 共用的）：TA 手机里也有同一张，那边写着是和你共用
-    const ours = n => n === '备忘录' ? state.notes.filter(r => r[0] === '共用' && r[5] === c.id).map(r => ['共用', r[1], r[2], myName(), r[4]]) : [];
+    const ours = n => n === '备忘录' ? state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id)).map(r => Object.assign(['共用', r[1], r[2], myName(), r[4], r[5]], { 11: r[11] })) : [];
     const has = n => D.apps[n] || (n === '消息' && D.real.length) || (n === '短信' && D.sms) || (n === '电话' && D.calls.length) || ours(n).length;
     const body = n => () => has(n) ? VIEWS[n]([...((D.apps[n] || {}).rows || []), ...ours(n)], sub(n), D, pop) : none(n);
     show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), RAW.includes(name) && has(name) ? 'is-raw' : 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
