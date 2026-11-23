@@ -157,11 +157,13 @@ function postMenu(p) {
   } }, icon('down', 16, 1.6));
 }
 function editPost(p) {
-  const nt = noTitle() && p.title, title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: nt ? p.title + '\n' + p.text : p.text, rows: 6, placeholder: '正文' }), from = fromChip(p.dev);
-  editSheet('编辑', [noTitle() ? null : field('标题', title), field('正文', body), field('来自', from)].filter(Boolean), () => {
+  // 发成外语的帖子：改的是中文那份，改了按映像里我说的语言重翻
+  const zh = p.tr || p.text, nt = noTitle() && p.title, title = input({ value: p.title || '', placeholder: '标题' }), body = textarea({ value: nt ? p.title + '\n' + zh : zh, rows: 6, placeholder: '正文' }), from = fromChip(p.dev);
+  editSheet('编辑', [noTitle() ? null : field('标题', title), field('正文', body), field('来自', from), liveTr(body).box].filter(Boolean), () => {
     const t = body.value.trim(); if (!t) { toast('写点什么'); return false; }
-    p.title = noTitle() ? '' : title.value.trim().slice(0, 40); p.dev = from.value; if (t !== p.text) { p.text = t; p.tr = ''; }
-    E.save(); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.replaceWith(card(p, a.classList.contains('is-full')))); applyTexts();
+    p.title = noTitle() ? '' : title.value.trim().slice(0, 40); p.dev = from.value;
+    (t === zh ? Promise.resolve() : myOut(t).then(([x, z]) => { p.text = x; p.tr = z; })).then(() => {
+      E.save(); document.querySelectorAll(`article.as-fo-post[data-id="${p.id}"]`).forEach(a => a.replaceWith(card(p, a.classList.contains('is-full')))); applyTexts(); });
   });
 }
 /** 置顶：一个号只置顶一条；主页上挪到最前面，只换这几张卡片 */

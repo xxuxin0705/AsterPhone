@@ -362,6 +362,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-nt__lines { flex: none; } .pk-nt__pill button.is-ink { color: inherit; }
 /* 你自己的备忘录：写的那一页，标题一行、正文一格，样子和看的时候一样 */
 .pk-nt__t, .pk-nt__ta { flex: none; box-sizing: border-box; width: 100%; border: 0; outline: 0; background: none; padding: 0 20px; color: var(--pk-ink); font-family: inherit; -webkit-appearance: none; appearance: none; }
+.pk-nt__ta + .as-livetr { flex: none; margin: 8px 20px 12px; font-size: 15px; }
 .pk-nt__t { margin: 2px 0 14px; font-size: 28px; font-weight: 700; line-height: 1.2; } .pk-nt__ta { min-height: 200px; resize: none; overflow: hidden; font-size: 17px; line-height: 1.5; }
 .pk-nt__t::placeholder, .pk-nt__ta::placeholder { color: var(--pk-sub); opacity: .6; }
 .pk-nt .pk-unlock, .pk-nt .pk-moods { flex: none; margin-left: 20px; margin-right: 20px; }

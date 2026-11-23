@@ -4,6 +4,7 @@ import { h } from '../../core/util.js';
 import { state, commit, contact, friends } from '../../core/store.js';
 import { icon, dialog, actionSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
+import { liveTr, myOut, myLang } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
@@ -36,22 +37,31 @@ const D = {
 };
 const kind = body => /(^|\/\/)\s*[○√]/.test(body) ? '清单' : '便签';
 const named = (r, x) => [myName(), r[3]].some(n => n && x.startsWith(n + '：'));
+// 外语的行存成「外文[翻译：中文]」（「译」能换）：改的时候摆中文，没动过的行原样留着，改了、新写的按映像里我说的语言重翻
+// 一行前面不翻的那截：共用的「谁：」、清单的 ○ √、「划掉：」（只认我们自己加的，外文里本来有的冒号不算）
+const TR = /\s*\[翻译：([^\]]*)\]/;
+const pre = (x, r) => { const n = r[0] === '共用' && [myName(), r[3]].find(n => n && x.startsWith(n + '：')), a = n ? n.length + 1 : 0; return x.slice(0, a + /^([○√]\s*)?(划掉[:：]\s*)?/.exec(x.slice(a))[0].length); };
+const cn = (x, r) => { const m = TR.exec(x); return m ? pre(x, r) + m[1] : x; };
 // 写一条：标题一行，正文一格（一行就是一行）；返回就存好，两格都空着的不留
 function edit(r) {
   const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave;
-  const t = h('input.pk-nt__t', { value: r[1], placeholder: '标题', 'aria-label': '标题' }), ta = h('textarea.pk-nt__ta', { placeholder: '写点什么', 'aria-label': '正文', rows: 6 });
-  ta.value = r[4].split('//').join('\n');
+  const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [cn(x, r), x])]);
+  const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), ta = h('textarea.pk-nt__ta', { placeholder: '写点什么', 'aria-label': '正文', rows: 6 });
+  ta.value = r[4].split('//').map(x => cn(x, r)).join('\n');
+  const tr = liveTr(ta);
   const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
   // 清单键：光标在的那一行前面加一个 ○，已经有就拿掉
   const todo = () => { const i = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1, m = /^[○√] ?/.exec(ta.value.slice(i)); ta.setRangeText(m ? '' : '○ ', i, i + (m ? m[0].length : 0), 'end'); grow(); ta.focus(); };
   ta.addEventListener('input', grow);
-  el._onLeave = () => { off();
+  el._onLeave = async () => { off();
     const L = ta.value.split('\n').map(x => x.trim()).filter(Boolean), old = r[1] + '|' + r[4];
-    r[1] = t.value.trim() || (L.shift() || '').replace(/^[○√]\s*/, ''); r[4] = L.map(x => r[0] === '共用' && !named(r, x) ? myName() + '：' + x : x).join('//');
+    const out = async x => { if (was.has(x)) return was.get(x); if (!myLang()) return x; const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
+    const title = t.value.trim() || (L.shift() || '').replace(/^[○√]\s*/, '');
+    r[1] = title && await out(title); r[4] = (await Promise.all(L.map(x => out(r[0] === '共用' && !named(r, x) ? myName() + '：' + x : x)))).join('//');
     if (r[0] !== '共用') r[0] = kind(r[4]);
     if (!r[1] && !r[4]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
     save(); fresh(); };
-  body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, ta,
+  body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, ta, tr.box,
     h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), h('i')));
   nav.push(el); requestAnimationFrame(grow); (r[1] ? ta : t).focus({ preventScroll: true });
 }

@@ -301,7 +301,7 @@ const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要带中文（AI 没写就机翻补上），备忘录里点「译」才换得过来
   let [o, z] = takeTr(x.trim()); if (!z && speakOf(c.id)) z = (await zhOf([o]))[0];
-  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim());
+  const line = `${nameOf(c)}：${z ? `${o}[翻译：${z}]` : o}`, now = time.stampText(time.stamp()), r = sharedNotes(c).find(r => r[1] === t.trim() || takeTr(r[1]).includes(t.trim()));   // 标题翻成外语的，写中文那半也认
   if (r) { r[4] += (r[4] ? '//' : '') + line; r[2] = now; r[6] = 1; } else state.notes.push(['共用', t.trim(), now, nameOf(c), line, c.id, 1]);
   commit('notes'); shell.refreshBadges();
 }

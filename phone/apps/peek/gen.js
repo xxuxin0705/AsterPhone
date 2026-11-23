@@ -58,7 +58,7 @@ async function toOurs(c, rows) {
   const me = myName(), ta = [c.name, nameOf(c)], keep = []; let n = 0;
   for (const r of rows) {
     if (r[0] !== '共用' || (r[3] || '').trim() !== me) { keep.push(r); continue; }
-    const tt = takeTr(r[1]), old = shared(c).find(x => tt.includes(x[1])), t = old ? old[1] : r[1];
+    const tt = takeTr(r[1]), old = shared(c).find(x => tt.includes(x[1]) || takeTr(x[1]).some(y => y && tt.includes(y))), t = old ? old[1] : r[1];
     for (const line of (r[4] || '').split(/(?<!:)\/\//)) {
       let [o, z] = takeTr(line.trim()); const by = BY.exec(z || o), who = by && by[1].trim();
       if (!o || who === me) continue;
