@@ -126,10 +126,15 @@ const seg = p => { const m = ORIG.exec(p), fig = /^\s*[[［【][图図][:：]\s*
   if (!m) return p;
   const a = m[1].trim(), q = (/^\s*([>＞》]\s*)/.exec(p) || ['', ''])[1];   // 引用那段，原文那版也要带「>」
   return `${q && !/^[>＞》]/.test(a) ? q : ''}${a}[翻译：${(p.slice(0, m.index) + p.slice(m.index + m[0].length)).trim()}]`; };
+// AI 有时把分了 // 的几段只在最后附一整个 [原文：…]（里面也用 // 分）：先拆成每段各带一个，不然按 // 一切，括号被切成半截，后面全乱了。
+// 段数对不上就并成一段（不分行也比乱掉强）
+const perOrig = s => { const m = (s.match(/[[［【]原文[:：]/g) || []).length === 1 && /^([\s\S]*?)\s*[[［【]原文[:：]\s*([\s\S]*)[\]］】]\s*$/.exec(s), cut = x => x.split(/(?<!:)\/\//);
+  if (!m || cut(m[2]).length < 2) return s;
+  const A = cut(m[1]), Z = cut(m[2]); return A.length === Z.length ? A.map((x, i) => `${x}[原文：${Z[i]}]`).join('//') : `${A.join(' ')}[原文：${Z.join(' ')}]`; };
 async function toOrig(got, say) {
   const lone = [];
   for (const [n, rows] of Object.entries(got)) for (const r of rows) { const tc = trCols(n, r);
-    r.forEach((v, i) => { if (typeof v !== 'string' || !v) return; const S = r[i] = v.split(/(?<!:)\/\//).map(seg);
+    r.forEach((v, i) => { if (typeof v !== 'string' || !v) return; const S = r[i] = perOrig(v).split(/(?<!:)\/\//).map(seg);
       if (tc.includes(i)) S.forEach((p, k) => { if (/\p{L}/u.test(p) && !/[[［【]翻译[:：]/.test(p)) lone.push([S, k]); }); }); }
   if (lone.length) { say(lone.length); (await zhOf(lone.map(([S, k]) => S[k]))).forEach((z, i) => { if (z) lone[i][0][lone[i][1]] += `[翻译：${z}]`; }); }
   for (const rows of Object.values(got)) for (const r of rows) r.forEach((v, i) => { if (Array.isArray(v)) r[i] = v.join('//'); });
