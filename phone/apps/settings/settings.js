@@ -13,9 +13,9 @@ import * as walls from '../../core/walls.js';
 import { importClockFont, removeClockFont, userFonts, hanFonts, fontKey, fontName } from '../../core/fonts.js';
 import { themeName } from '../../core/skin.js';
 import { LANGS, langName, relang } from '../../core/translate.js';
-import { tavernRegex, regexed } from '../../core/regex.js';
+import { tavernRegex, regexed, myRegex } from '../../core/regex.js';
 
-export const VERSION = '0.8.644';
+export const VERSION = '0.8.645';
 export const FABS = [['forest', '森林小芽'], ['candy', '糖果'], ['ocean', '海洋'], ['sunflower', '向日葵'], ['neon', '霓虹'], ['iphone', 'iPhone'],
   ['ancient', '古风'], ['xianxia', '仙侠'], ['magic', '魔法'], ['steampunk', '蒸汽朋克'], ['retro', '复古游戏机'], ['autumn', '秋日']];
 const MODE_LABEL = { day: '日间', night: '夜间', auto: '跟随系统' };
@@ -63,7 +63,7 @@ export function open() {
         item({ icon: 'grid', color: 'purple', title: '应用管理', chevron: true, onClick: openApps }),
         item({ icon: 'note', color: 'teal', title: '提示词', chevron: true, onClick: openPrompts }),
         item({ icon: 'style', color: 'pink', title: '预设', chevron: true, onClick: () => import('./presets.js').then(m => m.openPresets(sub)) }),
-        item({ icon: 'edit', color: 'orange', title: '正则', value: (S().regex || []).length ? `用了 ${S().regex.length} 条` : '', chevron: true, onClick: openRegex }),
+        item({ icon: 'edit', color: 'orange', title: '正则', value: (S().regex || []).length + myRegex().filter(r => r.on !== false).length ? `用了 ${(S().regex || []).length + myRegex().filter(r => r.on !== false).length} 条` : '', chevron: true, onClick: openRegex }),
       ]),
       group('', [
         item({ icon: 'palette', color: 'orange', title: '显示', value: MODE_LABEL[S().mode], chevron: true, onClick: openLook }),
@@ -653,13 +653,24 @@ function openLang() {
 const TONE_LABEL = { ding: '叮', dong: '咚', pop: '啵', twin: '叮咚' };
 // 正则：酒馆里管「AI 输出」的那几条，勾上的在手机里也用（core/regex.js）；底下打一句话马上看换完的样子
 function openRegex() {
-  sub('regex', withInfo('正则', '用的是酒馆「扩展 → 正则」里的。勾上的，手机里 AI 写的字和翻译一收到就照着换，存下来的就是换过的；之后关掉，已经换过的不会变回去。'), body => {
+  sub('regex', withInfo('正则', '酒馆「扩展 → 正则」里的可以勾上用，也可以自己加「找什么 → 换成什么」。开着的，手机里 AI 写的字和翻译一收到就照着换，存下来的就是换过的；之后关掉，已经换过的不会变回去。'), (body, re) => {
     const L = tavernRegex(), on = () => (S().regex ||= []);
-    const out = h('div.as-regex-out'), ta = textarea({ placeholder: '试用', rows: 3, onInput: v => { out.textContent = regexed(v); } });
-    body.append(L.length ? group('', L.map(s => toggleItem({ title: s.scriptName || s.findRegex, sub: s.from }, on().includes(s.id), v => {
-      S().regex = v ? [...on(), s.id] : on().filter(x => x !== s.id); commit('settings'); out.textContent = regexed(ta.value); })))
-      : empty(inTavern() ? '酒馆里还没有管「AI 输出」的正则' : '不在酒馆里，读不到正则'),
+    const out = h('div.as-regex-out'), ta = textarea({ value: S().regexTry || '', placeholder: '试用', rows: 3, onInput: v => { S().regexTry = v; out.textContent = regexed(v); } });
+    const fresh = () => { commit('settings'); out.textContent = regexed(ta.value); };
+    // 自己加的一条：点开改「找什么 / 换成什么」，或者删掉
+    const edit = r => { const isNew = !r, d = r || { id: 'rx' + Date.now(), find: '', to: '' };
+      const find = input({ value: d.find, placeholder: '找什么' }), to = input({ value: d.to, placeholder: '换成什么' });
+      const s = sheet({ title: isNew ? '加一条' : '改一条', content: h('div.as-stack-gap', field('找什么', find), field('换成什么', to),
+        isNew ? null : btn('删除', 'danger', () => { S().myRegex = myRegex().filter(x => x !== r); fresh(); s.close(); re(); }),
+        h('div.as-prompt-bar', btn('取消', 'secondary', () => s.close()), btn('保存', 'primary', () => {
+          if (!find.value) { toast('「找什么」要填'); return; }
+          Object.assign(d, { find: find.value, to: to.value }); if (isNew) myRegex().push(d); fresh(); s.close(); re(); }))) }); };
+    body.append(group('酒馆里的', L.length ? L.map(s => toggleItem({ title: s.scriptName || s.findRegex, sub: s.from }, on().includes(s.id), v => {
+      S().regex = v ? [...on(), s.id] : on().filter(x => x !== s.id); fresh(); })) : [item({ title: inTavern() ? '酒馆里没有管「AI 输出」的正则' : '读不到酒馆的正则' })]),
+      group('自己加的', [...myRegex().map(r => item({ title: `${r.find} → ${r.to || '（删掉）'}`, onClick: e => { if (!e.target.closest('.as-switch')) edit(r); },
+        right: switchEl(r.on !== false, v => { r.on = v; fresh(); }, r.find) })), item({ title: '+ 加一条', onClick: () => edit() })]),
       group('试用', [h('div.as-field', ta, out)]));
+    out.textContent = regexed(ta.value);
   });
 }
 function openNotify() {

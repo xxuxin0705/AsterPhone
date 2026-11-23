@@ -19,9 +19,11 @@ export function runOne(s, text) {
   return text.replace(re, (...a) => { const g = typeof a.at(-1) === 'object' ? a.at(-1) : null;
     return (s.replaceString || '').replace(/{{match}}/gi, '$0').replace(/\$(\d+)|\$<([^>]+)>/g, (_, n, k) => trim((n ? a[+n] : g?.[k]) || '')); });
 }
-/** 设置里勾了的那几条，按酒馆里的顺序一条条过 */
+/** 自己加的：「找什么 → 换成什么」，照字找（不用会正则），Tauri 那边读不到酒馆正则也能用 */
+export const myRegex = () => (state.settings.myRegex ||= []);
+/** 设置里勾了的酒馆正则按酒馆里的顺序过一遍，再过自己加的 */
 export function regexed(text) {
-  const on = state.settings.regex;
-  if (!on?.length || typeof text !== 'string' || !text) return text;
-  return tavernRegex().filter(s => on.includes(s.id)).reduce((t, s) => runOne(s, t), text);
+  const on = state.settings.regex || [], mine = myRegex().filter(r => r.on !== false && r.find);
+  if ((!on.length && !mine.length) || typeof text !== 'string' || !text) return text;
+  return mine.reduce((t, r) => t.split(r.find).join(r.to || ''), tavernRegex().filter(s => on.includes(s.id)).reduce((t, s) => runOne(s, t), text));
 }
