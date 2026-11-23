@@ -13,7 +13,10 @@ const face = (name, url) => h('i.pk-face', url ? { style: { backgroundImage: `ur
 // 这几个图标公共那套里没有（听筒、钟、九宫格、三条线、小云朵）：自己描的线条，借 icon() 的壳换一条路径
 const G = { call: 'M7.2 5.2C5.5 10 14 18.5 18.8 16.8', clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7.5V12l3 2', lines: 'M4 7h16M7 12h10M10 17h4',
   pad: 'M6 5h.01M12 5h.01M18 5h.01M6 11h.01M12 11h.01M18 11h.01M6 17h.01M12 17h.01M18 17h.01',
-  cloud: 'M7.5 15.5h9a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 7.4 8a3.75 3.75 0 0 0 .1 7.5zM6 19.2h.01M3.8 21.4h.01' };
+  cloud: 'M7.5 15.5h9a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 7.4 8a3.75 3.75 0 0 0 .1 7.5zM6 19.2h.01M3.8 21.4h.01',
+  // 备忘录里的：文件夹、分享、三个点、清单、回形针、圈里一支笔
+  folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2h9A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z', share: 'M12 15V3.5M8 7l4-3.5L16 7M7 11H5.5v9.5h13V11H17', more: 'M5 12h.01M12 12h.01M19 12h.01',
+  todo: 'M5.5 8.3a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5.5 17.3a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 6.3h9.5M11 15.3h6', clip: 'M19 11.5 12.5 18a4 4 0 0 1-5.7-5.7l7-7a2.7 2.7 0 0 1 3.8 3.8l-6.9 6.9a1.3 1.3 0 0 1-1.9-1.9l6-6', pen: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.6 16 12 7.5l3.4 8.5M9.9 13.2h4.2' };
 // 实心的：听筒、钟、小人、九个点（标签栏、拨打键用）、播放键（Safari 里的视频）。.cut 是挖空的那几笔，颜色跟着页面底色
 const F = { call: '<path d="M6.3 3.2c.9-.4 1.9 0 2.3.9l1.3 2.9c.4.8.1 1.8-.6 2.3l-1.4 1c1 2.2 2.8 4 5 5l1-1.4c.5-.7 1.5-1 2.3-.6l2.9 1.3c.9.4 1.3 1.4.9 2.3l-.6 1.4c-.6 1.3-2 2.1-3.4 1.8C9.4 18.9 5.1 14.6 3.8 8.3c-.3-1.4.5-2.8 1.8-3.4z"/>',
   clock: '<circle cx="12" cy="12" r="10.5"/><path class="cut" d="M12 6.6V12H7.4" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -119,7 +122,7 @@ const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setA
 export const ava = (name, url) => h('i.pk-ava', url ? { style: { backgroundImage: `url("${url}")` } } : null);
 const ABC = ['', 'ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ', '', '+', ''];
 /** 整页自己画的应用（不要公共的标题栏） */
-export const RAW = ['短信', '消息', '电话', '搜索', '相册'];
+export const RAW = ['短信', '消息', '电话', '搜索', '相册', '备忘录'];
 const of = (R, k) => R.filter(r => r[0] === k);
 // 一排分段按钮：点了只换下面那一块
 function tabs(names, show) {
@@ -251,14 +254,48 @@ export const VIEWS = {
   },
   屏幕使用时间: R => { const max = Math.max(...R.map(r => +r[1] || 0), 1), all = R.reduce((a, r) => a + (+r[1] || 0), 0), hm = m => (m >= 60 ? Math.floor(m / 60) + ' 小时 ' : '') + (m % 60) + ' 分钟';
     return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
-  // 备忘录：最上面一张上了锁的「只给自己看」（心声和情绪），下面是便签。以前存过的涂鸦不显示了
-  备忘录: (R, push) => {
-    const notes = R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r => r[0] === '便签' ? r.slice(1) : r), heart = R.find(r => r[0] === '心声');
-    const note = ([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') }, h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' ')));
-    return [heart ? list(h('button.pk-row.pk-locked', { onclick: () => push('只给自己看', [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'),
-      h('div.pk-moods', (heart[1] || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => h('span', x))), ...(heart[2] || '').split('//').map(x => h('p', x.trim()))], 'pk-note') },
-      icon('lock', 18, 2.2), h('b', '只给自己看'), h('span', '已锁定'))) : null,
-      notes.length ? [h('div.pk-day', '便签'), list(notes.map(note))] : null];
+  // 备忘录：照 iPhone 的「备忘录」（作者录的视频）：文件夹 → 这个文件夹里的便签（按多久以前分段）→ 一条便签。
+  // 一行：便签｜标题｜日期｜文件夹｜正文；清单的正文是一样一样的（√ 办了、○ 没办）；草稿第四格是写给谁；心声｜情绪｜话 是上了锁的那条。以前存的便签没有文件夹那一格，涂鸦不显示了
+  备忘录: (R, push, D, pop) => {
+    const now = time.isStory() ? time.story().date : new Date(), TICK = /^([√✓✔☑○◯□☐]|\[[ xX]\])\s*/;
+    const day = t => { const m = DT.exec(t || '') || /()(\d{1,2})[-/.月](\d{1,2})/.exec(t || ''); return m ? new Date(+m[1] || now.getFullYear(), m[2] - 1, +m[3]) : null; };
+    const heart = R.find(r => r[0] === '心声');
+    const notes = [...(heart ? [{ k: '心声', t: '只给自己看', d: '', f: '', moods: heart[1] || '', body: heart[2] || '' }] : []),
+      ...R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r => { const k = ['便签', '清单', '草稿'].includes(r[0]) ? r[0] : ''; if (k) r = r.slice(1);
+        return r.length < 4 ? { k: '便签', t: r[0], d: r[1], f: '', body: r[2] || '' } : { k: k || '便签', t: r[0], d: r[1], f: k === '草稿' ? '' : r[2] || '', to: r[2], body: r[3] || '' }; }).sort((a, b) => (day(b.d) || 0) - (day(a.d) || 0))];
+    const lines = n => n.body.split('//').map(x => x.trim()).filter(Boolean), fo = n => untr(n.f)[0].trim();
+    const sec = n => { const d = day(n.d); if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
+      return ago < 7 ? '过去 7 天' : ago < 30 ? '过去 30 天' : d.getFullYear() === now.getFullYear() ? d.toLocaleDateString('zh-CN', { month: 'long' }) : d.getFullYear() + ' 年'; };
+    const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4));
+    const write = () => h('button.pk-glass.is-round', { 'aria-label': '写备忘录' }, icon('edit', 22, 2));
+    // 这是 TA 的手机：左滑能看到删除，点了不让删
+    const NO = ['这是{n}的手机，删了可就露馅了。', '嘘——只许看，不许动。', '{n}记下这条的时候，可没想过会被别人删掉。', '手收回去。看完原样放好，是偷看的规矩。'];
+    const open = n => { const m = DT.exec(n.d || '');
+      push(n.t, [h('div.pk-top2', back(), h('div.pk-glass.pk-nt__pill', ink('share', 22, 1.9), ink('more', 22, 2.8))),
+        h('time.pk-nt__date', m ? `${m[1]}年${+m[2]}月${+m[3]}日${m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : ''}` : n.d), h('h1', n.t),
+        n.k === '心声' ? [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'), h('div.pk-moods', n.moods.split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => h('span', x)))] : null,
+        n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : null,
+        n.k === '清单' ? lines(n).map(x => h('p.is-todo' + (/^([√✓✔☑]|\[x\])/i.test(x) ? '.is-done' : ''), h('i'), h('span', x.replace(TICK, ''))))
+          : lines(n).map(x => h('p', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v))),
+        h('div.pk-float', h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9)), h('i'), write())], 'is-raw.pk-nt.is-doc'); };
+    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row', { onclick: () => open(n) }, h('b', n.t || '新建备忘录'),
+      h('span', n.d && h('time', when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[0] || '无更多文本').replace(TICK, '')),
+      all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', () => toast(NO[Math.random() * NO.length | 0].replace('{n}', D.name))]]), { _q: (n.t + n.body + n.f).toLowerCase() });
+    // 一个文件夹：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
+    const folder = (name, L, all, focus) => {
+      const head = h('div.pk-top2', back(), h('b', name), h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8))), big = h('h1', name); bigTitle(head, big);
+      const cards = h('div.pk-nt__cards', groupBy(L.map(n => [sec(n), n]), 0).map(([t, G]) => [h('h3', t), h('div.pk-nt__card', G.map(([, n]) => row(n, all)))]));
+      const find = h('input', { type: 'search', placeholder: '搜索', 'aria-label': '搜索', oninput: () => { const q = find.value.trim().toLowerCase();
+        cards.querySelectorAll('.pk-swipe').forEach(w => { w.hidden = !!q && !w._q.includes(q); });
+        cards.querySelectorAll('.pk-nt__card').forEach(c => { c.hidden = c.previousElementSibling.hidden = ![...c.children].some(w => !w.hidden); }); } });
+      push(name, [head, big, cards, h('div.pk-float', h('label.pk-glass.pk-find', icon('search', 22, 2.4), find, icon('mic', 20, 2)), write())], 'is-raw.pk-nt');
+      if (focus) find.focus({ preventScroll: true });
+    };
+    const head = h('div.pk-top2', h('i'), h('b', '文件夹'), h('div.pk-nt__r', h('button.pk-glass.is-round', { 'aria-label': '新建文件夹' }, ink('folder', 22, 1.9)), h('button.pk-glass', '编辑'))), big = h('h1', '文件夹'); bigTitle(head, big);
+    const frow = (name, L, all) => h('button.pk-row', { onclick: () => folder(name, L, all) }, ink('folder', 24, 1.7), h('b', name), h('span', L.length), icon('chevron', 16, 2.2));
+    return [head, big, h('h3.pk-nt__f', 'iCloud', icon('chevron', 15, 2.8)),
+      h('div.pk-nt__card', frow('全部备忘录', notes, true), groupBy(notes.map(n => [fo(n), n]), 0).sort((a, b) => !b[0] - !a[0]).map(([f, G]) => frow(G[0][1].f || '备忘录', G.map(x => x[1])))),
+      h('div.pk-float', h('button.pk-glass.pk-find', { onclick: () => folder('全部备忘录', notes, true, true) }, icon('search', 22, 2.4), h('span', '搜索'), icon('mic', 20, 2)), write())];
   },
   // 搜索：谷歌那样，彩色的字、圆的搜索框、常去的网站，下面分 搜索 / 历史记录 / 收藏夹 / 无痕。
   // 点一条搜索、一个网页，进去就是那一页（文章或视频）；内容都是生成时一起写好的，点开不找 AI
