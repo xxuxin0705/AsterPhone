@@ -362,8 +362,11 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-nt__lines { flex: none; } .pk-nt__pill button.is-ink { color: inherit; }
 /* 你自己的备忘录：写的那一页，标题一行、正文一格，样子和看的时候一样 */
 .pk-nt__t, .pk-nt__ta { flex: none; box-sizing: border-box; width: 100%; border: 0; outline: 0; background: none; padding: 0 20px; color: var(--pk-ink); font-family: inherit; -webkit-appearance: none; appearance: none; }
-.pk-nt__ta + .as-livetr { flex: none; margin: 8px 20px 12px; font-size: 15px; }
-.pk-nt__t { margin: 2px 0 14px; font-size: 28px; font-weight: 700; line-height: 1.2; } .pk-nt__ta { min-height: 200px; resize: none; overflow: hidden; font-size: 17px; line-height: 1.5; }
+.pk-nt__t { margin: 2px 0 14px; font-size: 28px; font-weight: 700; line-height: 1.2; } .pk-nt__ta { display: block; resize: none; overflow: hidden; font-size: 17px; line-height: 1.5; }
+/* 写备忘录：一行一块，译文紧跟在这一行下面（小一号、灰的）；画是单独一块，右上角能删 */
+.pk-nt__blocks { flex: none; min-height: 200px; padding-bottom: 120px; } .pk-nt__b { position: relative; }
+.pk-nt__trl { padding: 0 20px 4px; font-size: 14px; line-height: 1.45; color: var(--pk-sub); } .pk-nt__trl:empty { display: none; }
+.pk-nt__x { position: absolute; top: 14px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: rgb(0 0 0 / .45); color: #fff; cursor: pointer; }
 .pk-nt__t::placeholder, .pk-nt__ta::placeholder { color: var(--pk-sub); opacity: .6; }
 .pk-nt .pk-unlock, .pk-nt .pk-moods { flex: none; margin-left: 20px; margin-right: 20px; }
 /* 备忘录：上锁的心声 */
@@ -464,14 +467,19 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-ph__pop[hidden] { display: none; } .pk-ph__pop p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--pk-sub); text-align: center; }
 .pk-ph__pop button { width: 100%; height: 42px; border: 0; border-radius: 21px; background: var(--pk-fill); color: #ff3b30; font: 600 16px/1 inherit; cursor: pointer; }
 /* 备忘录里画画（apps/memo/draw.js）：画布接在字下面；夜间和 iPhone 一样把黑笔反成白的 */
-.pk-draw__pad { position: relative; flex: none; aspect-ratio: 393 / 520; margin-top: 16px; border-top: .5px solid var(--pk-line); touch-action: none; }
+.pk-draw__pad { position: relative; flex: none; margin: 8px 0; outline: 1px dashed var(--pk-line); outline-offset: -1px; touch-action: none; }
 .pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.pk-nt__ink { flex: none; display: block; width: 100%; margin-top: 16px; }
+.pk-nt__ink { flex: none; display: block; width: 100%; margin: 8px 0; }
+.pk-nt__fig { margin: 0; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
+.pk-nt__fig > small { display: none; margin: 0 20px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); } .is-who > .pk-nt__fig > small { display: inline-block; }
+.pk-nt__key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -6px 20px 12px; font-size: 13px; color: var(--pk-sub); }
+.pk-nt__key span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--c); }
 .is-dark :is(.pk-draw__pad canvas, .pk-nt__ink) { filter: invert(1) hue-rotate(180deg); }
 .pk-nt__row:has(> .pk-nt__thumb) { padding-right: 76px; }
 .pk-nt__row > .pk-nt__thumb { position: absolute; right: 16px; top: 50%; width: 48px; height: 48px; margin-top: -24px; box-sizing: border-box; border-radius: 8px; border: .5px solid var(--pk-line); background: #fff; object-fit: cover; object-position: top; }
-.pk-draw .pk-float { justify-content: center; }
-.pk-draw__bar { height: 76px; padding: 0 26px; gap: 22px; align-items: flex-end; overflow: hidden; cursor: default; }
+.pk-draw__float { justify-content: center; }
+.pk-draw__undo, .pk-draw__ok { align-self: center; flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--pk-ink); cursor: pointer; } .pk-draw__undo:disabled { opacity: .3; } .pk-draw__ok { color: var(--tint); }
+.pk-draw__bar { height: 76px; padding: 0 16px; gap: 16px; align-items: flex-end; overflow: hidden; cursor: default; }
 .pk-draw__tool { border: 0; background: none; padding: 0; width: 24px; height: 66px; cursor: pointer; transform: translateY(20px); transition: transform .2s; }
 .pk-draw__tool.is-on { transform: translateY(4px); }
 .pk-draw__tool i { --body: linear-gradient(90deg, #fff 40%, #d8d8de); display: block; height: 100%; background: linear-gradient(var(--ink) 0 15%, #c7c7cc 15% 30%, transparent 30%), var(--body); clip-path: polygon(50% 0, 100% 34%, 100% 100%, 0 100%, 0 34%); }

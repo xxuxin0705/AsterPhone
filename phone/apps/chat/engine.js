@@ -327,10 +327,21 @@ const keepMem = (chat, batch, mem, people) => mem && fromChat(chat.id, batch, me
 // TA 回复里单独一行「[备忘录] 标题｜内容」就是往里添了一行，没有这个标题就新开一张。搭在本来的回复上，不另外找 AI
 // 印象色：TA 第一次在共用的备忘录里回你时顺便定的（不另外找 AI），定了就一直用；映像里能改（改了的优先）
 const INK = /^[ \t]*[\[【]\s*印象色\s*[\]】][ \t]*(#[0-9a-fA-F]{6})[ \t]*$/m;
-const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id));
+const MEMO = /^[ \t]*[\[【]\s*备忘录\s*[\]】][ \t]*([^｜|\n]+)[｜|]([^\n]+)$/gm, sharedNotes = c => state.notes.filter(r => r[0] === '共用' && sharedWith(r).includes(c.id)).map(fixInk);
 // 共用的备忘录：第六格是和谁共用（几个人用逗号隔开的 id），第十二格是谁建的（me 或 TA 的 id），第十格是哪几个人看过那张画
 export const sharedWith = r => String(r[5] || '').split(',').filter(Boolean);
-const sawInk = r => (r[9] === 1 ? sharedWith(r) : String(r[9] || '').split(',').filter(Boolean));
+// 画是正文里单独的一行「✎memo-draw:编号」（共用的前面照样是「谁：」），和字一样按先后排；第十格记谁看过哪张（「TA 的 id>编号」）。
+// 以前的画存在第九格、没在正文里：用到时挪进正文（共用的放在你写的最后一行后面）
+export const INKLINE = /✎(memo-draw:\S+)$/, drawn = r => (r[4] || '').split('//').map(x => INKLINE.exec(x)?.[1]).filter(Boolean);
+const seen = r => String(r[9] || '').split(',').filter(x => x.includes('>'));
+export function fixInk(r) {
+  if (!r[8]) return r;
+  const L = r[4] ? r[4].split('//') : [], me = r[0] === '共用' ? myName() + '：' : '', key = r[8];
+  if (!L.some(x => x.endsWith('✎' + key))) { let i = me ? 0 : L.length; if (me) L.forEach((x, k) => { if (x.startsWith(me)) i = k + 1; }); L.splice(i, 0, me + '✎' + key); r[4] = L.join('//'); }
+  r[9] = r[9] ? (r[9] === 1 ? sharedWith(r) : String(r[9]).split(',').filter(x => x && !x.includes('>'))).map(id => id + '>' + key).join(',') : '';
+  r[8] = ''; return r;
+}
+export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画）');   // 给 AI 看的字里，画写成一句话
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);
@@ -343,7 +354,7 @@ export async function memoAdd(c, t, x) {   // TA 说外语的：这一行也要�
   commit('notes'); shell.refreshBadges();
 }
 const memoNote = (c, msgs) => { const L = c ? sharedNotes(c) : [];
-  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => { const also = r[3].split('、').filter(n => n !== nameOf(c)); return `${i + 1}.《${r[1]}》${also.length ? `（还和 ${also.join('、')} 一起记）` : ''}\n${r[4].split('//').join('\n')}`; }).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
+  return c && (L.length || /记一下|记下|帮我记|备忘/.test(lastMine(msgs))) ? `\n\n【你和 ${myName()} 共用的备忘录】（你们俩都看得到、都能写）\n${L.map((r, i) => { const also = r[3].split('、').filter(n => n !== nameOf(c)); return `${i + 1}.《${r[1]}》${also.length ? `（还和 ${also.join('、')} 一起记）` : ''}\n${r[4].split('//').map(inkText).join('\n')}`; }).join('\n') || '（还没有）'}\n想往里添一行，或者 ${myName()} 让你帮忙记点什么，就在回复里另外单独写一行：[备忘录] 编号｜要记的那句话${speakOf(c.id) ? `（那句话也${trHow(langName(speakOf(c.id)))}）` : ''}。添进上面已有的那张，就写它前面的编号（同一件事都记在同一张里，别另开）；真要新开一张，才把编号换成新标题。没什么要记的就不写这一行。${L.length && !c.ink && !c.inkAI ? `\n另外给自己定一个代表色（印象色，照你的人设和样子，比如发色、瞳色、给人的感觉），在回复最后单独写一行：[印象色] #六位十六进制颜色。只要这一次。` : ''}` : ''; };
 /** lite（通话用，带得少 AI 开口才快）：'story' 正文只带最后一段；'min' 再连世界书也不带；不写就是全带 */
 export async function buildReplyPrompt(chat, msgs, lite) {
   const c = contact(chat.contactId), cfg = chat.cfg;
@@ -384,11 +395,11 @@ export async function requestReply(chat, opts = {}) {
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
-    // 共用的备忘录里你新画的（第十格里还没有 TA）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
-    const pics = c ? sharedNotes(c).filter(r => r[8] && !sawInk(r).includes(c.id)) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
-    const images = await Promise.all(pics.map(async r => ({ text: `（${myName()} 在你们共用的备忘录《${takeTr(r[1] || r[4].split('//')[0])[0]}》里画的，看看画的什么，想回应就自然地说）`, url: await inkPic(r[8]).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) }))).then(L => L.filter(i => i.url));
+    // 共用的备忘录里新画的（第十格里还没记 TA 看过）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
+    const pics = c ? sharedNotes(c).flatMap(r => r[4].split('//').map(x => [r, x, INKLINE.exec(x)?.[1]]).filter(([q, , k]) => k && !seen(q).includes(c.id + '>' + k))) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
+    const images = await Promise.all(pics.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里画的，看看画的什么，想回应就自然地说）`, url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) }))).then(L => L.filter(i => i.url));
     const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal, images });
-    if (pics.length) { pics.forEach(r => { r[9] = [...sawInk(r), c.id].join(','); }); commit('notes'); }
+    if (pics.length) { pics.forEach(([r, , k]) => { r[9] = [...seen(r), c.id + '>' + k].join(','); }); commit('notes'); }
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
     const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; }).replace(INK, (_, k) => { if (c && !c.inkAI) { c.inkAI = k.toLowerCase(); commit('contacts'); } return ''; });

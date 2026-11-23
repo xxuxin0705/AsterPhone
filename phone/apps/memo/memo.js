@@ -4,13 +4,13 @@ import { h } from '../../core/util.js';
 import { state, commit, contact, friends, kvDel } from '../../core/store.js';
 import { icon, dialog, actionSheet, pickSheet } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
-import { liveTr, myOut, myLang, langName } from '../../core/translate.js';
+import { translate, myOut, myLang, langName } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
-import { nameOf, sharedWith } from '../chat/engine.js';
-import { VIEWS, iosPage, gone, ink } from '../peek/apps.js';
-import { draw } from './draw.js';
+import { nameOf, sharedWith, fixInk, drawn } from '../chat/engine.js';
+import { VIEWS, iosPage, gone, ink, inkImg } from '../peek/apps.js';
+import { startDraw } from './draw.js';
 
 const N = () => state.notes, save = () => { commit('notes'); shell.refreshBadges(); }, flat = x => [x].flat(3).filter(Boolean);
 // 开着的每一页和它怎么画：改了东西，被盖在下面的那几页趁看不见先换好，露出来就是新的
@@ -29,11 +29,16 @@ const D = {
   keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
-  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); save(); w && gone(w); fresh(layers.slice(0, -1)); },
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
-    rs.forEach(r => { N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); }); save(); fresh(); },
-  draw: (r, L = r[4].split('//').filter(Boolean).map(x => x.slice(pre(x, r).length))) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); r[9] = ''; save(); fresh(); }),   // 第十格：哪几个人看过这张画（画改了就再给大家看）
+    rs.forEach(r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); }); save(); fresh(); },
+  // 就在这一条里画：box 是正文那一块（新画的接在最后），img 是点的那张（接着改它）。画完新的就在正文最后加一行「✎编号」；
+  // 改了旧的，第十格里记的「谁看过这张」去掉，好再给大家看
+  draw: (r, box, key, img) => startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: k => {
+    if (!key) r[4] = [...(r[4] ? r[4].split('//') : []), (r[0] === '共用' ? myName() + '：' : '') + '✎' + k].join('//');
+    else r[9] = String(r[9] || '').split(',').filter(x => x && !x.endsWith('>' + k)).join(',');
+    r[2] = time.stampText(time.stamp()); save(); fresh(layers.slice(0, -1)); } }),
   // 挪到哪个文件夹：「新建文件夹」起个名字就挪进去；共用的不在文件夹里，不挪
   move: async rs => { const fs = [...new Set(N().filter(r => r[0] !== '共用' && r[3]).map(r => r[3]))];
     let v = await actionSheet('选择文件夹', [{ value: '+', label: '新建文件夹' }, { value: '·', label: '备忘录' }, ...fs.map(f => ({ value: f, label: f }))]); if (!v) return false;
@@ -56,37 +61,65 @@ const pre = (x, r) => { const n = r[0] === '共用' && folk(r).find(n => x.start
 const cn = (x, r) => { const m = TR.exec(x); return m ? pre(x, r) + m[1] : x; };
 // 改的时候看到的：共用的不带「谁：」（谁写的看颜色），存的时候没动过的照原样、新写的算你的
 const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = folk(r).find(n => y.startsWith(n + '：')))) y = y.slice(n.length + 1); return y; };   // 以前存的翻译那半有时也带着名字
-// 写一条：标题一行，正文一格（一行就是一行）；返回就存好，两格都空着的不留
+const tipOf = r => `下次和 ${r[3]} 私聊时，新画的会一起给 TA 看（每张看过就不再带，改了再给 TA 看）。聊天的模型要能识图，比如 Gemini、Claude、GPT-4o；走「酒馆」连接的带不了图。`;
+// 写一条：标题一行，下面一行一块（每块一个框，画是单独的一块）。勾着「译成某语」时，每行下面紧跟着这一行的译文；存的时候只留译文（点「译」能看回中文）
 function edit(r) {
-  const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave;
+  const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave, shared = r[0] === '共用', me = shared ? myName() + '：' : '';
   const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [vis(x, r), x])]);
-  const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), ta = h('textarea.pk-nt__ta', { placeholder: '写点什么', 'aria-label': '正文', rows: 6 });
-  ta.value = r[4].split('//').map(x => vis(x, r)).join('\n');
+  const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), list = h('div.pk-nt__blocks');
   // 这一条要不要翻成我说的语言（映像里「我说的语言」不是中文才有这个勾）：第十一格 0 是不翻，没勾过的照翻；改了勾，存的时候我写的行（连标题）跟着翻过去或换回中文
-  let want = r[10] !== 0;
-  const tr = liveTr(ta, () => (want ? myLang() : ''));
-  const trb = myLang() && h('button.pk-glass.pk-nt__tr' + (want ? '.is-on' : ''), { onclick: () => { want = !want; trb.classList.toggle('is-on', want); tr.run(); } }, `译成${langName(myLang())}`);
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
-  // 清单键：光标在的那一行前面加一个 ○，已经有就拿掉
-  const todo = () => { const i = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1, m = /^[○√] ?/.exec(ta.value.slice(i)); ta.setRangeText(m ? '' : '○ ', i, i + (m ? m[0].length : 0), 'end'); grow(); ta.focus(); };
-  ta.addEventListener('input', grow);
+  let want = r[10] !== 0, last = null;
+  const foreign = o => (TR.test(o) ? o.slice(pre(o, r).length).replace(TR, '') : '');   // 存着的那行的外文那半
+  const block = (v = '') => {
+    const ta = h('textarea.pk-nt__ta', { rows: 1, 'aria-label': '正文', spellcheck: false }), tr = h('div.pk-nt__trl'), b = h('div.pk-nt__b', ta, tr);
+    const o = was.get(v), theirs = o != null && shared && !o.startsWith(me);   // 别人写的：外文照存着的摆，不跟着勾走
+    let tm = 0, seq = 0;
+    const show = () => { clearTimeout(tm); const x = ta.value.trim(), keep = was.get(ta.value);
+      if (keep != null && (theirs || TR.test(keep) === !!(want && myLang()))) { tr.textContent = foreign(keep); return; }
+      tr.textContent = ''; if (!x || !want || !myLang() || theirs) return;
+      const n = ++seq; tm = setTimeout(() => translate(x, myLang()).then(z => n === seq && (tr.textContent = z), () => {}), 600); };
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    ta.value = v; b._show = show; b._grow = grow;
+    ta.addEventListener('focus', () => { last = ta; });
+    // 回车（手机键盘上多半只有 input 能看出来）就在这里断开，后半截成新的一块；贴进来好几行的也一样拆开
+    ta.addEventListener('input', () => { if (ta.value.includes('\n')) { const [a, ...rest] = ta.value.split('\n'); ta.value = a; let at = b;
+      rest.forEach(x => { const nb = block(x); at.after(nb); at = nb; nb._grow(); }); at.querySelector('textarea').focus(); at.querySelector('textarea').setSelectionRange(0, 0); }
+      grow(); show(); });
+    // 在一块的最前面再退格：并到上一块后面
+    const merge = e => { const p = b.previousElementSibling, pt = p?.querySelector('textarea'); if (!pt || ta.selectionStart || ta.selectionEnd) return;
+      e.preventDefault(); const at = pt.value.length; pt.value += ta.value; b.remove(); pt.focus(); pt.setSelectionRange(at, at); p._grow(); p._show(); };
+    ta.addEventListener('keydown', e => e.key === 'Backspace' && merge(e));
+    ta.addEventListener('beforeinput', e => e.inputType === 'deleteContentBackward' && merge(e));
+    requestAnimationFrame(() => { grow(); show(); });
+    return b;
+  };
+  const pic = key => h('div.pk-nt__b.is-ink', { dataset: { key } }, inkImg(key), h('button.pk-nt__x', { 'aria-label': '删掉这张画', onclick: e => e.currentTarget.parentNode.remove() }, icon('close', 16, 2.4)));
+  r[4].split('//').filter(Boolean).forEach(x => { const v = vis(x, r), k = /^✎(memo-draw:\S+)$/.exec(v)?.[1]; list.append(k ? pic(k) : block(v)); });
+  if (!list.querySelector('textarea')) list.append(block());
+  list.querySelector('textarea').placeholder = '写点什么';
+  const trb = myLang() && h('button.pk-glass.pk-nt__tr' + (want ? '.is-on' : ''), { onclick: () => { want = !want; trb.classList.toggle('is-on', want); list.querySelectorAll('.pk-nt__b').forEach(b => b._show && b._show()); } }, `译成${langName(myLang())}`);
+  // 清单键：在正在写的那一块前面加一个 ○，已经有就拿掉
+  const todo = () => { const ta = last || list.querySelector('textarea'), m = /^[○√] ?/.exec(ta.value); ta.value = m ? ta.value.slice(m[0].length) : '○ ' + ta.value; ta.focus(); ta.dispatchEvent(new Event('input')); };
+  // 画：在最后接一块画布，画完就是一张图（存的时候和字一起按先后排）
+  const pen = () => { const host = h('div.pk-nt__b'); list.append(host); startDraw({ host, tip: shared && tipOf(r), onSave: k => { const g = list.querySelector(`[data-key="${k}"]`); g && g.replaceWith(pic(k)); } }); };
   el._onLeave = async () => { off();
-    const L = ta.value.split('\n').map(x => x.trim()).filter(Boolean), old = r[1] + '|' + r[4];
-    const go = want && myLang(), mine = o => r[0] !== '共用' || o.startsWith(myName() + '：');
+    const items = [...list.children].map(b => (b.dataset.key ? ['ink', b.dataset.key] : b.querySelector('textarea') ? ['txt', b.querySelector('textarea').value.trim()] : ['', ''])).filter(x => x[1]), old = r[1] + '|' + r[4];
+    const go = want && myLang(), mine = o => !shared || o.startsWith(me);
     const tr1 = async x => { const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
-    // 没动过的行原样留着（TA 写的永远不动）；我写的、翻没翻和勾的对不上的，换过去；新写的照勾的来
+    // 没动过的行原样留着（别人写的永远不动）；我写的、翻没翻和勾的对不上的，换过去；新写的照勾的来
     const out = async (x, add, own) => { const o = was.get(x); if (o != null && (!myLang() || !own && !mine(o) || TR.test(o) === !!go)) return o;
       const zh = o != null ? cn(o, r) : add + x; return go ? tr1(zh) : zh; };
     const title = t.value.trim();   // 标题框空着就是没有标题（列表里拿第一行当标题，和 iPhone 一样）
-    r[10] = want ? 1 : 0; r[1] = title && await out(title, '', true); r[4] = (await Promise.all(L.map(x => out(x, r[0] === '共用' ? myName() + '：' : '')))).join('//');
-    if (r[0] !== '共用') r[0] = kind(r[4]);
-    if (!r[1] && !r[4] && !r[8]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
+    r[10] = want ? 1 : 0; r[1] = title && await out(title, '', true);
+    r[4] = (await Promise.all(items.map(([k, v]) => (k === 'ink' ? was.get('✎' + v) ?? me + '✎' + v : out(v, me))))).join('//');
+    if (!shared) r[0] = kind(r[4]);
+    if (!r[1] && !r[4]) N().splice(N().indexOf(r), 1); else if (old !== r[1] + '|' + r[4]) r[2] = time.stampText(time.stamp());
     save(); fresh(); };
-  body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, ta, tr.box,
-    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), trb || '', h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: () => D.draw(r, ta.value.split('\n').filter(x => x.trim())) }, ink('pen', 22, 1.9))));
-  nav.push(el); requestAnimationFrame(grow); (r[1] ? ta : t).focus({ preventScroll: true });
+  body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, list,
+    h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), trb || '', h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: pen }, ink('pen', 22, 1.9))));
+  nav.push(el); (r[1] ? list.querySelector('textarea') : t).focus({ preventScroll: true });
 }
 export function open() {
-  layers.length = 0;
+  layers.length = 0; N().forEach(fixInk);   // 以前存在第九格的画挪进正文
   return push('备忘录', () => VIEWS.备忘录(N(), push, D, () => nav.back()));
 }
