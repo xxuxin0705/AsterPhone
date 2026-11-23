@@ -439,7 +439,7 @@ export function dialog({ title, text, confirm = '确定', cancel = '取消', dan
       field1 = h('input.as-input', { placeholder: inp.placeholder || '', value: inp.value || '' });
       field1.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) done(field1.value); });
     }
-    const box = h('div.as-dialog', { role: 'alertdialog' }, h('div.as-dialog__title', title), text && h('div.as-dialog__text', text), field1,
+    const box = h('div.as-dialog', { role: 'alertdialog' }, h('div.as-dialog__title', title), text && h('div.as-dialog__text', text), field1, inp?.under?.(field1),   // under：框下面再挂点东西（比如边打边翻的对照）
       h('div.as-dialog__actions', cancel && h('button.as-dialog__btn', { onclick: () => done(null) }, cancel), ok));
     mask.appendChild(box); root.appendChild(mask);
     requestAnimationFrame(() => { mask.classList.add('is-open'); field1 && focusStill(field1); });

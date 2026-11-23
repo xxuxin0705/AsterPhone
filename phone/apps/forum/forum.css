@@ -329,6 +329,7 @@ button.as-fo-post__img.is-busy { justify-content: center; color: var(--fo-accent
 .as-fo-dm__bub small { opacity: .7; font-size: 12.5px; }
 .as-fo-dm__bub img { max-width: 180px; max-height: 240px; border-radius: 10px; }
 .as-fo-dm__bub:has(> img) { padding: 0; background: none; }
+.as-fo-dm__tr { background: var(--fo-card); padding: 0 10px; } .as-fo-dm__tr .as-livetr { margin-top: 8px; }
 .as-fo-dm__bar { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--fo-line); background: var(--fo-card); }
 .as-fo-dm__in { flex: 1; min-height: 38px; max-height: 120px; field-sizing: content; padding: 8px 14px; border: 0; border-radius: 19px; background: var(--fo-bg); color: inherit; font: 15px/1.45 var(--font-ui); resize: none; outline: none; }
 .as-fo-dm__in:disabled { opacity: .6; }

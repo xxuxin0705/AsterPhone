@@ -88,7 +88,8 @@ function rowsOf(i, c, x) {
       ['人设', { value: () => (c.persona == null ? '跟随酒馆' : c.persona ? c.persona.slice(0, 12) + '…' : '没写'), edit: set => {
         const ta = textarea({ value: myPersona(), rows: 8, placeholder: '人设', onInput: v => { c.persona = v; save(); set(); } });
         return h('div.mz-col', ta, h('div.mz-chips', h('button', { onclick: () => { c.persona = null; ta.value = myPersona(); save(); set(); } }, '跟随酒馆'))); } }]];
-    if (i === 1) return [voice];
+    if (i === 1) return [['我说的语言', { info: '你照常打中文，发出去自动翻成这种语言（免费机翻），打字时就能对照着看。选中文就不翻。', value: () => langName(c.lang || 'zh-CN'),
+      edit: set => choose(LANGS, c.lang || 'zh-CN', v => { c.lang = v; save(); set(); }) }], voice];
     if (i === 4) return [frame, ['气泡', { value: () => decoName('bubbles', c.bubble) || '不用',
       go: async () => { const v = await pickDeco('bubbles', c.bubble, who()); if (v == null) return; if (v === 'none') delete c.bubble; else c.bubble = v; save(); x.reopen(); } }]];
   }

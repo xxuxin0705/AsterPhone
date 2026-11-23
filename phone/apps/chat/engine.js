@@ -11,7 +11,7 @@ import * as time from '../../core/time.js';
 import { shell } from '../../core/shell.js';
 import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../../core/promptstore.js';
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
-import { translate, langName, langFor, zhOf, fillZh } from '../../core/translate.js';
+import { translate, langName, langFor, zhOf, fillZh, myLang, myOut } from '../../core/translate.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -215,13 +215,11 @@ function touch(chat, m) {
 }
 
 /* ---------- 发消息（不会自动回复） ---------- */
+/** 我的话发成什么语言：这个聊天开了「翻成 TA 的语言」就照 TA 的，不然照映像里我说的语言；'' 是不翻 */
+export const sendLang = chat => (chat.cfg.sendTr ? (isGroup(chat) ? chat.cfg.theirLang : speakOf(chat.contactId)) : myLang());
 export async function send(chat, text, extra = {}) {
-  const msgs = await getMsgs(chat.id);
-  const to = isGroup(chat) ? chat.cfg.theirLang : speakOf(chat.contactId);
-  if (chat.cfg.sendTr && to) {
-    try { const t = await translate(text, to); if (t && t !== text) { extra = { ...extra, orig: text }; text = t; } }
-    catch (e) { /* 翻译失败就发原文 */ }
-  }
+  const msgs = await getMsgs(chat.id), [t, o] = await myOut(text, sendLang(chat));
+  if (o) { extra = { ...extra, orig: o }; text = t; }
   const m = { id: uid('m'), from: 'me', type: 'text', text, ...time.stamp(), ...extra };
   msgs.push(m); touch(chat, m);
   saveMsgs(chat.id); commit('chats');

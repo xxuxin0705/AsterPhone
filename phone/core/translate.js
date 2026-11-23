@@ -6,6 +6,7 @@ import { ctx, inTavern } from './bridge.js';
 import { log } from './log.js';
 import { state, commit, nickIn, setNick, chatForContact } from './store.js';
 import { waiting, toast } from './ui.js';
+import { h } from './util.js';
 
 export const LANGS = [
   ['zh-CN', '中文'], ['en', '英语'], ['ja', '日语'], ['ko', '韩语'], ['fr', '法语'], ['de', '德语'],
@@ -14,6 +15,27 @@ export const LANGS = [
 export const langName = code => (LANGS.find(l => l[0] === code) || [code, code])[1];
 /** 说什么语言：某个人自己选的（own）> 这个 App 选的 > 设置里总的 */
 export const langFor = (app, own) => own || state.settings.lang.apps[app] || state.settings.lang.all;
+/** 我说的语言（映像里给自己选的）：外语的代码；没选、选了中文都是 ''（不翻） */
+export const myLang = () => (/^zh-CN/.test(state.me.lang || 'zh-CN') ? '' : state.me.lang);
+/** 我打的中文发出去之前：to 是外语就机翻过去，给 [发出去的, 我打的中文]；不用翻、翻不成就原样发，第二格空 */
+export async function myOut(text, to = myLang()) {
+  if (!to) return [text, ''];
+  try { const t = await translate(text, to); if (t && t !== text) return [t, text]; } catch (e) { toast('没翻译成，发的是中文'); }
+  return [text, ''];
+}
+/** 一边打字一边机翻：停手 0.6 秒再翻，翻好的放在 box 里，和打的中文对照着看（发的时候 myOut 拿缓存里这份，不再等） */
+export function liveTr(input, langOf = myLang) {
+  const box = h('div.as-livetr', { hidden: true }); let seq = 0, tm = 0;
+  const show = (l, t) => { box.hidden = false; box.replaceChildren(h('b', langName(l)), t == null ? h('span.as-spin') : h('span', t)); };
+  const run = () => {
+    clearTimeout(tm); const l = langOf(), text = input.value.trim(), my = ++seq;
+    if (!l || !text) { box.hidden = true; return; }
+    show(l);
+    tm = setTimeout(() => translate(text, l).then(t => my === seq && show(l, t), () => my === seq && show(l, '没翻译成，详情见日志')), 600);
+  };
+  input.addEventListener('input', run);
+  return { box, run };
+}
 const cache = new Map();
 // Tauri Tavern 的翻译接口一出错就弹「后端错误」挡在屏幕上：那边先走直连的两条，它放最后
 const TAURI = (() => { try { return !!(top.__TAURI__ || top.__TAURI_INTERNALS__); } catch (e) { return false; } })();

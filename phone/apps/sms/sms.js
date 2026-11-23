@@ -6,7 +6,7 @@ import { icon, toast, dialog, waiting, aiCount } from '../../core/ui.js';
 import { generate, resolveConn } from '../../core/api.js';
 import { compose, myName } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
-import { langName, langFor, fillZh } from '../../core/translate.js';
+import { langName, langFor, fillZh, liveTr, myOut } from '../../core/translate.js';
 import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
@@ -19,7 +19,7 @@ const person = n => state.contacts.find(p => [p.name, p.nick, p.remark].includes
 const title = t => { const c = person(t.who); return c ? nameOf(c) : t.who; };
 const mk = m => m.tr ? `${m.text}[翻译：${m.tr}]` : m.text, face = t => person(t.who)?.avatar || '', at = m => time.stampText(m);
 const save = () => { commit('sms'); renderBadges(); };
-const put = (t, me, line) => { const [text, tr] = me ? [line, ''] : takeTr(line); t.list.push({ id: uid('s'), me, text, tr, ...time.stamp() }); };
+const put = (t, me, line) => { const [text, tr] = me ? line : takeTr(line); t.list.push({ id: uid('s'), me, text, tr, ...time.stamp() }); };   // 我发的 line 是 [发出去的, 我打的中文]
 const toTop = t => { state.sms.splice(state.sms.indexOf(t), 1); state.sms.unshift(t); };
 
 const foreign = c => !/^zh/.test(langFor('chat', c && chatForContact(c.id, false)?.cfg.speak) || 'zh');
@@ -83,7 +83,8 @@ function thread(t) {
     float.before(...L.slice(shown).flatMap((m, k) => bub(m, shown + k)).filter(Boolean)); shown = L.length;
     t.unread = 0; save(); body.scrollTop = body.scrollHeight; };
   const input = h('textarea.pk-find__in', { rows: 1, placeholder: '信息 · 短信', oninput: () => paint() });
-  const send = () => { put(t, true, input.value.trim()); toTop(t); input.value = ''; save(); add(); paint(); };
+  const tr = liveTr(input);
+  const send = async () => { const L = await myOut(input.value.trim()); input.value = ''; tr.run(); put(t, true, L); toTop(t); save(); add(); paint(); };
   const ask = () => {
     if (jobs[t.id]) { jobs[t.id].abort(); return; }
     const ac = jobs[t.id] = new AbortController(); paint();
@@ -91,7 +92,8 @@ function thread(t) {
   };
   // 右下那个键：打了字是发送；没打字是「让 TA 回」（点一次找一次 AI），在等的时候是取消
   const act = h('button.pk-glass.is-round.pk-ask', { onclick: () => (input.value.trim() && !jobs[t.id] ? send() : ask()) });
-  const float = h('div.pk-float', h('div.pk-glass.pk-find', input), act);
+  tr.box.classList.add('pk-glass');
+  const float = h('div.pk-float', tr.box, h('div.pk-glass.pk-find', input), act);
   function paint() { const busy = !!jobs[t.id], typed = !!input.value.trim() && !busy;
     act.classList.toggle('is-busy', busy); act.setAttribute('aria-label', busy ? '取消' : typed ? '发送' : '让 TA 回');
     act.replaceChildren(...(busy ? [h('span.as-spin'), aiCount()] : [icon(typed ? 'send' : 'sparkle', 22, 2)])); }

@@ -7,7 +7,7 @@ import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco, frameOf } from '../../core/deco.js';
-import { LANGS, langName, langFor, translate } from '../../core/translate.js';
+import { LANGS, langName, langFor, translate, liveTr, myOut, myLang } from '../../core/translate.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
@@ -243,7 +243,7 @@ function accChip() {
  *  选了外语：一边打字一边机翻（免费，不花 API），翻好的显示在正文下面对照着看，发出去的就是这份；@ 的网名不翻。
  *  o：{ head 标题, ph 占位字, title 要不要标题框, chips 正文下面那排, pic 能不能配图, empty 能不能不写, done({ title, text, tr, pic }) } */
 function writePage(o) {
-  let pic = '', lang = langFor('forum') === 'zh-CN' ? 'none' : langFor('forum'), tr = '', trOf = '', seq = 0, tm = 0;   // 默认发成设置里论坛的语言
+  let pic = '', lang = state.me.lang ? myLang() || 'none' : langFor('forum') === 'zh-CN' ? 'none' : langFor('forum'), tr = '', trOf = '', seq = 0, tm = 0;   // 默认发成映像里我说的语言；没选过跟着设置里论坛的语言
   const title = o.title ? h('input.as-fo-cp__title', { placeholder: '标题' }) : null;
   const body = h('textarea.as-fo-cp__body', { placeholder: o.ph, oninput: () => { if (!o.empty) send.disabled = !body.value.trim(); live(); } });
   const pv = h('img.as-fo-compose__pic', { hidden: true, alt: '配图', onclick: () => { pic = ''; pv.hidden = true; } });
@@ -475,9 +475,10 @@ async function openDm(by) {
   const fbar = !following(k) && h('div.as-fo-dm__fol', h('button', { 'aria-label': '关闭', onclick: () => fbar.remove() }, icon('close', 18)), h('span', '关注 TA，方便以后常聊'),
     h('button.as-fo-dm__folbtn', { onclick: async () => { if (await doFollow(k, w.name)) fbar.remove(); } }, '+ 关注'));
   const t = h('textarea.as-fo-dm__in', { rows: 1, oninput: () => paint() });
-  const send = async m => { await E.dmSend(d, m); t.value = ''; add(); };
+  const tr = liveTr(t);
+  const send = async m => { await E.dmSend(d, m); t.value = ''; tr.run(); add(); };
   const plus = h('button.as-fo-dm__tool', { 'aria-label': '发图片', onclick: async () => { const f = await pickFile('image/*'); if (f) send({ pic: await fileToDataURL(f, 1080) }); } }, icon('image', 24));
-  const sendB = h('button.as-fo-dm__send', { onclick: () => t.value.trim() && send({ text: t.value.trim() }) }, '发送');
+  const sendB = h('button.as-fo-dm__send', { onclick: async () => { if (!t.value.trim()) return; const [text, z] = await myOut(t.value.trim()); send({ text, tr: z }); } }, '发送');
   const ask = bot ? h('button.as-fo-dm__send', { onclick: () => E.dmSubmit(d).then(p => { add(); landed([p]); toast('投稿发出来了'); }, e => toast(e.message)) }, '投稿')
     : jobBtn('dm:' + k, () => ['让 TA 回'], () => go('dm:' + k, `等 ${w.name} 回…`, s => E.dmReply(d, s)).then(n => {
       if (n == null) return; document.querySelectorAll(`[data-dm="${CSS.escape(k)}"]`).forEach(el => el._add()); toast(n ? 'TA 回你了' : 'TA 没回你');
@@ -489,7 +490,7 @@ async function openDm(by) {
   }
   pg.el.dataset.dm = k; pg.el._add = add; pg.el.classList.add('as-fo-dm');
   pg.body.append(fbar || '', note, list);
-  pg.el.append(h('div.as-fo-dm__bar', plus, t, sendB, ask));
+  pg.el.append(h('div.as-fo-dm__tr', tr.box), h('div.as-fo-dm__bar', plus, t, sendB, ask));
   paint(); nav.push(pg.el); applyTexts(); pg.body.scrollTop = pg.body.scrollHeight;
 }
 /** 我：就是我自己的主页（照真微博），右上搜索、设置；我的号、营销号、熟人在设置里 */

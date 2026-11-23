@@ -187,6 +187,7 @@
 /* 输入栏 */
 .as-chat-inputwrap { flex: none; margin: 0 8px max(8px, env(safe-area-inset-bottom, 0px)); padding: 8px 8px; border-radius: 26px; background: var(--as-color-surface); border: 1px solid var(--as-color-glass-line); box-shadow: var(--as-shadow); -webkit-backdrop-filter: blur(var(--as-blur)) saturate(1.4); backdrop-filter: blur(var(--as-blur)) saturate(1.4); }
 .as-chat-quotebar { display: flex; align-items: center; gap: 8px; margin: 0 4px 8px; padding: 6px 10px; border-radius: 10px; background: var(--as-color-surface-2); font: 400 12.5px/1.4 var(--font-ui); color: var(--as-color-text-2); }
+.as-chat-inputwrap .as-livetr { margin: 0 4px 8px; box-sizing: border-box; }
 .as-chat-quotebar span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .as-chat-quotebar button { border: 0; background: none; color: inherit; padding: 2px; cursor: pointer; display: grid; }
 .as-chat-inputbar { display: flex; align-items: flex-end; gap: 6px; }

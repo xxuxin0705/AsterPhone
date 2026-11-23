@@ -46,7 +46,7 @@
 .as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-toolbar { display: contents; }
 .as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-toolbar .as-spacer { display: none; }
 .as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-input { flex: 1; min-height: 38px; }
-.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room .as-chat-quotebar { order: -1; flex-basis: 100%; }
+.as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room :is(.as-chat-quotebar, .as-livetr) { order: -1; flex-basis: 100%; }
 .as-phone:is([data-chat-skin="wechat"], [data-chat-skin="line"]) .as-chat-room :is(.as-chat-plus, .as-chat-stickers-panel, .as-chat-inputwrap > div:last-child, .as-chat-inputwrap > div:nth-last-child(2)):not(.as-chat-toolbar) { order: 9; flex-basis: 100%; }
 .as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-iconbtn[aria-label="语音"] { order: 1; }
 .as-phone[data-chat-skin="wechat"] .as-chat-room .as-chat-input { order: 2; }

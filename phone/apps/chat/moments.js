@@ -6,6 +6,7 @@ import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { nameOf, who, genMoments, genComments, relinkMoments } from './engine.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
+import { liveTr, myOut } from '../../core/translate.js';
 import { openProfile, pickMany, sorted } from './people.js';
 
 const authorAvatar = id => id === 'me' ? myAvatar() : (contact(id) || {}).avatar;
@@ -85,15 +86,17 @@ async function comments(m) {
   cmJobs.delete(m.id);
 }
 async function commentOn(m, to, redraw) {
-  const text = await dialog({ title: to ? `回复 ${who(to)}` : '评论', input: { placeholder: '说点什么…' }, confirm: '发送' });
+  const text = await dialog({ title: to ? `回复 ${who(to)}` : '评论', input: { placeholder: '说点什么…', under: f => liveTr(f).box }, confirm: '发送' });
   if (!text || !text.trim()) return;
-  m.comments.push({ id: uid('cm'), who: 'me', to: to || null, text: text.trim(), at: Date.now() });
+  const [x, z] = await myOut(text.trim());
+  m.comments.push({ id: uid('cm'), who: 'me', to: to || null, text: x, ...(z && { tr: z }), at: Date.now() });
   commit('moments'); toast('想让大家回应，点「··」→ 生成评论');
 }
 
 /* ---------- 发动态 ---------- */
 function openPost() {
   const d = { text: '', images: [], location: '', vis: 'public', visIds: [], visGroup: '' };
+  const ta = textarea({ placeholder: '这一刻的想法…', rows: 5, onInput: v => { d.text = v; } });
   const photos = h('div.as-chat-photos');
   const drawPhotos = () => {
     photos.innerHTML = '';
@@ -116,13 +119,14 @@ function openPost() {
     d.vis = v;
     visItem.querySelector('.as-list-item__value').textContent = VIS[v] + (v === 'include' || v === 'exclude' ? `（${d.visIds.length} 人）` : v === 'group' ? `（${d.visGroup}）` : '');
   } });
-  const p = page({ app: 'chat', id: 'chat-moments-post', title: '发动态', back: true, right: navText('发表', () => {
+  const p = page({ app: 'chat', id: 'chat-moments-post', title: '发动态', back: true, right: navText('发表', async () => {
     if (!d.text.trim() && !d.images.length) { toast('写点什么或者配张图'); return; }
-    state.moments.unshift({ id: uid('mo'), author: 'me', text: d.text.trim(), images: d.images, imageDesc: '', location: d.location.trim(), vis: d.vis, visIds: d.visIds, visGroup: d.visGroup, ...time.stamp(), likes: [], comments: [] });
+    const [x, z] = d.text.trim() ? await myOut(d.text.trim()) : ['', ''];
+    state.moments.unshift({ id: uid('mo'), author: 'me', text: x, ...(z && { tr: z }), images: d.images, imageDesc: '', location: d.location.trim(), vis: d.vis, visIds: d.visIds, visGroup: d.visGroup, ...time.stamp(), likes: [], comments: [] });
     commit('moments'); nav.pop(); toast('已发表');
   }, true) });
   p.body.append(
-    group('', [h('div.as-field', textarea({ placeholder: '这一刻的想法…', rows: 5, onInput: v => { d.text = v; } })), photos]),
+    group('', [h('div.as-field', ta, liveTr(ta).box), photos]),
     group('', [field('所在位置', input({ placeholder: '不填就不显示', onInput: v => { d.location = v; } })),
       visItem]));
   nav.push(p.el);

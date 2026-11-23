@@ -12,7 +12,7 @@ import * as P from '../../core/promptstore.js';
 import { openProfile } from './people.js';
 import { buildBubble, PLUS, plusAction as doPlus, stickerPanel } from './specials.js';
 import { groupAvatar, openGroupSettings } from './group.js';
-import { LANGS, langName, langFor, relang } from '../../core/translate.js';
+import { LANGS, langName, langFor, relang, liveTr } from '../../core/translate.js';
 import * as Mu from '../../core/music.js';
 
 const EMOJI = ['❤️', '😂', '😮', '😢', '👍', '🙏'];
@@ -74,7 +74,8 @@ export async function openRoom(chat) {
   const plus = h('div.as-chat-plus', { hidden: true }, PLUS.map(([k, label, ic]) => h('button', { onclick: () => { closePanels(); plusAction(k); } }, h('span', icon(ic, 24, 1.7)), h('span', label))));
   const stick = stickerPanel(chat, () => {}); stick.el.hidden = true;
   const tool = (ic, label, fn) => h('button.as-chat-iconbtn', { 'aria-label': label, onclick: fn }, icon(ic, 21, 1.7));
-  const inputWrap = h('div.as-chat-inputwrap', quoteBar, inputEl,
+  const tr = liveTr(inputEl, () => E.sendLang(chat)); tr.run();   // 我的话要翻成外语：打字时就在输入框上面翻给你对照
+  const inputWrap = h('div.as-chat-inputwrap', quoteBar, tr.box, inputEl,
     h('div.as-chat-toolbar', plusBtn,
       tool('smile', '表情包', () => { const open = stick.el.hidden; closePanels(); stick.el.hidden = !open; if (open) stick.draw(); }),
       tool('image', '图片', () => { closePanels(); plusAction('photo'); }),
@@ -214,7 +215,7 @@ export async function openRoom(chat) {
       if (!E.pending(msgs)) toast(g ? '大家会接着聊' : `${E.nameOf(c)} 会接着说`);
       E.requestReply(chat); return;
     }
-    inputEl.value = ''; chat.draft = '';
+    inputEl.value = ''; chat.draft = ''; tr.run();
     const extra = quote ? { quote: { id: quote.id, text: (quote.text || E.preview(quote)).slice(0, 60), who: quote.from === 'me' ? '我' : E.nameOf(sender(quote)) } } : {};
     setQuote(null);
     await E.send(chat, text, extra);
