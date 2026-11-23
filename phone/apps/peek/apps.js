@@ -146,9 +146,9 @@ function chats(R, D) {
     .map(x => ({ ...x, draft: (drafts.find(r => r[1] === x.title) || [])[2] }));
 }
 
-// 大标题往上滑、碰到顶栏时，顶栏中间换成小标题（和 iPhone 一样）
+// 大标题往上滑、一半钻进顶栏时，顶栏中间换成小标题（和 iPhone 一样）
 export function bigTitle(head, big) {
-  requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - 4 < head.getBoundingClientRect().bottom); }, { passive: true }); });
+  requestAnimationFrame(() => { const b = big.parentElement; b && b.addEventListener('scroll', () => { const r = big.getBoundingClientRect(); head.classList.toggle('is-up', r.bottom - r.height / 2 < head.getBoundingClientRect().bottom); }, { passive: true }); });
 }
 /** 短信、消息都照 iPhone 的「信息」排：列表（蓝点 = 最后一条是对方发的、还没点开过，点开过的记在 D.read）和对话页。
  *  一个对话：同一个人连着发的只有最后一条带小尾巴，换人、隔了时间就隔开一点；群里别人说的第一条上面写名字 */
