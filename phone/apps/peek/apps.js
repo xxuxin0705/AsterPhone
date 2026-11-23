@@ -139,19 +139,25 @@ const nightOf = url => { if (nights.has(url)) return nights.get(url); let p;
 const pic = (key, cls) => { const im = h('img.' + cls, { alt: '', src: inks.get(key) }), set = s => { im.src = s; nightOf(s).then(u => u && im.style.setProperty('--night', `url("${u}")`)); };
   if (inks.has(key)) set(inks.get(key)); else kvGet(key).then(s => { if (s) { inks.set(key, s); set(s); } }, () => {}); return im; };
 export const inkImg = key => { const im = pic(key, 'pk-nt__ink'); im.dataset.key = key; return im; };
-// TA 画的画（AI 写的 svg，编号带 svg）：第一次滑到眼前时一笔一笔画出来，以后点这张画再看一遍。动画是在图上面盖一张一样的 svg，画完拿掉
-const play = async img => { if (img._busy) return; img._busy = 1; const url = String(inks.get(img.dataset.key) || await kvGet(img.dataset.key).catch(() => '') || ''), done = () => { img.style.visibility = ''; img._busy = 0; };
-  if (!url.startsWith('data:image/svg')) return done();
+// 回放：TA 画的（AI 写的 svg，编号带 svg）一个形状一个形状描出来，第一次滑到眼前时自己放；你画的照存下来的每一笔放（编号后面加 :s 的那份，以前画的没存就放不了）。
+// 都是在图上面盖一张，放完拿掉
+const play = async img => { if (img._busy) return; img._busy = 1; const key = img.dataset.key, done = () => { img.style.visibility = ''; img._busy = 0; };
+  const url = String(inks.get(key) || await kvGet(key).catch(() => '') || ''), svg = url.startsWith('data:image/svg'), log = !svg && await kvGet(key + ':s').catch(() => null);
+  if (!svg && !log?.length) return done();
   await img.decode().catch(() => {});
-  const box = h('div'); box.innerHTML = decodeURIComponent(url.slice(url.indexOf(',') + 1)); const svg = box.firstElementChild;
-  svg.classList.add('pk-nt__ink', 'is-play'); Object.assign(svg.style, { left: img.offsetLeft + 'px', top: img.offsetTop + 'px', width: img.offsetWidth + 'px', height: img.offsetHeight + 'px' });
-  img.after(svg); img.style.visibility = 'hidden';
-  const L = [...svg.querySelectorAll('path, circle, ellipse, rect, line, polyline, polygon')], per = Math.min(500, 4500 / L.length); let t = 0;
-  // 有描边的：顺着线描出来，描到七成再把颜色填上；只有颜色的：淡入
-  await Promise.all(L.map(e => { const cs = getComputedStyle(e), len = cs.stroke !== 'none' ? e.getTotalLength() : 0, d = per * (len ? .6 + Math.min(1, len / 800) : .5);
-    const a = e.animate(len ? [{ strokeDasharray: len, strokeDashoffset: len, fillOpacity: 0 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: 0, offset: .7 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: cs.fillOpacity }]
-      : [{ opacity: 0 }, { opacity: cs.opacity }], { duration: d, delay: t, fill: 'backwards', easing: 'ease-in-out' }); t += d * .8; return a.finished; })).catch(() => {});
-  svg.remove(); done(); };
+  let top; if (log) top = h('canvas', { width: img.naturalWidth, height: img.naturalHeight }); else { const box = h('div'); box.innerHTML = decodeURIComponent(url.slice(url.indexOf(',') + 1)); top = box.firstElementChild; }
+  top.classList.add('pk-nt__ink', 'is-play'); Object.assign(top.style, { left: img.offsetLeft + 'px', top: img.offsetTop + 'px', width: img.offsetWidth + 'px', height: img.offsetHeight + 'px' });
+  img.after(top); img.style.visibility = 'hidden';
+  if (log) await (await import('../memo/draw.js')).replay(top, log, !!img.closest('.is-dark'));
+  else { const L = [...top.querySelectorAll('path, circle, ellipse, rect, line, polyline, polygon')], per = Math.min(500, 4500 / L.length); let t = 0;
+    // 有描边的：顺着线描出来，描到七成再把颜色填上；只有颜色的：淡入
+    await Promise.all(L.map(e => { const cs = getComputedStyle(e), len = cs.stroke !== 'none' ? e.getTotalLength() : 0, d = per * (len ? .6 + Math.min(1, len / 800) : .5);
+      const a = e.animate(len ? [{ strokeDasharray: len, strokeDashoffset: len, fillOpacity: 0 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: 0, offset: .7 }, { strokeDasharray: len, strokeDashoffset: 0, fillOpacity: cs.fillOpacity }]
+        : [{ opacity: 0 }, { opacity: cs.opacity }], { duration: d, delay: t, fill: 'backwards', easing: 'ease-in-out' }); t += d * .8; return a.finished; })).catch(() => {}); }
+  top.remove(); done(); };
+// 画的右下角一个 ▶，点了再放一遍（你画的存过每一笔才有）
+const again = (fig, im) => { const add = () => fig.append(h('button.pk-nt__replay', { 'aria-label': '再看一遍', onclick: e => { e.stopPropagation(); play(im); } }, icon('play', 12, 2.4)));
+  if (im.dataset.key.startsWith('memo-draw:svg')) add(); else kvGet(im.dataset.key + ':s').then(l => l?.length && add(), () => {}); return fig; };
 const firstLook = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return; firstLook.unobserve(e.target);
   state.settings.inkPlayed = [...(state.settings.inkPlayed || []), e.target.dataset.key].slice(-300); commit('settings'); play(e.target); }), { threshold: .5 });
 const taInk = key => { const im = Object.assign(inkImg(key), { onclick: e => play(e.currentTarget) });
@@ -329,7 +335,8 @@ export const VIEWS = {
       if (n.k === '共用' && (m = BY.exec(x))) { by = m[1]; x = both(x, BY); if (!who.includes(by)) who.push(by); }
       if ((m = TICK.exec(x) || TICK.exec(TR.exec(x)?.[1] || ''))) { done = /[√✓✔☑xX]/.test(m[1]); x = both(x, TICK); }   // 勾只写在了中文那半里的也认
       const k = INKLINE.exec(x)?.[1];   // 画：和字一样占一行，点了接着画（你自己的）
-      if (k) return h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), k.startsWith('memo-draw:svg') ? [taInk(k), h('i.pk-nt__replay', icon('play', 12, 2.4))] : Object.assign(inkImg(k), D.draw ? { onclick: e => D.draw(n.r, null, k, e.currentTarget) } : {}));
+      if (k) { const im = k.startsWith('memo-draw:svg') ? taInk(k) : Object.assign(inkImg(k), { onclick: e => (D.draw ? D.draw(n.r, null, k, e.currentTarget) : play(e.currentTarget)) });
+        return again(h('figure.pk-nt__fig', by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, by && h('small', by), im), im); }
       const cut = CUT.test(x); x = both(x, CUT);
       const p = h('p' + (done != null ? '.is-todo' : '') + (cut ? '.is-cut' : ''), by ? { dataset: { by }, style: { '--c': inkBy(n, by, who) } } : null, done != null && h('i' + (done ? '.is-done' : ''), { role: 'button', onclick: e => (D.tick || tick)(n.r, i, e.currentTarget) }), by && h('small', by),
         h('span', x.split(/(https?:\/\/[^\s[\]]+)/).map((v, i) => i % 2 ? h('u', v) : v)));
@@ -373,7 +380,7 @@ export const VIEWS = {
       if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || bare(n, lines(n)[0] || '新建备忘录')),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : bare(n, lines(n)[n.t ? 0 : 1] || '无更多文本')),
       n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录'), n.r && drawn(n.r)[0] && pic(drawn(n.r)[0], 'pk-nt__thumb')),
-      [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', '#ff3b30', w => del(n.r, w), '删除']],
+      [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', 'var(--tint)', w => del(n.r, w), '删除']],
       n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => pin(n.r, w), n.r[7] ? '取消置顶' : '置顶']] : []), { _q: (n.t + n.body + n.f).toLowerCase(), _n: n });
     let fold = false;   // 「置顶」那一段收起来没有（点段标题收起 / 展开）
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）

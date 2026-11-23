@@ -29,7 +29,7 @@ const D = {
   keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
-  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); save(); w && gone(w); fresh(layers.slice(0, -1)); },
   // 共用的：删掉别人写的第 i 句；again 是删掉让 TA 重新回——这句前面你画的画也算 TA 没看过，下次私聊或查手机 TA 对这段重新回
   unsay: (r, i, again) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), by = (/^([^：:]{1,12})[：:]/.exec(L[i] || '') || [])[1], gone1 = L.splice(i, 1)[0];
     if (again) { const c = sharedWith(r).map(contact).find(x => x && nameOf(x) === by), ks = L.slice(0, i).map(x => /✎(memo-draw:\S+)$/.exec(x)?.[1]).filter(Boolean);
@@ -37,7 +37,7 @@ const D = {
     r[4] = L.join('//'); r[12] = (r[12] || []).filter(x => x[1] !== gone1); save(); fresh(); if (again) toast(`下次和 ${by} 私聊或查手机时，TA 会重新回`); },
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
-    rs.forEach(r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => kvDel(k)); }); save(); fresh(); },
+    rs.forEach(r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); }); save(); fresh(); },
   // 就在这一条里画：box 是正文那一块（新画的接在最后），img 是点的那张（接着改它）。画完新的就在正文最后加一行「✎编号」；
   // 改了旧的，第十格里记的「谁看过这张」去掉，好再给大家看
   draw: (r, box, key, img) => startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: k => {

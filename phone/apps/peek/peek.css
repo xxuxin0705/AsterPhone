@@ -415,7 +415,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 @keyframes pk-pop { from { transform: scale(.94); } }
 .pk-ctx__menu { align-self: center; width: 250px; padding: 10px 6px 6px; border-radius: 22px; background: color-mix(in srgb, var(--pk-page) 88%, transparent); box-shadow: 0 8px 30px rgb(0 0 0 / .14); animation: pk-pop .22s cubic-bezier(.2, .9, .3, 1.2); }
 .pk-ctx__acts { display: flex; justify-content: space-around; padding-bottom: 8px; margin-bottom: 4px; border-bottom: .5px solid var(--pk-line); }
-.pk-ctx__acts button { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--pk-ink); font: inherit; cursor: pointer; } .pk-ctx__acts small { font-size: 11px; } .pk-ctx__acts .is-red { color: #ff3b30; }
+.pk-ctx__acts button { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--pk-ink); font: inherit; cursor: pointer; } .pk-ctx__acts small { font-size: 11px; } .pk-ctx__acts .is-red { color: var(--tint); }
 .pk-ctx__li { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 0; background: none; color: var(--pk-ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
 /* 选择备忘录：每条前面一个圈，选上的发灰、圈里黄底白勾；底下移动 / 删除 */
 .pk-nt__cards.is-pick .pk-nt__row { padding-left: 52px; }
@@ -471,7 +471,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pk-nt__ink { flex: none; display: block; width: 100%; margin: 8px 0; }
 .pk-nt__fig { position: relative; margin: 0; } .pk-nt__ink.is-play { position: absolute; margin: 0; pointer-events: none; }
-.pk-nt__replay { position: absolute; right: 10px; bottom: 14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--pk-ink) 12%, transparent); color: var(--pk-sub); pointer-events: none; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
+.pk-nt__replay { position: absolute; right: 10px; bottom: 14px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--pk-ink) 12%, transparent); padding: 0; border: 0; color: var(--pk-sub); cursor: pointer; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
 .pk-nt__fig > small { display: none; margin: 0 20px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); } .is-who > .pk-nt__fig > small { display: inline-block; }
 .pk-nt__key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -6px 20px 12px; font-size: 13px; color: var(--pk-sub); }
 .pk-nt__key span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--c); }
@@ -493,7 +493,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-draw__sel { position: absolute; z-index: 2; display: flex; transform: translate(-50%, -100%); border-radius: 10px; overflow: hidden; background: var(--pk-card); box-shadow: 0 4px 18px rgba(0,0,0,.22); }
 .pk-draw__sel[hidden] { display: none; } .pk-draw__sel.is-low { transform: translateX(-50%); }
 .pk-draw__sel button { padding: 9px 16px; border: 0; background: none; color: var(--pk-ink); font: inherit; font-size: 15px; cursor: pointer; }
-.pk-draw__sel button + button { border-left: .5px solid var(--pk-line); color: #ff3b30; }
+.pk-draw__sel button + button { border-left: .5px solid var(--pk-line); color: var(--tint); }
 /* 写备忘录时「译成某语」的勾 */
 .pk-nt__tr { gap: 8px; font-size: 16px; } .pk-nt__tr::before { content: ''; box-sizing: border-box; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--pk-line); }
 .pk-nt__tr.is-on::before { border: 0; background: var(--tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 13px no-repeat; }

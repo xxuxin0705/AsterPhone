@@ -9,6 +9,12 @@ import { inks, inkImg, flipBlack, blackish } from '../peek/apps.js';
 const TOOLS = { pen: ['钢笔', 3, 1], fine: ['细笔', 1.5, 1], mark: ['荧光笔', 18, .35], erase: ['橡皮', 22, 1], lasso: ['套索', 1, 1] }, W = 786, STEP = 900;
 // 每支笔记着自己的颜色（荧光笔默认黄的），橡皮没有颜色
 let tool = 'pen'; const INK = { pen: '#000000', fine: '#000000', mark: '#ffcc00' }, ink = () => INK[tool] || INK.pen;
+// 一笔（或套索的删掉 / 复制）落到 c 上；col 换颜色用（夜里回放时黑色画成白色）
+const clip = pts => { const p = new Path2D(); p.moveTo(...pts[0]); pts.forEach(q => p.lineTo(...q)); p.closePath(); return p; };
+const paint = (c, st, col = v => v) => { const w = c.canvas.width, hh = c.canvas.height;
+  if (st[0] === 'cut') { c.save(); c.clip(clip(st[1])); c.clearRect(0, 0, w, hh); c.restore(); return; }
+  if (st[0] === 'copy') { const k = h('canvas', { width: w, height: hh }), x = k.getContext('2d'); x.clip(clip(st[1])); x.drawImage(c.canvas, 0, 0); c.drawImage(k, st[2], st[3]); return; }
+  c.globalAlpha = TOOLS[st[0]][2]; c.globalCompositeOperation = st[0] === 'erase' ? 'destination-out' : st[0] === 'mark' ? 'multiply' : 'source-over'; line(c, [st[0], col(st[1]), st[2]]); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; };
 const line = (c, [k, col, pts]) => { c.lineCap = c.lineJoin = 'round'; c.lineWidth = TOOLS[k][1] * 2; c.strokeStyle = col; c.beginPath(); c.moveTo(...pts[0]); pts.forEach(p => c.lineTo(...p)); c.stroke(); };
 
 /** 在 host 那里画（host 是已经画好的那张图，或者新放的一个空位）；key 是改哪张（新画的空着）；
@@ -22,17 +28,16 @@ export async function startDraw({ host, key = '', tip = '', onSave }) {
     const d = ctx.getImageData(x, y, w, hh); if (night()) flipBlack(d.data); vx.putImageData(d, x, y); };
   let base = null, s = null, H = STEP; const strokes = [];
   const src = key && (inks.get(key) || await kvGet(key).catch(() => ''));
+  // 每一笔另存一份（编号后面加 :s），点画角上的 ▶ 能照着一笔一笔放出来；以前画的没存过的就不存了（放不出前面那些）
+  const prev = key ? await kvGet(key + ':s').catch(() => null) : [];
   if (src) { base = new Image(); base.src = src; await base.decode().catch(() => {}); H = Math.max(STEP, base.height + 300); }
   const size = () => { cvs.width = view.width = cur.width = W; cvs.height = view.height = cur.height = H; pad.style.aspectRatio = `${W} / ${H}`; };
   size(); base && ctx.drawImage(base, 0, 0);
   // 画到靠近底下就再接长一截（先把画好的抄下来，改了大小再贴回去）
   const grow = () => { const k = h('canvas', { width: W, height: H }); k.getContext('2d').drawImage(cvs, 0, 0); H += STEP; size(); ctx.drawImage(k, 0, 0); show(); };
   // 套索圈出的那块：clip 是圈的形状，piece 把画布上圈里的抄成一张（复制用）；删除、复制都当一笔记进 strokes，撤销照样一步步退
-  const clip = pts => { const p = new Path2D(); p.moveTo(...pts[0]); pts.forEach(q => p.lineTo(...q)); p.closePath(); return p; };
   const piece = (pts, from = cvs) => { const k = h('canvas', { width: W, height: H }), x = k.getContext('2d'); x.clip(clip(pts)); x.drawImage(from, 0, 0); return k; };
-  const put = st => { if (st[0] === 'cut') { ctx.save(); ctx.clip(clip(st[1])); ctx.clearRect(0, 0, W, H); ctx.restore(); return show(); }
-    if (st[0] === 'copy') { ctx.drawImage(piece(st[1]), st[2], st[3]); return show(); }
-    ctx.globalAlpha = TOOLS[st[0]][2]; ctx.globalCompositeOperation = st[0] === 'erase' ? 'destination-out' : st[0] === 'mark' ? 'multiply' : 'source-over'; line(ctx, st); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  const put = st => { paint(ctx, st); if (st[0] === 'cut' || st[0] === 'copy') return show();
     const xs = st[2].map(p => p[0]), ys = st[2].map(p => p[1]), r = TOOLS[st[0]][1] + 2; show(Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) - Math.min(...xs) + 2 * r, Math.max(...ys) - Math.min(...ys) + 2 * r); };
   const undo = h('button.pk-draw__undo', { 'aria-label': '撤销', disabled: true, onclick: () => { sel = null; menu.hidden = true; ants(); strokes.pop(); ctx.clearRect(0, 0, W, H); base && ctx.drawImage(base, 0, 0); strokes.forEach(put); show(); undo.disabled = !strokes.length; } }, icon('undo', 22, 2.2));
   const at = e => { const b = pad.getBoundingClientRect(); return [(e.clientX - b.left) / b.width * W, (e.clientY - b.top) / b.height * H]; };
@@ -82,6 +87,8 @@ export async function startDraw({ host, key = '', tip = '', onSave }) {
     const k = key || 'memo-draw:' + uid('d'), url = out.toDataURL('image/png');
     inks.set(k, url); pad.replaceWith(inkImg(k)); onSave(k);
     kvSet(k, url).catch(e => toast('画没存上：' + e.message));
+    const n = v => Math.round(v), P = L => L.map(p => p.map(n));
+    if (prev) kvSet(k + ':s', [...prev, ...strokes.map(st => (st[0] === 'cut' ? [st[0], P(st[1])] : st[0] === 'copy' ? [st[0], P(st[1]), n(st[2]), n(st[3])] : [st[0], st[1], P(st[2])]))]).catch(() => {});
   };
   page._onLeave = () => { finish(); leave && leave(); };   // 画着画着点了返回：照样存好
   host.replaceWith(pad); show(); if (float) float.hidden = true; body.append(bar);
@@ -108,5 +115,15 @@ export async function inkGrid(key) {
       for (let Y = Math.floor(t + i * cell); !hit && Y < Math.min(b + 1, t + (i + 1) * cell); Y++) for (let X = Math.floor(l + j * cell); !hit && X < Math.min(r + 1, l + (j + 1) * cell); X++) hit = on(X, Y);
       s += hit ? '#' : '.'; } out.push(s); }
   return `（这个模型看不了图，画压成了 ${cols} 列 × ${rows} 行的格子：# 是有线的地方，. 是空白。照整体的形状去认，别只看单个点）\n${out.join('\n')}`;
+}
+/** 回放你画的：和 TA 的画一样快（笔画越多每一笔越快，一张画四五秒画完）。c 是盖在图上的那张画布 */
+export function replay(c, log, night) {
+  const x = c.getContext('2d'), col = v => (night && blackish(v) ? '#ffffff' : v), per = Math.min(500, 4500 / log.length); let t = 0;
+  const plan = log.map(st => { const P = st[0] === 'cut' || st[0] === 'copy' ? null : st[2], len = P ? P.reduce((a, p, i) => a + (i ? Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]) : 0), 0) * 400 / W : 0;
+    const d = per * (P ? .6 + Math.min(1, len / 800) : .5), at = t; t += d * .8; return [st, at, d]; }), end = Math.max(...plan.map(([, at, d]) => at + d));
+  return new Promise(ok => { const t0 = performance.now(), frame = now => { const T = now - t0; x.clearRect(0, 0, c.width, c.height);
+    for (const [st, at, d] of plan) { if (T < at) break; const f = Math.min(1, (T - at) / d);
+      if (st.length === 3) paint(x, [st[0], st[1], st[2].slice(0, Math.max(2, Math.ceil(st[2].length * f)))], col); else if (f === 1) paint(x, st, col); }
+    if (T < end) requestAnimationFrame(frame); else ok(); }; requestAnimationFrame(frame); });
 }
 
