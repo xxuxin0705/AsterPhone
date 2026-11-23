@@ -2,7 +2,8 @@
 // 水杯、照片、笔、耳机、手机是从画里抠出来单独放的，点一下各自动一动；只有点手机会把它拿起来，上滑解锁后是 TA 的满屏手机。
 // 看谁的手机：桌上右上角点名字换人（记在 kv 的 peek:who:窗口）。手机里的内容只在点「生成」时找 AI（gen.js），各应用的样子在 apps.js。
 import { h, pickFile } from '../../core/util.js';
-import { kvGet, kvSet, contact, friends, win } from '../../core/store.js';
+import { kvGet, kvSet, contact, friends, win, state } from '../../core/store.js';
+import { myName } from '../../core/promptstore.js';
 import { page, toast, navText, sheet, avatar, icon, cropImage, actionSheet } from '../../core/ui.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
@@ -121,8 +122,10 @@ export function open() {
     const sub = n => (t, kids, cls) => show(t, typeof kids === 'function' ? kids : () => kids, cls, n);
     const none = n => h('div.pk-none', '还没有内容', h('button', { onclick: () => running() ? toast('正在生成，等它写完') : start([n]) }, '生成（用一次 API）'));
     // 一个应用的内容：有 AI 写的就排出来；消息里你手机上真有的聊天不用生成也能看
-    const has = n => D.apps[n] || (n === '消息' && D.real.length) || (n === '短信' && D.sms) || (n === '电话' && D.calls.length);
-    const body = n => () => has(n) ? VIEWS[n]((D.apps[n] || {}).rows || [], sub(n), D, pop) : none(n);
+    // 你和 TA 共用的备忘录（你自己的备忘录 App 里选了和 TA 共用的）：TA 手机里也有同一张，那边写着是和你共用
+    const ours = n => n === '备忘录' ? state.notes.filter(r => r[0] === '共用' && r[5] === c.id).map(r => ['共用', r[1], r[2], myName(), r[4]]) : [];
+    const has = n => D.apps[n] || (n === '消息' && D.real.length) || (n === '短信' && D.sms) || (n === '电话' && D.calls.length) || ours(n).length;
+    const body = n => () => has(n) ? VIEWS[n]([...((D.apps[n] || {}).rows || []), ...ours(n)], sub(n), D, pop) : none(n);
     show(name, name === '设置' ? () => setup(c, t => show(t, body(t), '', '设置'), paintMode) : body(name), RAW.includes(name) && has(name) ? 'is-raw' : 'is-' + (Object.keys(FORMS).indexOf(name) + 1));
   }
 

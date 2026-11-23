@@ -31,6 +31,7 @@ const APP_LOADERS = {
   peek: () => import('../apps/peek/peek.js'),
   sms: () => import('../apps/sms/sms.js'),
   phone: () => import('../apps/phone/phone.js'),
+  memo: () => import('../apps/memo/memo.js'),
 };
 let wallpaper, currentApp = 'lock', booted = false, pendingVis = null;
 

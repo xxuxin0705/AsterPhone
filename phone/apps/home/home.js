@@ -22,6 +22,7 @@ export const APPS = [
   { id: 'peek', name: '查手机', icon: 'eye' },
   { id: 'sms', name: '短信', icon: 'chatdots' },
   { id: 'phone', name: '电话', icon: 'phone' },
+  { id: 'memo', name: '备忘录', icon: 'note' },
   { id: 'log', name: '日志', icon: 'list' },
 ];
 const COLS = 4, ROWS = 6, DOCK = 4, ICON = 58, PAD = 20;

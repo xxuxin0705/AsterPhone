@@ -357,6 +357,11 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-nt__pill button { border: 0; background: none; padding: 0; line-height: 0; color: var(--tint); cursor: pointer; } .pk-nt__card + .pk-nt__f { margin-top: 26px; }
 .pk-nt.is-doc p > small { display: none; margin-right: 8px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); }   /* 共用的便签：点顶上的小人，看每行是谁写的 */
 .pk-nt.is-doc .is-who > p > small { display: inline-block; flex: none; align-self: center; } .is-who > p[style] > span { background: color-mix(in srgb, var(--c) 20%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.pk-nt__lines { flex: none; } .pk-nt__pill button.is-ink { color: inherit; }
+/* 你自己的备忘录：写的那一页，标题一行、正文一格，样子和看的时候一样 */
+.pk-nt__t, .pk-nt__ta { flex: none; box-sizing: border-box; width: 100%; border: 0; outline: 0; background: none; padding: 0 20px; color: var(--pk-ink); font-family: inherit; -webkit-appearance: none; appearance: none; }
+.pk-nt__t { margin: 2px 0 14px; font-size: 28px; font-weight: 700; line-height: 1.2; } .pk-nt__ta { min-height: 200px; resize: none; overflow: hidden; font-size: 17px; line-height: 1.5; }
+.pk-nt__t::placeholder, .pk-nt__ta::placeholder { color: var(--pk-sub); opacity: .6; }
 .pk-nt .pk-unlock, .pk-nt .pk-moods { flex: none; margin-left: 20px; margin-right: 20px; }
 /* 备忘录：上锁的心声 */
 .pk-locked > svg { flex: none; color: var(--tint); } .pk-locked > b { flex: 1; font-weight: 600; } .pk-locked > span { font-size: 15px; color: var(--pk-sub); }
