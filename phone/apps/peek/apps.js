@@ -251,18 +251,14 @@ export const VIEWS = {
   },
   屏幕使用时间: R => { const max = Math.max(...R.map(r => +r[1] || 0), 1), all = R.reduce((a, r) => a + (+r[1] || 0), 0), hm = m => (m >= 60 ? Math.floor(m / 60) + ' 小时 ' : '') + (m % 60) + ' 分钟';
     return [h('div.pk-day', '今天'), h('div.pk-card', h('b.pk-big', hm(all))), list(R.map(([n, m]) => h('div.pk-row', h('div', h('b', n), h('i.pk-bar', { style: { width: (+m || 0) / max * 100 + '%' } })), h('time', hm(+m || 0)))))]; },
-  // 备忘录：最上面一张上了锁的「只给自己看」（心声和情绪），下面是便签；涂鸦点开是一张能左右拖的字符画，下面写着解析
+  // 备忘录：最上面一张上了锁的「只给自己看」（心声和情绪），下面是便签。以前存过的涂鸦不显示了
   备忘录: (R, push) => {
-    const kind = r => ['便签', '心声', '涂鸦'].includes(r[0]) ? r[0] : '便签', notes = R.filter(r => kind(r) === '便签').map(r => r[0] === '便签' ? r.slice(1) : r);
-    const heart = R.find(r => kind(r) === '心声'), doodles = R.filter(r => kind(r) === '涂鸦');
+    const notes = R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r => r[0] === '便签' ? r.slice(1) : r), heart = R.find(r => r[0] === '心声');
     const note = ([t, d, body = '']) => h('button.pk-row.is-col', { onclick: () => push(t, [h('time', d), ...body.split('//').map(x => h('p', x.trim()))], 'pk-note') }, h('b', t), h('span', h('time', d), body.replace(/\s*\/\/\s*/g, ' ')));
     return [heart ? list(h('button.pk-row.pk-locked', { onclick: () => push('只给自己看', [h('small.pk-unlock', icon('lock', 14, 2.2), '已用面容解锁'),
       h('div.pk-moods', (heart[1] || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(x => h('span', x))), ...(heart[2] || '').split('//').map(x => h('p', x.trim()))], 'pk-note') },
       icon('lock', 18, 2.2), h('b', '只给自己看'), h('span', '已锁定'))) : null,
-      notes.length ? [h('div.pk-day', '便签'), list(notes.map(note))] : null,
-      doodles.length ? [h('div.pk-day', '涂鸦'), list(doodles.map(([, t, art = '', why]) => h('button.pk-row.is-col', { onclick: () => push(t || '随手涂鸦', [
-        h('pre.pk-doodle', art.split('//').map(x => x.replace(/\s+$/, '')).join('\n')), why && h('div.pk-card', h('small', '涂鸦解析'), h('p', why))], 'pk-note') },
-        h('b', t || '随手涂鸦'), h('span', why || ''))))] : null];
+      notes.length ? [h('div.pk-day', '便签'), list(notes.map(note))] : null];
   },
   // 搜索：谷歌那样，彩色的字、圆的搜索框、常去的网站，下面分 搜索 / 历史记录 / 收藏夹 / 无痕。
   // 点一条搜索、一个网页，进去就是那一页（文章或视频）；内容都是生成时一起写好的，点开不找 AI
