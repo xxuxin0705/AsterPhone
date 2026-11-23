@@ -2,7 +2,7 @@
 // 画好的存成一张透明底的 png，单独放在 kv 的 memo-draw:编号 里（图大，不跟备忘录的字一起存，免得每次保存都写一遍）；这条备忘录第九格记编号
 import { h, uid } from '../../core/util.js';
 import { kvGet, kvSet } from '../../core/store.js';
-import { icon, sheet, colorWheel, toast } from '../../core/ui.js';
+import { icon, sheet, colorWheel, toast, dialog } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { iosPage, inks } from '../peek/apps.js';
 
@@ -13,7 +13,9 @@ const line = (c, [k, col, pts]) => { c.lineCap = c.lineJoin = 'round'; c.lineWid
 
 /** 画 r 这一条；lines 是摆在上面的字，done() 是存好以后要做的（改日期、重画开着的页） */
 export async function draw(r, lines, done) {
-  const { el, body } = iosPage('memo', 'memo-draw', '.pk-nt.is-doc.pk-draw'), off = el._onLeave;
+  const { el, body } = iosPage('memo', 'memo-draw', '.pk-nt.is-doc.pk-draw'), off = el._onLeave, shared = r[0] === '共用';
+  // 共用的备忘录：画的下次和 TA 私聊时跟着给 TA 看（engine.js 的 requestReply）
+  const tip = `下次和 ${r[3]} 私聊时，这张画会一起给 TA 看（看过就不再带，改了再给 TA 看）。聊天的模型要能识图，比如 Gemini、Claude、GPT-4o；走「酒馆」连接的带不了图。`;
   const cvs = h('canvas'), cur = h('canvas'), ctx = cvs.getContext('2d'), cx = cur.getContext('2d'), pad = h('div.pk-draw__pad', { 'data-no-swipe': '' }, cvs, cur);
   cvs.width = cur.width = W; cvs.height = cur.height = H;
   // 以前画的当底图；这次画的每一笔记成 [笔, 颜色, 点…]，撤销就去掉最后一笔、从底图起重画
@@ -39,6 +41,13 @@ export async function draw(r, lines, done) {
     inks.set(key, url); r[8] = key; const im = new Image(); im.src = url; await im.decode().catch(() => {}); done(); };   // 先解好码再重画下面那页，不空一下
   body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('div.pk-nt__r', undoBtn, h('button.pk-glass.is-round', { 'aria-label': '完成', onclick: () => nav.back() }, icon('check', 22, 2.6)))),
     r[1] ? h('h1', r[1]) : null, h('div.pk-nt__lines', lines.map(x => h('p', x))), pad,
-    h('div.pk-float', h('div.pk-glass.pk-draw__bar', ...tools, dot)));
+    h('div.pk-float', h('div.pk-glass.pk-draw__bar', ...tools, dot), shared && h('button.pk-glass.is-round', { 'aria-label': '说明', onclick: () => dialog({ title: '画给 TA 看', text: tip, confirm: '知道了', cancel: '' }) }, icon('info', 22, 2))));
   nav.push(el);
+  if (shared) toast(`画的会给 ${r[3]} 看，聊天的模型要能识图才看得懂`);
+}
+/** 给 AI 看的：透明底垫成白底（不然有的接口当成黑底，黑笔就看不见了），存成 jpg 小一点 */
+export async function inkPic(key) {
+  const im = new Image(); im.src = inks.get(key) || await kvGet(key); await im.decode();
+  const c = h('canvas', { width: im.width, height: im.height }), x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0); return c.toDataURL('image/jpeg', .85);
 }

@@ -203,6 +203,8 @@ async function gen(opts) {
   let last = null;
   try { return await withRetry('text', app, () => resumable(opts)); } catch (e) { last = e; }
   if (last.message === '已中止') throw last;   // 自己点了中止：不换副 API
+  // 带了图被拒（模型不认图）：去掉图只发字再问一次，日志里说一声
+  if (opts.images?.length && /^4(00|04|13|15|22)\b/.test(last.message)) { log('warn', app, `「${conn.model || conn.name}」好像看不了图片（${last.message.slice(0, 80)}），这次只发了文字`); return gen({ ...opts, images: [] }); }
   // 聊天线断了 → 改用选好的副 API（只换一次，不来回换）
   const bk = backupOf('text');
   if (bk && !opts.noFallback && bk.id !== conn.id && (bk.type !== 'tavern' || inTavern())) {
@@ -212,7 +214,8 @@ async function gen(opts) {
   throw last;
 }
 // 不限字数（作者定的）：思考也算在上限里，回到一半被截断就白花了。OpenAI 格式、Gemini 不传上限，Claude 必须填就给 64000（官方建议的大小），走酒馆的照酒馆预设
-async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart, resume = 0 }) {
+// images：[{ text, url }] 一起给 AI 看的图（url 是 data 地址），text 是说这张图是什么的一句；走酒馆的连接带不了，只发字
+async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperature, app = '聊天', stop, onPart, resume = 0, images = [] }) {
   const P = conn.params || {};
   const temp = temperature ?? P.temperature ?? conn.temperature ?? 0.9;
   const think = THINK[P.thinking] || 0;
@@ -220,7 +223,8 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
   const keys = keysOf(conn);
   let ki = Math.min(conn.keyIdx || 0, Math.max(0, keys.length - 1));
   // 日志里记一条调用：发出去的、流式收到的、结果；点中止就断开
-  const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt });
+  const call = startCall({ app, src: conn.type === 'tavern' ? '酒馆' : conn.name, model: conn.model || '', req: (system ? `【系统】\n${system}\n\n` : '') + prompt + images.map(i => `\n\n[图片] ${i.text}`).join('') });
+  const b64 = u => /^data:([^;]+);base64,(.*)$/.exec(u) || [];   // [, 类型, 内容]
   let got = '', why = '';   // 流式收到的（线断了时带在报错上，接着写用）；AI 为什么停（字数到上限就不算写完）
   const halt = r => { if (r) why = r; };
   // 收到多少字了告诉界面（core/ui.js 的 aiCount：等待的提示条、转圈的按钮、聊天里的「正在输入」后面都跟着写；结束报 null）
@@ -240,6 +244,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         catch (e) { if (!isKeyErr(e.message) || n >= keys.length - 1) throw e; log('warn', app, `密钥 ${(ki + n) % keys.length + 1} 被拒（${e.message.slice(0, 3)}），换下一把`); }
       }
     };
+    if (images.length && /^tavern/.test(conn.type)) log('warn', app, '走酒馆的连接带不了图片，这次只发了文字');
     if (conn.type === 'tavern') {
       if (!inTavern()) { out = demoReply(prompt); log('info', app, '不在酒馆里，用了演示回复'); }
       else { const pf = conn.pf && tavernProfiles().list.find(x => x.id === conn.pf); out = await orAbort(pf ? generateWithProfile(pf, { system, prompt }) : generateTavern({ system, prompt }), signal); }
@@ -251,7 +256,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
       out = await withKey(async key => {
         // 接口不肯流式（400 / 422 还提到 stream）就一次性要；流式回来一个字没有（又没说为什么），一次性再问一遍——有的中转只认一次性的
         const send = async st => {
-          const body = { model: conn.model, temperature: temp, stream: st, messages: [system && { role: 'system', content: system }, { role: 'user', content: prompt }].filter(Boolean) };
+          const body = { model: conn.model, temperature: temp, stream: st, messages: [system && { role: 'system', content: system }, { role: 'user', content: images.length ? [{ type: 'text', text: prompt }, ...images.flatMap(i => [{ type: 'text', text: i.text }, { type: 'image_url', image_url: { url: i.url } }])] : prompt }].filter(Boolean) };
           const tk = deaf(conn, conn.model) ? {} : P.thinking === 'none' ? quiet(conn.model) : think ? { reasoning_effort: P.thinking } : {};
           Object.assign(body, tk); if (tk.reasoning_effort && P.thinking !== 'none') delete body.temperature;
           const res = await xf(oaiBase(conn.base) + '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
@@ -269,7 +274,8 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         // 提示词缓存：人设 / 设定这类每次都一样的东西走缓存，便宜又快。keep：提示词前面这么多字每次都一样（聊天时人设、世界书、一直记着的、正文），也走缓存
         const cache = conn.adv && conn.adv.cache, mark = { cache_control: { type: 'ephemeral' } };
         const sys = !system ? undefined : cache ? [{ type: 'text', text: system, ...mark }] : system;
-        const content = cache && keep > 0 && keep < prompt.length ? [{ type: 'text', text: prompt.slice(0, keep), ...mark }, { type: 'text', text: prompt.slice(keep) }] : prompt;
+        const text = cache && keep > 0 && keep < prompt.length ? [{ type: 'text', text: prompt.slice(0, keep), ...mark }, { type: 'text', text: prompt.slice(keep) }] : prompt;
+        const content = images.length ? [...[text].flat().map(t => (typeof t === 'string' ? { type: 'text', text: t } : t)), ...images.flatMap(i => [{ type: 'text', text: i.text }, { type: 'image', source: { type: 'base64', media_type: b64(i.url)[1], data: b64(i.url)[2] } }])] : text;
         const body = { model: conn.model, max_tokens: 64000, system: sys, stream, messages: [{ role: 'user', content }] };
         if (think) body.thinking = { type: 'enabled', budget_tokens: think }; else body.temperature = Math.min(1, temp);
         const res = await xf(trim(conn.base || 'https://api.anthropic.com') + '/v1/messages', {
@@ -283,7 +289,7 @@ async function generateOnce({ conn, system = '', prompt = '', keep = 0, temperat
         const tc = gemThink(conn.model, P.thinking); if (tc) gc.thinkingConfig = tc;
         const url = `${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models/${encodeURIComponent(conn.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
         const res = await xf(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
+          body: JSON.stringify({ systemInstruction: system ? { parts: [{ text: system }] } : undefined, contents: [{ role: 'user', parts: [{ text: prompt }, ...images.flatMap(i => [{ text: i.text }, { inline_data: { mime_type: b64(i.url)[1], data: b64(i.url)[2] } }])] }], generationConfig: gc }) });
         if (!res.ok) throw new Error(await readErr(res));
         const parts = j => (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
         return readOut(res, parts, parts, part, halt);

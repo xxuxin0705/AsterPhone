@@ -347,7 +347,11 @@ export async function requestReply(chat, opts = {}) {
     if (c && c.lore) await (await import('./aiload.js')).refreshLore(c);
     const built = await buildReplyPrompt(chat, msgs);
     const prompt = built.prompt + (await import('../../core/music.js')).togetherNote(c) + memNote(chat) + (opts.extra ? '\n\n' + opts.extra : '') + roundNote(replyCfg(chat)), system = built.system;
-    const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal });
+    // 共用的备忘录里你新画的（第十格还没标看过）：图跟着这次回复一起给 TA 看，看过就不再带（模型得认图片）
+    const pics = c ? sharedNotes(c).filter(r => r[8] && !r[9]) : [], { inkPic } = pics.length ? await import('../memo/draw.js') : {};
+    const images = await Promise.all(pics.map(async r => ({ text: `（${myName()} 在你们共用的备忘录《${takeTr(r[1] || r[4].split('//')[0])[0]}》里画的，看看画的什么，想回应就自然地说）`, url: await inkPic(r[8]).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')) }))).then(L => L.filter(i => i.url));
+    const raw = await generate({ conn, system, prompt, keep: built.keep, temperature: chat.cfg.temperature ?? undefined, app: opts.extra ? '主动消息' : '聊天', stop: ac.signal, images });
+    if (pics.length) { pics.forEach(r => { r[9] = 1; }); commit('notes'); }
     const fresh = !opts.extra && msgs.length && msgs[msgs.length - 1].from === 'me';   // 你刚说了话（主动找你的那种不贴）
     let reacted = 0;
     const memos = [], [said0, mem] = takeMem(raw), said = said0.replace(RX, (_, e, f) => { if (fresh && !reacted && c && reactTo(msgs, c.id, e, f)) reacted++; return ''; }).replace(MEMO, (_, t, x) => { memos.push([t, x]); return ''; });

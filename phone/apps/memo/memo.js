@@ -33,7 +33,7 @@ const D = {
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
   drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
     rs.forEach(r => { N().splice(N().indexOf(r), 1); r[8] && kvDel(r[8]); }); save(); fresh(); },
-  draw: (r, L = r[4].split('//').filter(Boolean)) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); save(); fresh(); }),
+  draw: (r, L = r[4].split('//').filter(Boolean).map(x => x.slice(pre(x, r).length))) => draw(r, L, () => { r[2] = time.stampText(time.stamp()); r[9] = 0; save(); fresh(); }),   // 第十格：TA 看过这张画没有（画改了就再给 TA 看）
   // 挪到哪个文件夹：「新建文件夹」起个名字就挪进去；共用的不在文件夹里，不挪
   move: async rs => { const fs = [...new Set(N().filter(r => r[0] !== '共用' && r[3]).map(r => r[3]))];
     let v = await actionSheet('选择文件夹', [{ value: '+', label: '新建文件夹' }, { value: '·', label: '备忘录' }, ...fs.map(f => ({ value: f, label: f }))]); if (!v) return false;
