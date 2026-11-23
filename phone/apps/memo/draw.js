@@ -4,7 +4,7 @@
 import { h, uid } from '../../core/util.js';
 import { kvGet, kvSet, state, commit } from '../../core/store.js';
 import { icon, sheet, colorWheel, toast, dialog } from '../../core/ui.js';
-import { inks, inkImg } from '../peek/apps.js';
+import { inks, inkImg, flipBlack, blackish } from '../peek/apps.js';
 
 const TOOLS = { pen: ['钢笔', 3, 1], fine: ['细笔', 1.5, 1], mark: ['荧光笔', 18, .35], erase: ['橡皮', 22, 1], lasso: ['套索', 1, 1] }, W = 786, STEP = 900;
 // 每支笔记着自己的颜色（荧光笔默认黄的），橡皮没有颜色
@@ -15,32 +15,37 @@ const line = (c, [k, col, pts]) => { c.lineCap = c.lineJoin = 'round'; c.lineWid
  *  tip 是共用时点 ⓘ 看的那句；onSave(编号) 在画完时同步调用（还没画一笔就点完成的不调） */
 export async function startDraw({ host, key = '', tip = '', onSave }) {
   const page = host.closest('.as-page'), body = host.closest('.pk-app__body'), float = body.querySelector(':scope > .pk-float');
-  const cvs = h('canvas'), cur = h('canvas'), ctx = cvs.getContext('2d'), cx = cur.getContext('2d'), pad = h('div.pk-draw__pad', { 'data-no-swipe': '' }, cvs, cur);
+  // cvs 是真正存下来的那张（不放进页面）；view 是给你看的：夜里把黑色看成白色，别的颜色照原样
+  const cvs = h('canvas'), view = h('canvas'), cur = h('canvas'), ctx = cvs.getContext('2d', { willReadFrequently: true }), vx = view.getContext('2d'), cx = cur.getContext('2d'), pad = h('div.pk-draw__pad', { 'data-no-swipe': '' }, view, cur);
+  const night = () => !!pad.closest('.is-dark'), see = c => (night() && blackish(c) ? '#ffffff' : c);
+  const show = (x = 0, y = 0, w = W, hh = H) => { x = Math.max(0, Math.floor(x)); y = Math.max(0, Math.floor(y)); w = Math.min(W - x, Math.ceil(w)); hh = Math.min(H - y, Math.ceil(hh)); if (w < 1 || hh < 1) return;
+    const d = ctx.getImageData(x, y, w, hh); if (night()) flipBlack(d.data); vx.putImageData(d, x, y); };
   let base = null, s = null, H = STEP; const strokes = [];
   const src = key && (inks.get(key) || await kvGet(key).catch(() => ''));
   if (src) { base = new Image(); base.src = src; await base.decode().catch(() => {}); H = Math.max(STEP, base.height + 300); }
-  const size = () => { cvs.width = cur.width = W; cvs.height = cur.height = H; pad.style.aspectRatio = `${W} / ${H}`; };
+  const size = () => { cvs.width = view.width = cur.width = W; cvs.height = view.height = cur.height = H; pad.style.aspectRatio = `${W} / ${H}`; };
   size(); base && ctx.drawImage(base, 0, 0);
   // 画到靠近底下就再接长一截（先把画好的抄下来，改了大小再贴回去）
-  const grow = () => { const k = h('canvas', { width: W, height: H }); k.getContext('2d').drawImage(cvs, 0, 0); H += STEP; size(); ctx.drawImage(k, 0, 0); };
+  const grow = () => { const k = h('canvas', { width: W, height: H }); k.getContext('2d').drawImage(cvs, 0, 0); H += STEP; size(); ctx.drawImage(k, 0, 0); show(); };
   // 套索圈出的那块：clip 是圈的形状，piece 把画布上圈里的抄成一张（复制用）；删除、复制都当一笔记进 strokes，撤销照样一步步退
   const clip = pts => { const p = new Path2D(); p.moveTo(...pts[0]); pts.forEach(q => p.lineTo(...q)); p.closePath(); return p; };
-  const piece = pts => { const k = h('canvas', { width: W, height: H }), x = k.getContext('2d'); x.clip(clip(pts)); x.drawImage(cvs, 0, 0); return k; };
-  const put = st => { if (st[0] === 'cut') { ctx.save(); ctx.clip(clip(st[1])); ctx.clearRect(0, 0, W, H); ctx.restore(); return; }
-    if (st[0] === 'copy') return ctx.drawImage(piece(st[1]), st[2], st[3]);
-    ctx.globalAlpha = TOOLS[st[0]][2]; ctx.globalCompositeOperation = st[0] === 'erase' ? 'destination-out' : st[0] === 'mark' ? 'multiply' : 'source-over'; line(ctx, st); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; };
-  const undo = h('button.pk-draw__undo', { 'aria-label': '撤销', disabled: true, onclick: () => { sel = null; menu.hidden = true; ants(); strokes.pop(); ctx.clearRect(0, 0, W, H); base && ctx.drawImage(base, 0, 0); strokes.forEach(put); undo.disabled = !strokes.length; } }, icon('undo', 22, 2.2));
+  const piece = (pts, from = cvs) => { const k = h('canvas', { width: W, height: H }), x = k.getContext('2d'); x.clip(clip(pts)); x.drawImage(from, 0, 0); return k; };
+  const put = st => { if (st[0] === 'cut') { ctx.save(); ctx.clip(clip(st[1])); ctx.clearRect(0, 0, W, H); ctx.restore(); return show(); }
+    if (st[0] === 'copy') { ctx.drawImage(piece(st[1]), st[2], st[3]); return show(); }
+    ctx.globalAlpha = TOOLS[st[0]][2]; ctx.globalCompositeOperation = st[0] === 'erase' ? 'destination-out' : st[0] === 'mark' ? 'multiply' : 'source-over'; line(ctx, st); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    const xs = st[2].map(p => p[0]), ys = st[2].map(p => p[1]), r = TOOLS[st[0]][1] + 2; show(Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) - Math.min(...xs) + 2 * r, Math.max(...ys) - Math.min(...ys) + 2 * r); };
+  const undo = h('button.pk-draw__undo', { 'aria-label': '撤销', disabled: true, onclick: () => { sel = null; menu.hidden = true; ants(); strokes.pop(); ctx.clearRect(0, 0, W, H); base && ctx.drawImage(base, 0, 0); strokes.forEach(put); show(); undo.disabled = !strokes.length; } }, icon('undo', 22, 2.2));
   const at = e => { const b = pad.getBoundingClientRect(); return [(e.clientX - b.left) / b.width * W, (e.clientY - b.top) / b.height * H]; };
   // 正在画的这一笔先画在上面一层（整笔重画，荧光笔交叉的地方才不会一节一节变深），松手再落到画布上；橡皮直接擦
-  const move = p => { s[2].push(p); if (p[1] > H - 260) grow(); if (s[0] === 'erase') return put([s[0], '', s[2].slice(-2)]); cx.clearRect(0, 0, W, H); line(cx, s); };
+  const move = p => { s[2].push(p); if (p[1] > H - 260) grow(); if (s[0] === 'erase') return put([s[0], '', s[2].slice(-2)]); cx.clearRect(0, 0, W, H); line(cx, [s[0], see(s[1]), s[2]]); };
   // 套索：圈的时候上面一层画蓝色虚线；松手出「复制 | 删除」；复制出来的那块挪开一点，按住拖到想放的地方，点别处（或换笔、完成）才落下
   let sel = null, drag = null;
-  const ants = () => { cx.clearRect(0, 0, W, H); if (!sel) return; if (sel.img) cx.drawImage(sel.img, sel.dx, sel.dy);
+  const ants = () => { cx.clearRect(0, 0, W, H); if (!sel) return; if (sel.img) cx.drawImage(sel.see, sel.dx, sel.dy);
     cx.save(); cx.translate(sel.dx, sel.dy); cx.setLineDash([10, 8]); cx.lineWidth = 3; cx.strokeStyle = '#0a84ff'; cx.stroke(clip(sel.pts)); cx.restore(); };
   const act = (label, fn) => h('button', { onclick: e => { e.stopPropagation(); fn(); } }, label);
   const add = st => { put(st); strokes.push(st); undo.disabled = false; };
   const drop = () => { if (sel?.img) add(['copy', sel.pts, sel.dx, sel.dy]); sel = null; menu.hidden = true; ants(); };
-  const menu = h('div.pk-draw__sel', { hidden: true }, act('复制', () => { sel.img = piece(sel.pts); sel.dx = sel.dy = 30; menu.hidden = true; ants(); }), act('删除', () => { add(['cut', sel.pts]); sel = null; menu.hidden = true; ants(); }));
+  const menu = h('div.pk-draw__sel', { hidden: true }, act('复制', () => { sel.img = piece(sel.pts); sel.see = piece(sel.pts, view); sel.dx = sel.dy = 30; menu.hidden = true; ants(); }), act('删除', () => { add(['cut', sel.pts]); sel = null; menu.hidden = true; ants(); }));
   const lassoUp = () => { const P = s[2], xs = P.map(p => p[0]), ys = P.map(p => p[1]); s = null;
     if (P.length < 5 || Math.max(...xs) - Math.min(...xs) < 12 || Math.max(...ys) - Math.min(...ys) < 12) return ants();
     sel = { pts: P, dx: 0, dy: 0 }; ants(); const low = Math.min(...ys) < 90;   // 圈在最上面：菜单放到圈的下面，不盖住上面的字
@@ -79,7 +84,7 @@ export async function startDraw({ host, key = '', tip = '', onSave }) {
     kvSet(k, url).catch(e => toast('画没存上：' + e.message));
   };
   page._onLeave = () => { finish(); leave && leave(); };   // 画着画着点了返回：照样存好
-  host.replaceWith(pad); if (float) float.hidden = true; body.append(bar);
+  host.replaceWith(pad); show(); if (float) float.hidden = true; body.append(bar);
   pad.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   pad.append(menu);
   const vision = () => tip && toast('画的会给共用的人看，聊天的模型要能识图才看得懂');

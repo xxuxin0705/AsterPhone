@@ -126,7 +126,18 @@ export function trBtn(layer, root) {
 export const ink = (k, size, w) => { const s = icon('info', size, w); s.firstChild.setAttribute('d', G[k]); return s; };
 // 备忘录里画的图单独存在 kv 里（apps/memo/draw.js）；读过的记着，重画这一页时直接用，不空一下
 export const inks = new Map();
-const pic = (key, cls) => { const im = h('img.' + cls, { alt: '', src: inks.get(key) }); if (!inks.has(key)) kvGet(key).then(s => { if (s) { inks.set(key, s); im.src = s; } }, () => {}); return im; };
+// 夜里：画里的黑色（和很深的灰）看成白色，不然黑底上看不见；别的颜色照你选的原样（浅粉就是浅粉，白就是白）
+export const blackish = c => { const m = /^#([\da-f]{6})$/i.exec(c || ''), v = m && m[1].match(/../g).map(x => parseInt(x, 16)); return !!v && Math.max(...v) < 90 && Math.max(...v) - Math.min(...v) < 30; };
+export const flipBlack = a => { for (let i = 0; i < a.length; i += 4) { const mx = Math.max(a[i], a[i + 1], a[i + 2]); if (a[i + 3] && mx < 90 && mx - Math.min(a[i], a[i + 1], a[i + 2]) < 30) { a[i] = 255 - a[i]; a[i + 1] = 255 - a[i + 1]; a[i + 2] = 255 - a[i + 2]; } } };
+// 每张画另备一张夜里看的（同一张图只算一次），挂在 --night 上，夜里由样式换上去（页面切白天黑夜不用重画）
+const nights = new Map();
+const nightOf = url => { if (nights.has(url)) return nights.get(url); let p;
+  if (url.startsWith('data:image/svg')) { const t = decodeURIComponent(url.slice(url.indexOf(',') + 1)).replace(/(stroke|fill)="#000"/g, '$1="#fff"'); p = Promise.resolve('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(t)); }
+  else p = (async () => { const im = new Image(); im.src = url; await im.decode(); const c = h('canvas', { width: im.width, height: im.height }), x = c.getContext('2d'); x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height); flipBlack(d.data); x.putImageData(d, 0, 0); return URL.createObjectURL(await new Promise(ok => c.toBlob(ok))); })().catch(() => '');
+  nights.set(url, p); return p; };
+const pic = (key, cls) => { const im = h('img.' + cls, { alt: '', src: inks.get(key) }), set = s => { im.src = s; nightOf(s).then(u => u && im.style.setProperty('--night', `url("${u}")`)); };
+  if (inks.has(key)) set(inks.get(key)); else kvGet(key).then(s => { if (s) { inks.set(key, s); set(s); } }, () => {}); return im; };
 export const inkImg = key => { const im = pic(key, 'pk-nt__ink'); im.dataset.key = key; return im; };
 // TA 画的画（AI 写的 svg，编号带 svg）：第一次滑到眼前时一笔一笔画出来，以后点这张画再看一遍。动画是在图上面盖一张一样的 svg，画完拿掉
 const play = async img => { if (img._busy) return; img._busy = 1; const url = String(inks.get(img.dataset.key) || await kvGet(img.dataset.key).catch(() => '') || ''), done = () => { img.style.visibility = ''; img._busy = 0; };

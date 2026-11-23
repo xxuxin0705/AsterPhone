@@ -475,7 +475,8 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-nt__fig > small { display: none; margin: 0 20px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); } .is-who > .pk-nt__fig > small { display: inline-block; }
 .pk-nt__key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -6px 20px 12px; font-size: 13px; color: var(--pk-sub); }
 .pk-nt__key span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--c); }
-.is-dark :is(.pk-draw__pad canvas, .pk-nt__ink) { filter: invert(1) hue-rotate(180deg); }
+.is-dark :is(.pk-nt__ink, .pk-nt__thumb) { content: var(--night); }   /* 夜里换成黑色变白的那张（apps.js 的 nightOf） */
+.is-dark .pk-nt__ink.is-play [stroke="#000"] { stroke: #fff; } .is-dark .pk-nt__ink.is-play [fill="#000"] { fill: #fff; }
 .pk-nt__row:has(> .pk-nt__thumb) { padding-right: 76px; }
 .pk-nt__row > .pk-nt__thumb { position: absolute; right: 16px; top: 50%; width: 48px; height: 48px; margin-top: -24px; box-sizing: border-box; border-radius: 8px; border: .5px solid var(--pk-line); background: #fff; object-fit: cover; object-position: top; }
 .pk-draw__float { justify-content: center; }
