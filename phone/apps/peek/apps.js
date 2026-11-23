@@ -1,5 +1,5 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
-import { h, sortZh } from '../../core/util.js';
+import { h, sortZh, onLongPress } from '../../core/util.js';
 import { icon, actionSheet, dialog, busy, toast } from '../../core/ui.js';
 import { kvGet, kvSet } from '../../core/store.js';
 import { generateImage, resolveConn } from '../../core/api.js';
@@ -93,7 +93,7 @@ export function iosPage(app, id, cls = '') {
 let opened = null;
 export const gone = w => w.animate([{ height: w.offsetHeight + 'px', opacity: 1 }, { height: 0, opacity: 0 }], { duration: 260, easing: 'ease-in' }).finished.then(() => w.remove());   // 删掉的那一行收起来
 export function swipe(row, left = [], right = []) {
-  const btn = ([ic, bg, fn]) => h('button.pk-swipe__b', { style: { background: bg }, onclick: e => { e.stopPropagation(); shut(); fn(wrap); } }, icon(ic, 22, 2));
+  const btn = ([ic, bg, fn, label]) => h('button.pk-swipe__b' + (label ? '.has-l' : ''), { style: { '--bg': bg }, onclick: e => { e.stopPropagation(); shut(); fn(wrap); } }, label ? [h('i', icon(ic, 20, 2)), h('small', label)] : icon(ic, 22, 2));   // label：圆下面写一行字（备忘录照 iPhone）
   const wrap = h('div.pk-swipe', right.length ? h('div.pk-swipe__l', right.map(btn)) : null, left.length ? h('div.pk-swipe__r', left.map(btn)) : null, row);
   const wL = left.length * 58 + 6, wR = right.length * 58 + 6;
   let s = null, x = 0, dragged = false;   // dragged：刚拖完，紧跟着的那下 click 不算点
@@ -299,19 +299,48 @@ export const VIEWS = {
         n.k === '草稿' ? h('small.pk-nt__to', `给 ${n.to || '某个人'} · 未发送`) : n.k === '共用' ? h('small.pk-nt__to', `与 ${n.to || '别人'} 共用`) : null, body,
         h('div.pk-float', no(h('div.pk-glass.pk-nt__pill', ink('todo', 22, 1.9), ink('clip', 22, 1.9), ink('pen', 22, 1.9))), h('i'), write(n.r))]; }, 'is-raw.pk-nt.is-doc');
     // 这是 TA 的手机：左滑能看到删除，点了不让删（你自己的备忘录才真的删）
-    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || (lines(n)[0] || '新建备忘录').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')),
+    const nope = () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`);
+    const pin = (r, w) => { r[7] = r[7] ? 0 : 1; keep(); w.closest('.pk-nt__cards')?._paint(); };
+    // 长按一条：后面变暗，这一条放大给你看，底下一组菜单（照 iPhone）；TA 的手机上只有置顶、复制能用
+    const menu = (n, w) => { const L = w.closest('.pk-app'), close = () => ov.remove();
+      const act = (ic, label, fn, red) => h('button' + (red ? '.is-red' : ''), { onclick: () => { close(); fn(); } }, icon(ic, 20, 2), h('small', label));
+      const line = (ic, label, fn) => h('button.pk-ctx__li', { onclick: () => { close(); fn(); } }, icon(ic, 18, 2), label);
+      const ov = h('div.pk-ctx', { onclick: e => { if (e.target === ov) close(); } },
+        h('div.pk-ctx__card', n.t ? h('b', n.t) : null, lines(n).slice(0, 14).map(x => h('p', x.replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')))),
+        h('div.pk-ctx__menu', h('div.pk-ctx__acts', act('share', '共享', D.share ? () => D.share(n.r) : nope), act('folder', '移动', D.move ? () => D.move([n.r]) : nope), act('trash', '删除', D.del ? () => D.del(n.r) : nope, true)),
+          n.k !== '已删' && n.r ? line('pin', n.r[7] ? '取消置顶备忘录' : '置顶备忘录', () => pin(n.r, w)) : null,
+          line('note', '复制备忘录', () => navigator.clipboard.writeText([n.t, ...lines(n)].filter(Boolean).join('\n')).then(() => toast('已复制'), () => toast('复制不了')))));
+      L.append(ov); trs(ov); };
+    const row = (n, all) => Object.assign(swipe(h('button.pk-nt__row' + (n.r && n.r[6] ? '.is-new' : ''), { onclick: e => { const c = e.currentTarget.closest('.pk-nt__cards'); if (c?._pick) return c._pick(n, e.currentTarget);
+      if (D.seen && n.r[6]) { e.currentTarget.classList.remove('is-new'); D.seen(n.r); } open(n); } }, h('b', n.t || (lines(n)[0] || '新建备忘录').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '')),
       h('span', n.d && h('time', n.k === '已删' && day(n.d) ? `还剩 ${Math.max(1, 30 - Math.floor((now - day(n.d)) / 864e5))} 天` : when(n.d)), n.k === '心声' ? [icon('lock', 13, 2.2), '已锁定'] : n.k === '草稿' ? `给 ${n.to || '某个人'} · 未发送` : (lines(n)[n.t ? 0 : 1] || '无更多文本').replace(n.k === '共用' ? BY : CUT, '').replace(TICK, '').replace(CUT, '')),
-      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')), [['trash', '#ff3b30', w => D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)]], n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => { n.r[7] = n.r[7] ? 0 : 1; keep(); w.closest('.pk-nt__cards')?._paint(); }]] : []), { _q: (n.t + n.body + n.f).toLowerCase() });
+      n.k === '共用' ? h('small', icon('users', 14, 1.8), `与 ${n.to || '别人'} 共用`) : all && h('small', ink('folder', 14, 1.8), n.f || '备忘录')),
+      [['share', '#0a84ff', () => (D.share ? D.share(n.r) : nope()), '共享'], ['folder', '#5e5ce6', () => (D.move ? D.move([n.r]) : nope()), '移动'], ['trash', '#ff3b30', w => (D.del ? D.del(n.r, w) : toast(`这是${D.name}的手机，不可以删哦 (>﹏<)`)), '删除']],
+      n.r && n.k !== '已删' ? [['pin', '#ff9f0a', w => pin(n.r, w), n.r[7] ? '取消置顶' : '置顶']] : []), { _q: (n.t + n.body + n.f).toLowerCase(), _n: n });
+    let fold = false;   // 「置顶」那一段收起来没有（点段标题收起 / 展开）
     // 一个文件夹（sel 从现在的全部里挑出这一页的）：按多久以前分段，每段一张卡片；底下的搜索是真的（只在这一页里找）
     const folder = (name, sel, all, focus) => { let find;
-      push(name, () => { const head = h('div.pk-top2', back(), h('b', name), no(h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8)))), big = h('h1', name); bigTitle(head, big);
-        const cards = h('div.pk-nt__cards');   // 置顶 / 取消置顶后只重排这一页的卡片
-        const paint = cards._paint = () => cards.replaceChildren(...groupBy(sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]).map(n => [sec(n), n]), 0).flatMap(([t, G]) => [h('h3', t), h('div.pk-nt__card', G.map(([, n]) => row(n, all)))]));
+      push(name, () => { const tb = h('b', name), big = h('h1', name), cards = h('div.pk-nt__cards');   // 置顶 / 取消置顶后只重排这一页的卡片
+        // 「⋯」→ 选择备忘录：每条前面一个圈，点了勾上；顶上写选了几条，底下换成移动 / 删除（一条没选时是全部）
+        const picked = new Set(), more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => (D.move ? actionSheet('', [{ value: 'pick', label: '选择备忘录' }]).then(v => v && pickMode(true)) : nope()) }, ink('more', 22, 2.8));
+        const done = h('button.pk-glass.is-round', { 'aria-label': '完成', onclick: () => pickMode(false) }, icon('check', 22, 2.4));
+        const mv = h('button.pk-glass', { onclick: () => D.move(chosen()).then(ok => ok !== false && pickMode(false)) }), dl = h('button.pk-glass.is-red', { onclick: () => D.drop(chosen()).then(ok => ok !== false && pickMode(false)) });
+        const chosen = () => (picked.size ? [...picked] : sel(calc()).filter(n => n.r).map(n => n.r));
+        const bar = h('div.pk-float.pk-nt__pick', mv, h('i'), dl);
+        const count = () => { const k = picked.size; tb.textContent = big.textContent = k ? `已选定 ${k} 项` : name; mv.textContent = k ? '移动' : '移动全部'; dl.textContent = k ? '删除' : '全部删除'; };
+        const pickMode = on => { picked.clear(); cards.classList.toggle('is-pick', on); cards._pick = on && ((n, el) => { picked.has(n.r) ? picked.delete(n.r) : picked.add(n.r); el.classList.toggle('is-sel', picked.has(n.r)); count(); });
+          head.lastChild.replaceWith(on ? done : more); float.hidden = on; bar.hidden = !on; count(); cards.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); };
+        const head = h('div.pk-top2', back(), tb, more); bigTitle(head, big);
+        const paint = cards._paint = () => cards.replaceChildren(...groupBy(sel(calc()).sort((a, b) => !!b.r?.[7] - !!a.r?.[7]).map(n => [sec(n), n]), 0).flatMap(([t, G]) => {
+          const card = h('div.pk-nt__card', { hidden: t === '置顶' && fold }, G.map(([, n]) => { const w = row(n, all); onLongPress(w.lastChild, () => !cards._pick && menu(n, w)); if (picked.has(n.r)) w.lastChild.classList.add('is-sel'); return w; }));
+          return [t === '置顶' ? h('h3.pk-nt__fold' + (fold ? '.is-shut' : ''), { onclick: e => { fold = !fold; card.hidden = fold; e.currentTarget.classList.toggle('is-shut', fold); } }, t, icon('chevron', 15, 2.8)) : h('h3', t), card]; }));
         paint();
         find = h('input', { type: 'search', placeholder: '搜索', 'aria-label': '搜索', oninput: e => { const q = e.target.value.trim().toLowerCase();
           cards.querySelectorAll('.pk-swipe').forEach(w => { w.hidden = !!q && !w._q.includes(q); });
           cards.querySelectorAll('.pk-nt__card').forEach(c => { c.hidden = c.previousElementSibling.hidden = ![...c.children].some(w => !w.hidden); }); } });
-        return [head, big, cards, h('div.pk-float', h('label.pk-glass.pk-find', icon('search', 22, 2.4), find, icon('mic', 20, 2)), write(all || /^(共享|最近删除|备忘录)$/.test(name) ? '' : name))]; }, 'is-raw.pk-nt');
+        const float = h('div.pk-float', h('label.pk-glass.pk-find', icon('search', 22, 2.4), find, icon('mic', 20, 2)), write(all || /^(共享|最近删除|备忘录)$/.test(name) ? '' : name));
+        bar.hidden = true;
+        return [head, big, cards, float, bar]; }, 'is-raw.pk-nt');
       if (focus) find.focus({ preventScroll: true });
     };
     const S = calc(), ALL = x => x.notes, SH = x => x.notes.filter(n => n.k === '共用');

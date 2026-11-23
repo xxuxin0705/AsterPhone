@@ -401,7 +401,28 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-swipe { position: relative; }
 .pk-swipe__l, .pk-swipe__r { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 0 8px; }
 .pk-swipe__l { left: 0; } .pk-swipe__r { right: 0; }
-.pk-swipe__b { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer; }
+.pk-swipe__b { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer; background: var(--bg); }
+/* 备忘录的：圆角胶囊下面一行小字（照 iPhone） */
+.pk-swipe__b.has-l { background: none; height: auto; gap: 3px; color: var(--pk-sub); } .pk-swipe__b.has-l i { display: grid; place-items: center; width: 48px; height: 32px; border-radius: 16px; background: var(--bg); color: #fff; } .pk-swipe__b.has-l small { font-size: 11px; }
+/* 长按一条：后面变暗变糊，这一条放大，底下一组菜单 */
+.pk-ctx { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 60px 16px 40px; background: rgb(0 0 0 / .18); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); animation: pk-ctx .18s ease-out; }
+@keyframes pk-ctx { from { opacity: 0; } }
+.pk-ctx__card { max-height: 46%; overflow: hidden; padding: 16px 18px; border-radius: 22px; background: var(--pk-page); color: var(--pk-ink); font-size: 15px; line-height: 1.45; box-shadow: 0 10px 40px rgb(0 0 0 / .18); animation: pk-pop .22s cubic-bezier(.2, .9, .3, 1.2); }
+.pk-ctx__card b { display: block; margin-bottom: 4px; font-size: 17px; } .pk-ctx__card p { margin: 0; }
+@keyframes pk-pop { from { transform: scale(.94); } }
+.pk-ctx__menu { align-self: center; width: 250px; padding: 10px 6px 6px; border-radius: 22px; background: color-mix(in srgb, var(--pk-page) 88%, transparent); box-shadow: 0 8px 30px rgb(0 0 0 / .14); animation: pk-pop .22s cubic-bezier(.2, .9, .3, 1.2); }
+.pk-ctx__acts { display: flex; justify-content: space-around; padding-bottom: 8px; margin-bottom: 4px; border-bottom: .5px solid var(--pk-line); }
+.pk-ctx__acts button { display: grid; justify-items: center; gap: 4px; border: 0; background: none; color: var(--pk-ink); font: inherit; cursor: pointer; } .pk-ctx__acts small { font-size: 11px; } .pk-ctx__acts .is-red { color: #ff3b30; }
+.pk-ctx__li { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 0; background: none; color: var(--pk-ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+/* 选择备忘录：每条前面一个圈，选上的发灰、圈里黄底白勾；底下移动 / 删除 */
+.pk-nt__cards.is-pick .pk-nt__row { padding-left: 52px; }
+.pk-nt__cards.is-pick .pk-nt__row::after { content: ''; position: absolute; left: 16px; top: 50%; width: 22px; height: 22px; margin-top: -11px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--pk-line); background: none; }
+.pk-nt__cards.is-pick .pk-nt__row.is-sel { background: color-mix(in srgb, var(--pk-ink) 9%, var(--pk-card)); }
+.pk-nt__cards.is-pick .pk-nt__row.is-sel::after { border: 0; background: var(--tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 14px no-repeat; }
+.pk-nt__pick[hidden], .pk-float[hidden] { display: none; } .pk-nt__pick button { padding: 0 20px; height: 44px; font-size: 16px; } .pk-nt__pick .is-red { color: #ff3b30; }
+/* 「置顶」那段标题：点一下收起 / 展开，右边的小箭头跟着转 */
+.pk-nt__fold { display: flex; justify-content: space-between; align-items: center; cursor: pointer; } .pk-nt__fold svg { rotate: 90deg; color: var(--tint); transition: rotate .2s; } .pk-nt__fold.is-shut svg { rotate: 0deg; }
+.pk-nt__card[hidden] { display: none; }
 .pk-swipe > :last-child { position: relative; z-index: 1; background: var(--pk-page); touch-action: pan-y; transition: transform .35s cubic-bezier(.2, .9, .3, 1), border-radius .2s, background-color .2s; }
 .pk-swipe.is-drag > :last-child { transition: border-radius .2s, background-color .2s; }
 .pk-swipe.is-open > :last-child { border-radius: 24px; background: color-mix(in srgb, var(--pk-ink) 7%, var(--pk-page)); }

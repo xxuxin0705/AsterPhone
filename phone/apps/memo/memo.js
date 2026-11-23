@@ -28,7 +28,15 @@ const D = {
   keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
-  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); save(); gone(w); fresh(layers.slice(0, -1)); },
+  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
+  drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
+    rs.forEach(r => N().splice(N().indexOf(r), 1)); save(); fresh(); },
+  // 挪到哪个文件夹：「新建文件夹」起个名字就挪进去；共用的不在文件夹里，不挪
+  move: async rs => { const fs = [...new Set(N().filter(r => r[0] !== '共用' && r[3]).map(r => r[3]))];
+    let v = await actionSheet('选择文件夹', [{ value: '+', label: '新建文件夹' }, { value: '·', label: '备忘录' }, ...fs.map(f => ({ value: f, label: f }))]); if (!v) return false;
+    if (v === '+') { v = (await dialog({ title: '新建文件夹', input: { placeholder: '名称' }, confirm: '好' }) || '').trim(); if (!v) return false; }
+    rs.filter(r => r[0] !== '共用').forEach(r => { r[3] = v === '·' ? '' : v; }); save(); fresh(); },
   // 和谁共用：选了人，这条就成了你俩一起记的（每行前面标着谁写的）；不共用就变回自己的
   share: async r => { const who = await actionSheet('和谁共用', [{ value: 'off', label: '不共用', active: r[0] !== '共用' }, ...friends().map(c => ({ value: c.id, label: nameOf(c), active: r[5] === c.id }))]); if (!who) return;
     const me = myName() + '：', L = r[4].split('//').filter(Boolean), c = contact(who);
