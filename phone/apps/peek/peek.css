@@ -437,35 +437,77 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 /* 相册：照 iPhone「照片」。格子是按画面配色的渐变 + 小图标，画过的换成真图 */
 .pk-ph__art { position: relative; display: grid; place-items: center; aspect-ratio: 1; background: linear-gradient(150deg, hsl(var(--h) 45% 72%), hsl(calc(var(--h) + 40) 40% 42%)) center / cover; color: rgb(255 255 255 / .75); }
 .pk-ph__art.is-drawn { background-size: cover; } .pk-ph__art.is-drawn svg { display: none; }
-.pk-ph__top { align-items: flex-start; } .pk-ph__title { display: grid; gap: 2px; padding: 0 6px; } .pk-ph__title b { font-size: 30px; font-weight: 700; } .pk-ph__title small { font-size: 14px; font-weight: 600; color: var(--pk-sub); }
-.pk-ph__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
-.pk-ph__grid button, .pk-ph__strip button { padding: 0; border: 0; background: none; cursor: pointer; }
-.pk-ph__more { margin: 24px 16px 120px; border-radius: 14px; background: var(--pk-card); overflow: hidden; } .pk-ph__more .pk-row { width: 100%; border: 0; background: none; color: inherit; font: inherit; gap: 12px; }
-.pk-ph__more .pk-row span { margin-left: auto; color: var(--pk-sub); } .pk-ph__more .pk-row svg:first-child { color: var(--tint); }
-.pk-ph__cards { display: grid; gap: 14px; padding: 8px 16px 120px; } .pk-ph__card { position: relative; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: none; color: #fff; text-align: left; cursor: pointer; }
+.pk-ph__art.is-empty { background: var(--pk-fill); color: var(--pk-sub); }
+/* 图库 / 精选集：大标题浮在照片上面（照片从标题底下滑过去，上面淡淡一层），右上角圆按钮；底下左边两个标签的玻璃条、右边搜索 */
+.pk-ph__top { align-items: flex-start; margin-bottom: -44px; } .is-raw .pk-ph__top::before { inset: 0 -24px -24px; background: linear-gradient(var(--pk-page) 40%, color-mix(in srgb, var(--pk-page) 55%, transparent) 75%, transparent); }
+.pk-ph__title { display: grid; gap: 2px; padding: 0 6px; } .pk-ph__title b { font-size: 34px; font-weight: 700; line-height: 1.1; } .pk-ph__title small { font-size: 14px; font-weight: 600; color: var(--pk-sub); }
+.pk-ph__tr { display: flex; flex: none; align-items: center; gap: 10px; } .pk-ph__tr .pk-glass { flex: none; white-space: nowrap; } .pk-ph__tr .pk-ava { width: 44px; height: 44px; }
+.pk-ph__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 44px; } .pk-ph__grid.is-3 { grid-template-columns: repeat(3, 1fr); padding-top: 0; }
+.pk-ph__grid button, .pk-ph__strip button, .pk-ph__tile, .pk-ph__tools button, .pk-ph__etabs button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.pk-ph__float { justify-content: space-between; } .pk-ph__tabs { gap: 2px; height: 58px; padding: 4px; border-radius: 29px; }
+.pk-ph__tabs button { display: grid; justify-items: center; gap: 1px; width: 76px; height: 50px; padding: 6px 0 0; border: 0; border-radius: 25px; background: none; color: var(--pk-ink); font: 600 11px/1 inherit; cursor: pointer; }
+.pk-ph__tabs button.is-on { background: color-mix(in srgb, var(--pk-ink) 10%, transparent); color: var(--tint); }
+.pk-ph__float > .is-round { width: 58px; height: 58px; border-radius: 29px; }
+.pk-ph__cards { display: grid; gap: 14px; padding: 52px 16px 20px; } .pk-ph__card { position: relative; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: none; color: #fff; text-align: left; cursor: pointer; }
 .pk-ph__card .pk-ph__art { aspect-ratio: 16 / 10; } .pk-ph__card b, .pk-ph__card small { position: absolute; left: 16px; text-shadow: 0 1px 6px rgb(0 0 0 / .4); } .pk-ph__card b { top: 14px; font-size: 22px; } .pk-ph__card small { top: 44px; font-size: 14px; }
-.pk-ph__float { justify-content: center; } .pk-ph__seg { gap: 2px; padding: 4px; } .pk-ph__seg button { height: 36px; padding: 0 18px; border: 0; border-radius: 18px; background: none; color: inherit; font: 600 15px/1 inherit; cursor: pointer; } .pk-ph__seg .is-on { background: color-mix(in srgb, var(--pk-ink) 12%, transparent); }
-.pk-ph__sub .pk-ph__grid { margin: 0 -16px; }
-/* 大图 */
+/* 精选集：「固定」两列方块，名字压在左下角；隐藏、最近删除是灰底一个锁 / 垃圾桶 */
+.pk-ph__coll { padding: 52px 16px 20px; } .is-raw .pk-ph__coll h3.pk-ph__sec { margin: 0 4px 10px; }
+.pk-ph__tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pk-ph__tile { position: relative; display: block; border-radius: 16px; overflow: hidden; text-align: left; }
+.pk-ph__tile b { position: absolute; left: 12px; bottom: 10px; font-size: 16px; font-weight: 600; color: #fff; text-shadow: 0 1px 6px rgb(0 0 0 / .45); } .pk-ph__tile .is-empty + b { color: var(--pk-ink); text-shadow: none; }
+.pk-ph__tile > i { position: absolute; top: 9px; right: 9px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #fff; color: #ff2d55; } .pk-ph__tile > i svg { fill: currentColor; }
+/* 点进一个相簿：最新一张当大封面压到顶上（返回键浮在上面），左下角相簿名、几张，下面三列 */
+.is-raw .pk-ph__atop::before { display: none; } .pk-ph__atop { justify-content: flex-start; gap: 10px; }
+.pk-ph__cover { position: relative; margin: -96px 0 2px; color: #fff; } .pk-ph__cover .pk-ph__art { aspect-ratio: 1 / 1.05; }
+.pk-ph__cover::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgb(0 0 0 / .45)); pointer-events: none; }
+.pk-ph__cover b, .pk-ph__cover small { position: absolute; left: 18px; z-index: 1; text-shadow: 0 1px 6px rgb(0 0 0 / .35); } .pk-ph__cover b { bottom: 40px; font-size: 34px; font-weight: 700; } .pk-ph__cover small { bottom: 18px; font-size: 15px; font-weight: 600; }
+.pk-ph__cover .is-empty + b, .pk-ph__cover .is-empty ~ small { color: var(--pk-ink); text-shadow: none; }
+.is-raw h3.pk-ph__sec { margin: 18px 16px 8px; font-size: 22px; } .pk-ph__none { margin: 40px 0; text-align: center; color: var(--pk-sub); }
+.pk-ph__qbox { flex: 1; justify-content: flex-start; padding: 0 14px; } .pk-ph__q { flex: 1; min-width: 0; border: 0; background: none; color: var(--pk-ink); font: 17px inherit; outline: none; }
+.pk-ph-al .pk-ph__sub { padding-bottom: 30px; }
+/* 大图：顶上返回、日期药丸、⋯；照片撑满宽；底下一条细缩略图，再下面「分享 | ♡ ⓘ 调整 | 删除」 */
 .pk-ph-full .pk-app__body { background: var(--pk-page); }
-.pk-ph__vtop { justify-content: flex-start; } .pk-ph__pill { position: absolute; left: 50%; translate: -50%; flex-direction: column; gap: 1px; height: 46px; padding: 0 18px; } .pk-ph__pill b { font-size: 16px; } .pk-ph__pill small { font-size: 12px; color: var(--pk-sub); }
+.pk-ph__vtop { justify-content: space-between; } .pk-ph__pill { position: absolute; left: 50%; translate: -50%; flex-direction: column; gap: 1px; height: 46px; padding: 0 18px; } .pk-ph__pill b { font-size: 16px; } .pk-ph__pill small { font-size: 12px; color: var(--pk-sub); }
 .pk-ph__view { flex: 1; display: flex; flex-direction: column; }
 .pk-ph__pager { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; flex: none; } .pk-ph__pager::-webkit-scrollbar { display: none; }
-.pk-ph__slide { flex: 0 0 100%; scroll-snap-align: center; display: grid; gap: 14px; align-content: start; padding: 10px 0; }
-.pk-ph__slide .is-big { aspect-ratio: 3 / 4; } .pk-ph__slide p { margin: 0 20px; color: var(--pk-sub); font-size: 15px; line-height: 1.5; }
-.pk-ph__info { display: none; margin: 0 16px 16px; padding: 16px; border-radius: 16px; background: var(--pk-card); gap: 4px; flex-direction: column; } .is-info > .pk-ph__info { display: flex; }
-.is-info .pk-ph__slide .is-big { aspect-ratio: 4 / 3; transition: aspect-ratio .3s; }
-.pk-ph__info > b { font-size: 16px; } .pk-ph__info > small, .pk-ph__cam small { color: var(--pk-sub); font-size: 13px; }
-.pk-ph__cam { display: grid; gap: 2px; margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--pk-fill); } .pk-ph__cam b { font-size: 14px; }
-.pk-ph__row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; } .pk-ph__row svg { color: var(--pk-sub); }
-.pk-ph__foot { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 10px; padding: 8px 14px 18px; }
-.pk-ph__strip { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; } .pk-ph__strip::-webkit-scrollbar { display: none; }
-.pk-ph__strip button { flex: none; width: 30px; transition: width .2s; } .pk-ph__strip button.is-on { width: 44px; margin: 0 4px; }
-.pk-ph__bar { justify-content: space-around; height: 50px; border-radius: 25px; } .pk-ph__bar button { display: grid; place-items: center; width: 50px; height: 44px; padding: 0; border: 0; background: none; color: var(--pk-ink); cursor: pointer; }
-.pk-ph__bar button.is-on { color: #ff2d55; } .pk-ph__bar button.is-on svg { fill: currentColor; }
-.pk-ph__pop { position: absolute; right: 14px; bottom: 84px; width: 240px; padding: 14px 16px; border-radius: 18px; background: color-mix(in srgb, var(--pk-card) 92%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgb(0 0 0 / .2); animation: pk-pop .18s ease-out; transform-origin: 90% 100%; }
+.pk-ph__slide { flex: 0 0 100%; scroll-snap-align: center; display: grid; gap: 12px; align-content: start; padding: 6px 0; }
+.pk-ph__slide .is-big { aspect-ratio: 3 / 4; transition: aspect-ratio .3s; } .pk-ph__slide p { margin: 0 20px; color: var(--pk-sub); font-size: 15px; line-height: 1.5; }
+.is-info .pk-ph__slide .is-big { aspect-ratio: 16 / 10; } .is-info .pk-ph__slide p { display: none; }
+/* ⓘ：照片往上缩，下面一块信息（说明、日子、编号、相机那一卡、位置、从哪存的） */
+.pk-ph__info { display: none; margin: 0 14px 14px; gap: 6px; flex-direction: column; } .is-info > .pk-ph__info { display: flex; }
+.pk-ph__cap { padding: 2px 4px 8px; font-size: 16px; line-height: 1.45; border-bottom: .5px solid var(--pk-line); }
+.pk-ph__info > b { margin-top: 4px; font-size: 16px; } .pk-ph__info > small { display: flex; align-items: center; gap: 6px; color: var(--pk-sub); font-size: 14px; }
+.pk-ph__cam { display: grid; gap: 3px; margin: 6px 0 2px; padding: 12px 14px 0; border-radius: 14px; background: var(--pk-card); overflow: hidden; }
+.pk-ph__cam > div:first-child { display: flex; align-items: center; justify-content: space-between; } .pk-ph__cam b { font-size: 15px; }
+.pk-ph__cam i { padding: 2px 6px; border-radius: 5px; background: var(--pk-fill); font: 600 11px/1.2 inherit; color: var(--pk-sub); } .pk-ph__cam small { color: var(--pk-sub); font-size: 13px; }
+.pk-ph__exif { display: grid; grid-template-columns: repeat(5, 1fr); margin: 8px -14px 0; border-top: .5px solid var(--pk-line); } .pk-ph__exif span { padding: 9px 0; text-align: center; font-size: 12px; color: var(--pk-sub); } .pk-ph__exif span + span { border-left: .5px solid var(--pk-line); }
+.pk-ph__place { padding: 12px; border-radius: 14px; background: var(--pk-card); text-align: center; font-size: 15px; color: var(--tint); }
+.pk-ph__row { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 14px; } .pk-ph__row svg { color: var(--pk-sub); }
+.pk-ph__foot { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 12px; padding: 8px 14px 18px; }
+.pk-ph__strip { display: flex; align-items: center; gap: 2px; height: 40px; overflow-x: auto; scrollbar-width: none; } .pk-ph__strip::-webkit-scrollbar { display: none; }
+.pk-ph__strip button { flex: none; width: 22px; height: 40px; transition: width .2s; } .pk-ph__strip button.is-on { width: 40px; margin: 0 3px; } .pk-ph__strip .pk-ph__art { height: 100%; aspect-ratio: auto; } .pk-ph__strip .pk-ph__art svg { display: none; }
+.pk-ph__bar { display: flex; align-items: center; justify-content: space-between; } .pk-ph__bar > .is-round { width: 50px; height: 50px; border-radius: 25px; }
+.pk-ph__mid { gap: 6px; height: 50px; padding: 0 8px; border-radius: 25px; } .pk-ph__mid button { display: grid; place-items: center; width: 48px; height: 44px; padding: 0; border: 0; background: none; color: var(--pk-ink); cursor: pointer; }
+.pk-ph__mid button.is-on { color: #ff2d55; } .pk-ph__mid button.is-on svg { fill: currentColor; }
+.pk-ph__pop { position: absolute; right: 14px; bottom: 84px; width: 240px; padding: 14px 16px; border-radius: 18px; background: color-mix(in srgb, var(--pk-card) 92%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / .18); }
 .pk-ph__pop[hidden] { display: none; } .pk-ph__pop p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--pk-sub); text-align: center; }
 .pk-ph__pop button { width: 100%; height: 42px; border: 0; border-radius: 21px; background: var(--pk-fill); color: #ff3b30; font: 600 16px/1 inherit; cursor: pointer; }
+/* 调整（照 iPhone 的编辑，一直是黑底）：顶上「取消 | 标签名 | 完成」，中间照片（滤镜名压在照片底下），底下滤镜一排 / 三个圆钮、刻度尺、两个标签 */
+.pk-ph-edit .pk-app__body { background: #000; color: #fff; } .is-raw .pk-ph__etop::before { display: none; }
+.pk-ph__etop > b { position: static; translate: none; opacity: 1; font-size: 15px; font-weight: 600; color: rgb(255 255 255 / .6); }
+.pk-ph-edit .pk-glass { color: #fff; font-size: 16px; font-weight: 600; } .pk-ph-edit .pk-glass.is-ok { background: #ffd60a; color: #000; }
+.pk-ph__stage { position: relative; flex: 1; display: grid; place-items: center; padding: 10px 40px; } .pk-ph__stage .pk-ph__art { width: 100%; aspect-ratio: 3 / 4; }
+.pk-ph__fname { position: absolute; bottom: 22px; padding: 3px 9px; border-radius: 8px; background: rgb(0 0 0 / .4); font-size: 13px; } .pk-ph__fname:empty { display: none; }
+.pk-ph__efoot { display: grid; gap: 14px; padding: 6px 0 22px; }
+.pk-ph__tools { display: flex; justify-content: safe center; gap: 6px; padding: 0 14px; overflow-x: auto; scrollbar-width: none; } .pk-ph__tools::-webkit-scrollbar { display: none; }
+.pk-ph__tools button { flex: none; display: grid; justify-items: center; gap: 5px; font-size: 11px; color: rgb(255 255 255 / .7); } .pk-ph__tools button.is-on { color: #ffd60a; }
+.pk-ph__tools .pk-ph__art { width: 50px; border-radius: 6px; outline: 2px solid transparent; outline-offset: 2px; } .pk-ph__tools button.is-on .pk-ph__art { outline-color: #fff; } .pk-ph__tools .pk-ph__art svg { display: none; }
+.pk-ph__tools:has(.pk-ph__knob) { justify-content: center; gap: 22px; }
+.pk-ph__knob i { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid rgb(255 255 255 / .55); font: 600 13px/1 inherit; font-style: normal; color: #fff; } .pk-ph__knob.is-on i { border-color: #ffd60a; color: #ffd60a; }
+.pk-ph__ruler { width: calc(100% - 60px); margin: 0 30px; height: 26px; -webkit-appearance: none; appearance: none; background: repeating-linear-gradient(90deg, rgb(255 255 255 / .45) 0 1px, transparent 1px 8px) center / 100% 12px no-repeat; }
+.pk-ph__ruler[hidden] { visibility: hidden; display: block; }
+.pk-ph__ruler::-webkit-slider-thumb { -webkit-appearance: none; width: 3px; height: 26px; border-radius: 2px; background: #ffd60a; } .pk-ph__ruler::-moz-range-thumb { width: 3px; height: 26px; border: 0; border-radius: 2px; background: #ffd60a; }
+.pk-ph__etabs { display: flex; justify-content: center; gap: 34px; } .pk-ph__etabs button { display: grid; justify-items: center; gap: 3px; font-size: 11px; color: rgb(255 255 255 / .6); } .pk-ph__etabs button.is-on { color: #fff; }
 /* 备忘录里画画（apps/memo/draw.js）：画布接在字下面；夜间和 iPhone 一样把黑笔反成白的 */
 .pk-draw__pad { position: relative; flex: none; margin: 8px 0; outline: 1px dashed var(--pk-line); outline-offset: -1px; touch-action: none; }
 .pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
