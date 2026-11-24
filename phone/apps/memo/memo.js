@@ -36,7 +36,7 @@ const D = {
   restore: r => { r[0] = r[13] || kind(r[4]); r[2] = r[14] || r[2]; r[13] = r[14] = undefined; save(); fresh(layers.slice(0, -1)); },
   // 清单键：进去改这一条，最后接一行 ○；回形针：从相册挑一张照片，接在最后（和画一样单独一行，编号带 pic）。返回新加的那一行
   todo: r => edit(r, true),
-  clip: async r => { const f = await new Promise(ok => { const i = h('input', { type: 'file', accept: 'image/*' }); i.onchange = () => ok(i.files[0]); i.click(); }); if (!f) return '';
+  clip: async r => { if (binned(r)) return ''; const f = await new Promise(ok => { const i = h('input', { type: 'file', accept: 'image/*' }); i.onchange = () => ok(i.files[0]); i.click(); }); if (!f) return '';
     const url = await fileToDataURL(f, 786).catch(() => ''); if (!url) { toast('这张照片读不出来'); return ''; }
     const k = 'memo-draw:pic' + uid('d'); if (!await kvSet(k, url).then(() => true, e => toast('照片没存上：' + e.message))) return '';
     const x = (r[0] === '共用' ? myName() + '：' : '') + '✎' + k; inks.set(k, url); r[4] = [...(r[4] ? r[4].split('//') : []), x].join('//'); r[2] = time.stampText(time.stamp()); save(); fresh(layers.slice(0, -1)); return x; },
@@ -51,7 +51,7 @@ const D = {
     rs.forEach(r => (r[0] === '已删' ? forget(r) : toBin(r))); save(); fresh(); },
   // 就在这一条里画：box 是正文那一块（新画的接在最后），img 是长按的那张（接着改它），wire 给画好的那张接上点 / 长按。画完新的就在正文最后加一行「✎编号」；
   // 改了旧的，第十格里记的「谁看过这张」去掉，好再给大家看
-  draw: (r, box, key, img, wire) => startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: (k, im) => { wire && wire(im);
+  draw: (r, box, key, img, wire) => !binned(r) && startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: (k, im) => { wire && wire(im);
     if (!key) r[4] = [...(r[4] ? r[4].split('//') : []), (r[0] === '共用' ? myName() + '：' : '') + '✎' + k].join('//');
     else r[9] = String(r[9] || '').split(',').filter(x => x && !x.endsWith('>' + k)).join(',');
     r[2] = time.stampText(time.stamp()); save(); fresh(layers.slice(0, -1)); } }),
@@ -69,6 +69,8 @@ const D = {
 };
 const kind = body => /(^|\/\/)\s*[○√]/.test(body) ? '清单' : '便签';
 // 进「最近删除」：第十四、十五格记着原来是哪种、原来的时间（恢复用），第三格换成删的时间；共用的进去了 TA 就看不到
+// 「最近删除」里的不能改（和 iPhone 一样），要改先恢复
+const binned = r => r[0] === '已删' && (toast('要改的话，先点右上角 ⋯ 恢复'), true);
 const toBin = r => { r[13] = r[0]; r[14] = r[2]; r[0] = '已删'; r[2] = time.stampText(time.stamp()); r[6] = r[7] = 0; };
 const forget = r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); };
 const folk = r => [myName(), ...String(r[3] || '').split('、')].filter(Boolean);   // 共用的几个人的名字（第四格几个人用「、」隔开）
@@ -83,6 +85,7 @@ const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = fo
 const tipOf = r => `下次和 ${r[3]} 私聊时，新画的会一起给 TA 看（每张看过就不再带，改了再给 TA 看）。聊天的模型要能识图，比如 Gemini、Claude、GPT-4o；走「酒馆」连接的带不了图。`;
 // 写一条：标题一行，下面一行一块（每块一个框，画是单独的一块）。勾着「译成某语」时，每行下面紧跟着这一行的译文；存的时候只留译文（点「译」能看回中文）
 function edit(r, tick) {
+  if (binned(r)) return;
   const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave, shared = r[0] === '共用', me = shared ? myName() + '：' : '';
   const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [vis(x, r), x])]);
   const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), list = h('div.pk-nt__blocks');
