@@ -64,7 +64,7 @@ export function open(opts = {}) {
     return swipe(r, [['trash', '#ff3b30', w => del(t, w)]], [['chatdots', '#007aff', () => { t.unread = t.unread ? 0 : 1; r.classList.toggle('is-new', !!t.unread); save(); sig = key(); }]]); };
   const key = () => state.sms.map(t => t.id + t.list.length + !!t.unread).join();
   let sig = null;
-  const paint = () => { const s = key(); if (s === sig) return; sig = s; box.replaceChildren(...(state.sms.length ? state.sms.map(row) : [h('small.pk-meta', '还没有短信')])); };
+  const paint = () => { const s = key(); if (s === sig) return; sig = s; box.replaceChildren(...(state.sms.length ? state.sms.map(row) : [h('p.pk-meta', '还没有短信')])); };
   paint(); el._onShow = paint; body.append(head, big, box);
   if (opts.chat) { const t = state.sms.find(x => x.id === opts.chat); if (t) setTimeout(() => thread(t)); }
   return el;
