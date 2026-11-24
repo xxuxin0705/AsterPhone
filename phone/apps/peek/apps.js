@@ -365,7 +365,7 @@ export const VIEWS = {
         ...R.filter(r => r[0] !== '心声' && r[0] !== '涂鸦').map(r0 => { const k = ['便签', '清单', '草稿', '共用', '已删'].includes(r0[0]) ? r0[0] : '', r = k ? r0.slice(1) : r0;
           return r.length < 4 ? { r: r0, k: k === '已删' ? k : '便签', t: r[0], d: r[1], f: '', body: r[2] || '' } : { r: r0, k: k || '便签', t: r[0], d: r[1], f: k === '草稿' || k === '共用' ? '' : r[2] || '', to: r[2], body: r[3] || '' }; }).sort((a, b) => (day(b.d) || 0) - (day(a.d) || 0))];
       return { notes: all.filter(n => n.k !== '已删'), bin: all.filter(n => n.k === '已删') }; };
-    const lines = n => n.body.split('//').map(x => x.trim()).filter(Boolean), fo = n => untr(n.f)[0].trim();
+    const lines = n => n.body.split('//').map(x => x.trim()).filter(Boolean), fo = n => untr(n.f)[0].trim().replace(/^备忘录$/, '');   // 没写文件夹的就在「备忘录」里：AI 写明了「备忘录」的也算同一个
     const sec = n => { const d = day(n.d); if (n.r?.[7]) return '置顶'; if (n.k === '心声') return ''; if (!d) return '更早'; const ago = (now - d) / 864e5;
       return ago < 7 ? '过去 7 天' : ago < 30 ? '过去 30 天' : d.getFullYear() === now.getFullYear() ? d.toLocaleDateString('zh-CN', { month: 'long' }) : d.getFullYear() + ' 年'; };
     const back = () => h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 24, 2.4));
