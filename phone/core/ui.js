@@ -332,7 +332,7 @@ export function sheet({ title, content, onClose, cls = '' }) {
   requestAnimationFrame(() => { mask.classList.add('is-open'); el.classList.add('is-open'); });
   let closed = false;
   const close = () => {
-    if (closed) return; closed = true;
+    if (closed) return; closed = true; document.removeEventListener('as-sheets-close', close);
     mask.classList.remove('is-open'); el.classList.remove('is-open'); el.style.transform = '';
     setTimeout(() => { mask.remove(); el.remove(); }, 280); onClose && onClose();
   };
@@ -343,6 +343,7 @@ export function sheet({ title, content, onClose, cls = '' }) {
   el.addEventListener('pointerdown', e => { if (e.target.closest('button, input, textarea, .as-sheet__body')) return; y0 = e.clientY; el.style.transition = 'none'; el.setPointerCapture(e.pointerId); });
   el.addEventListener('pointermove', e => { if (y0 == null) return; const dy = e.clientY - y0; el.style.transform = `translateY(${dy < 0 ? dy * .25 : dy}px)`; });
   el.addEventListener('pointerup', e => { if (y0 == null) return; const dy = e.clientY - y0; y0 = null; el.style.transition = ''; if (dy > 80) close(); else el.style.transform = ''; });
+  document.addEventListener('as-sheets-close', close);   // 应用整个关掉（回桌面、酒馆换聊天）时，开着的抽屉一起收掉，别留在桌面上
   return { el, close };
 }
 /** 选项抽屉：返回所选的 value，取消返回 null */

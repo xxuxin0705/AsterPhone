@@ -74,6 +74,7 @@ export function pop() {
 /** 关闭 App：缩回图标 */
 export function closeApp(slide) {
   const cur = stack[0]; if (!cur) return;
+  document.dispatchEvent(new Event('as-sheets-close'));
   const pr = host.getBoundingClientRect(), rect = iconRect;
   stack.slice(1).forEach(s => { leave(s.el); s.el.remove(); });
   leave(cur.el);
@@ -91,6 +92,7 @@ export function closeApp(slide) {
 }
 function leave(el) { try { el._onLeave && el._onLeave(); } catch (e) { console.error(e); } }
 export function closeAll(instant) {
+  document.dispatchEvent(new Event('as-sheets-close'));
   stack.forEach(s => { leave(s.el); s.el.remove(); }); stack.length = 0; host && host.classList.remove('has-app');
   if (!instant) notify();
 }
