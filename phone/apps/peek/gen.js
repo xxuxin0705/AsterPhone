@@ -72,7 +72,10 @@ async function toOurs(c, rows) {
 }
 // 备忘录不整份换掉：上次的都留着（不想要的你在 TA 手机里删），AI 只写这段时间新记的、改了的（同一种、同一个标题的算改过的那条，换掉旧的）；心声只留最新的
 const noteKey = r => (r[0] === '心声' ? r[0] : r[0] + '|' + (takeTr(String(r[1] || '')).filter(Boolean).pop() || ''));
-const keepOld = (old, add) => { const fresh = new Set(add.map(noteKey)); return [...add, ...old.filter(r => !fresh.has(noteKey(r)))]; };
+// 旧的留着，同种同标题的换成新的；「最近删除」里过了 30 天（按剧情时间）的真删掉
+const keepOld = (old, add) => { const fresh = new Set(add.map(noteKey)), now = time.isStory() ? time.story().date : new Date();
+  const stale = r => { const m = r[0] === '已删' && /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(r[2] || ''); return m && now - new Date(m[1], m[2] - 1, m[3]) > 30 * 864e5; };
+  return [...add, ...old.filter(r => !fresh.has(noteKey(r)) && !stale(r))]; };
 const had = L => { L = L.filter(r => r[0] !== '心声').slice(0, 40); if (!L.length) return '';
   return `\n（手机里已经有下面这些，都还在，不用再写。这次只写从那以后新记的（隔了几个小时就一两条，隔了几天三五条），长短照上面说的拉开；改了哪条就用原来的种类和标题，写改完的全文；心声照常写一条现在的）\n`
     + L.map(r => `${r[0]}《${takeTr(String(r[1] || ''))[0]}》${String((r[0] === '已删' ? r[3] : r[4]) || '').split('//')[0].slice(0, 30)}`).join('\n') + '\n'; };
