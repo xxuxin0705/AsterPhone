@@ -346,12 +346,12 @@ export const newInks = c => sharedNotes(c).flatMap(r => r[4].split('//').map(x =
 export async function inkImages(L) {
   if (!L.length) return [];
   const { inkPic, inkGrid } = await import('../memo/draw.js');
-  return (await Promise.all(L.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里画的，看看画的什么，想回应就照画里真画了什么来说）`,
-    url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')), alt: await inkGrid(k).catch(() => '') })))).filter(i => i.url);
+  return (await Promise.all(L.map(async ([r, x, k]) => ({ text: `（${(/^([^：:]{1,12})[：:]/.exec(x) || [, myName()])[1]} 在你们共用的备忘录《${takeTr(r[1] || '')[0]}》里${k.startsWith('memo-draw:pic') ? '放的照片，看看是什么，想回应就照照片里真有的来说' : '画的，看看画的什么，想回应就照画里真画了什么来说'}）`,
+    url: await inkPic(k).catch(e => (log('warn', '聊天', '共用备忘录里的画读不出来：' + e.message), '')), alt: k.startsWith('memo-draw:pic') ? '' : await inkGrid(k).catch(() => '') })))).filter(i => i.url);
 }
 // images：发给 generate 的那份，图没发出去（走酒馆的连接、模型不认图）时 generate 会把它清空，那就不算看过
 export function sawInks(c, L, images) { if (!L.length || !(images.length || images.asText)) return; L.forEach(([r, , k]) => { r[9] = [...seen(r), `+${c.id}>${k}`].join(','); }); commit('notes'); }
-export const inkText = x => x.replace(/✎memo-draw:\S+$/, '（画了一幅画）');   // 给 AI 看的字里，画写成一句话
+export const inkText = x => x.replace(/✎memo-draw:(pic)?\S+$/, (_, p) => (p ? '（放了一张照片）' : '（画了一幅画）'));   // 给 AI 看的字里，画写成一句话
 // 第七格 1 = TA 添了你还没看过：那一条前面、桌面备忘录图标上挂红点，点开就消掉（apps/memo）
 // TA 指的是哪一张：写的是编号（提示词里每张前面标了，最稳），或者标题（外语的写中文那半、TA 自己翻过的标题也认）
 export const noteOf = (c, t) => { const L = sharedNotes(c), k = String(t).replace(/[《》#.、\s]/g, ''), tt = takeTr(String(t).trim()).filter(Boolean);

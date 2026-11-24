@@ -1,7 +1,7 @@
 // 备忘录：你自己的。样子和查手机里 TA 的「备忘录」是同一套（peek/apps.js 的 VIEWS.备忘录），这里多了能写、能勾、能删、能选和谁共用。
 // 一条存成一行（和 AI 写的 TA 的备忘录同一个样子）：[便签 / 清单 / 共用, 标题, 年/月/日 时:分, 文件夹（共用的是那个人的名字）, 正文（// 分行）, 共用的人的 id]
-import { h } from '../../core/util.js';
-import { state, commit, contact, friends, kvDel } from '../../core/store.js';
+import { h, uid, fileToDataURL } from '../../core/util.js';
+import { state, commit, contact, friends, kvSet, kvDel } from '../../core/store.js';
 import { icon, dialog, actionSheet, pickSheet, toast } from '../../core/ui.js';
 import { myName } from '../../core/promptstore.js';
 import { translate, myOut, myLang, langName } from '../../core/translate.js';
@@ -9,7 +9,7 @@ import * as time from '../../core/time.js';
 import * as nav from '../../core/nav.js';
 import { shell } from '../../core/shell.js';
 import { nameOf, sharedWith, fixInk, drawn } from '../chat/engine.js';
-import { VIEWS, iosPage, gone, ink, inkImg } from '../peek/apps.js';
+import { VIEWS, iosPage, gone, ink, inkImg, inks } from '../peek/apps.js';
 import { startDraw } from './draw.js';
 
 const N = () => state.notes, save = () => { commit('notes'); shell.refreshBadges(); }, flat = x => [x].flat(3).filter(Boolean);
@@ -29,18 +29,29 @@ const D = {
   keep: () => { save(); fresh(layers.slice(0, -1)); },
   tick: (r, i, dot) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), on = !dot.classList.contains('is-done');
     L[i] = L[i].replace(/[√✓✔☑○◯□☐]/, on ? '√' : '○'); r[4] = L.join('//'); save(); dot.classList.toggle('is-done', on); fresh(layers.slice(0, -1)); },
-  del: async (r, w) => { if (!await dialog({ title: '删除这条备忘录？', text: r[0] === '共用' ? `删了以后 ${r[3]} 也看不到了。` : '', confirm: '删除', danger: true })) return; N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  // 删除：先进「最近删除」（30 天内能恢复，open 时把过了 30 天的清掉）；在「最近删除」里再删才是真没了
+  del: async (r, w) => { const bin = r[0] === '已删';
+    if (!await dialog(bin ? { title: '永久删除这条备忘录？', text: '删了就找不回来了。', confirm: '删除', danger: true } : { title: '删除这条备忘录？', text: r[0] === '共用' ? `${r[3]} 也会看不到，30 天内能在「最近删除」里恢复。` : '30 天内能在「最近删除」里恢复。', confirm: '删除', danger: true })) return;
+    bin ? forget(r) : toBin(r); save(); w && gone(w); fresh(layers.slice(0, -1)); },
+  restore: r => { r[0] = r[13] || kind(r[4]); r[2] = r[14] || r[2]; r[13] = r[14] = undefined; save(); fresh(layers.slice(0, -1)); },
+  // 清单键：进去改这一条，最后接一行 ○；回形针：从相册挑一张照片，接在最后（和画一样单独一行，编号带 pic）。返回新加的那一行
+  todo: r => edit(r, true),
+  clip: async r => { const f = await new Promise(ok => { const i = h('input', { type: 'file', accept: 'image/*' }); i.onchange = () => ok(i.files[0]); i.click(); }); if (!f) return '';
+    const url = await fileToDataURL(f, 786).catch(() => ''); if (!url) { toast('这张照片读不出来'); return ''; }
+    const k = 'memo-draw:pic' + uid('d'); if (!await kvSet(k, url).then(() => true, e => toast('照片没存上：' + e.message))) return '';
+    const x = (r[0] === '共用' ? myName() + '：' : '') + '✎' + k; inks.set(k, url); r[4] = [...(r[4] ? r[4].split('//') : []), x].join('//'); r[2] = time.stampText(time.stamp()); save(); fresh(layers.slice(0, -1)); return x; },
   // 共用的：删掉别人写的第 i 句；again 是删掉让 TA 重新回——这句前面你画的画也算 TA 没看过，下次私聊或查手机 TA 对这段重新回
   unsay: (r, i, again) => { const L = r[4].split('//').map(x => x.trim()).filter(Boolean), by = (/^([^：:]{1,12})[：:]/.exec(L[i] || '') || [])[1], gone1 = L.splice(i, 1)[0];
     if (again) { const c = sharedWith(r).map(contact).find(x => x && nameOf(x) === by), ks = L.slice(0, i).map(x => /✎(memo-draw:\S+)$/.exec(x)?.[1]).filter(Boolean);
       if (c) r[9] = String(r[9] || '').split(',').filter(x => x && !ks.some(k => x === `+${c.id}>${k}`)).join(','); }
     r[4] = L.join('//'); r[12] = (r[12] || []).filter(x => x[1] !== gone1); save(); fresh(); if (again) toast(`下次和 ${by} 私聊或查手机时，TA 会重新回`); },
   // 选了几条一起删、一起挪（照 iPhone 的「选择备忘录」）
-  drop: async rs => { if (!await dialog({ title: `删除 ${rs.length} 条备忘录？`, text: rs.some(r => r[0] === '共用') ? '里面有共用的，删了对方也看不到。' : '', confirm: '删除', danger: true })) return false;
-    rs.forEach(r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); }); save(); fresh(); },
-  // 就在这一条里画：box 是正文那一块（新画的接在最后），img 是点的那张（接着改它）。画完新的就在正文最后加一行「✎编号」；
+  drop: async rs => { const bin = rs.every(r => r[0] === '已删');
+    if (!await dialog({ title: `${bin ? '永久' : ''}删除 ${rs.length} 条备忘录？`, text: bin ? '删了就找不回来了。' : '30 天内能在「最近删除」里恢复。', confirm: '删除', danger: true })) return false;
+    rs.forEach(r => (r[0] === '已删' ? forget(r) : toBin(r))); save(); fresh(); },
+  // 就在这一条里画：box 是正文那一块（新画的接在最后），img 是长按的那张（接着改它），wire 给画好的那张接上点 / 长按。画完新的就在正文最后加一行「✎编号」；
   // 改了旧的，第十格里记的「谁看过这张」去掉，好再给大家看
-  draw: (r, box, key, img) => startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: k => {
+  draw: (r, box, key, img, wire) => startDraw({ host: img || box.appendChild(h('div')), key, tip: r[0] === '共用' && tipOf(r), onSave: (k, im) => { wire && wire(im);
     if (!key) r[4] = [...(r[4] ? r[4].split('//') : []), (r[0] === '共用' ? myName() + '：' : '') + '✎' + k].join('//');
     else r[9] = String(r[9] || '').split(',').filter(x => x && !x.endsWith('>' + k)).join(',');
     r[2] = time.stampText(time.stamp()); save(); fresh(layers.slice(0, -1)); } }),
@@ -57,6 +68,9 @@ const D = {
     save(); fresh(); },
 };
 const kind = body => /(^|\/\/)\s*[○√]/.test(body) ? '清单' : '便签';
+// 进「最近删除」：第十四、十五格记着原来是哪种、原来的时间（恢复用），第三格换成删的时间；共用的进去了 TA 就看不到
+const toBin = r => { r[13] = r[0]; r[14] = r[2]; r[0] = '已删'; r[2] = time.stampText(time.stamp()); r[6] = r[7] = 0; };
+const forget = r => { N().splice(N().indexOf(r), 1); drawn(r).forEach(k => { kvDel(k); kvDel(k + ':s'); }); };
 const folk = r => [myName(), ...String(r[3] || '').split('、')].filter(Boolean);   // 共用的几个人的名字（第四格几个人用「、」隔开）
 const named = (r, x) => folk(r).some(n => x.startsWith(n + '：'));
 // 外语的行存成「外文[翻译：中文]」（「译」能换）：改的时候摆中文，没动过的行原样留着，改了、新写的按映像里我说的语言重翻
@@ -68,7 +82,7 @@ const cn = (x, r) => { const m = TR.exec(x); return m ? pre(x, r) + m[1] : x; };
 const vis = (x, r) => { let y = cn(x, r), n; while (r[0] === '共用' && (n = folk(r).find(n => y.startsWith(n + '：')))) y = y.slice(n.length + 1); return y; };   // 以前存的翻译那半有时也带着名字
 const tipOf = r => `下次和 ${r[3]} 私聊时，新画的会一起给 TA 看（每张看过就不再带，改了再给 TA 看）。聊天的模型要能识图，比如 Gemini、Claude、GPT-4o；走「酒馆」连接的带不了图。`;
 // 写一条：标题一行，下面一行一块（每块一个框，画是单独的一块）。勾着「译成某语」时，每行下面紧跟着这一行的译文；存的时候只留译文（点「译」能看回中文）
-function edit(r) {
+function edit(r, tick) {
   const { el, body } = iosPage('memo', 'memo-edit', '.pk-nt.is-doc'), off = el._onLeave, shared = r[0] === '共用', me = shared ? myName() + '：' : '';
   const was = new Map([[cn(r[1], r), r[1]], ...r[4].split('//').map(x => [vis(x, r), x])]);
   const t = h('input.pk-nt__t', { value: cn(r[1], r), placeholder: '标题', 'aria-label': '标题' }), list = h('div.pk-nt__blocks');
@@ -101,6 +115,7 @@ function edit(r) {
   const pic = key => h('div.pk-nt__b.is-ink', { dataset: { key } }, inkImg(key), h('button.pk-nt__x', { 'aria-label': '删掉这张画', onclick: e => e.currentTarget.parentNode.remove() }, icon('close', 16, 2.4)));
   r[4].split('//').filter(Boolean).forEach(x => { const v = vis(x, r), k = /^✎(memo-draw:\S+)$/.exec(v)?.[1]; list.append(k ? pic(k) : block(v)); });
   if (!list.querySelector('textarea')) list.append(block());
+  if (tick) list.append(block('○ '));
   list.querySelector('textarea').placeholder = '写点什么';
   const trb = myLang() && h('button.pk-glass.pk-nt__tr' + (want ? '.is-on' : ''), { onclick: () => { want = !want; trb.classList.toggle('is-on', want); list.querySelectorAll('.pk-nt__b').forEach(b => b._show && b._show()); } }, `译成${langName(myLang())}`);
   // 清单键：在正在写的那一块前面加一个 ○，已经有就拿掉
@@ -108,7 +123,7 @@ function edit(r) {
   // 画：在最后接一块画布，画完就是一张图（存的时候和字一起按先后排）
   const pen = () => { const host = h('div.pk-nt__b'); list.append(host); startDraw({ host, tip: shared && tipOf(r), onSave: k => { const g = list.querySelector(`[data-key="${k}"]`); g && g.replaceWith(pic(k)); } }); };
   el._onLeave = async () => { off();
-    const items = [...list.children].map(b => (b.dataset.key ? ['ink', b.dataset.key] : b.querySelector('textarea') ? ['txt', b.querySelector('textarea').value.trim()] : ['', ''])).filter(x => x[1]), old = r[1] + '|' + r[4];
+    const items = [...list.children].map(b => (b.dataset.key ? ['ink', b.dataset.key] : b.querySelector('textarea') ? ['txt', b.querySelector('textarea').value.trim()] : ['', ''])).filter(x => x[1] && x[1] !== '○'), old = r[1] + '|' + r[4];   // 只有一个 ○ 没写字的不留
     const go = want && myLang(), mine = o => !shared || o.startsWith(me);
     const tr1 = async x => { const p = pre(x, r), [o, z] = await myOut(x.slice(p.length)); return z ? `${p}${o}[翻译：${z}]` : x; };
     // 没动过的行原样留着（别人写的永远不动）；我写的、翻没翻和勾的对不上的，换过去；新写的照勾的来
@@ -122,9 +137,11 @@ function edit(r) {
     save(); fresh(); };
   body.append(h('div.pk-top2', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: () => nav.back() }, icon('back', 24, 2.4)), h('button.pk-glass', { onclick: () => nav.back() }, '完成')), t, list,
     h('div.pk-float', h('button.pk-glass', { onclick: todo }, '○ 清单'), trb || '', h('i'), h('button.pk-glass.is-round', { 'aria-label': '画画', onclick: pen }, ink('pen', 22, 1.9))));
-  nav.push(el); (r[1] ? list.querySelector('textarea') : t).focus({ preventScroll: true });
+  nav.push(el); const at = tick ? [...list.querySelectorAll('textarea')].at(-1) : r[1] ? list.querySelector('textarea') : t; at.focus({ preventScroll: true }); if (tick) { at.setSelectionRange(9, 9); at.scrollIntoView({ block: 'center' }); }
 }
 export function open() {
   layers.length = 0; N().forEach(fixInk);   // 以前存在第九格的画挪进正文
+  const now = time.isStory() ? time.story().date : new Date(), old = N().filter(r => { const m = r[0] === '已删' && /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(r[2] || ''); return m && now - new Date(m[1], m[2] - 1, m[3]) > 30 * 864e5; });
+  if (old.length) { old.forEach(forget); save(); }   // 「最近删除」里过了 30 天的真删掉
   return push('备忘录', () => VIEWS.备忘录(N(), push, D, () => nav.back()));
 }

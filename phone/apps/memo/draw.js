@@ -18,7 +18,7 @@ const paint = (c, st, col = v => v) => { const w = c.canvas.width, hh = c.canvas
 const line = (c, [k, col, pts]) => { c.lineCap = c.lineJoin = 'round'; c.lineWidth = TOOLS[k][1] * 2; c.strokeStyle = col; c.beginPath(); c.moveTo(...pts[0]); pts.forEach(p => c.lineTo(...p)); c.stroke(); };
 
 /** 在 host 那里画（host 是已经画好的那张图，或者新放的一个空位）；key 是改哪张（新画的空着）；
- *  tip 是共用时点 ⓘ 看的那句；onSave(编号) 在画完时同步调用（还没画一笔就点完成的不调） */
+ *  tip 是共用时点 ⓘ 看的那句；onSave(编号, 换上的那张图) 在画完时同步调用（还没画一笔就点完成的不调） */
 export async function startDraw({ host, key = '', tip = '', onSave }) {
   const page = host.closest('.as-page'), body = host.closest('.pk-app__body'), float = body.querySelector(':scope > .pk-float');
   // cvs 是真正存下来的那张（不放进页面）；view 是给你看的：夜里把黑色看成白色，别的颜色照原样
@@ -80,12 +80,12 @@ export async function startDraw({ host, key = '', tip = '', onSave }) {
   const leave = page._onLeave;
   const finish = () => { drop();
     page._onLeave = leave; bar.remove(); if (float) float.hidden = false;
-    if (!strokes.length) { pad.replaceWith(key ? inkImg(key) : ''); return; }
+    if (!strokes.length) { pad.replaceWith(key ? host : ''); return; }
     const d = ctx.getImageData(0, 0, W, H).data; let y = H - 1;
     while (y > 0 && !d.subarray(y * W * 4, (y + 1) * W * 4).some((v, i) => i % 4 === 3 && v)) y--;
     const out = h('canvas', { width: W, height: Math.min(H, y + 40) }); out.getContext('2d').drawImage(cvs, 0, 0);
     const k = key || 'memo-draw:' + uid('d'), url = out.toDataURL('image/png');
-    inks.set(k, url); pad.replaceWith(inkImg(k)); onSave(k);
+    inks.set(k, url); const im = inkImg(k); pad.replaceWith(im); onSave(k, im);
     kvSet(k, url).catch(e => toast('画没存上：' + e.message));
     const n = v => Math.round(v), P = L => L.map(p => p.map(n));
     if (prev) kvSet(k + ':s', [...prev, ...strokes.map(st => (st[0] === 'cut' ? [st[0], P(st[1])] : st[0] === 'copy' ? [st[0], P(st[1]), n(st[2]), n(st[3])] : [st[0], st[1], P(st[2])]))]).catch(() => {});

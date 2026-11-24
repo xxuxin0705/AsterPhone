@@ -470,8 +470,7 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-draw__pad { position: relative; flex: none; margin: 8px 0; outline: 1px dashed var(--pk-line); outline-offset: -1px; touch-action: none; }
 .pk-draw__pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pk-nt__ink { flex: none; display: block; width: 100%; margin: 8px 0; }
-.pk-nt__fig { position: relative; margin: 0; } .pk-nt__ink.is-play { position: absolute; margin: 0; pointer-events: none; }
-.pk-nt__replay { position: absolute; right: 10px; bottom: 14px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--pk-ink) 12%, transparent); padding: 0; border: 0; color: var(--pk-sub); cursor: pointer; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
+.pk-nt__fig { position: relative; margin: 0; } .pk-nt__ink.is-play { position: absolute; margin: 0; pointer-events: none; } .pk-nt__fig[style] { border-left: 3px solid color-mix(in srgb, var(--c) 60%, transparent); }   /* 共用的：画是谁的，左边一道那个人的颜色 */
 .pk-nt__fig > small { display: none; margin: 0 20px; padding: 1px 7px; border-radius: 7px; font-size: 12px; background: color-mix(in srgb, var(--c) 38%, transparent); } .is-who > .pk-nt__fig > small { display: inline-block; }
 .pk-nt__key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -6px 20px 12px; font-size: 13px; color: var(--pk-sub); }
 .pk-nt__key span::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--c); }
