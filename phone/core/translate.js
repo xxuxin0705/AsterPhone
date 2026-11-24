@@ -77,8 +77,10 @@ async function viaTavern(text, to) {
   if (!inTavern() || Date.now() < tavernOff) throw new Error('不在酒馆里');
   const c = ctx(), headers = (c && c.getRequestHeaders) ? c.getRequestHeaders() : { 'Content-Type': 'application/json' };
   const res = await window.parent.fetch('/api/translate/google', { method: 'POST', headers, body: JSON.stringify({ text, lang: to }) });
-  if (!res.ok) { tavernOff = Date.now() + 6e5; throw new Error('酒馆翻译接口 ' + res.status); }
-  return await res.text();
+  const t = res.ok && await res.text();
+  // 接口不在（Tauri Tavern 那种会回 200 + 酒馆首页）：也算不能用，别把网页当成译文
+  if (!res.ok || /^\s*<(!doctype|html)/i.test(t)) { tavernOff = Date.now() + 6e5; throw new Error('酒馆翻译接口 ' + (res.ok ? '不在' : res.status)); }
+  return t;
 }
 async function viaGoogle(text, to) {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(to)}&dt=t&q=${encodeURIComponent(text)}`;
