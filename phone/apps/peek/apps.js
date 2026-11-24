@@ -232,7 +232,7 @@ export const VIEWS = {
     const toP = r => ({ k: r[0], what: r[1] || '', t: r[2] || '', place: r[0] === '删除' ? '' : r[3] || '', why: r[0] === '删除' ? r[3] || '' : '', src: r[4] || '' });
     const byT = (a, b) => ts(a.t) - ts(b.t);
     const lib = () => of(R, '图库').map(toP).filter(p => !hid.includes(key(p))).sort(byT);
-    const binned = () => [...of(R, '删除').map(toP), ...of(R, '图库').map(toP).filter(p => hid.includes(key(p)))].filter(p => !hid.includes('相册删:' + p.what)).sort(byT);
+    const binned = () => [...of(R, '删除').map(toP), ...[...of(R, '图库'), ...of(R, '隐藏')].map(toP).filter(p => hid.includes(key(p)))].filter(p => !hid.includes('相册删:' + p.what)).sort(byT);
     const kind = p => /截屏|截图/.test(p.src) ? 'shot' : p.src && !/相机/.test(p.src) ? 'app' : 'cam';
     const glyph = p => /自拍|合照|人像/.test(p.what) ? 'user' : { shot: 'grid', app: 'download', cam: 'camera' }[kind(p)];
     const n = p => [...p.what].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -318,7 +318,7 @@ export const VIEWS = {
         paintMain(); };
       again(); push('', () => [h('div.pk-top2.pk-ph__atop', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4))), sb], 'is-raw.pk-ph-al'); };
     const PIN = [['个人收藏', () => lib().filter(p => fav.includes(key(p)))], ['最近保存', () => lib().filter(p => kind(p) === 'app')], ['地图', () => lib().filter(p => p.place)],
-      ['截屏', () => lib().filter(p => kind(p) === 'shot')], ['隐藏', () => of(R, '隐藏').map(toP).sort(byT), 'lock'], ['最近删除', binned, 'trash', true]];
+      ['截屏', () => lib().filter(p => kind(p) === 'shot')], ['隐藏', () => of(R, '隐藏').map(toP).filter(p => !hid.includes(key(p))).sort(byT), 'lock'], ['最近删除', binned, 'trash', true]];
     const tile = ([t, get, lock, bin]) => { const L = get(), c = L[L.length - 1];
       return h('button.pk-ph__tile', { onclick: () => album(t, get, bin) }, lock || !c ? h('div.pk-ph__art.is-empty', icon(lock || 'image', 30, 1.6)) : art(c), h('b', t), t === '个人收藏' ? h('i', icon('heart', 13, 2.4)) : null); };
     const search = () => { const box = h('div.pk-ph__sub'), q = h('input.pk-ph__q', { type: 'search', placeholder: '搜索', oninput: () => {
