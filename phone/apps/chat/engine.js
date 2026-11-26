@@ -13,6 +13,7 @@ import { compose, myName, myPersona, chatScheme, myAvatar, blocksIn } from '../.
 import { previewOf, forAI, parseLine, specialsGuide, voiceNote, money } from './msgtypes.js';
 import { translate, langName, langFor, zhOf, fillZh, myLang, myOut } from '../../core/translate.js';
 import { colorFor } from '../../core/ui.js';
+import { photoBook, urlOf, keyOf } from '../../core/photos.js';
 
 /* ---------- 小广播：页面订阅 ---------- */
 const subs = new Map();
@@ -407,7 +408,9 @@ export async function buildReplyPrompt(chat, msgs, lite) {
     char: c ? (c.name || nameOf(c)) : 'TA', persona: charPersona(c), user_persona: userPersonaText(),
     story, ...wb, time: t, history, min, max, voice: voiceNote(rc), last: lastMine(msgs), lang: c && speakOf(c.id) ? `\n- 每条文字和语音都${trHow(langName(speakOf(c.id)))}（语音是「[语音] 中文意思[原文：…]」）；表情包、图片这些方括号标签照原样写，不用翻。` : '',
   }, sid);
-  return { system: specialsGuide(rc), prompt: prompt + memoNote(c, msgs), keep: cacheAt(prompt, history, wb.memory, t) };
+  // 通话用的（lite）不带照片：要的是快
+  const book = c && !lite ? await photoBook([c], 10) : null, pics = book && book.line(c.id) ? `\n\n【你手机里的照片】${book.line(c.id)}\n（要发图时，先想好要发什么，有正好对得上的就写「[图片]#编号」发那张；没有就算了，确实新拍了才写新的画面，别为了发照片硬找话题）` : '';
+  return { system: specialsGuide(rc), prompt: prompt + memoNote(c, msgs) + pics, keep: cacheAt(prompt, history, wb.memory, t), book };
 }
 // 要回的那几条：放在要求里点出来（只写在聊天记录里，长提示词下小模型会去接正文最后的场面）
 const lastMine = msgs => { const r = []; for (let i = msgs.length - 1; i >= 0 && msgs[i].from === 'me'; i--) if (!msgs[i].recalled) r.unshift(forAI(msgs[i])); return r.length ? `「${r.join(' / ')}」` : '消息'; };
@@ -460,6 +463,7 @@ export async function requestReply(chat, opts = {}) {
       if (shown >= rc.lines[1] || ac.signal.aborted) break;
       const [ln, tr] = takeTr(line);
       let p = parseLine(ln); if (tr) p.tr = tr;
+      if (p.type === 'image' && /^#/.test(p.text)) { const x = built.book && built.book.pick(p.text); if (!x) continue; p = { type: 'image', text: x.what, ...(x.en && { en: x.en }), ...(x.key && { pk: x.key }) }; const u = await urlOf(x); if (u) p.src = u; }   // 发的是照片库里的旧照片
       if (p.type === 'voice') p = voiceLimit(rc, p, ++nv);
       // 收下 / 退还我刚发的转账、红包
       if (p.type === 'accept' || p.type === 'return') { await settleMine(chat, msgs, c, p.type === 'accept'); continue; }
@@ -732,9 +736,9 @@ export async function deliverFromStory(c, text, groupName = '') {
 /** 一次找 AI 发几条动态（作者定的：点一下只调一次）。must：一定要发的人；only：只让他们发 */
 export async function genMoments({ count, must = [], only = false }, stop) {
   const pool = only ? must.map(contact).filter(Boolean) : [...must.map(contact).filter(Boolean), ...friends().filter(c => !must.includes(c.id)).sort(() => Math.random() - .5)].slice(0, Math.max(15, must.length));
-  const story = storyText(Math.min(4, ctxCfg().count)) || '（暂无）';
+  const story = storyText(Math.min(4, ctxCfg().count)) || '（暂无）', book = await photoBook(pool);
   const raw = await generate({ conn: resolveConn('text', 'chat'), system: '', app: '动态', stop,
-    prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}`).join('\n'), story, lang: langRule(pool.map(c => c.id), '的动态正文'), world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
+    prompt: compose('moment', { count, posters: pool.map(c => `- ${c.name || nameOf(c)}：${charPersona(c).slice(0, 300).replace(/\n/g, ' ')}${book.line(c.id) ? `\n  TA 的照片：${book.line(c.id)}` : ''}`).join('\n'), story, lang: langRule(pool.map(c => c.id), '的动态正文'), world: (await worldBlock(story, pool)).world, time: time.forPrompt(),
       pick: must.length ? `\n【这次】${only ? '只能由这些人发' : '这些人每人至少发一条'}：${must.map(id => nameOf(contact(id))).join('、')}` : '' }) });
   const find = n => pool.find(c => [c.name, c.nick, c.remark, nameOf(c)].filter(Boolean).includes(n.trim()));
   const out = []; let cur = null;
@@ -747,6 +751,7 @@ export async function genMoments({ count, must = [], only = false }, stop) {
     else if (cur) cur.text += ' ' + l;
   }
   if (!out.length) throw new Error('AI 没有按格式写动态');
+  for (const mo of out) if (/^#/.test(mo.imageDesc)) { const p = book.pick(mo.imageDesc); mo.imageDesc = p && p.cid === mo.author ? p.what : ''; if (mo.imageDesc) mo.pk = await keyOf(p); if (!mo.pk) delete mo.pk; }
   out.forEach(mo => { const [t, tr] = takeTr(mo.text); mo.text = t; if (tr) mo.tr = tr; });
   await fillZh(out.filter(mo => speakOf(mo.author)));
   state.moments.unshift(...out.slice(0, count)); commit('moments');

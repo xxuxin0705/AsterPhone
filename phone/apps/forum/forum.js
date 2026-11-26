@@ -2,7 +2,7 @@
 // 每条帖子、每层楼把零件全备齐（头像、V、名字、来自、小组、+关注、标题、正文、话题、配图、热门回复、回应数、转评赞…），显示哪些、怎么排交给样子的 CSS。
 // 列表只在第一次显示时画一遍，之后新帖子插到最上面；点赞、关注、翻译只改那一个元素
 import { h, pickFile, fileToDataURL } from '../../core/util.js';
-import { state, commit, contact, friends } from '../../core/store.js';
+import { state, commit, contact, friends, kvSet } from '../../core/store.js';
 import { page, navBtn, navText, icon, avatar, empty, badge, toast, waiting, busy, aiCount, group, item, field, toggleItem, segmented, actionSheet, dialog, btn, sheet, input, textarea, pickImage, fxRow, colorWheel, nudger } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
@@ -212,7 +212,7 @@ function picEl(p) {
     const conn = resolveConn('image', 'forum'); if (!conn) { toast('还没配生图接口'); return; }
     go('pic:' + p.id, '正在生图…', s => generateImage(p.imgEn || p.img, '论坛', conn, s)).then(async u => {
       if (!u) return;
-      p.pic = u; await E.save();
+      p.pic = u; await E.save(); if (p.pk) kvSet(p.pk, u).catch(() => {});   // 照片库里的那张（相册里的）也一起有图
       document.querySelectorAll(`[data-job="pic:${p.id}"]`).forEach(x => x.replaceWith(picEl(p)));
     });
   }, 'button.as-fo-post__img');

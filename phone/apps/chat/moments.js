@@ -1,6 +1,6 @@
 // 动态页：封面 + 动态流；发动态；生成角色动态；点赞 / 评论 / 生成评论；某个人的动态空间。
 import { h, uid, onLongPress, fileToDataURL, pickFile, $ } from '../../core/util.js';
-import { state, commit, contact, subscribe } from '../../core/store.js';
+import { state, commit, contact, subscribe, kvGet } from '../../core/store.js';
 import { page, group, item, field, textarea, input, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, sheet, pickImage, switchEl, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
@@ -46,9 +46,13 @@ export function feedInto(box, list, redraw) {
   if (!visible.length) { box.appendChild(empty('还没有动态')); return; }
   visible.forEach(m => box.appendChild(card(m, redraw)));
 }
+// 用了照片库里的旧照片（m.pk：图在 kv 里）：读过一次记着，再画这条就直接有图；还没画过的先显示画面那句话
+const PK = new Map();
 function card(m, redraw) {
-  const imgs = (m.images || []).length ? h('div.as-chat-moment__imgs' + (m.images.length === 1 ? '.is-one' : ''), m.images.map(src => h('img', { src, alt: '', loading: 'lazy' }))) : null;
-  const desc = m.imageDesc ? h('div.as-chat-imgdesc', icon('image', 16, 1.8), h('span', m.imageDesc)) : null;
+  const one = u => h('div.as-chat-moment__imgs.is-one', h('img', { src: u, alt: '', loading: 'lazy' }));
+  const imgs = (m.images || []).length ? h('div.as-chat-moment__imgs' + (m.images.length === 1 ? '.is-one' : ''), m.images.map(src => h('img', { src, alt: '', loading: 'lazy' }))) : PK.get(m.pk) ? one(PK.get(m.pk)) : null;
+  const desc = m.imageDesc && !imgs ? h('div.as-chat-imgdesc', icon('image', 16, 1.8), h('span', m.imageDesc)) : null;
+  if (m.pk && !imgs) kvGet(m.pk).then(u => { if (u) { PK.set(m.pk, u); desc.replaceWith(one(u)); } }, () => {});
   const ops = h('button.as-chat-moment__ops', { 'aria-label': '操作', onclick: e => { e.stopPropagation(); opbar(ops, m, redraw); } }, '··');
   const box = (m.likes.length || m.comments.length) ? h('div.as-chat-moment__box',
     m.likes.length ? h('div.as-chat-moment__likes', icon('heart', 14, 2), h('span', m.likes.map(who).join('，'))) : null,

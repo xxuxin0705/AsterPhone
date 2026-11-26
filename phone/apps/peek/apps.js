@@ -1,10 +1,11 @@
 // TA 手机里的各个应用，照苹果自带应用的样子排。每个：rows（AI 写的一行行）→ 页面里的内容；push(标题, 内容, 类名) 再盖一层详情。
 import { h, sortZh, onLongPress } from '../../core/util.js';
 import { icon, actionSheet, dialog, busy, toast } from '../../core/ui.js';
-import { kvGet, kvSet, contact, state, commit } from '../../core/store.js';
+import { kvGet, kvSet, kvDel, contact, state, commit } from '../../core/store.js';
 import { generateImage, resolveConn } from '../../core/api.js';
 import * as time from '../../core/time.js';
-import { saveRead } from './gen.js';
+import { saveRead, DT, ts, S as peekCfg } from './gen.js';
+import { picKey as photoKey } from '../../core/photos.js';
 import { nameOf, inksFor, autoInk, sharedWith, drawn, INKLINE } from '../chat/engine.js';
 import { myName } from '../../core/promptstore.js';
 
@@ -33,7 +34,6 @@ const PY = '阿八嚓哒妸发旮哈讥咔垃妈拏噢妑七呥仨他屲夕丫�
 const initial = s => { const c = String(s).trim()[0] || '#'; if (/[a-z]/i.test(c)) return c.toUpperCase(); if (!/[\u4e00-\u9fff]/.test(c)) return '#';
   let k = '#'; for (let i = 0; i < PY.length && c.localeCompare(PY[i], 'zh-CN-u-co-pinyin') >= 0; i++) k = PYK[i]; return k; };
 // 时间照 iPhone 写：列表里今天写几点，昨天、这一周写星期几，再早写年/月/日；对话里写日子 + 几点（AI 有时写成完整日期）
-const DT = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}):(\d{2}))?/, ts = t => { const m = DT.exec(t || ''); return m ? +new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : 0; };
 export const when = (t, full) => {
   const m = DT.exec(t || ''); if (!m) return t || '';
   const d = new Date(+m[1], m[2] - 1, +m[3]), now = time.isStory() ? time.story().date : new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - d) / 864e5);
@@ -236,7 +236,7 @@ export const VIEWS = {
     const kind = p => /截屏|截图/.test(p.src) ? 'shot' : p.src && !/相机/.test(p.src) ? 'app' : 'cam';
     const glyph = p => /自拍|合照|人像/.test(p.what) ? 'user' : { shot: 'grid', app: 'download', cam: 'camera' }[kind(p)];
     const n = p => [...p.what].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-    const picKey = p => `peekpic:${D.id}:${n(p)}`;
+    const picKey = p => photoKey(D.id, p.what);
     // 滤镜：每个是几样 CSS 滤镜 [名字, 套满时的值, 不套时的值]，力度 0~1 在两者之间取；调整的曝光、对比度、饱和度是 -100~100
     const FX = { 原片: [], 鲜明: [['saturate', 1.4, 1], ['contrast', 1.08, 1]], 鲜暖色: [['saturate', 1.3, 1], ['sepia', .2, 0]], 鲜冷色: [['saturate', 1.25, 1], ['hue-rotate', -14, 0]],
       反差: [['contrast', 1.35, 1]], 反差暖色: [['contrast', 1.3, 1], ['sepia', .28, 0]], 反差冷色: [['contrast', 1.3, 1], ['hue-rotate', -18, 0], ['saturate', .9, 1]],
@@ -277,6 +277,7 @@ export const VIEWS = {
       // 删除：照 iPhone 从垃圾桶那里冒出一小块说明 + 红字「删除照片」，点别处收起
       const ask = h('div.pk-ph__pop', { hidden: true }, h('p', bin ? '这张照片会被彻底删除，不能恢复。' : '这张照片会移到「最近删除」，30 天后彻底删除。'), h('button', { onclick: () => {
         ask.hidden = true; const p = L[i]; hid.push(bin ? '相册删:' + p.what : key(p)); saveRead(D);
+        if (bin) { kvDel(picKey(p)).catch(() => {}); PICS.delete(picKey(p)); }   // 最近删除里再删：画好的图也真删掉
         L.splice(i, 1); slides.splice(i, 1)[0].remove(); strip.children[i].remove(); again();
         if (!L.length) return pop(); i = Math.min(i, L.length - 1); pager.scrollLeft = i * pager.clientWidth; paint(); } }, '删除照片'));
       const trash = h('button.pk-glass.is-round', { 'aria-label': '删除', onclick: e => { e.stopPropagation(); ask.hidden = !ask.hidden; } }, icon('trash', 22, 2));
@@ -328,9 +329,14 @@ export const VIEWS = {
     const ava0 = contact(D.id)?.avatar;
     const box = h('div.pk-ph__main'), title = h('div.pk-ph__title'), right = h('div.pk-ph__tr');
     let tab = '图库', mode = '全部';
-    // 图库的筛选键：按年、按月看（一年 / 一个月一张大卡片，点了回到全部）
-    const sort = h('button.pk-glass.is-round', { 'aria-label': '查看方式', onclick: () => actionSheet('', [['全部', '所有照片'], ['月', '按月'], ['年', '按年']].map(([value, label]) => ({ value, label: (value === mode ? '✓ ' : '') + label })))
-      .then(v => { if (v) { mode = v; paintMain(); } }) }, ink('lines', 22, 2.2));
+    // 图库的筛选键：按年、按月看（一年 / 一个月一张大卡片，点了回到全部）；从新到旧 / 从旧到新（记着）；选一天只看那天的
+    const newFirst = () => !!peekCfg().phNew, toEnd = () => { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = newFirst() ? 0 : b.scrollHeight; };
+    const pickDay = () => { const by = groupBy(lib().filter(p => ts(p.t)).reverse().map(p => [ymd(p), p]), 0);
+      if (!by.length) return toast('照片都没有日期');
+      actionSheet('选一天', by.map(([d, ps]) => ({ value: d, label: `${d} · ${ps.length} 张` }))).then(d => d && album(d, () => lib().filter(p => ts(p.t) && ymd(p) === d))); };
+    const sort = h('button.pk-glass.is-round', { 'aria-label': '查看方式', onclick: () => actionSheet('', [...[['全部', '所有照片'], ['月', '按月'], ['年', '按年']].map(([value, label]) => ({ value, label: (value === mode ? '✓ ' : '') + label })),
+      ...[['new', '从新到旧'], ['old', '从旧到新']].map(([value, label]) => ({ value, label: ((value === 'new') === newFirst() ? '✓ ' : '') + label })), { value: 'day', label: '选一天' }])
+      .then(v => { if (!v) return; if (v === 'day') return pickDay(); if (v === 'new' || v === 'old') { peekCfg().phNew = v === 'new'; commit('apps'); } else mode = v; paintMain(); toEnd(); }) }, ink('lines', 22, 2.2));
     const paintMain = () => { const L = lib();
       if (tab === '精选集') { title.replaceChildren(h('b', '精选集'), h('small', L.length + ' 张照片'));
         right.replaceChildren(no(h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8))), ava('', ava0));
@@ -338,13 +344,15 @@ export const VIEWS = {
       const [a, z] = [L[0], L[L.length - 1]].map(p => p && ymd(p)), y = a && a.slice(0, 5);   // 同一年的后半截不再写年
       title.replaceChildren(h('b', '图库'), h('small', L.length && ts(L[0].t) ? (a === z ? a : `${a} 至 ${z.startsWith(y) ? z.slice(5) : z}`) : ''));
       right.replaceChildren(sort, no(h('button.pk-glass', '选择')));
-      if (mode === '全部') box.replaceChildren(grid(L, false, paintMain));
+      if (mode === '全部') { const O = newFirst() ? [...L].reverse() : L;   // 一天一段，标题写年月日；点开大图能一直滑到别的日子
+        box.replaceChildren(h('div.pk-ph__days', groupBy(O.map((p, j) => [ts(p.t) ? ymd(p) : '没有日期', j]), 0).flatMap(([d, js]) => [h('h3.pk-ph__sec', d),
+          h('div.pk-ph__grid.is-day', js.map(([, j]) => h('button', { onclick: () => viewer(O, j, false, paintMain) }, art(O[j]))))]))); }
       else { const by = groupBy(L.map(p => { const t = ts(p.t), d = new Date(t); return [!t ? '更早' : mode === '年' ? d.getFullYear() + '年' : `${d.getFullYear()}年${d.getMonth() + 1}月`, p]; }), 0);
         box.replaceChildren(h('div.pk-ph__cards', by.map(([k, ps]) => h('button.pk-ph__card', { onclick: () => { mode = '全部'; paintMain(); } }, art(ps[ps.length - 1][1], '.is-big'), h('b', k), h('small', ps.length + ' 张'))))); } };
     const tabBtns = [['图库', 'lib'], ['精选集', 'coll']].map(([t, g]) => h('button' + (t === tab ? '.is-on' : ''), { onclick: () => { tab = t; tabBtns.forEach(b => b.classList.toggle('is-on', b === tabBtns[t === '图库' ? 0 : 1])); paintMain();
-      const b = box.closest('.pk-app__body'); if (b) b.scrollTop = t === '图库' ? b.scrollHeight : 0; } }, ink(g, 22, 1.9), h('small', t)));
+      if (t === '图库') toEnd(); else { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = 0; } } }, ink(g, 22, 1.9), h('small', t)));
     paintMain();
-    requestAnimationFrame(() => { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = b.scrollHeight; });
+    requestAnimationFrame(toEnd);
     return [h('div.pk-top2.pk-ph__top', title, right), box, h('div.pk-float.pk-ph__float', h('div.pk-glass.pk-ph__tabs', ...tabBtns), h('button.pk-glass.is-round', { 'aria-label': '搜索', onclick: search }, icon('search', 22, 2.2)))];
   },
   AI: (R, push) => {

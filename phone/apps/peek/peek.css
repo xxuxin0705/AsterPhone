@@ -442,7 +442,8 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-ph__top { align-items: flex-start; margin-bottom: -44px; } .is-raw .pk-ph__top::before { inset: 0 -24px -24px; background: linear-gradient(var(--pk-page) 40%, color-mix(in srgb, var(--pk-page) 55%, transparent) 75%, transparent); }
 .pk-ph__title { display: grid; gap: 2px; padding: 0 6px; } .pk-ph__title b { font-size: 34px; font-weight: 700; line-height: 1.1; } .pk-ph__title small { font-size: 14px; font-weight: 600; color: var(--pk-sub); }
 .pk-ph__tr { display: flex; flex: none; align-items: center; gap: 10px; } .pk-ph__tr .pk-glass { flex: none; white-space: nowrap; } .pk-ph__tr .pk-ava { width: 44px; height: 44px; }
-.pk-ph__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 44px; } .pk-ph__grid.is-3 { grid-template-columns: repeat(3, 1fr); padding-top: 0; }
+.pk-ph__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 44px; } .pk-ph__days { padding-top: 44px; } .pk-ph__grid.is-day { padding-top: 0; }
+.is-raw .pk-ph__days h3.pk-ph__sec { margin: 14px 12px 6px; font-size: 17px; } .pk-ph__grid.is-3 { grid-template-columns: repeat(3, 1fr); padding-top: 0; }
 .pk-ph__grid button, .pk-ph__strip button, .pk-ph__tile, .pk-ph__tools button, .pk-ph__etabs button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .pk-ph__float { justify-content: space-between; } .pk-ph__tabs { gap: 2px; height: 58px; padding: 4px; border-radius: 29px; }
 .pk-ph__tabs button { display: grid; justify-items: center; gap: 1px; width: 76px; height: 50px; padding: 6px 0 0; border: 0; border-radius: 25px; background: none; color: var(--pk-ink); font: 600 11px/1 inherit; cursor: pointer; }

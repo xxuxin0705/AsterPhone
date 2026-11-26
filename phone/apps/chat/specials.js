@@ -1,6 +1,6 @@
 // 特殊消息的样子和操作：气泡长什么样、「+」面板里每个按钮做什么、表情包面板、语音 / 视频通话界面、表情包管理。
 import { h, uid, fileToDataURL, pickFile } from '../../core/util.js';
-import { state, commit, contact, saveMsgs, chatForContact, isFriend, befriend } from '../../core/store.js';
+import { state, commit, contact, saveMsgs, chatForContact, isFriend, befriend, kvSet } from '../../core/store.js';
 import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty, navBtn, withInfo, aiCount } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
@@ -44,7 +44,7 @@ export function buildBubble(m, ctx) {
         e.stopPropagation();
         if (drawing.has(m.id)) { drawing.get(m.id).abort(); return; }
         const ac = new AbortController(); drawing.set(m.id, ac); gen.replaceChildren(h('i.as-spin'), ' 取消');
-        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? state.me : contact(m.who || (ctx.c && ctx.c.id)), m.en || m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); ctx.redraw(true); }
+        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? state.me : contact(m.who || (ctx.c && ctx.c.id)), m.en || m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); if (m.pk) kvSet(m.pk, m.src).catch(() => {}); ctx.redraw(true); }
         catch (err) { toast(ac.signal.aborted ? '已取消' : err.message); idle(); }
         drawing.delete(m.id);
       } });

@@ -1,7 +1,7 @@
 // 查手机里的内容：每个联系人一份，存在 kv 的 peek:联系人 id（{ apps: { 应用: { at, rows } } }）。
 // 只在你点「生成」时找 AI，勾了几个应用也只找一次；AI 一行一条地回，写到哪个应用算哪个，没写到的留着旧的。
 import { h, shortTime } from '../../core/util.js';
-import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
+import { state, commit, kvGet, kvSet, kvDel, kvKeys, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { langFor, langName, translate, zhOf } from '../../core/translate.js';
 import { generate, resolveConn, withModel, enKind } from '../../core/api.js';
@@ -12,6 +12,7 @@ import { log } from '../../core/log.js';
 import { nameOf, personaOf, parenTr, takeTr, memoAdd, noteOf, historyText, sharedWith, fixInk, inkText, newInks, inkImages, sawInks, oneLineSvg, drawTip } from '../chat/engine.js';
 import { previewOf, callName } from '../chat/msgtypes.js';
 import { chatMsgs } from '../../core/memory.js';
+import { picKey } from '../../core/photos.js';
 
 export const S = () => state.apps.peek ||= { every: 0, count: 6, fill: false, fillMax: 3 };
 /** 查手机找 AI 用哪个接口、哪个模型：没另选接口就跟聊天；模型能在用着的接口里另挑一个（按接口各记各的，换了接口不会串） */
@@ -38,9 +39,9 @@ export const FORMS = {
   论坛: '＃树洞｜※{{char}} 在论坛树洞里匿名发的心事（一两句到一小段，不点名）\n（写 2～4 条）',
   音乐: '＃资料｜粉丝数（只写数字）｜等级（1～10）｜一共听了多少小时（只写数字）\n＃关注｜关注的歌手（用顿号隔开）\n（这两行各写一行就够）',
   屏幕使用时间: '应用名｜今天用了多少分钟（只写数字）\n（写 6～8 个，从多到少）',
-  相册: `＃图库｜这张照片拍的是什么（一句话写清画面）｜时间｜地点｜从哪来（相机拍的写「相机」，截屏写「截屏」，别的 App 里存下来的写那个 App 的名字）
-＃隐藏｜画面｜时间｜地点（不想被人看到的，有才写）
-＃删除｜画面｜时间｜为什么删（最近删掉的，有才写）`,
+  相册: `＃图库｜这张照片拍的是什么（一句话写清画面）｜几天前几点拍的（写「天数 时:分」，天数今天是 0）｜地点｜从哪来（相机拍的写「相机」，截屏写「截屏」，别的 App 里存下来的写那个 App 的名字）
+＃隐藏｜画面｜几天前几点｜地点（不想被人看到的，有才写）
+＃删除｜画面｜几天前几点｜为什么删（最近删掉的，有才写）`,
   AI: `哪个 AI｜※这次对话的标题｜这句谁说的（自己 / AI）｜※内容
 （「哪个 AI」只能是 Claude、GPT、Gemini、豆包、DeepSeek；{{char}} 会用的才写，每个用到的写 1～2 次对话、每次 4～8 句，同一次对话的挨着写；问的是 {{char}} 真会拿去问 AI 的事，可以和最近发生的事有关；AI 回答完 {{char}} 可以有反应。
 五个 AI 说话不一样：Claude 客气谨慎、爱先说清楚前提；GPT 喜欢分点列条、末尾问要不要继续；Gemini 嘴甜爱夸人；豆包也爱夸人，热情但常常答不到点上；DeepSeek 先想一大段再答，偶尔想太多。）`,
@@ -75,6 +76,19 @@ async function toOurs(c, rows) {
 // 备忘录不整份换掉：上次的都留着（不想要的你在 TA 手机里删），AI 只写这段时间新记的、改了的（同一种、同一个标题的算改过的那条，换掉旧的）；心声只留最新的
 const noteKey = r => (r[0] === '心声' ? r[0] : r[0] + '|' + (takeTr(String(r[1] || '')).filter(Boolean).pop() || ''));
 // 旧的留着，同种同标题的换成新的；「最近删除」里过了 30 天（按剧情时间）的真删掉
+export const DT = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}):(\d{2}))?/, ts = t => { const m = DT.exec(t || ''); return m ? +new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : 0; };
+// 相册也不整份换掉：新拍的加进来，旧的都留着（同一个画面的换成新的）；最多 100 张，超了从最旧的、还没画过的扔起，画过的不扔（你自己删才删）。
+// 「最近删除」里 TA 自己删的照片每次换成这次写的；你在最近删除里再删的，连图一起真删掉；存着的图对不上哪一张了（以前整份换掉时留下的），也删掉
+async function keepPics(c, d, add) {
+  const gone = new Set((d.hide || []).filter(k => k.startsWith('相册删:')).map(k => k.slice(4))), fresh = new Set(add.map(r => r[1]));
+  let all = [...add, ...(d.apps.相册?.rows || []).filter(r => r[0] !== '删除' && !fresh.has(r[1]) && !gone.has(r[1]))];
+  const keys = (await kvKeys().catch(() => [])).filter(k => String(k).startsWith(`peekpic:${c.id}:`)), have = new Set(keys);
+  const over = all.filter(r => r[0] !== '删除').length - 100;
+  if (over > 0) { const drop = new Set(all.filter(r => r[0] !== '删除' && !have.has(picKey(c.id, r[1]))).sort((a, b) => ts(a[2]) - ts(b[2])).slice(0, over)); all = all.filter(r => !drop.has(r)); }
+  const used = new Set(all.map(r => picKey(c.id, r[1])));
+  await Promise.all(keys.filter(k => !used.has(k)).map(k => kvDel(k).catch(() => {})));
+  return all;
+}
 const keepOld = (old, add) => { const fresh = new Set(add.map(noteKey)), now = time.isStory() ? time.story().date : new Date();
   const stale = r => { const m = r[0] === '已删' && /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(r[2] || ''); return m && now - new Date(m[1], m[2] - 1, m[3]) > 30 * 864e5; };
   return [...add, ...old.filter(r => !fresh.has(noteKey(r)) && !stale(r))]; };
@@ -189,9 +203,9 @@ export async function make(c, names, done) {
     }, ac);
     if (!got) return;
     const moved = got.备忘录 ? await toOurs(c, got.备忘录) : 0;
-    // 备忘录的时间让 AI 只写「几天前 几点几分」，这里按剧情时间换成年月日 时:分（让它直接写日期，常写成别的年份）；算出来比现在还晚的算现在
+    // 备忘录、相册的时间让 AI 只写「几天前 几点几分」，这里按剧情时间换成年月日 时:分（让它直接写日期，常写成别的年份）；算出来比现在还晚的算现在
     const st = time.isStory() ? time.story() : null, nowT = st ? new Date(st.date.getFullYear(), st.date.getMonth(), st.date.getDate(), st.hh, st.mm) : new Date(), p2 = v => String(v).padStart(2, '0');
-    got.备忘录?.forEach(r => { const m = /^(\d{1,3})\s*(?:天前)?\s*(?:(\d{1,2})[:：](\d{2}))?$/.exec(String(r[2] || '').trim()); if (r[0] === '心声' || !m) return;
+    [...got.备忘录 || [], ...got.相册 || []].forEach(r => { const m = /^(\d{1,3})\s*(?:天前)?\s*(?:(\d{1,2})[:：](\d{2}))?$/.exec(String(r[2] || '').trim()); if (r[0] === '心声' || !m) return;
       let t = new Date(nowT.getFullYear(), nowT.getMonth(), nowT.getDate() - m[1], m[2] ? +m[2] : 0, m[3] ? +m[3] : 0); if (t > nowT) t = nowT;
       r[2] = `${t.getFullYear()}/${t.getMonth() + 1}/${t.getDate()}` + (m[2] ? ` ${p2(t.getHours())}:${p2(t.getMinutes())}` : ''); });
     const d = (await kvGet('peek:' + c.id).catch(() => null)) || { apps: {} }, ok = names.filter(n => got[n] && got[n].length);
@@ -201,6 +215,7 @@ export async function make(c, names, done) {
       got.消息 = got.消息.filter(r => { const x = who(r[0]); if (x) (by.get(x) || by.set(x, []).get(x)).push({ from: /自己/.test(r[2]) || r[2] === c.name ? c.id : x.id, t: r[1], text: r[3] }); return !x; });
       await Promise.all([...by].map(([x, L]) => kvSet(pairKey(c.id, x.id), L)));
     }
+    if (got.相册) got.相册 = await keepPics(c, d, got.相册);
     ok.forEach(n => { d.apps[n] = { at: Date.now(), rows: n === '备忘录' ? keepOld(d.apps[n]?.rows || [], got[n]) : got[n] }; });
     const l = /^zh/.test(speakIn(c)) ? guess(d.apps) : speakIn(c); if (d.lang !== l) { d.lang = l; delete d.mt; }   // 原文是什么语言；变了旧的机翻作废
     await kvSet('peek:' + c.id, d);

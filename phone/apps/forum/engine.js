@@ -3,6 +3,7 @@
 import { uid } from '../../core/util.js';
 import { state, win, kvGet, kvSet, commit, contact, chatForContact, friends, nickOf } from '../../core/store.js';
 import { generate, resolveConn, splitEn, imgEnRule } from '../../core/api.js';
+import { photoBook, urlOf } from '../../core/photos.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
 import { langName, langFor, fillZh } from '../../core/translate.js';
@@ -127,13 +128,13 @@ function setup(board) {
   if (need.length || more) out.push(`小组｜${need.map(id => BASE[id]).concat(more ? ['新'] : []).join('/')}｜名字｜一句简介｜人数（${need.length ? `给${need.map(id => BASE[id] + '版').join('、')}各起一个这个世界里的名字` : ''}${need.length && more ? '；' : ''}${more ? '再按这个世界起 3～5 个大家会去的兴趣小组，写「小组｜新｜…」' : ''}）`);
   return out.length ? `\n\n先写下面这些行，写完单独一行 === 再写帖子：\n${out.join('\n')}${rules.join('')}` : '';
 }
-function posters(board, only) {
+function posters(board, only, book) {
   if (board === 'anon') return '（匿名区：不写名字）';
   const fol = new Set(F().follows || []);
   const bots = F().bots.filter(b => !only || only.includes('b:' + b.id) || (board === 'follow' && fol.has('b:' + b.id)));
   const cs = onForum().filter(c => !only || only.includes('c:' + c.id) || (board === 'follow' && fol.has('c:' + c.id)));
   return [...bots.map(b => `- ${b.name}｜营销号（有认证），主题：${b.topic}`),
-    ...cs.map(c => `- ${netName(c)}｜真名：${c.name || nameOf(c)}${isV(c) ? '｜有认证' : ''}${personaOf(c) ? '｜' + personaOf(c).slice(0, 200).replace(/\n/g, ' ') : ''}`)].join('\n') || '（没有）';
+    ...cs.map(c => `- ${netName(c)}｜真名：${c.name || nameOf(c)}${isV(c) ? '｜有认证' : ''}${personaOf(c) ? '｜' + personaOf(c).slice(0, 200).replace(/\n/g, ' ') : ''}${book && book.line(c.id) ? `\n  TA 的照片：${book.line(c.id)}` : ''}`)].join('\n') || '（没有）';
 }
 const num = s => { const m = /([\d.]+)\s*([万wWkK])?/.exec(s || ''); if (!m) return 0; const v = parseFloat(m[1]) * ({ 万: 1e4, w: 1e4, W: 1e4, k: 1e3, K: 1e3 }[m[2]] || 1); return Math.round(v); };
 const rnd = n => Math.floor(Math.random() * n);
@@ -148,10 +149,10 @@ const atMe = board => board === 'anon' ? '' : `【${myName()} 在论坛的网名
 /** 刷一批帖。opts.pick：额外要求（话题、只让谁发）；opts.only：只能由这些号发（'b:id' / 'c:id'） */
 export async function feed(board, { pick = '', only = null, count = A().count || 6 } = {}, stop) {
   await load();
-  const st = story();
+  const st = story(), book = board === 'anon' ? null : await photoBook(onForum());
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
     prompt: compose('forumFeed', { imgen: imgEnRule('forum'), board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
-      world: (await worldBlock(st, board === 'anon' ? [] : crowd(), '', '', false, 'forum')).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
+      world: (await worldBlock(st, board === 'anon' ? [] : crowd(), '', '', false, 'forum')).world, posters: posters(board, only, book), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '正文先写中文意思，下面另起一行写 [原文：原文]，两样都要有', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
   const end = () => { inFloors = false; if (cur && cur.text.trim() && (cur.by.k !== 'me' || A().mePost)) { const [t, tr] = cur.tr ? [cur.text, cur.tr] : takeTr(cur.text.trim()); cur.text = t.trim(); cur.tr = tr === cur.text ? '' : tr; got.push(cur); } cur = null; };
@@ -194,6 +195,10 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     cur.text += (cur.text && !cur.text.endsWith('\n') ? '\n' : '') + (cur.text ? l : l.replace(/^正文[:：]\s*/, ''));   // 格式里写着「正文」，AI 常照抄成「正文：」
   }
   end();
+  for (const p of got) if (/^#/.test(p.img)) {   // 用的是发帖那个人照片库里的旧照片
+    const x = book && book.pick(p.img); if (!x || p.by.k !== 'c' || x.cid !== p.by.id) { p.img = ''; continue; }
+    Object.assign(p, { img: x.what, imgEn: x.en, pic: await urlOf(x) }, x.key && { pk: x.key });
+  }
   if (!got.length) { log('error', '论坛', 'AI 没有按格式写帖子', raw); throw new Error('AI 没有按格式写帖子'); }
   if (mayForeign(board)) await fillZh(got.flatMap(x => [x, ...(x.floors || [])]));
   got.forEach(p => { if (!p.likes) p.likes = rnd(300); p.cmts = Math.max(p.cmts || rnd(60), (p.floors || []).length); if (p.floors && !p.floors.length) p.floors = null; });
