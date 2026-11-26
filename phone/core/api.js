@@ -2,7 +2,7 @@
 // 渠道：tavern（酒馆当前连接）/ openai（OpenAI 兼容）/ claude / gemini
 import { state, commit, kvGet, kvSet } from './store.js';
 import { withPreset } from './preset.js';
-import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx } from './bridge.js';
+import { generateTavern, inTavern, tavernProfiles, generateWithProfile, tavernMainApi, ctx, userName } from './bridge.js';
 import { apiLog as log, log as note, startCall, orAbort, abortCall } from './log.js';
 import { adapt, plain } from './act.js';
 import { regexed } from './regex.js';
@@ -494,8 +494,8 @@ export const enKind = conn => !conn ? '' : ['novelai', 'sd-webui', 'comfyui'].in
   : conn.type === 'pollinations' || conn.type === 'siliconflow' && !/kolors|qwen|hunyuan|cogview|seedream|wan/i.test(conn.model || '') ? 'en' : '';
 /** 接的生图要英文时，教 AI 在画面描述后面顺手写英文（本来就要回话，不多一次调用）；认中文的一个字不多写 */
 export const imgEnRule = (app = 'chat') => ({
-  tags: '（画面后面用「｜」接这张图的英文生图标签：逗号隔开的短词，先写画面里有谁——没有人就以 no humans 开头、再写 scenery 或 still life——再写外貌动作、地点环境、构图光线）',
-  en: '（画面后面用「｜」接这张图的英文描述：一两句英文，写清画的是什么、在哪、构图和光线；画面里没有人就写 no humans）',
+  tags: '（画面后面用「｜」接这张图的英文生图标签：逗号隔开的短词。先写人数（1girl、1boy、1girl, 1boy……；没有人就以 no humans 开头，再写 scenery 或 still life），再写每个人在做什么、东西在谁身上（比如 girl wearing wristwatch）、几个人怎么待着（side by side、holding hands）、镜头（close-up、from above、pov）、地点、光线。不写名字；手机里有的人不写长相（会自动补上），路人、店员这些要写长相）',
+  en: '（画面后面用「｜」接这张图的英文描述：一两句英文，写清有几个人、各在做什么、东西在谁身上、在哪、镜头和光线；没有人就写 no humans。不写名字；手机里有的人不写长相，路人要写）',
 })[enKind(resolveConn('image', app))] || '';
 // 横着拍的照片：AI 写画面时在最后带「〔横〕」，生图时认出来就画横图（没带的照方案里的尺寸）；给人看的地方用 flat 去掉
 export const flat = t => String(t ?? '').replace(/\s*〔横〕/g, '');
@@ -504,17 +504,30 @@ export const drawText = (zh, en) => en ? en + (/〔横〕/.test(zh) ? '〔横〕
 /** 「中文画面｜English」拆成两半：「｜」后面一个汉字都没有才算英文；横图的记号留在中文那半 */
 export const splitEn = t => { const w = /〔横〕/.test(t || '') ? '〔横〕' : '', s = flat(t).trim(), m = /^(.*?)\s*[|｜]\s*([^|｜\u3400-\u9fff]+)$/.exec(s); return m && m[1] && /[a-z]/i.test(m[2]) ? [m[1].trim() + w, m[2].trim()] : [s + w, '']; };
 const noOne = p => /\bno (humans?|people)\b/i.test(p);
-/** ref：照着这张图改（dataURL），不传就是用文字生图 */
-/** 画的是某个人：加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
- *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子）。
- *  英文标签里写明没有人（no humans：风景、吃的、东西），或要英文的渠道只拿到中文，就不加外貌、不带参考图，免得画蛋糕冒出个人；
- *  认中文的渠道写成「画面里有 TA 时照这个样子画」，让模型自己看要不要用 */
-export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
-  if (noOne(prompt) || enKind(conn) && /[\u3400-\u9fff]/.test(flat(prompt))) return [prompt, undefined, conn];   // 要英文的渠道 AI 却只写了中文：分不清画面里有没有人，宁可不加外貌
-  const can = c && c.lookRef && conn && (['openai-image', 'image-compat', 'gemini-image'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
-  const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
-  const look = c && c.look ? (enKind(conn) ? `${c.look}, ${prompt}` : `${prompt}（画面里有${c.remark || c.name || '这个人'}时照这个样子画：${c.look}）`) : prompt;
-  return [look, can ? c.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
+/** 照片里拍到了谁：描述里点了名的（手机里的人、你自己），再加上这张照片的主人——点了 TA 的名、写了自拍 / 合照 / 我们、写了和 TA 性别对得上的「少年」「她」，或者画面里有人却谁都没点名。
+ *  英文标签写了 no humans（风景、吃的、东西）就谁都不算；只有中文的，看描述里有没有人 */
+const namesOf = c => [c === state.me ? state.me.realName || userName() : c.name, c.remark, c.nick].filter(n => n && n.length > 1);
+function whoIn(owner, zh, en) {
+  const said = flat(zh);
+  if (noOne(en) || !en && !/[人他她我]|自拍|合照|合影|手|脸|背影|侧脸/.test(said)) return [];
+  const named = [state.me, ...state.contacts].filter(c => c && c !== owner && namesOf(c).some(n => said.includes(n)));
+  const pron = owner && { 男: /少年|男生|男人|男孩|[他]/, 女: /少女|女生|女人|女孩|[她]/ }[owner.gender];   // 没点名、只写了「少年」「她」这种：按主人的性别算 TA
+  const self = owner && (namesOf(owner).some(n => said.includes(n)) || /自拍|合照|合影|我们|我和|和我|selfie/i.test(said) || !named.length || pron && pron.test(said));
+  return [...self ? [owner] : [], ...named];
+}
+/** 画一张照片：zh 中文画面、en AI 写的英文（可以没有），owner 是谁的照片（谁发的、谁手机里的）。
+ *  认出照片里有谁，把每个人在映像里写的外貌补上（照片里写的只是这一刻的动作、衣服）：
+ *  NAI 4 代以后每个人单独一段（不会把两个人的长相混在一起），别的要英文的渠道接在最前面，认中文的写成「画面里的人长这样——谁：……」。
+ *  能照图画的渠道带上主角的参考图（锁脸），种子也用 TA 的。只能现翻的中文先把名字换成他 / 她，免得翻成一串拼音 */
+export function lookOf(owner, zh, en, conn = resolveConn('image', 'chat')) {
+  const cast = whoIn(owner, zh, en), looks = cast.filter(c => c.look), tags = conn && enKind(conn);
+  const nai = conn && conn.type === 'novelai' && /diffusion-[45]/.test(conn.model || 'nai-diffusion-4-5-full');
+  let prompt = drawText(zh, en);
+  if (tags && !en) cast.forEach(c => namesOf(c).forEach(n => { prompt = prompt.split(n).join({ 男: '他', 女: '她' }[c.gender] || '那个人'); }));
+  if (looks.length && !nai) prompt = tags ? `${looks.map(c => c.look).join(', ')}, ${prompt}` : `${prompt}（画面里的人长这样——${looks.map(c => `${namesOf(c)[0] || '我'}：${c.look}`).join('；')}）`;
+  const lead = cast.find(c => c.lookRef), can = lead && conn && (['openai-image', 'image-compat', 'gemini-image'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
+  const img = { ...(cast[0] && cast[0].seed !== undefined && { seed: cast[0].seed }), ...(can && lead.lookK != null && { refK: lead.lookK }), ...(nai && looks.length && { cast: looks.map(c => c.look) }) };   // 种子、锁脸强度都是每个人自己的
+  return [prompt, can ? lead.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
 }
 /** 要英文的生图线，画面里还剩中文（以前存的描述、角色外貌、自己手写的）：用免费翻译换成英文，同一段只翻一次；翻不了照原样发，日志里记一条 */
 const enDone = new Map();
@@ -574,13 +587,13 @@ async function imageRaw(prompt, conn, ref) {
         // ref.chars：图生图 + 分角色提示词（每个位置画什么），照相馆的「NAI 宫格（试验）」用
         const model = conn.model || 'nai-diffusion-4-5-full', chars = ref && ref.chars, seed = sd ?? Math.floor(Math.random() * 4294967295);
         if (ref && !chars && !/4-5/.test(model)) throw new Error('NAI 照着图画要用 4.5 的模型');
-        const cc = chars ? chars.map(c => ({ char_caption: c.tags, centers: [{ x: c.x, y: c.y }] })) : [];
+        const cc = chars ? chars.map(c => ({ char_caption: c.tags, centers: [{ x: c.x, y: c.y }] })) : (I.cast || []).map(t => ({ char_caption: t, centers: [{ x: .5, y: .5 }] }));   // 照片里每个人的外貌单独一段
         const more = !ref ? {} : chars ? { image: await fitB64(ref.image, W, H, '#fff'), strength: ref.strength, noise: 0, extra_noise_seed: seed,
             characterPrompts: chars.map(c => ({ prompt: c.tags, uc: '', center: { x: c.x, y: c.y }, enabled: true })) }
           : { director_reference_images: [await fitB64(ref, 1024, 1536, '#000', true)], director_reference_descriptions: [{ caption: { base_caption: 'character&style', char_captions: [] }, legacy_uc: false }],
             director_reference_information_extracted: [1], director_reference_strength_values: [I.refK ?? 1], director_reference_secondary_strength_values: [0] };
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-          body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: {
+          body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: { ...(!chars && cc.length && { characterPrompts: cc.map(c => ({ prompt: c.char_caption, uc: '', center: c.centers[0], enabled: true })) }),
             params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, noise_schedule: I.noise || 'karras', cfg_rescale: +I.rescale || 0, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: cc }, use_coords: !!chars, use_order: true },
             v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref || sd != null ? { seed } : {}), ...more } }) });

@@ -2,7 +2,7 @@
 import { h, sortZh, onLongPress } from '../../core/util.js';
 import { icon, actionSheet, dialog, busy, toast } from '../../core/ui.js';
 import { kvGet, kvSet, kvDel, contact, state, commit } from '../../core/store.js';
-import { generateImage, resolveConn, flat, drawText } from '../../core/api.js';
+import { generateImage, resolveConn, flat, lookOf } from '../../core/api.js';
 import * as time from '../../core/time.js';
 import { saveRead, DT, ts, S as peekCfg } from './gen.js';
 import { picKey as photoKey } from '../../core/photos.js';
@@ -282,7 +282,7 @@ export const VIEWS = {
         if (!L.length) return pop(); i = Math.min(i, L.length - 1); pager.scrollLeft = i * pager.clientWidth; paint(); } }, '删除照片'));
       const trash = h('button.pk-glass.is-round', { 'aria-label': '删除', onclick: e => { e.stopPropagation(); ask.hidden = !ask.hidden; } }, icon('trash', 22, 2));
       const more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => actionSheet('', [{ value: 'draw', label: '画出来' }]).then(v => v && busy(more, async s => {
-        const p = L[i], u = await generateImage(drawText(`${p.what}，手机随手拍的照片${p.wide ? '〔横〕' : ''}`, p.en), '查手机', resolveConn('image', 'peek'), s);
+        const p = L[i], [pr, ref, cn] = lookOf(contact(D.id), `${p.what}，手机随手拍的照片${p.wide ? '〔横〕' : ''}`, p.en, resolveConn('image', 'peek')), u = await generateImage(pr, '查手机', cn, s, ref);
         if (!u) return; await kvSet(picKey(p), u); PICS.set(picKey(p), u); slides[i].firstChild._show(u); strip.children[i].firstChild._show(u); again(); toast('画好了');
       }).catch(e => toast(e.message))) }, ink('more', 22, 2.8));
       const wrap = h('div.pk-ph__view', { onclick: e => { if (!ask.contains(e.target)) ask.hidden = true; } }, pager, card);

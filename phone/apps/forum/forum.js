@@ -8,7 +8,7 @@ import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco, frameOf } from '../../core/deco.js';
 import { LANGS, langName, langFor, translate, liveTr, myOut, myLang } from '../../core/translate.js';
-import { generateImage, resolveConn, flat, drawText } from '../../core/api.js';
+import { generateImage, resolveConn, flat, lookOf } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
@@ -210,7 +210,7 @@ function picEl(p) {
   if (!p.img) return null;
   return jobBtn('pic:' + p.id, () => [icon('image', 16, 1.8), h('span', flat(p.img))], () => {
     const conn = resolveConn('image', 'forum'); if (!conn) { toast('还没配生图接口'); return; }
-    go('pic:' + p.id, '正在生图…', s => generateImage(drawText(p.img, p.imgEn), '论坛', conn, s)).then(async u => {
+    go('pic:' + p.id, '正在生图…', s => { const [pr, ref, cn] = lookOf(p.by && p.by.k === 'c' ? contact(p.by.id) : null, p.img, p.imgEn, conn); return generateImage(pr, '论坛', cn, s, ref); }).then(async u => {
       if (!u) return;
       p.pic = u; await E.save(); if (p.pk) kvSet(p.pk, u).catch(() => {});   // 照片库里的那张（相册里的）也一起有图
       document.querySelectorAll(`[data-job="pic:${p.id}"]`).forEach(x => x.replaceWith(picEl(p)));
