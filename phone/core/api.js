@@ -51,6 +51,8 @@ export const CHANNELS = {
   // 生图渠道：地址、默认模型、官网都先填好，用的人只要填密钥；全部都能改
   image: [
     { v: 'novelai', label: 'NovelAI / NAI', base: 'https://image.novelai.net', model: 'nai-diffusion-4-5-full', site: 'https://novelai.net', note: '二次元最好用。尺寸不超过 1024×1024、步数不超过 28，订阅用户不额外扣点。密钥在官网 账户设置 → Get Persistent API Token。' },
+    { v: 'gemini-image', label: 'Gemini 官方', base: 'https://generativelanguage.googleapis.com', model: 'gemini-3.1-flash-image', site: 'https://aistudio.google.com/apikey' },
+    { v: 'pollinations', label: 'Pollinations', base: 'https://image.pollinations.ai', model: '', site: 'https://pollinations.ai', noKey: true, note: '免费不用密钥，但图小、带水印，45 秒才能画一张。' },
     { v: 'openai-image', label: 'OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-image-1', site: 'https://platform.openai.com/api-keys' },
     { v: 'sd-webui', label: '本地 SD', base: 'http://127.0.0.1:7860', model: '', site: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', noKey: true, note: '自己电脑上的 Stable Diffusion WebUI / Forge。启动时要加 --api --cors-allow-origins=*。' },
     { v: 'comfyui', label: 'ComfyUI', base: 'http://127.0.0.1:8188', model: '', site: 'https://github.com/comfyanonymous/ComfyUI', noKey: true, note: '自己电脑上的 ComfyUI。在「画风」里粘贴 API 格式的工作流，把提示词的位置写成 %prompt%。启动时加 --enable-cors-header。' },
@@ -374,11 +376,11 @@ async function pullModels(conn, signal, how) {
     if (!res.ok) throw new Error(await readErr(res));
     const j = await res.json(); return (j.data || []).map(m => m.id);
   }
-  if (conn.type === 'gemini' || conn.type === 'gemini-live') {   // Live 只列能实时对话（bidiGenerateContent）的
+  if (/^gemini/.test(conn.type)) {   // Live 只列能实时对话（bidiGenerateContent）的，生图只列名字带 image 的
     const res = await get(`${trim(conn.base || 'https://generativelanguage.googleapis.com')}/v1beta/models?key=${encodeURIComponent(conn.key || '')}`);
     if (!res.ok) throw new Error(await readErr(res));
     const how = conn.type === 'gemini-live' ? 'bidiGenerateContent' : 'generateContent';
-    const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes(how)).map(m => m.name.replace(/^models\//, ''));
+    const j = await res.json(); return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes(how) && (conn.type !== 'gemini-image' || /image/.test(m.name))).map(m => m.name.replace(/^models\//, ''));
   }
   // 本地 SD / ComfyUI：拉的是装好的底模
   if (conn.type === 'sd-webui') { const res = await get(trim(conn.base) + '/sdapi/v1/sd-models'); if (!res.ok) throw new Error(await readErr(res)); return (await res.json()).map(m => m.title || m.model_name); }
@@ -394,7 +396,7 @@ async function pullModels(conn, signal, how) {
   return KNOWN_MODELS[tt] || [];
 }
 const KNOWN_MODELS = {
-  novelai: ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-4-curated-preview', 'nai-diffusion-3', 'nai-diffusion-furry-3'],
+  novelai: ['nai-diffusion-5-full', 'nai-diffusion-5-full-medium', 'nai-diffusion-5-curated', 'nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-4-curated-preview', 'nai-diffusion-3', 'nai-diffusion-furry-3'],
   'doubao-tts': ['volcano_tts'], 'zhipu-embed': ['embedding-3', 'embedding-2'],
   'minimax-cn': ['speech-2.8-hd', 'speech-2.8-turbo', 'speech-2.6-hd', 'speech-2.6-turbo', 'speech-02-hd', 'speech-02-turbo', 'speech-01-hd', 'speech-01-turbo'], mimo: ['mimo-v2.5-tts'],
 };
@@ -439,7 +441,8 @@ function demoReply(prompt) {
 
 /* ---------- 生图：每个渠道的请求格式不一样，这里一个个对上 ---------- */
 const sizeOf = c => (c.img && c.img.size) || c.size || '1024x1024';
-const ratioOf = size => { const [w, h] = size.split('x').map(Number); return w === h ? '1:1' : w > h ? '3:2' : '2:3'; };
+const ratioOf = size => { const [w, h] = size.split('x').map(Number), d = r => { const [x, y] = r.split(':'); return Math.abs(Math.log(x * h / y / w)); };
+  return ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9'].reduce((a, r) => d(r) < d(a) ? r : a); };
 const b64png = b => 'data:image/png;base64,' + b;
 const blobUrl = async res => URL.createObjectURL(await res.blob());
 /** NovelAI 返回的是一个 zip，里面一张 png：手动拆开 */
@@ -488,7 +491,7 @@ function imageInReply(j) {
 /* 生图提示词用哪种话：NovelAI / SD / ComfyUI 只认英文标签（tags）；硅基流动的 FLUX、SD3 这类认英文句子（en）；
  * GPT、Gemini、可图、通义这些中文也看得懂（''，照发中文，原话最准） */
 export const enKind = conn => !conn ? '' : ['novelai', 'sd-webui', 'comfyui'].includes(conn.type) ? 'tags'
-  : conn.type === 'siliconflow' && !/kolors|qwen|hunyuan|cogview|seedream|wan/i.test(conn.model || '') ? 'en' : '';
+  : conn.type === 'pollinations' || conn.type === 'siliconflow' && !/kolors|qwen|hunyuan|cogview|seedream|wan/i.test(conn.model || '') ? 'en' : '';
 /** 接的生图要英文时，教 AI 在画面描述后面顺手写英文（本来就要回话，不多一次调用）；认中文的一个字不多写 */
 export const imgEnRule = (app = 'chat') => ({
   tags: '（画面后面用「｜」接这张图的英文生图标签：逗号隔开的短词，先写画面里有谁——没有人就以 no humans 开头、再写 scenery 或 still life——再写外貌动作、地点环境、构图光线）',
@@ -504,7 +507,7 @@ const noOne = p => /\bno (humans?|people)\b/i.test(p);
  *  认中文的渠道写成「画面里有 TA 时照这个样子画」，让模型自己看要不要用 */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
   if (noOne(prompt) || enKind(conn) && /[\u3400-\u9fff]/.test(prompt)) return [prompt, undefined, conn];   // 要英文的渠道 AI 却只写了中文：分不清画面里有没有人，宁可不加外貌
-  const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
+  const can = c && c.lookRef && conn && (['openai-image', 'image-compat', 'gemini-image'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
   const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
   const look = c && c.look ? (enKind(conn) ? `${c.look}, ${prompt}` : `${prompt}（画面里有${c.remark || c.name || '这个人'}时照这个样子画：${c.look}）`) : prompt;
   return [look, can ? c.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
@@ -557,7 +560,7 @@ async function imageRaw(prompt, conn, ref) {
   const fail = async res => { throw new Error(await readErr(res)); };
   try {
     if (ref && ref.chars && conn.type !== 'novelai') throw new Error('只有 NAI 能按位置分别写提示词');
-    if (ref && !['siliconflow', 'openai-image', 'image-compat', 'novelai'].includes(conn.type)) throw new Error('这个生图渠道不能照着图改，换 OpenAI / 第三方 / 硅基流动的改图模型或 NAI');
+    if (ref && !['siliconflow', 'openai-image', 'image-compat', 'novelai', 'gemini-image'].includes(conn.type)) throw new Error('这个生图渠道不能照着图改，换 OpenAI / Gemini / 第三方 / 硅基流动的改图模型或 NAI');
     switch (conn.type) {
       case 'novelai': {
         // ref.chars：图生图 + 分角色提示词（每个位置画什么），照相馆的「NAI 宫格（试验）」用
@@ -570,11 +573,27 @@ async function imageRaw(prompt, conn, ref) {
             director_reference_information_extracted: [1], director_reference_strength_values: [I.refK ?? 1], director_reference_secondary_strength_values: [0] };
         const res = await xf(base + '/ai/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
           body: JSON.stringify({ input: full, model, action: chars ? 'img2img' : 'generate', parameters: {
-            params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
+            params_version: 3, width: W, height: H, scale: +I.scale || 5, sampler: I.sampler || 'k_euler_ancestral', steps: Math.min(+I.steps || 28, 50), n_samples: 1, noise_schedule: I.noise || 'karras', cfg_rescale: +I.rescale || 0, ucPreset: 0, qualityToggle: !I.quality, negative_prompt: neg,
             v4_prompt: { caption: { base_caption: full, char_captions: cc }, use_coords: !!chars, use_order: true },
             v4_negative_prompt: { caption: { base_caption: neg, char_captions: cc.map(c => ({ ...c, char_caption: '' })) }, legacy_uc: false }, ...(ref || sd != null ? { seed } : {}), ...more } }) });
         if (!res.ok) await fail(res);
         return keep(URL.createObjectURL(await firstFileInZip(await res.arrayBuffer())));
+      }
+      case 'gemini-image': {
+        const [, mt, data] = ref ? /^data:([^;]+);base64,(.*)$/.exec(ref) || [] : [];
+        const res = await xf(`${base}/v1beta/models/${encodeURIComponent(conn.model || 'gemini-3.1-flash-image')}:generateContent?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: full + (neg ? `\n\nAvoid: ${neg}` : '') }, ...(data ? [{ inline_data: { mime_type: mt, data } }] : [])] }],
+            generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: ratioOf(size) } } }) });
+        if (!res.ok) await fail(res);
+        const j = await res.json(), parts = j.candidates?.[0]?.content?.parts || [], im = parts.map(x => x.inlineData || x.inline_data).find(Boolean);
+        if (!im) throw new Error('Gemini 没有画图：' + (parts.map(x => x.text || '').join('').slice(0, 120) || j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason || '没说原因'));
+        return `data:${im.mimeType || im.mime_type || 'image/png'};base64,${im.data}`;
+      }
+      case 'pollinations': {   // 不传种子它每次都用 42，同一句话就总是同一张
+        const res = await xf(`${base}/prompt/${encodeURIComponent(full)}?width=${W}&height=${H}&seed=${sd ?? Math.floor(Math.random() * 1e9)}`);
+        if (!res.ok) await fail(res);
+        const b = await res.blob(); if (!/^image\//.test(b.type)) throw new Error('Pollinations 没给图：' + (await b.text()).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
+        return keep(URL.createObjectURL(b));
       }
       case 'siliconflow': {
         const res = await xf(oaiBase(base) + '/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },

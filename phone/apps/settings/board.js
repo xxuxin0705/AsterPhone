@@ -953,13 +953,13 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         ...(cur ? [h('button', { onclick: async () => { const x = sets.find(y => y.id === cur), n = await dialog({ title: '改名', input: { value: x.name } }); if (n && n.trim()) { x.name = n.trim().slice(0, 12); touch(); rebuild(); } } }, '改名'),
           h('button.is-danger', { onclick: async () => { if (!(await dialog({ title: '删掉这个方案？', confirm: '删除', danger: true }))) return; d.imgSets = sets.filter(x => x.id !== cur); d.imgSet = ''; d.img = Object.assign({ size: '1024x1024', tags: '', neg: '' }, sets[0].img || {}); touch(); rebuild(); } }, '删除')] : []));
       // 尺寸：随便填，下面几个常用的点一下就填好（每家常用的不一样）
-      const SIZES = oai ? ['1024x1024', '1024x1536', '1536x1024'] : t === 'novelai' ? ['832x1216', '1216x832', '1024x1024'] : t === 'siliconflow' ? ['1024x1024', '768x1024', '1024x768'] : ['512x768', '768x512', '1024x1024'];
+      const SIZES = oai || t === 'gemini-image' ? ['1024x1024', '1024x1536', '1536x1024'] : t === 'pollinations' ? ['768x768', '512x768', '768x512'] : t === 'novelai' ? ['832x1216', '1216x832', '1024x1024'] : t === 'siliconflow' ? ['1024x1024', '768x1024', '1024x768'] : ['512x768', '768x512', '1024x1024'];
       const sizeIn = input({ value: I.size, placeholder: '宽x高', onInput: v => { I.size = v.replace(/[×*X ]/g, 'x'); touch(); re(); paintSz(); } });
       const szBox = h('div.as-pbd__chips'), paintSz = () => szBox.replaceChildren(...SIZES.map(v => h('button' + (I.size === v ? '.is-on' : ''), { onclick: () => { I.size = sizeIn.value = v; touch(); re(); paintSz(); } }, v.replace('x', '×'))));
       paintSz();
       // 步数 1–150、CFG 1–30（每格 0.5）；最上面一格「默认」= 不传，照这家的默认
-      const num = (k, ph) => { const l = k === 'steps' ? Array.from({ length: 150 }, (_, i) => i + 1) : Array.from({ length: 59 }, (_, i) => 1 + i / 2);
-        return wheelField([[undefined, `默认 ${ph}`], ...(I[k] == null || l.includes(I[k]) ? [] : [I[k]]), ...l].map(v => Array.isArray(v) ? v : [v, String(v)]), I[k], v => { I[k] = v; touch(); }, k === 'steps' ? '步数' : 'CFG'); };
+      const num = (k, ph) => { const l = k === 'steps' ? Array.from({ length: 150 }, (_, i) => i + 1) : k === 'rescale' ? Array.from({ length: 21 }, (_, i) => i / 20) : Array.from({ length: 59 }, (_, i) => 1 + i / 2);
+        return wheelField([[undefined, `默认 ${ph}`], ...(I[k] == null || l.includes(I[k]) ? [] : [I[k]]), ...l].map(v => Array.isArray(v) ? v : [v, String(v)]), I[k], v => { I[k] = v; touch(); }, { steps: '步数', scale: 'CFG', rescale: '引导重缩放' }[k]); };
       const txt = (k, ph, rows = 2) => textarea({ value: I[k] ?? '', rows, placeholder: ph, onInput: v => { I[k] = v; touch(); re(); } });
       const STEPS = { novelai: '28', 'sd-webui': '20', comfyui: '20', siliconflow: '20' }, CFG = { novelai: '5', 'sd-webui': '7', comfyui: '7', siliconflow: '7.5' };
       // 采样器：从这家支持的里面挑，不用手打（本地 SD / ComfyUI 先问它装了哪些）
@@ -972,10 +972,12 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
       b.append(row('方案', h('div', chips)), acts,
         ...(oai ? [row(withInfo('请求方式', '生图接口：gpt-image、dall-e 这类画图模型用。聊天接口：图片夹在聊天回复里，Gemini 画图这类边聊边出图的模型用；有的中转站只开了这一条。'), segmented([['images', '生图接口'], ['chat', '聊天接口']], I.mode || 'images', v => { I.mode = v; touch(); }))] : []),
         row('尺寸（宽×高）', h('div', sizeIn, szBox)),
-        ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])))] : []),
+        ...(STEPS[t] ? [row('步数 / CFG', h('div.as-pbd__line', num('steps', STEPS[t]), num('scale', CFG[t])), t === 'novelai' ? '超过 28 步、或者图比 1024×1024 大，会扣点数。' : '')] : []),
         ...(SAMPLERS[t] ? [row('采样器', sampBtn)] : []),
+        ...(t === 'novelai' ? [row('噪声调度', segmented([['karras', 'karras'], ['exponential', 'exponential'], ['polyexponential', 'polyexp']], I.noise || 'karras', v => { I.noise = v; touch(); })),
+          row('引导重缩放', num('rescale', '0'), 'CFG 调高以后颜色太浓、太假时往上调一点，0.2 左右就够。')] : []),
         ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '画师串')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
-        row('负面提示词', txt('neg', '负面提示词')),
+        ...(t !== 'pollinations' ? [row('负面提示词', txt('neg', '负面提示词'))] : []),
         ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
     }));
     if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
