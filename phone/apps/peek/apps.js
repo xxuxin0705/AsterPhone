@@ -327,33 +327,53 @@ export const VIEWS = {
       push('', () => [h('div.pk-top2.pk-ph__atop', h('button.pk-glass.is-round', { 'aria-label': '返回', onclick: pop }, icon('back', 22, 2.4)), h('label.pk-glass.pk-ph__qbox', icon('search', 17, 2.2), q)), box], 'is-raw.pk-ph-al');
       requestAnimationFrame(() => q.focus()); };
     const ava0 = contact(D.id)?.avatar;
-    const box = h('div.pk-ph__main'), title = h('div.pk-ph__title'), right = h('div.pk-ph__tr');
+    const box = h('div.pk-ph__main'), title = h('div.pk-ph__title'), right = h('div.pk-ph__tr'), top = h('div.pk-top2.pk-ph__top', title, right), bar = h('div.pk-float.pk-ph__float');
     let tab = '图库', mode = '全部';
-    // 图库的筛选键：按年、按月看（一年 / 一个月一张大卡片，点了回到全部）；从新到旧 / 从旧到新（记着）；选一天只看那天的
-    const newFirst = () => !!peekCfg().phNew, toEnd = () => { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = newFirst() ? 0 : b.scrollHeight; };
+    const newFirst = () => !!peekCfg().phNew, body = () => box.closest('.pk-app__body'), toEnd = () => { const b = body(); if (b) b.scrollTop = newFirst() ? 0 : b.scrollHeight; };
+    // 换样子时照 iPhone：旧的缩小、变糊、淡掉，新的从稍大变清楚；底栏选中的那颗玻璃滑过去、图库按钮和两个标签互相变形（浏览器不支持就直接换）
+    const vt = fn => document.startViewTransition ? document.startViewTransition(fn) : fn();
     const pickDay = () => { const by = groupBy(lib().filter(p => ts(p.t)).reverse().map(p => [ymd(p), p]), 0);
-      if (!by.length) return toast('照片都没有日期');
-      actionSheet('选一天', by.map(([d, ps]) => ({ value: d, label: `${d} · ${ps.length} 张` }))).then(d => d && album(d, () => lib().filter(p => ts(p.t) && ymd(p) === d))); };
-    const sort = h('button.pk-glass.is-round', { 'aria-label': '查看方式', onclick: () => actionSheet('', [...[['全部', '所有照片'], ['月', '按月'], ['年', '按年']].map(([value, label]) => ({ value, label: (value === mode ? '✓ ' : '') + label })),
-      ...[['new', '从新到旧'], ['old', '从旧到新']].map(([value, label]) => ({ value, label: ((value === 'new') === newFirst() ? '✓ ' : '') + label })), { value: 'day', label: '选一天' }])
-      .then(v => { if (!v) return; if (v === 'day') return pickDay(); if (v === 'new' || v === 'old') { peekCfg().phNew = v === 'new'; commit('apps'); } else mode = v; paintMain(); toEnd(); }) }, ink('lines', 22, 2.2));
-    const paintMain = () => { const L = lib();
+      return by.length ? by.map(([d, ps]) => h('button', { onclick: () => { shut(); album(d, () => lib().filter(p => ts(p.t) && ymd(p) === d)); } }, h('span', `${d.slice(5)} · ${ps.length} 张`))) : [h('small', '照片都没有日期')]; };
+    // 筛选键：照 iPhone 从按钮那里长出来的玻璃菜单；「选一天」在菜单里往下展开
+    let menu = null;
+    const shut = () => { const m = menu; menu = null; if (m) m.animate([{}, { opacity: 0, scale: .6, filter: 'blur(6px)' }], { duration: 180, easing: 'ease-in' }).finished.then(() => m.remove()); };
+    const order = v => { shut(); if (newFirst() !== v) vt(() => { peekCfg().phNew = v; commit('apps'); paintMain(); toEnd(); }); };
+    const openMenu = () => { if (menu) return shut();
+      const days = h('div.pk-ph__days-m'), more = h('button.pk-ph__more', { onclick: () => { const on = !days.childElementCount; const h0 = menu.offsetHeight; days.replaceChildren(...on ? pickDay() : []); more.classList.toggle('is-on', on);
+        menu.animate([{ height: h0 + 'px' }, { height: menu.offsetHeight + 'px' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.3,1)' }); } }, h('span', '选一天'), icon('chevron', 16, 2.2));
+      menu = h('div.pk-ph__menu', [[true, '从新到旧'], [false, '从旧到新']].map(([v, t]) => h('button', { onclick: () => order(v) }, h('i', newFirst() === v ? icon('check', 16, 2.4) : ''), h('span', t))), h('hr'), more, days);
+      top.append(menu);
+      setTimeout(() => document.addEventListener('pointerdown', function off(e) { if (!menu || menu.contains(e.target)) return; if (!sort.contains(e.target)) shut(); document.removeEventListener('pointerdown', off, true); }, true)); };
+    const sort = h('button.pk-glass.is-round', { 'aria-label': '查看方式', onclick: openMenu }, ink('lines', 22, 2.2));
+    const seg = [['年', '年'], ['月', '月'], ['全部', '全部']].map(([m, t]) => h('button', { onclick: () => mode !== m && vt(() => { mode = m; paintMain(); toEnd(); }) }, t));
+    const go = t => vt(() => { tab = t; paintMain(); if (t === '图库') toEnd(); else body().scrollTop = 0; });
+    const paintBar = () => { const L = tab === '图库', search0 = h('button.pk-glass.is-round', { 'aria-label': '搜索', style: { viewTransitionName: 'pkph-q' }, onclick: search }, icon('search', 22, 2.2));
+      bar.replaceChildren(L ? h('button.pk-glass.is-round.pk-ph__lib', { 'aria-label': '精选集', style: { viewTransitionName: 'pkph-tab' }, onclick: () => go('精选集') }, ink('lib', 24, 1.9)) : null,
+        L ? h('div.pk-glass.pk-ph__seg', { style: { viewTransitionName: 'pkph-seg', '--i': ['年', '月', '全部'].indexOf(mode) } }, h('i', { style: { viewTransitionName: 'pkph-ind' } }), ...seg) : null,
+        L ? null : h('div.pk-glass.pk-ph__tabs', { style: { viewTransitionName: 'pkph-tab' } }, [['图库', 'lib'], ['精选集', 'coll']].map(([t, g]) => h('button' + (t === tab ? '.is-on' : ''), { onclick: () => t !== tab && go(t) }, ink(g, 22, 1.9), h('small', t)))),
+        L ? null : h('i'), search0);
+      seg.forEach((b, j) => b.classList.toggle('is-on', j === ['年', '月', '全部'].indexOf(mode))); };
+    // 标题下面的日期照 iPhone 跟着滚动变：写的是现在看得到的那几排照片是哪几天拍的（同一年的后半截不再写年）
+    let shown = [];
+    const span = (p, q) => { const [a, z] = [p, q].filter(x => x && ts(x.t)).sort((x, w) => ts(x.t) - ts(w.t)).map(ymd), y = a && a.slice(0, 5); return !a ? '' : a === z || !z ? a : `${a} 至 ${z.startsWith(y) ? z.slice(5) : z}`; };
+    const dates = () => { const b = body(), g = box.firstElementChild, s = title.lastElementChild; if (!b || !s || mode !== '全部' || tab !== '图库' || !g || !g.firstElementChild) return;
+      const rh = g.firstElementChild.offsetHeight + 2, r0 = Math.max(0, Math.floor((b.scrollTop + top.offsetHeight - g.offsetTop - 44) / rh)), r1 = Math.floor((b.scrollTop + b.clientHeight - g.offsetTop - 44) / rh);
+      const t = span(shown[r0 * 5], shown[Math.min(shown.length - 1, r1 * 5 + 4)]); if (t && s.textContent !== t) s.textContent = t; };
+    const paintMain = () => { const L = lib(); shut(); paintBar(); top.classList.toggle('is-dim', tab === '图库' && L.length > 0);
       if (tab === '精选集') { title.replaceChildren(h('b', '精选集'), h('small', L.length + ' 张照片'));
         right.replaceChildren(no(h('button.pk-glass.is-round', { 'aria-label': '更多' }, ink('more', 22, 2.8))), ava('', ava0));
         box.replaceChildren(h('div.pk-ph__coll', h('h3.pk-ph__sec', '固定'), h('div.pk-ph__tiles', PIN.map(tile)))); return; }
-      const [a, z] = [L[0], L[L.length - 1]].map(p => p && ymd(p)), y = a && a.slice(0, 5);   // 同一年的后半截不再写年
-      title.replaceChildren(h('b', '图库'), h('small', L.length && ts(L[0].t) ? (a === z ? a : `${a} 至 ${z.startsWith(y) ? z.slice(5) : z}`) : ''));
+      title.replaceChildren(h('b', '图库'), h('small', span(L[0], L[L.length - 1])));
       right.replaceChildren(sort, no(h('button.pk-glass', '选择')));
-      if (mode === '全部') { const O = newFirst() ? [...L].reverse() : L;   // 一天一段，标题写年月日；点开大图能一直滑到别的日子
-        box.replaceChildren(h('div.pk-ph__days', groupBy(O.map((p, j) => [ts(p.t) ? ymd(p) : '没有日期', j]), 0).flatMap(([d, js]) => [h('h3.pk-ph__sec', d),
-          h('div.pk-ph__grid.is-day', js.map(([, j]) => h('button', { onclick: () => viewer(O, j, false, paintMain) }, art(O[j]))))]))); }
+      if (mode === '全部') { const O = shown = newFirst() ? [...L].reverse() : L;
+        box.replaceChildren(h('div.pk-ph__grid', O.map((p, j) => h('button', { onclick: () => viewer(O, j, false, paintMain) }, art(p))))); requestAnimationFrame(dates); }
       else { const by = groupBy(L.map(p => { const t = ts(p.t), d = new Date(t); return [!t ? '更早' : mode === '年' ? d.getFullYear() + '年' : `${d.getFullYear()}年${d.getMonth() + 1}月`, p]; }), 0);
-        box.replaceChildren(h('div.pk-ph__cards', by.map(([k, ps]) => h('button.pk-ph__card', { onclick: () => { mode = '全部'; paintMain(); } }, art(ps[ps.length - 1][1], '.is-big'), h('b', k), h('small', ps.length + ' 张'))))); } };
-    const tabBtns = [['图库', 'lib'], ['精选集', 'coll']].map(([t, g]) => h('button' + (t === tab ? '.is-on' : ''), { onclick: () => { tab = t; tabBtns.forEach(b => b.classList.toggle('is-on', b === tabBtns[t === '图库' ? 0 : 1])); paintMain();
-      if (t === '图库') toEnd(); else { const b = box.closest('.pk-app__body'); if (b) b.scrollTop = 0; } } }, ink(g, 22, 1.9), h('small', t)));
+        box.replaceChildren(h('div.pk-ph__cards', by.map(([k, ps]) => h('button.pk-ph__card', { onclick: () => vt(() => { mode = '全部'; paintMain(); toEnd(); }) }, art(ps[ps.length - 1][1], '.is-big'), h('b', k), h('small', ps.length + ' 张'))))); } };
     paintMain();
-    requestAnimationFrame(toEnd);
-    return [h('div.pk-top2.pk-ph__top', title, right), box, h('div.pk-float.pk-ph__float', h('div.pk-glass.pk-ph__tabs', ...tabBtns), h('button.pk-glass.is-round', { 'aria-label': '搜索', onclick: search }, icon('search', 22, 2.2)))];
+    // 顶上照 iPhone 是透明的：照片滑到标题底下时才垫一层渐变的毛玻璃，字变白
+    requestAnimationFrame(() => { const b = body(); if (!b) return; toEnd(); b.style.viewTransitionName = 'pkph-body';
+      const up = () => { top.classList.toggle('is-over', b.scrollTop > 2); dates(); }; b.addEventListener('scroll', up, { passive: true }); up(); });
+    return [top, box, bar];
   },
   AI: (R, push) => {
     const box = list(), names = [...new Set(R.map(r => r[0]))];

@@ -441,6 +441,9 @@ function demoReply(prompt) {
 
 /* ---------- 生图：每个渠道的请求格式不一样，这里一个个对上 ---------- */
 const sizeOf = c => (c.img && c.img.size) || c.size || '1024x1024';
+// 照片分横竖：风景、街景、合照这些横着拍，自拍、人像竖着拍，别的照方案里选的尺寸；选的是方的就不动
+const WIDE = /风景|全景|远景|夜景|街景|街道|天空|晚霞|日落|海边|河边|湖边|山顶|合照|合影|一群|一桌|横拍|landscape|scenery|panorama|cityscape|group photo|wide shot|sunset|horizon/i, TALL = /自拍|人像|全身|立绘|竖拍|selfie|portrait|full body/i;
+const turn = (size, p) => { const [w, h] = size.split('x'); return w !== h && (+w < +h ? WIDE.test(p) && !TALL.test(p) : TALL.test(p) && !WIDE.test(p)) ? `${h}x${w}` : size; };
 const ratioOf = size => { const [w, h] = size.split('x').map(Number), d = r => { const [x, y] = r.split(':'); return Math.abs(Math.log(x * h / y / w)); };
   return ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9'].reduce((a, r) => d(r) < d(a) ? r : a); };
 const b64png = b => 'data:image/png;base64,' + b;
@@ -557,7 +560,7 @@ const fitB64 = (src, w, h, bg, contain) => new Promise((ok, no) => { const i = n
 /** ref：照着这张图改（dataURL）。只有能「照图改图」的渠道认：OpenAI / 第三方（edits 接口或聊天接口带图）、硅基流动的改图模型；
  *  NAI：ref 是图就当「角色参考」（只有 4.5 的模型有），是 { image, chars, strength } 就图生图 + 分角色提示词 */
 async function imageRaw(prompt, conn, ref) {
-  const I = conn.img || {}, size = sizeOf(conn), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
+  const I = conn.img || {}, size = ref ? sizeOf(conn) : turn(sizeOf(conn), prompt), [W, H] = size.split('x').map(n => Math.round((+n || 1024) / 64) * 64);
   const { full, neg } = imgPrompt(conn, prompt);
   const key = keysOf(conn)[0] || '', base = trim(conn.base), sd = I.seed === '' || I.seed == null || +I.seed < 0 ? null : Math.floor(+I.seed);   // 种子：映像里给这个人定的，没定就每次随机
   const fail = async res => { throw new Error(await readErr(res)); };

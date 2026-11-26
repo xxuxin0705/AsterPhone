@@ -439,20 +439,47 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 .pk-ph__art.is-drawn { background-size: cover; } .pk-ph__art.is-drawn svg { display: none; }
 .pk-ph__art.is-empty { background: var(--pk-fill); color: var(--pk-sub); }
 /* 图库 / 精选集：大标题浮在照片上面（照片从标题底下滑过去，上面淡淡一层），右上角圆按钮；底下左边两个标签的玻璃条、右边搜索 */
-.pk-ph__top { align-items: flex-start; margin-bottom: -44px; } .is-raw .pk-ph__top::before { inset: 0 -24px -24px; background: linear-gradient(var(--pk-page) 40%, color-mix(in srgb, var(--pk-page) 55%, transparent) 75%, transparent); }
+.pk-ph__top { align-items: flex-start; margin-bottom: -44px; }
+/* 顶上照 iPhone 是透明的：照片滑到底下（is-over）才垫一层越往下越淡的毛玻璃；图库那页垫的是暗的、字变白 */
+.is-raw .pk-top2.pk-ph__top::before { inset: 0 -24px -40px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 75%, transparent), transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent); opacity: 0; transition: opacity .25s; }
+.pk-ph__top.is-over::before { opacity: 1; } .is-raw .pk-top2.pk-ph__top.is-dim::before { background: linear-gradient(rgb(0 0 0 / .38), transparent); }
+.pk-ph__title, .pk-ph__title small { transition: color .25s; } .pk-ph__top.is-dim.is-over .pk-ph__title, .pk-ph__top.is-dim.is-over .pk-ph__title small { color: #fff; text-shadow: 0 1px 10px rgb(0 0 0 / .3); }
+.pk-ph__top { view-transition-name: pkph-top; }
+/* 筛选菜单：从按钮那里长出来的玻璃 */
+.pk-ph__menu { position: absolute; top: 96px; right: 14px; z-index: 3; width: 230px; max-height: 360px; overflow: hidden auto; padding: 6px; border-radius: 24px; transform-origin: 85% 0;
+  background: color-mix(in srgb, var(--pk-page) 72%, transparent); -webkit-backdrop-filter: blur(24px) saturate(1.8); backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: 0 12px 40px rgb(0 0 0 / .18), inset 1px 1px 1px -.5px rgb(255 255 255 / .8), 0 0 0 .5px var(--pk-line); animation: pk-ph-menu .34s cubic-bezier(.2, .9, .3, 1.15); }
+@keyframes pk-ph-menu { from { opacity: 0; scale: .4; filter: blur(8px); } }
+.pk-ph__menu button { display: flex; align-items: center; gap: 6px; width: 100%; height: 42px; padding: 0 12px 0 6px; border: 0; border-radius: 14px; background: none; color: var(--pk-ink); font: 500 16px/1 inherit; text-align: left; cursor: pointer; }
+.pk-ph__menu button:active { background: var(--pk-fill); } .pk-ph__menu button > i { display: grid; place-items: center; width: 20px; flex: none; } .pk-ph__menu button > span { flex: 1; }
+.pk-ph__menu hr { margin: 4px 10px; border: 0; border-top: .5px solid var(--pk-line); }
+.pk-ph__more svg { transition: rotate .25s; } .pk-ph__more.is-on svg { rotate: 90deg; } .pk-ph__more { padding-left: 32px !important; }
+.pk-ph__days-m button { height: 38px; padding-left: 32px; font-size: 15px; } .pk-ph__days-m small { display: block; padding: 8px 32px; color: var(--pk-sub); }
 .pk-ph__title { display: grid; gap: 2px; padding: 0 6px; } .pk-ph__title b { font-size: 34px; font-weight: 700; line-height: 1.1; } .pk-ph__title small { font-size: 14px; font-weight: 600; color: var(--pk-sub); }
 .pk-ph__tr { display: flex; flex: none; align-items: center; gap: 10px; } .pk-ph__tr .pk-glass { flex: none; white-space: nowrap; } .pk-ph__tr .pk-ava { width: 44px; height: 44px; }
-.pk-ph__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 44px; } .pk-ph__days { padding-top: 44px; } .pk-ph__grid.is-day { padding-top: 0; }
-.is-raw .pk-ph__days h3.pk-ph__sec { margin: 14px 12px 6px; font-size: 17px; } .pk-ph__grid.is-3 { grid-template-columns: repeat(3, 1fr); padding-top: 0; }
+.pk-ph__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 44px; }
+.pk-ph__main > .pk-ph__grid { padding-bottom: 30px; } .pk-ph__grid.is-3 { grid-template-columns: repeat(3, 1fr); padding-top: 0; }
 .pk-ph__grid button, .pk-ph__strip button, .pk-ph__tile, .pk-ph__tools button, .pk-ph__etabs button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.pk-ph__float { justify-content: space-between; } .pk-ph__tabs { gap: 2px; height: 58px; padding: 4px; border-radius: 29px; }
+.pk-ph__float { justify-content: space-between; view-transition-name: pkph-bar; } .pk-ph__main { margin-bottom: -88px; } .pk-ph__tabs { gap: 2px; height: 58px; padding: 4px; border-radius: 29px; }
+.is-raw .pk-float.pk-ph__float::before { display: none; }   /* 底下不垫白条：照片一直透到玻璃后面（照 iPhone） */
+.pk-ph__float > i { flex: 1; } .pk-ph__lib { color: var(--tint); }
+/* 年 / 月 / 全部：一条玻璃，选中的那颗亮一点的玻璃滑过去 */
+.pk-ph__seg { position: relative; flex: 1; height: 58px; margin: 0 10px; padding: 4px; border-radius: 29px; gap: 0; }
+.pk-ph__seg > i { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: 25px; translate: calc(var(--i) * 100%) 0; transition: translate .3s cubic-bezier(.2, .9, .3, 1.1);
+  background: color-mix(in srgb, var(--pk-ink) 9%, transparent); box-shadow: inset 1px 1px 1px -.5px rgb(255 255 255 / .7); }
+.pk-ph__seg button { position: relative; flex: 1; height: 100%; border: 0; background: none; color: var(--pk-ink); font: 600 16px/1 inherit; cursor: pointer; }
+/* 切换的动画（view transition）：内容缩小变糊淡出、新的从大一点变清楚 */
+::view-transition-old(pkph-body) { animation: pk-ph-out .26s ease-in both; } ::view-transition-new(pkph-body) { animation: pk-ph-in .38s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes pk-ph-out { to { opacity: 0; scale: .92; filter: blur(10px); } } @keyframes pk-ph-in { from { opacity: 0; scale: 1.06; filter: blur(10px); } }
+::view-transition-group(pkph-ind), ::view-transition-group(pkph-tab) { animation-duration: .34s; animation-timing-function: cubic-bezier(.2, .9, .3, 1.1); }
 .pk-ph__tabs button { display: grid; justify-items: center; gap: 1px; width: 76px; height: 50px; padding: 6px 0 0; border: 0; border-radius: 25px; background: none; color: var(--pk-ink); font: 600 11px/1 inherit; cursor: pointer; }
 .pk-ph__tabs button.is-on { background: color-mix(in srgb, var(--pk-ink) 10%, transparent); color: var(--tint); }
 .pk-ph__float > .is-round { width: 58px; height: 58px; border-radius: 29px; }
-.pk-ph__cards { display: grid; gap: 14px; padding: 52px 16px 20px; } .pk-ph__card { position: relative; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: none; color: #fff; text-align: left; cursor: pointer; }
+.pk-ph__cards { display: grid; gap: 14px; padding: 52px 16px 108px; } .pk-ph__card { position: relative; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: none; color: #fff; text-align: left; cursor: pointer; }
 .pk-ph__card .pk-ph__art { aspect-ratio: 16 / 10; } .pk-ph__card b, .pk-ph__card small { position: absolute; left: 16px; text-shadow: 0 1px 6px rgb(0 0 0 / .4); } .pk-ph__card b { top: 14px; font-size: 22px; } .pk-ph__card small { top: 44px; font-size: 14px; }
 /* 精选集：「固定」两列方块，名字压在左下角；隐藏、最近删除是灰底一个锁 / 垃圾桶 */
-.pk-ph__coll { padding: 52px 16px 20px; } .is-raw .pk-ph__coll h3.pk-ph__sec { margin: 0 4px 10px; }
+.pk-ph__coll { padding: 52px 16px 108px; } .is-raw .pk-ph__coll h3.pk-ph__sec { margin: 0 4px 10px; }
 .pk-ph__tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pk-ph__tile { position: relative; display: block; border-radius: 16px; overflow: hidden; text-align: left; }
 .pk-ph__tile b { position: absolute; left: 12px; bottom: 10px; font-size: 16px; font-weight: 600; color: #fff; text-shadow: 0 1px 6px rgb(0 0 0 / .45); } .pk-ph__tile .is-empty + b { color: var(--pk-ink); text-shadow: none; }
