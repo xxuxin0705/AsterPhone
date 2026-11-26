@@ -1,10 +1,11 @@
 // 一个人的照片库：TA 手机相册里的，和 TA 在聊天、动态、论坛、日记里发过的图，放在一起。
 // 写动态、论坛、聊天时把清单给 AI 看：先定好发什么，正好有对得上的就用那张（画过的直接拿来，不用再花钱画），没有就照常
 import { kvGet, kvSet, kvKeys, state, chatForContact, getMsgs } from './store.js';
+import { flat } from './api.js';
 
 const hash = s => [...s].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-/** 查手机相册里一张照片的图存在哪（按画面那句话认） */
-export const picKey = (id, what) => `peekpic:${id}:${hash(what)}`;
+/** 查手机相册里一张照片的图存在哪（按画面那句话认，横图的记号不算） */
+export const picKey = (id, what) => `peekpic:${id}:${hash(flat(what))}`;
 
 /** c 的照片：{ what 画面, en 英文提示词, url 画好的图, key 图存在 kv 的哪（相册里的、动态里的） }；画过的排前面 */
 export async function photosOf(c) {
@@ -14,7 +15,7 @@ export async function photosOf(c) {
   // 论坛、日记用它们自己读好放在内存里的那份（整份帖子很大，别每次都从 kv 再读一遍）
   const [pk, fo, dy, ms, keys] = await Promise.all([get(kvGet('peek:' + c.id)), get(import('../apps/forum/engine.js').then(E => E.load())), get(import('./diary.js').then(D => D.load())), get(ch && getMsgs(ch.id)), get(kvKeys())]);
   const have = new Set(keys || []), gone = new Set(pk?.hide || []);
-  for (const r of pk?.apps?.相册?.rows || []) if (r[0] === '图库' && !gone.has('相册:' + r[1]) && !gone.has('相册删:' + r[1])) { const k = picKey(c.id, r[1]); add(r[1], '', /[㐀-鿿]/.test(r[5] || '') ? '' : r[5], k); }
+  for (const r of pk?.apps?.相册?.rows || []) if (r[0] === '图库' && !gone.has('相册:' + flat(r[1])) && !gone.has('相册删:' + flat(r[1]))) { const k = picKey(c.id, r[1]); add(r[1], '', /[㐀-鿿]/.test(r[5] || '') ? '' : r[5], k); }
   (ms || []).filter(m => m.type === 'image' && m.from === 'them').forEach(m => add(m.text, m.src, m.en, m.pk));
   state.moments.filter(m => m.author === c.id).forEach(m => add(m.imageDesc, (m.images || [])[0], '', m.pk));
   (fo?.posts || []).filter(p => p.by && p.by.k === 'c' && p.by.id === c.id).forEach(p => add(p.img, p.pic, p.imgEn, p.pk));

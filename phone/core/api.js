@@ -497,8 +497,12 @@ export const imgEnRule = (app = 'chat') => ({
   tags: '（画面后面用「｜」接这张图的英文生图标签：逗号隔开的短词，先写画面里有谁——没有人就以 no humans 开头、再写 scenery 或 still life——再写外貌动作、地点环境、构图光线）',
   en: '（画面后面用「｜」接这张图的英文描述：一两句英文，写清画的是什么、在哪、构图和光线；画面里没有人就写 no humans）',
 })[enKind(resolveConn('image', app))] || '';
-/** 「中文画面｜English」拆成两半：「｜」后面一个汉字都没有才算英文 */
-export const splitEn = t => { const s = String(t || '').trim(), m = /^(.*?)\s*[|｜]\s*([^|｜\u3400-\u9fff]+)$/.exec(s); return m && m[1] && /[a-z]/i.test(m[2]) ? [m[1].trim(), m[2].trim()] : [s, '']; };
+// 横着拍的照片：AI 写画面时在最后带「〔横〕」，生图时认出来就画横图（没带的照方案里的尺寸）；给人看的地方用 flat 去掉
+export const flat = t => String(t ?? '').replace(/\s*〔横〕/g, '');
+/** 送去生图的那句：有英文用英文，横图的记号跟过去 */
+export const drawText = (zh, en) => en ? en + (/〔横〕/.test(zh) ? '〔横〕' : '') : zh || '';
+/** 「中文画面｜English」拆成两半：「｜」后面一个汉字都没有才算英文；横图的记号留在中文那半 */
+export const splitEn = t => { const w = /〔横〕/.test(t || '') ? '〔横〕' : '', s = flat(t).trim(), m = /^(.*?)\s*[|｜]\s*([^|｜\u3400-\u9fff]+)$/.exec(s); return m && m[1] && /[a-z]/i.test(m[2]) ? [m[1].trim() + w, m[2].trim()] : [s + w, '']; };
 const noOne = p => /\bno (humans?|people)\b/i.test(p);
 /** ref：照着这张图改（dataURL），不传就是用文字生图 */
 /** 画的是某个人：加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
@@ -506,7 +510,7 @@ const noOne = p => /\bno (humans?|people)\b/i.test(p);
  *  英文标签里写明没有人（no humans：风景、吃的、东西），或要英文的渠道只拿到中文，就不加外貌、不带参考图，免得画蛋糕冒出个人；
  *  认中文的渠道写成「画面里有 TA 时照这个样子画」，让模型自己看要不要用 */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
-  if (noOne(prompt) || enKind(conn) && /[\u3400-\u9fff]/.test(prompt)) return [prompt, undefined, conn];   // 要英文的渠道 AI 却只写了中文：分不清画面里有没有人，宁可不加外貌
+  if (noOne(prompt) || enKind(conn) && /[\u3400-\u9fff]/.test(flat(prompt))) return [prompt, undefined, conn];   // 要英文的渠道 AI 却只写了中文：分不清画面里有没有人，宁可不加外貌
   const can = c && c.lookRef && conn && (['openai-image', 'image-compat', 'gemini-image'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
   const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
   const look = c && c.look ? (enKind(conn) ? `${c.look}, ${prompt}` : `${prompt}（画面里有${c.remark || c.name || '这个人'}时照这个样子画：${c.look}）`) : prompt;
@@ -542,7 +546,8 @@ function imgPrompt(conn, prompt) {
 }
 /** 一次生图记成日志里的一条调用 */
 async function imageOnce(prompt, app, conn, stop, ref) {
-  prompt = await toEn(prompt, conn, app);
+  if (/〔横〕/.test(prompt) && !(ref && ref.image)) conn = { ...conn, img: { ...conn.img, size: sizeOf(conn).split('x').sort((a, b) => b - a).join('x') } };   // 图生图要和原图一样大，不转
+  prompt = await toEn(flat(prompt), conn, app);
   const { full, neg } = imgPrompt(conn, prompt);
   const call = startCall({ app, what: '生图', src: conn.name, model: conn.model || '', req: full + (neg ? `\n\n【负面】\n${neg}` : '') });
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });

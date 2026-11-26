@@ -4,6 +4,7 @@ import { state, commit, contact, subscribe, kvGet } from '../../core/store.js';
 import { page, group, item, field, textarea, input, avatar, icon, navBtn, navText, actionSheet, dialog, toast, empty, btn, sheet, pickImage, switchEl, waiting } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
+import { flat } from '../../core/api.js';
 import { nameOf, who, genMoments, genComments, relinkMoments } from './engine.js';
 import { myNick, myAvatar } from '../../core/promptstore.js';
 import { liveTr, myOut } from '../../core/translate.js';
@@ -51,7 +52,7 @@ const PK = new Map();
 function card(m, redraw) {
   const one = u => h('div.as-chat-moment__imgs.is-one', h('img', { src: u, alt: '', loading: 'lazy' }));
   const imgs = (m.images || []).length ? h('div.as-chat-moment__imgs' + (m.images.length === 1 ? '.is-one' : ''), m.images.map(src => h('img', { src, alt: '', loading: 'lazy' }))) : PK.get(m.pk) ? one(PK.get(m.pk)) : null;
-  const desc = m.imageDesc && !imgs ? h('div.as-chat-imgdesc', icon('image', 16, 1.8), h('span', m.imageDesc)) : null;
+  const desc = m.imageDesc && !imgs ? h('div.as-chat-imgdesc', icon('image', 16, 1.8), h('span', flat(m.imageDesc))) : null;
   if (m.pk && !imgs) kvGet(m.pk).then(u => { if (u) { PK.set(m.pk, u); desc.replaceWith(one(u)); } }, () => {});
   const ops = h('button.as-chat-moment__ops', { 'aria-label': '操作', onclick: e => { e.stopPropagation(); opbar(ops, m, redraw); } }, '··');
   const box = (m.likes.length || m.comments.length) ? h('div.as-chat-moment__box',

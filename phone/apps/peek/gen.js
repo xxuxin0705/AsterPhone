@@ -4,7 +4,7 @@ import { h, shortTime } from '../../core/util.js';
 import { state, commit, kvGet, kvSet, kvDel, kvKeys, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { langFor, langName, translate, zhOf } from '../../core/translate.js';
-import { generate, resolveConn, withModel, enKind } from '../../core/api.js';
+import { generate, resolveConn, withModel, enKind, flat } from '../../core/api.js';
 import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js';
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
@@ -39,7 +39,7 @@ export const FORMS = {
   论坛: '＃树洞｜※{{char}} 在论坛树洞里匿名发的心事（一两句到一小段，不点名）\n（写 2～4 条）',
   音乐: '＃资料｜粉丝数（只写数字）｜等级（1～10）｜一共听了多少小时（只写数字）\n＃关注｜关注的歌手（用顿号隔开）\n（这两行各写一行就够）',
   屏幕使用时间: '应用名｜今天用了多少分钟（只写数字）\n（写 6～8 个，从多到少）',
-  相册: `＃图库｜这张照片拍的是什么（一句话写清画面）｜几天前几点拍的（写「天数 时:分」，天数今天是 0）｜地点｜从哪来（相机拍的写「相机」，截屏写「截屏」，别的 App 里存下来的写那个 App 的名字）
+  相册: `＃图库｜这张照片拍的是什么（一句话写清画面；横着拍的在最后加「〔横〕」）｜几天前几点拍的（写「天数 时:分」，天数今天是 0）｜地点｜从哪来（相机拍的写「相机」，截屏写「截屏」，别的 App 里存下来的写那个 App 的名字）
 ＃隐藏｜画面｜几天前几点｜地点（不想被人看到的，有才写）
 ＃删除｜画面｜几天前几点｜为什么删（最近删掉的，有才写）`,
   AI: `哪个 AI｜※这次对话的标题｜这句谁说的（自己 / AI）｜※内容
@@ -80,8 +80,8 @@ export const DT = /(\d{4})[/.\-年](\d{1,2})[/.\-月](\d{1,2})日?(?:\s*(\d{1,2}
 // 相册也不整份换掉：新拍的加进来，旧的都留着（同一个画面的换成新的）；最多 100 张，超了从最旧的、还没画过的扔起，画过的不扔（你自己删才删）。
 // 「最近删除」里 TA 自己删的照片每次换成这次写的；你在最近删除里再删的，连图一起真删掉；存着的图对不上哪一张了（以前整份换掉时留下的），也删掉
 async function keepPics(c, d, add) {
-  const gone = new Set((d.hide || []).filter(k => k.startsWith('相册删:')).map(k => k.slice(4))), fresh = new Set(add.map(r => r[1]));
-  let all = [...add, ...(d.apps.相册?.rows || []).filter(r => r[0] !== '删除' && !fresh.has(r[1]) && !gone.has(r[1]))];
+  const gone = new Set((d.hide || []).filter(k => k.startsWith('相册删:')).map(k => k.slice(4))), fresh = new Set(add.map(r => flat(r[1])));
+  let all = [...add, ...(d.apps.相册?.rows || []).filter(r => r[0] !== '删除' && !fresh.has(flat(r[1])) && !gone.has(flat(r[1])))];
   const keys = (await kvKeys().catch(() => [])).filter(k => String(k).startsWith(`peekpic:${c.id}:`)), have = new Set(keys);
   const over = all.filter(r => r[0] !== '删除').length - 100;
   if (over > 0) { const drop = new Set(all.filter(r => r[0] !== '删除' && !have.has(picKey(c.id, r[1]))).sort((a, b) => ts(a[2]) - ts(b[2])).slice(0, over)); all = all.filter(r => !drop.has(r)); }

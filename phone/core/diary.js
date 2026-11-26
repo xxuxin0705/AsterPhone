@@ -3,7 +3,7 @@
 // 日记从两处来：① 正文里的 <asterdiary> 暗号（core/sync.js 读到交给 fromStory，不另外花钱）；② 手动「写一篇」（write）。
 import { state, win, kvGet, kvSet, commit, contact, chatForContact, getMsgs } from './store.js';
 import { uid, pad } from './util.js';
-import { generate, generateImage, resolveConn, lookOf } from './api.js';
+import { generate, generateImage, resolveConn, lookOf, drawText } from './api.js';
 import { compose, myName } from './promptstore.js';
 import { personaOf } from '../apps/chat/engine.js';
 import { C as ctxCfg, storyText, worldText } from './context.js';
@@ -82,7 +82,7 @@ export async function write(c, { events = [], floors = null, photos = [] }, stop
 
 /** 给一篇配图：用它的生图提示词（没有就用画面描述） */
 export async function draw(p, stop) {
-  const conn = resolveConn('image', 'diary'), [pr, ref, cn] = lookOf(contact(p.who), p.prompt || p.desc || p.text.slice(0, 80), conn);
+  const conn = resolveConn('image', 'diary'), [pr, ref, cn] = lookOf(contact(p.who), drawText(p.desc, p.prompt) || p.text.slice(0, 80), conn);
   const src = await generateImage(pr, '日记', cn, stop, ref);
   p.pic = src; await save();
 }

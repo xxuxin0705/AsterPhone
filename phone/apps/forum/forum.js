@@ -8,7 +8,7 @@ import * as nav from '../../core/nav.js';
 import { applyTexts } from '../../core/skin.js';
 import { addFrame, pickDeco, decoName, loadImg, deco, frameOf } from '../../core/deco.js';
 import { LANGS, langName, langFor, translate, liveTr, myOut, myLang } from '../../core/translate.js';
-import { generateImage, resolveConn } from '../../core/api.js';
+import { generateImage, resolveConn, flat, drawText } from '../../core/api.js';
 import { myName } from '../../core/promptstore.js';
 import * as time from '../../core/time.js';
 import { nameOf } from '../chat/engine.js';
@@ -206,11 +206,11 @@ function card(p, full) {
 }
 /* 配图：有图就整张显示（不裁）；只有描述时是一张卡片，点了生图（再点取消） */
 function picEl(p) {
-  if (p.pic) return h('img.as-fo-post__pic', { src: p.pic, alt: p.img || '配图', onclick: e => e.stopPropagation() });
+  if (p.pic) return h('img.as-fo-post__pic', { src: p.pic, alt: flat(p.img) || '配图', onclick: e => e.stopPropagation() });
   if (!p.img) return null;
-  return jobBtn('pic:' + p.id, () => [icon('image', 16, 1.8), h('span', p.img)], () => {
+  return jobBtn('pic:' + p.id, () => [icon('image', 16, 1.8), h('span', flat(p.img))], () => {
     const conn = resolveConn('image', 'forum'); if (!conn) { toast('还没配生图接口'); return; }
-    go('pic:' + p.id, '正在生图…', s => generateImage(p.imgEn || p.img, '论坛', conn, s)).then(async u => {
+    go('pic:' + p.id, '正在生图…', s => generateImage(drawText(p.img, p.imgEn), '论坛', conn, s)).then(async u => {
       if (!u) return;
       p.pic = u; await E.save(); if (p.pk) kvSet(p.pk, u).catch(() => {});   // 照片库里的那张（相册里的）也一起有图
       document.querySelectorAll(`[data-job="pic:${p.id}"]`).forEach(x => x.replaceWith(picEl(p)));

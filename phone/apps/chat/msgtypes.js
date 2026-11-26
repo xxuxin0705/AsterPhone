@@ -51,7 +51,7 @@ export const statusText = m => m.status === 'accepted' ? '已收下' : m.status 
 export function specialsGuide(rc) {
   const names = (state.stickers || []).map(s => s.name).filter(Boolean).slice(0, 60);
   return `【可以发的特殊消息】需要时单独占一行，用下面的格式；不需要就只发普通文字：
-${rc.voice[1] ? '[语音]要说的话\n' : ''}[图片]画面描述${imgEnRule('chat')}
+${rc.voice[1] ? '[语音]要说的话\n' : ''}[图片]画面描述（横着拍的在最后加「〔横〕」）${imgEnRule('chat')}
 ${names.length ? `[表情包]名字（只能从这些里选：${names.join('、')}）\n` : ''}[转账]金额|备注
 [红包]金额|祝福语
 [位置]地点名

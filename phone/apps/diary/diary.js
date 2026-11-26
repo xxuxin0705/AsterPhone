@@ -11,6 +11,7 @@ import * as M from '../../core/memory.js';
 import { nameOf } from '../chat/engine.js';
 import { userFonts, hanFonts } from '../../core/fonts.js';
 import { log } from '../../core/log.js';
+import { flat } from '../../core/api.js';
 
 const BASE = 'assets/diary/';
 const COVERS = ['navy', 'sky', 'linen', 'frost-blue', 'frost-pink', 'lace-blue', 'lace-pink', 'traveler'];
@@ -253,8 +254,8 @@ function openBook(c, v, p, table, gone) {
   }
   // 拍立得里面：有图放图；在生图放转圈（点一下取消）；没图写画面和提示词
   const photo = x => drawing.has(x.id) ? h('div.as-dy-photo__none', h('span.as-spin'), h('small', '在生图，点一下取消'))
-    : x.pic ? h('img.as-dy-photo__img', { src: x.pic, alt: x.desc || '配图' })
-      : h('div.as-dy-photo__none', h('p', x.desc || '还没有配图'), x.prompt ? h('small', x.prompt) : null);
+    : x.pic ? h('img.as-dy-photo__img', { src: x.pic, alt: flat(x.desc) || '配图' })
+      : h('div.as-dy-photo__none', h('p', flat(x.desc) || '还没有配图'), x.prompt ? h('small', x.prompt) : null);
   const key = x => (drawing.has(x.id) ? '~' : '') + x.pic;
   const fill = (x, ph) => { ph._k = key(x); const nw = photo(x), im = nw.tagName === 'IMG' ? nw : null; (im ? im.decode().catch(() => {}) : Promise.resolve()).then(() => ph.firstChild.replaceWith(nw)); };
   async function picMenu(x, ph) {

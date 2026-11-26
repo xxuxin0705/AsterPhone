@@ -5,7 +5,7 @@ import { page, group, item, icon, avatar, actionSheet, dialog, toast, btn, empty
 import * as nav from '../../core/nav.js';
 import * as time from '../../core/time.js';
 import { renderBadges } from '../home/home.js';
-import { generateImage, lookOf, resolveConn, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
+import { generateImage, lookOf, resolveConn, flat, drawText, stopSpeak, connOfTag, tagOf, keysOf, transcribe, listen } from '../../core/api.js';
 import { speakAs, soonAs } from '../../core/voice.js';
 import * as E from './engine.js';
 import { shell } from '../../core/shell.js';
@@ -38,18 +38,18 @@ export function buildBubble(m, ctx) {
       return el;
     }
     case 'image': {
-      if (m.src) return h('div.as-chat-bubble.as-chat-pic', quote, h('img', { src: m.src, alt: m.text || '图片', loading: 'lazy', onclick: () => viewImage(m.src, m.text), onerror: broken }));
+      if (m.src) return h('div.as-chat-bubble.as-chat-pic', quote, h('img', { src: m.src, alt: flat(m.text) || '图片', loading: 'lazy', onclick: () => viewImage(m.src, flat(m.text)), onerror: broken }));
       const idle = () => gen.replaceChildren(icon('sparkle', 14, 2), '生图');
       const gen = h('button.as-chat-imgcard__gen', { onclick: async e => {
         e.stopPropagation();
         if (drawing.has(m.id)) { drawing.get(m.id).abort(); return; }
         const ac = new AbortController(); drawing.set(m.id, ac); gen.replaceChildren(h('i.as-spin'), ' 取消');
-        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? state.me : contact(m.who || (ctx.c && ctx.c.id)), m.en || m.text || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); if (m.pk) kvSet(m.pk, m.src).catch(() => {}); ctx.redraw(true); }
+        try { const conn = resolveConn('image', 'chat'), [pr, ref, cn] = lookOf(mine ? state.me : contact(m.who || (ctx.c && ctx.c.id)), drawText(m.text, m.en) || '一张生活照', conn); m.src = await generateImage(pr, '聊天', cn, ac.signal, ref); saveMsgs(ctx.chat.id); if (m.pk) kvSet(m.pk, m.src).catch(() => {}); ctx.redraw(true); }
         catch (err) { toast(ac.signal.aborted ? '已取消' : err.message); idle(); }
         drawing.delete(m.id);
       } });
       if (drawing.has(m.id)) gen.replaceChildren(h('i.as-spin'), ' 取消'); else idle();
-      return h('div.as-chat-bubble.as-chat-imgcard', quote, h('div.as-chat-imgcard__art', icon('image', 26, 1.5)), h('div.as-chat-imgcard__desc', m.text || '一张图片'), gen);
+      return h('div.as-chat-bubble.as-chat-imgcard', quote, h('div.as-chat-imgcard__art', icon('image', 26, 1.5)), h('div.as-chat-imgcard__desc', flat(m.text) || '一张图片'), gen);
     }
     case 'sticker':
       return h('div.as-chat-bubble.as-chat-sticker', h('img', { src: m.src || (state.stickers.find(s => s.id === m.sid) || {}).src || '', alt: m.name || '表情', onerror: broken }));
