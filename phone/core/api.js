@@ -532,10 +532,13 @@ export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
     return imageOnce(prompt, app, bk, stop, ref);
   }
 }
+// 有负面提示词那一格的渠道，没填就带这串通用的（画风方案里能改）；GPT、Gemini 这种用话说的不带
+export const NEG = 'lowres, worst quality, bad quality, bad anatomy, bad hands, extra digits, fewer digits, jpeg artifacts, blurry, watermark, signature, username';
+export const hasNeg = t => ['novelai', 'sd-webui', 'comfyui', 'siliconflow'].includes(t);
 /** 真正发出去的正面 / 负面提示词：画师串 + 质量词 + 这次的画面 */
 function imgPrompt(conn, prompt) {
   const I = conn.img || {}, quality = I.quality ?? (conn.type === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '');
-  return { full: [I.tags, quality, prompt].filter(Boolean).join(', '), neg: I.neg || '' };
+  return { full: [I.tags, quality, prompt].filter(Boolean).join(', '), neg: I.neg || (hasNeg(conn.type) ? NEG : '') };
 }
 /** 一次生图记成日志里的一条调用 */
 async function imageOnce(prompt, app, conn, stop, ref) {

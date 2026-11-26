@@ -7,7 +7,7 @@ import { h, uid } from '../../core/util.js';
 import { state, commit, subscribe } from '../../core/store.js';
 import { page, navBtn, busy, toast, actionSheet, dialog, sheet, icon, input, textarea, segmented, slider, switchEl, avatar, wheelField } from '../../core/ui.js';
 import * as nav from '../../core/nav.js';
-import { CHANNELS, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, testStt, rerank, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
+import { CHANNELS, NEG, hasNeg, tagOf, auxKey, SAMPLERS, listSamplers, failCfg, testLive, testCompat, testConn, testImage, testVoice, testEmbed, testStt, rerank, listModels, keysOf, syncTavernProfiles, profInfo } from '../../core/api.js';
 import { tavernProfiles } from '../../core/bridge.js';
 import { shell } from '../../core/shell.js';
 import { AsciiOcean } from './ocean.js';
@@ -977,7 +977,7 @@ export function openDetail(orig, kind, isNew, { status = {}, tileOf = () => null
         ...(t === 'novelai' ? [row('噪声调度', segmented([['karras', 'karras'], ['exponential', 'exponential'], ['polyexponential', 'polyexp']], I.noise || 'karras', v => { I.noise = v; touch(); })),
           row('引导重缩放', num('rescale', '0'), 'CFG 调高以后颜色太浓、太假时往上调一点，0.2 左右就够。')] : []),
         ...(t !== 'siliconflow' ? [row('画师串', txt('tags', '画师串')), row('正面质量词', txt('quality', t === 'novelai' ? 'masterpiece, best quality, very aesthetic' : '自动加在每次提示词前面'))] : []),
-        ...(t !== 'pollinations' ? [row('负面提示词', txt('neg', '负面提示词'))] : []),
+        ...(t !== 'pollinations' ? [row('负面提示词', txt('neg', hasNeg(t) ? NEG : '负面提示词'), hasNeg(t) ? '空着就用框里这串通用的。' : '')] : []),
         ...(t === 'comfyui' ? [row('自定义工作流（可空）', txt('workflow', 'ComfyUI「导出 (API)」的 JSON。占位符：%prompt% %negative_prompt% %seed% %width% %height% %steps% %scale% %sampler% %model%', 5))] : []));
     }));
     if (kind === 'tts') groups.push(fold('声音', 'mic', () => `${d.tts.voice || '默认音色'} · ${d.tts.speed}x`, (b, re) => {
