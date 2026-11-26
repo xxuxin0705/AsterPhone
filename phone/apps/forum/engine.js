@@ -2,7 +2,7 @@
 // 两种调用：刷一批帖（forumFeed）、出楼层（forumThread），点一下只调一次
 import { uid } from '../../core/util.js';
 import { state, win, kvGet, kvSet, commit, contact, chatForContact, friends, nickOf } from '../../core/store.js';
-import { generate, resolveConn } from '../../core/api.js';
+import { generate, resolveConn, splitEn, imgEnRule } from '../../core/api.js';
 import { compose, myName, myNick, myAvatar } from '../../core/promptstore.js';
 import { storyText, C } from '../../core/context.js';
 import { langName, langFor, fillZh } from '../../core/translate.js';
@@ -150,7 +150,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
   await load();
   const st = story();
   const raw = await generate({ conn: resolveConn('text', 'forum'), system: '', app: '论坛', stop,
-    prompt: compose('forumFeed', { board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
+    prompt: compose('forumFeed', { imgen: imgEnRule('forum'), board: boardText(board), platform: platform(), count, story: st, time: time.forPrompt(),
       world: (await worldBlock(st, board === 'anon' ? [] : crowd(), '', '', false, 'forum')).world, posters: posters(board, only), pick: pick ? `\n【这次】${pick}` : '', atme: atMe(board),
       lang: langRule(board, '正文先写中文意思，下面另起一行写 [原文：原文]，两样都要有', '一条帖只用一种语言'), setup: setup(board) }) });
   const f = F(), got = [], hot = [], mine = new Set(myNames()); let cur = null, inFloors = false;
@@ -186,7 +186,7 @@ export async function feed(board, { pick = '', only = null, count = A().count ||
     if ((m = /^标题[:：]\s*(.*)$/.exec(l))) { cur.title = m[1].slice(0, 40); continue; }
     if ((m = /^小组[:：]\s*(.+)$/.exec(l))) { const g = boards().find(x => x.name === strip(m[1])); if (g && board === 'all') cur.board = g.id; continue; }
     if ((m = /^来自[:：]\s*(.+)$/.exec(l))) { cur.dev = m[1].slice(0, 16); continue; }
-    if ((m = /^[[【]\s*图片[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.img = m[1]; continue; }
+    if ((m = /^[[【]\s*图片[:：]\s*(.+?)[\]】]$/.exec(l))) { [cur.img, cur.imgEn] = splitEn(m[1]); continue; }
     if ((m = /^[[【]\s*翻译[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = m[1]; continue; }
     if ((m = /^[[【]\s*原文[:：]\s*(.+?)[\]】]$/.exec(l))) { cur.tr = cur.text.trim(); cur.text = m[1]; continue; }   // 正文写的是中文，这一行才是发出来的原文
     if ((m = /^数据[:：](.*)$/.exec(l))) { cur.likes = num((/赞\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.cmts = num((/评\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); cur.reposts = num((/转\s*([\d.]+\s*[万wWkK]?)/.exec(m[1]) || [])[1]); continue; }

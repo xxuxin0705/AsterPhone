@@ -4,7 +4,7 @@ import { h, shortTime } from '../../core/util.js';
 import { state, commit, kvGet, kvSet, friends, contact, getMsgs, chatForContact, win } from '../../core/store.js';
 import { sheet, toast, waiting } from '../../core/ui.js';
 import { langFor, langName, translate, zhOf } from '../../core/translate.js';
-import { generate, resolveConn, withModel } from '../../core/api.js';
+import { generate, resolveConn, withModel, enKind } from '../../core/api.js';
 import { compose, myName, myPersona, myAvatar } from '../../core/promptstore.js';
 import { storyText, worldText } from '../../core/context.js';
 import * as time from '../../core/time.js';
@@ -45,7 +45,9 @@ export const FORMS = {
 （「哪个 AI」只能是 Claude、GPT、Gemini、豆包、DeepSeek；{{char}} 会用的才写，每个用到的写 1～2 次对话、每次 4～8 句，同一次对话的挨着写；问的是 {{char}} 真会拿去问 AI 的事，可以和最近发生的事有关；AI 回答完 {{char}} 可以有反应。
 五个 AI 说话不一样：Claude 客气谨慎、爱先说清楚前提；GPT 喜欢分点列条、末尾问要不要继续；Gemini 嘴甜爱夸人；豆包也爱夸人，热情但常常答不到点上；DeepSeek 先想一大段再答，偶尔想太多。）`,
 };
-const form = (n, c, l) => FORMS[n].replace(/＃/g, '').replace(/※([^｜\n]*)/g, (_, x) => /^zh/.test(l) ? x : `${x}〔写成：中文意思[原文：${langName(l)}原文]〕`).replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName());
+// 相册：接的生图只认英文（NovelAI、本地 SD 这些）时，图库每张多一格英文，点「画出来」直接用；认中文的不多写
+const EN_COL = { tags: '英文生图标签（逗号隔开的短词：先写画面里有谁，没有人就以 no humans 开头再写 scenery 或 still life；再写东西、地点、构图、光线）', en: '英文画面描述（一两句英文；没有人就写 no humans）' };
+const form = (n, c, l) => FORMS[n].replace(/^(＃图库｜.*)$/m, x => (n === '相册' && EN_COL[enKind(resolveConn('image', 'peek'))] ? x + '｜' + EN_COL[enKind(resolveConn('image', 'peek'))] : x)).replace(/＃/g, '').replace(/※([^｜\n]*)/g, (_, x) => /^zh/.test(l) ? x : `${x}〔写成：中文意思[原文：${langName(l)}原文]〕`).replace(/\{\{char\}\}/g, c.name || nameOf(c)).replace(/\{\{user\}\}/g, myName());
 const TRC = Object.fromEntries(Object.entries(FORMS).map(([n, t]) => [n, t.split('\n').filter(L => L.includes('｜') && L[0] !== '（').map(L => { const C = L.split('｜'); return [C[0][0] === '＃' ? C[0].slice(1) : '', C.flatMap((x, i) => x[0] === '※' ? [i] : [])]; })]));
 const trCols = (n, r) => ((TRC[n] || []).find(L => L[0] === r[0]) || (TRC[n] || []).find(L => !L[0]) || ['', []])[1];
 // 你和 TA 真在共用的备忘录（你的备忘录 App 里的）：给 AI 看，TA 想接一句就写一行同标题的「共用」，生成完真添进去（make 里）

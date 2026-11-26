@@ -1,6 +1,7 @@
 // 特殊消息：语音、图片、表情包、转账、红包、位置、通话、名片。
 // 这里管三件事：① 在列表 / 通知里显示成什么 ② 写给 AI 看的样子 ③ 从 AI 的回复里认出来
 import { state } from '../../core/store.js';
+import { imgEnRule, splitEn } from '../../core/api.js';
 
 export const TYPE_LABEL = {
   text: '文字', voice: '语音', image: '图片', sticker: '表情包', transfer: '转账', packet: '红包',
@@ -50,7 +51,7 @@ export const statusText = m => m.status === 'accepted' ? '已收下' : m.status 
 export function specialsGuide(rc) {
   const names = (state.stickers || []).map(s => s.name).filter(Boolean).slice(0, 60);
   return `【可以发的特殊消息】需要时单独占一行，用下面的格式；不需要就只发普通文字：
-${rc.voice[1] ? '[语音]要说的话\n' : ''}[图片]画面描述
+${rc.voice[1] ? '[语音]要说的话\n' : ''}[图片]画面描述${imgEnRule('chat')}
 ${names.length ? `[表情包]名字（只能从这些里选：${names.join('、')}）\n` : ''}[转账]金额|备注
 [红包]金额|祝福语
 [位置]地点名
@@ -72,7 +73,7 @@ export function parseLine(line) {
   const num = parseFloat(String(a).replace(/[^\d.]/g, '')) || 0;
   switch (kind) {
     case '语音': return { type: 'voice', text: rest || '……', dur: voiceDur(rest) };
-    case '图片': case '照片': return IMG_URL.test(rest) ? { type: 'image', src: rest, text: '' } : { type: 'image', text: rest };
+    case '图片': case '照片': { if (IMG_URL.test(rest)) return { type: 'image', src: rest, text: '' }; const [zh, en] = splitEn(rest); return { type: 'image', text: zh, ...(en && { en }) }; }   // en：AI 顺手写的英文生图提示词
     case '表情': case '表情包': {
       const st = (state.stickers || []).find(s => s.name === rest) || (state.stickers || []).find(s => rest && s.name.includes(rest));
       return st ? { type: 'sticker', name: st.name, src: st.src, sid: st.id } : { type: 'text', text: rest ? `[${rest}]` : '' };

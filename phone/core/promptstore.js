@@ -5,6 +5,7 @@ import { state, commit } from './store.js';
 import { DEFAULT_PROMPTS, PROMPT_CATS, VAR_INFO, fill } from './prompts.js';
 export { VAR_INFO };
 import { uid } from './util.js';
+import { imgEnRule } from './api.js';
 import { userName as tavernUser, userPersona as tavernPersona, userAvatar as tavernAvatar } from './bridge.js';
 
 export { PROMPT_CATS, fill };
@@ -44,7 +45,7 @@ export function newBlock(cat, sid) { const b = { id: uid('p_'), name: '新提示
 export function saveBlock(cat, sid, id, patch) { Object.assign(bl(cat, sid).find(b => b.id === id), patch); commit('prompts'); }
 export function removeBlock(cat, sid, id) { schemeOf(cat, sid).blocks = bl(cat, sid).filter(b => b.id !== id); commit('prompts'); }
 
-const baseVars = () => ({ user: myName(), tag: state.timeTagName || 'astertime' });
+const baseVars = () => ({ user: myName(), tag: state.timeTagName || 'astertime', imgen: imgEnRule() });
 /** 把正在用的方案里打开的条拼起来 */
 export function compose(cat, vars = {}, sid) {
   return blocksIn(cat, sid).filter(b => b.on).map(b => fill(b.text, { ...baseVars(), ...vars }).trim()).filter(Boolean).join('\n\n');

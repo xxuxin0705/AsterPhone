@@ -485,13 +485,39 @@ function imageInReply(j) {
   const hit = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(text) || /(data:image\/[\w+]+;base64,[\w+/=]+)/.exec(text) || /(https?:\/\/\S+?\.(?:png|jpe?g|webp|gif)(?:\?\S*)?)(?=[\s)"']|$)/i.exec(text);
   return hit ? hit[1] : '';
 }
+/* 生图提示词用哪种话：NovelAI / SD / ComfyUI 只认英文标签（tags）；硅基流动的 FLUX、SD3 这类认英文句子（en）；
+ * GPT、Gemini、可图、通义这些中文也看得懂（''，照发中文，原话最准） */
+export const enKind = conn => !conn ? '' : ['novelai', 'sd-webui', 'comfyui'].includes(conn.type) ? 'tags'
+  : conn.type === 'siliconflow' && !/kolors|qwen|hunyuan|cogview|seedream|wan/i.test(conn.model || '') ? 'en' : '';
+/** 接的生图要英文时，教 AI 在画面描述后面顺手写英文（本来就要回话，不多一次调用）；认中文的一个字不多写 */
+export const imgEnRule = (app = 'chat') => ({
+  tags: '（画面后面用「｜」接这张图的英文生图标签：逗号隔开的短词，先写画面里有谁——没有人就以 no humans 开头、再写 scenery 或 still life——再写外貌动作、地点环境、构图光线）',
+  en: '（画面后面用「｜」接这张图的英文描述：一两句英文，写清画的是什么、在哪、构图和光线；画面里没有人就写 no humans）',
+})[enKind(resolveConn('image', app))] || '';
+/** 「中文画面｜English」拆成两半：「｜」后面一个汉字都没有才算英文 */
+export const splitEn = t => { const s = String(t || '').trim(), m = /^(.*?)\s*[|｜]\s*([^|｜\u3400-\u9fff]+)$/.exec(s); return m && m[1] && /[a-z]/i.test(m[2]) ? [m[1].trim(), m[2].trim()] : [s, '']; };
+const noOne = p => /\bno (humans?|people)\b/i.test(p);
 /** ref：照着这张图改（dataURL），不传就是用文字生图 */
-/** 画的是某个人：前面加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
- *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子） */
+/** 画的是某个人：加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
+ *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子）。
+ *  英文标签里写明没有人（no humans：风景、吃的、东西）就不加外貌、不带参考图，免得画蛋糕冒出个人；
+ *  认中文的渠道写成「画面里有 TA 时照这个样子画」，让模型自己看要不要用 */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
+  if (noOne(prompt)) return [prompt, undefined, conn];
   const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
   const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
-  return [c && c.look ? `${c.look}. ${prompt}` : prompt, can ? c.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
+  const look = c && c.look ? (enKind(conn) ? `${c.look}, ${prompt}` : `${prompt}（画面里有${c.remark || c.name || '这个人'}时照这个样子画：${c.look}）`) : prompt;
+  return [look, can ? c.lookRef : undefined, conn && Object.keys(img).length ? { ...conn, img: { ...conn.img, ...img } } : conn];
+}
+/** 要英文的生图线，画面里还剩中文（以前存的描述、角色外貌、自己手写的）：用免费翻译换成英文，同一段只翻一次；翻不了照原样发，日志里记一条 */
+const enDone = new Map();
+async function toEn(prompt, conn, app) {
+  if (!enKind(conn) || !/[\u3400-\u9fff]/.test(prompt)) return prompt;
+  if (enDone.has(prompt)) return enDone.get(prompt);
+  const t = await import('./translate.js').then(T => T.translate(prompt, 'en')).catch(e => ({ e }));
+  if (typeof t === 'string' && t.trim() && !/[\u3400-\u9fff]/.test(t)) { enDone.set(prompt, t.trim()); return t.trim(); }
+  note('warn', app, '生图提示词里的中文没翻成英文，照原样发了', `原文：${prompt}\n${t && t.e ? '翻译出错：' + t.e.message : '翻出来还带中文：' + t}`);
+  return prompt;
 }
 export async function generateImage(prompt, app = '聊天', connIn, stop, ref) {
   const conn = connIn || resolveConn('image', 'chat');
@@ -510,6 +536,7 @@ function imgPrompt(conn, prompt) {
 }
 /** 一次生图记成日志里的一条调用 */
 async function imageOnce(prompt, app, conn, stop, ref) {
+  prompt = await toEn(prompt, conn, app);
   const { full, neg } = imgPrompt(conn, prompt);
   const call = startCall({ app, what: '生图', src: conn.name, model: conn.model || '', req: full + (neg ? `\n\n【负面】\n${neg}` : '') });
   stop && stop.addEventListener('abort', () => abortCall(call.id), { once: true });

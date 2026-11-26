@@ -210,7 +210,7 @@ function picEl(p) {
   if (!p.img) return null;
   return jobBtn('pic:' + p.id, () => [icon('image', 16, 1.8), h('span', p.img)], () => {
     const conn = resolveConn('image', 'forum'); if (!conn) { toast('还没配生图接口'); return; }
-    go('pic:' + p.id, '正在生图…', s => generateImage(p.img, '论坛', conn, s)).then(async u => {
+    go('pic:' + p.id, '正在生图…', s => generateImage(p.imgEn || p.img, '论坛', conn, s)).then(async u => {
       if (!u) return;
       p.pic = u; await E.save();
       document.querySelectorAll(`[data-job="pic:${p.id}"]`).forEach(x => x.replaceWith(picEl(p)));

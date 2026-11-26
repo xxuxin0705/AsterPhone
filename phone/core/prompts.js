@@ -7,6 +7,7 @@
 
 /** 每个变量是什么（编辑提示词时标题旁边的小 i 里列出来） */
 export const VAR_INFO = {
+  imgen: '接的生图只认英文时（NovelAI、本地 SD 这些），教 AI 在画面后面接英文提示词；认中文的生图这里是空的',
   char: '角色的名字', user: '你的名字', persona: '角色的人设', user_persona: '你的人设', world: '世界书里和现在有关的内容，加上岁岁砂里 TA 记得的事（没有就是空的）', memory: '岁岁砂里 TA 这会儿想起的事（每次不一样，放在后面；提示词里没写它的话，会放进 {{world}}）', lines: '岁岁砂里已经有的故事线',
   who: '回私信的是谁（网名、人设）', me: '我在论坛上叫什么',
   story: '正文里最近发生的事', time: '现在的剧情时间', history: '手机里最近的聊天记录', min: '一次最少回几条', max: '一次最多回几条', last: '你刚发的那几条（引号括起来）', voice: '这次发几条语音', posters: '这次能发动态的人和各自的人设', lang: '谁说外语：用自己的语言写、后面附中文（按各人私聊里「TA 说的语言」自动填，都说中文就是空的）；也指：角色讲故事用的语言', pick: '这次一定要发 / 只能由谁发（自动填，没选人就是空的）',
@@ -53,12 +54,12 @@ export const PROMPT_CATS = [
   { app: '幕间', items: [{ id: 'intCards', name: '车卡', vars: ['story', 'memory', 'scenario', 'notice', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intMeet', name: '车卡会', vars: ['user', 'kp', 'mood', 'story', 'memory', 'scenario', 'roster', 'mode', 'jobs', 'skills'] }, { id: 'intStart', name: '开局', vars: ['user', 'kp', 'mood', 'know', 'story', 'memory', 'cast', 'pc', 'rels', 'scenario', 'meet', 'places', 'run'] },
     { id: 'intRound', name: '一回合', vars: ['user', 'kp', 'mood', 'know', 'title', 'secret', 'acts', 'actNo', 'act', 'goal', 'exit', 'left', 'must', 'checks', 'foes', 'fight', 'pc', 'cast', 'rels', 'log', 'input', 'places'] },
     { id: 'intReview', name: '复盘会', vars: ['user', 'kp', 'mood', 'title', 'ending', 'secret', 'acts', 'pc', 'cast', 'players', 'rels', 'log'] }] },
-  { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup'] },
+  { app: '论坛', items: [{ id: 'forumFeed', name: '刷帖子', vars: ['board', 'platform', 'count', 'posters', 'pick', 'atme', 'user', 'world', 'story', 'time', 'lang', 'setup', 'imgen'] },
     { id: 'forumThread', name: '出评论', vars: ['thread', 'platform', 'count', 'people', 'focus', 'atme', 'likes', 'user', 'world', 'story', 'time', 'lang'] },
     { id: 'forumDm', name: '回私信', vars: ['who', 'me', 'platform', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
   { app: '短信', items: [{ id: 'smsReply', name: '回短信', vars: ['who', 'user', 'world', 'story', 'time', 'history', 'lang'] }] },
   { app: '查手机', items: [{ id: 'peek', name: '手机里的内容', vars: ['char', 'user', 'persona', 'user_persona', 'world', 'story', 'history', 'time', 'people', 'count', 'apps', 'lang'] }] },
-  { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag'] },
+  { app: '正文', items: [{ id: 'tag', name: '暗号', vars: ['user', 'tag', 'imgen'] },
     { id: 'songEvery', name: '随剧情加歌 · 每楼都加', vars: ['user', 'lists'] }, { id: 'songMaybe', name: '随剧情加歌 · 想到才加', vars: ['user', 'lists'] }] },
 ];
 
@@ -116,7 +117,7 @@ export const DEFAULT_PROMPTS = {
   timeTag: { name: '时间标签', cats: ['tag'], on: true,
     text: '在每次回复的最后另起一行，用 <{{tag}}>YYYY年M月D日 · 地点 · HH:MM</{{tag}}> 写出故事此刻的日期、所在地点和时间（24 小时制）。故事没写明年份或日期时，按剧情合理推定，并且前后保持一致。这一行不属于正文，不要解释它。' },
   msgTag: { name: '正文消息标签', cats: ['tag'], on: true,
-    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[电话]、[语音通话] 或 [视频通话]（打电话过来，后面接着写 {{user}} 没接时 TA 留的言，不留就不写；写了视频就是视频通话，正文明写用聊天软件打的是语音通话，其余都是电话）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；把 {{user}} 删了 type="删好友"、拉黑 type="拉黑"、解除拉黑 type="取消拉黑"（内容空着）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）；叫 {{user}} 一起听歌 type="一起听"（内容写 歌名 - 歌手）。\n给 {{user}} 发短信 type="短信"：from 写发件人（认识的人写名字，不认识的写号码），一行一条；不是用中文发的写成「中文意思[原文：原文]」。除了人发的，也可以偶尔来一条正文里没写的验证码、快递、银行、广告或垃圾短信。' },
+    text: '如果正文里有角色在手机上和 {{user}} 互动，在回复最后另起一行留暗号，没有就不写。\n<asterphone from="角色名">内容</asterphone>：一个人一个标签，一行一条。普通消息直接写；其他写法：[语音] 说的话、[图片] 画面{{imgen}}、[表情包] 名字、[位置] 地点、[名片] 被推的人的名字、[转账] 金额 | 备注、[红包] 金额 | 祝福语、[拍一拍]、[收下] 或 [退还]（收了 / 退了 {{user}} 的转账红包）、[撤回]（撤回刚发的一条）、[电话]、[语音通话] 或 [视频通话]（打电话过来，后面接着写 {{user}} 没接时 TA 留的言，不留就不写；写了视频就是视频通话，正文明写用聊天软件打的是语音通话，其余都是电话）。发在群里的加 group="群名"。\n另外几种加 type：发动态 type="动态"（内容是动态正文，配图写 [图片] 画面）；给 {{user}} 的动态点赞 type="点赞"、评论 type="评论"（内容是评论）；加 {{user}} 好友 type="加好友"（内容可写打招呼的话）；把 {{user}} 删了 type="删好友"、拉黑 type="拉黑"、解除拉黑 type="取消拉黑"（内容空着）；拉 {{user}} 进群 type="拉群" group="群名"（内容写群里还有谁，用、隔开）；叫 {{user}} 一起听歌 type="一起听"（内容写 歌名 - 歌手）。\n给 {{user}} 发短信 type="短信"：from 写发件人（认识的人写名字，不认识的写号码），一行一条；不是用中文发的写成「中文意思[原文：原文]」。除了人发的，也可以偶尔来一条正文里没写的验证码、快递、银行、广告或垃圾短信。' },
 
   // ---------- 聊天 App ----------
   reply: { name: '私聊回复', cats: ['dm'], on: true, main: true,
@@ -391,7 +392,7 @@ ${FORUM_STYLE}
 来自：发帖用的设备或在哪发的（像真平台上那一行小字，可以没有）
 标题：一行标题（平台不用标题就不写这行）
 正文（可以多行）
-[图片：画面描述]（想配图才写）
+[图片：画面描述]{{imgen}}（想配图才写）
 [原文：发出来的原文]（这条帖不是用中文发的才写：上面正文写中文意思，这一行写原文）
 数据：赞 数字｜评 数字｜转 数字
 评论：

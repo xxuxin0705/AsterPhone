@@ -229,7 +229,7 @@ export const VIEWS = {
   相册: (R, push, D, pop) => {
     const hid = D.hide ||= [], fav = D.fav ||= [], fx = D.fx ||= {}, key = p => '相册:' + p.what, hue = t => [...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
     const no = el => Object.assign(el, { onclick: () => toast(`这是${D.name}的手机，不可以乱动哦 (>﹏<)`) });
-    const toP = r => ({ k: r[0], what: r[1] || '', t: r[2] || '', place: r[0] === '删除' ? '' : r[3] || '', why: r[0] === '删除' ? r[3] || '' : '', src: r[4] || '' });
+    const toP = r => ({ k: r[0], what: r[1] || '', t: r[2] || '', place: r[0] === '删除' ? '' : r[3] || '', why: r[0] === '删除' ? r[3] || '' : '', src: r[4] || '', en: r[0] === '图库' && !/[\u3400-\u9fff]/.test(r[5] || '') ? r[5] || '' : '' });
     const byT = (a, b) => ts(a.t) - ts(b.t);
     const lib = () => of(R, '图库').map(toP).filter(p => !hid.includes(key(p))).sort(byT);
     const binned = () => [...of(R, '删除').map(toP), ...[...of(R, '图库'), ...of(R, '隐藏')].map(toP).filter(p => hid.includes(key(p)))].filter(p => !hid.includes('相册删:' + p.what)).sort(byT);
@@ -281,7 +281,7 @@ export const VIEWS = {
         if (!L.length) return pop(); i = Math.min(i, L.length - 1); pager.scrollLeft = i * pager.clientWidth; paint(); } }, '删除照片'));
       const trash = h('button.pk-glass.is-round', { 'aria-label': '删除', onclick: e => { e.stopPropagation(); ask.hidden = !ask.hidden; } }, icon('trash', 22, 2));
       const more = h('button.pk-glass.is-round', { 'aria-label': '更多', onclick: () => actionSheet('', [{ value: 'draw', label: '画出来' }]).then(v => v && busy(more, async s => {
-        const p = L[i], u = await generateImage(`${p.what}，手机随手拍的照片`, '查手机', resolveConn('image', 'peek'), s);
+        const p = L[i], u = await generateImage(p.en || `${p.what}，手机随手拍的照片`, '查手机', resolveConn('image', 'peek'), s);
         if (!u) return; await kvSet(picKey(p), u); PICS.set(picKey(p), u); slides[i].firstChild._show(u); strip.children[i].firstChild._show(u); again(); toast('画好了');
       }).catch(e => toast(e.message))) }, ink('more', 22, 2.8));
       const wrap = h('div.pk-ph__view', { onclick: e => { if (!ask.contains(e.target)) ask.hidden = true; } }, pager, card);
