@@ -243,7 +243,7 @@ export const VIEWS = {
       单色: [['grayscale', 1, 0]], 银色调: [['grayscale', 1, 0], ['contrast', 1.15, 1], ['brightness', 1.06, 1]], 黑白: [['grayscale', 1, 0], ['contrast', 1.5, 1]] };
     const css = e => !e ? '' : [...(FX[e.f] || []).map(([f, v, z]) => `${f}(${z + (v - z) * (e.k ?? 1)}${f === 'hue-rotate' ? 'deg' : ''})`),
       e.b ? `brightness(${1 + e.b / 200})` : '', e.c ? `contrast(${1 + e.c / 200})` : '', e.s ? `saturate(${1 + e.s / 100})` : ''].filter(Boolean).join(' ');
-    const art = (p, cls = '', e = fx[key(p)]) => { const el = h('div.pk-ph__art' + cls, { style: { '--h': hue(p.what), filter: css(e) } }, icon(glyph(p), 22, 1.6));
+    const art = (p, cls = '', e = fx[key(p)]) => { const el = h('div.pk-ph__art' + cls, { style: { '--h': hue(p.what), filter: css(e) } }, icon(glyph(p), 22, 1.6), h('span', p.what));
       const show = u => { el.style.backgroundImage = `url("${u}")`; el.classList.add('is-drawn'); };
       if (PICS.has(picKey(p))) show(PICS.get(picKey(p))); else kvGet(picKey(p)).then(u => { if (u) { PICS.set(picKey(p), u); show(u); } }, () => {});
       el._show = show; return el; };

@@ -437,13 +437,19 @@ button.pk-row { cursor: pointer; } button.pk-row:active { background: var(--pk-f
 /* 相册：照 iPhone「照片」。格子是按画面配色的渐变 + 小图标，画过的换成真图 */
 .pk-ph__art { position: relative; display: grid; place-items: center; aspect-ratio: 1; background: linear-gradient(150deg, hsl(var(--h) 45% 72%), hsl(calc(var(--h) + 40) 40% 42%)) center / cover; color: rgb(255 255 255 / .75); }
 .pk-ph__art.is-drawn { background-size: cover; } .pk-ph__art.is-drawn svg { display: none; }
+/* 还没画的照片：画面那句话写在正中间（大图里大字）；精选集的卡片、封面上照旧放小图标，缩略条、滤镜小样什么都不写 */
+.pk-ph__art > svg, .pk-ph__art.is-drawn > span { display: none; }
+.pk-ph__art > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; padding: 0 6px; font-size: 10px; font-weight: 600; line-height: 1.35; text-align: center; color: #fff; text-shadow: 0 1px 4px rgb(0 0 0 / .25); overflow-wrap: anywhere; }
+.pk-ph__art.is-big > span { -webkit-line-clamp: 12; padding: 0 28px; font-size: 17px; font-weight: 500; line-height: 1.6; text-shadow: 0 1px 10px rgb(0 0 0 / .3); }
+:is(.pk-ph__tile, .pk-ph__card, .pk-ph__cover) .pk-ph__art:not(.is-drawn) > svg { display: block; } :is(.pk-ph__tile, .pk-ph__card, .pk-ph__cover, .pk-ph__strip, .pk-ph__tools) .pk-ph__art > span { display: none; }
+.pk-ph__slide:has(> .pk-ph__art:not(.is-drawn)) > p { display: none; }   /* 大图里字已经在图上了，底下不再写一遍 */
 .pk-ph__art.is-empty { background: var(--pk-fill); color: var(--pk-sub); }
 /* 图库 / 精选集：大标题浮在照片上面（照片从标题底下滑过去，上面淡淡一层），右上角圆按钮；底下左边两个标签的玻璃条、右边搜索 */
 .pk-ph__top { align-items: flex-start; margin-bottom: -44px; }
 /* 顶上照 iPhone 是透明的：照片滑到底下（is-over）才垫一层越往下越淡的毛玻璃；图库那页垫的是暗的、字变白 */
 .is-raw .pk-top2.pk-ph__top::before { inset: 0 -24px -40px; background: linear-gradient(color-mix(in srgb, var(--pk-page) 75%, transparent), transparent);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent); opacity: 0; transition: opacity .25s; }
-.pk-ph__top.is-over::before { opacity: 1; } .is-raw .pk-top2.pk-ph__top.is-dim::before { background: linear-gradient(rgb(0 0 0 / .38), transparent); }
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); opacity: 0; transition: opacity .25s; }
+.pk-ph__top.is-over::before { opacity: 1; } .is-raw .pk-top2.pk-ph__top.is-dim::before { background: linear-gradient(rgb(0 0 0 / .45), transparent); }
 .pk-ph__title, .pk-ph__title small { transition: color .25s; } .pk-ph__top.is-dim.is-over .pk-ph__title, .pk-ph__top.is-dim.is-over .pk-ph__title small { color: #fff; text-shadow: 0 1px 10px rgb(0 0 0 / .3); }
 .pk-ph__top { view-transition-name: pkph-top; }
 /* 筛选菜单：从按钮那里长出来的玻璃 */
