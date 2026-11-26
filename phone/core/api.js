@@ -500,10 +500,10 @@ const noOne = p => /\bno (humans?|people)\b/i.test(p);
 /** ref：照着这张图改（dataURL），不传就是用文字生图 */
 /** 画的是某个人：加上映像里写的外貌；渠道能照图画（OpenAI / 第三方 / NAI 4.5）就带上 TA 的参考图；
  *  定了种子就用 TA 的种子（NAI / SD / ComfyUI / 硅基流动认，OpenAI 这类没有种子）。
- *  英文标签里写明没有人（no humans：风景、吃的、东西）就不加外貌、不带参考图，免得画蛋糕冒出个人；
+ *  英文标签里写明没有人（no humans：风景、吃的、东西），或要英文的渠道只拿到中文，就不加外貌、不带参考图，免得画蛋糕冒出个人；
  *  认中文的渠道写成「画面里有 TA 时照这个样子画」，让模型自己看要不要用 */
 export function lookOf(c, prompt, conn = resolveConn('image', 'chat')) {
-  if (noOne(prompt)) return [prompt, undefined, conn];
+  if (noOne(prompt) || enKind(conn) && /[\u3400-\u9fff]/.test(prompt)) return [prompt, undefined, conn];   // 要英文的渠道 AI 却只写了中文：分不清画面里有没有人，宁可不加外貌
   const can = c && c.lookRef && conn && (['openai-image', 'image-compat'].includes(conn.type) || (conn.type === 'novelai' && /4-5/.test(conn.model || 'nai-diffusion-4-5-full')));
   const img = { ...(c && c.seed !== undefined && { seed: c.seed }), ...(can && c.lookK != null && { refK: c.lookK }) };   // 种子、锁脸强度都是每个人自己的
   const look = c && c.look ? (enKind(conn) ? `${c.look}, ${prompt}` : `${prompt}（画面里有${c.remark || c.name || '这个人'}时照这个样子画：${c.look}）`) : prompt;
